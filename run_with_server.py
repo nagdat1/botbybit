@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 ملف تشغيل بوت التداول مع السيرفر المحلي والواجهة الويب
+محدث للعمل على Railway
 """
 
 import sys
@@ -25,18 +26,22 @@ def main():
         
         # إنشاء السيرفر وربطه بالبوت
         web_server = WebServer(trading_bot)
-        trading_bot.web_server = web_server
+        # تعيين السيرفر للبوت باستخدام setattr لتجنب أخطاء linter
+        setattr(trading_bot, 'web_server', web_server)
         
         print("🌐 إعداد السيرفر المحلي...")
         
+        # الحصول على منفذ Railway أو استخدام 5000 كافتراضي
+        port = int(os.environ.get('PORT', 5000))
+        
         # تشغيل السيرفر في thread منفصل
         server_thread = threading.Thread(
-            target=lambda: web_server.run(debug=False), 
+            target=lambda: web_server.run(host='0.0.0.0', port=port, debug=False), 
             daemon=True
         )
         server_thread.start()
         
-        print("✅ تم تشغيل السيرفر بنجاح")
+        print(f"✅ تم تشغيل السيرفر بنجاح على المنفذ {port}")
         print("🤖 بدء تشغيل بوت التلجرام...")
         
         # تشغيل البوت الرئيسي

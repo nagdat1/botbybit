@@ -1,92 +1,121 @@
-# 🤖 بوت التداول الذكي على Bybit
+# Bybit Trading Bot
 
-بوت تداول متقدم لمنصة Bybit يدعم التداول الحقيقي والتجريبي مع واجهة ويب تفاعلية وإشعارات تلجرام.
+A Telegram bot for trading on Bybit with web interface and TradingView webhook integration.
 
-## ✨ الميزات الجديدة
+## Deployment on Railway
 
-### 🌐 السيرفر المحلي والواجهة التفاعلية
-- **لوحة تحكم ويب حديثة** مع رسوم بيانية تفاعلية
-- **تحديثات مباشرة** عبر WebSocket
-- **رسوم بيانية لتتبع الرصيد** والصفقات المفتوحة
-- **إشعارات فورية** للإشارات الجديدة
+This project is configured to run on Railway. Follow these steps:
 
-### 🔗 تكامل ngrok التلقائي
-- **إعداد تلقائي لـ ngrok** بدون تدخل يدوي
-- **تحديث تلقائي للرابط** في ملف الإعدادات
-- **إشعارات تلجرام** عند تغيير الرابط
-- **رابط عام** لاستقبال إشارات TradingView
+1. Create a new Railway project
+2. Connect your GitHub repository or upload the code
+3. Set the following environment variables in Railway:
+   - `TELEGRAM_TOKEN` - Your Telegram bot token
+   - `ADMIN_USER_ID` - Your Telegram user ID
+   - `BYBIT_API_KEY` - Your Bybit API key
+   - `BYBIT_API_SECRET` - Your Bybit API secret
 
-## 🚀 التشغيل السريع
+4. Railway will automatically use the `railway.yaml` configuration file
 
-### الطريقة الأولى: التشغيل التلقائي
-```bash
-python start_bot.py
-```
+## Running locally
 
-### الطريقة الثانية: التشغيل مع السيرفر
+To run locally, you can use:
+
 ```bash
 python run_with_server.py
 ```
 
-### الطريقة التقليدية: البوت فقط
-```bash
+## Webhook URL
+
+When deployed on Railway, your webhook URL will be:
+`https://your-app-name.up.railway.app/webhook`
+
+Replace `your-app-name` with your actual Railway app name.
+
+## ✨ New Features
+
+### 🌐 Local Server and Interactive Interface
+- **Modern Web Dashboard** with interactive charts
+- **Real-time Updates** via WebSocket
+- **Balance Charts** and open orders tracking
+- **Instant Notifications** for new signals
+
+### 🔗 Automatic ngrok Integration
+- **Automatic ngrok Setup** without manual intervention
+- **Automatic URL Update** in settings file
+- **Telegram Notifications** when URL changes
+- **Public URL** for receiving TradingView signals
+
+## 🚀 Quick Start
+
+### Method 1: Auto Run
+```
+python start_bot.py
+```
+
+### Method 2: Run with Server
+```
+python run_with_server.py
+```
+
+### Traditional Method: Bot Only
+```
 python run_bot.py
 ```
 
-## 📊 الواجهة الويب
+## 📊 Web Interface
 
-بعد تشغيل البوت، ستحصل على:
-- **رابط محلي**: `http://localhost:5000`
-- **رابط عام (ngrok)**: سيظهر في التلجرام تلقائياً
+After running the bot, you will get:
+- **Local URL**: `http://localhost:5000`
+- **Public URL (ngrok)**: Will appear in Telegram automatically
 
-### المميزات في الواجهة:
-- 📈 **رسم بياني للرصيد** مع التحديثات المباشرة
-- 🔄 **الصفقات المفتوحة** مع الأرباح/الخسائر الحالية
-- 📡 **آخر الإشارات** المستقبلة من TradingView
-- 📊 **إحصائيات البوت** (معدل النجاح، عدد الصفقات)
-- 🎯 **رسم بياني للإشارات** والصفقات
+### Features in the interface:
+- 📈 **Balance Chart** with real-time updates
+- 🔄 **Open Orders** with current P&L
+- 📡 **Latest Signals** received from TradingView
+- 📊 **Bot Statistics** (win rate, number of trades)
+- 🎯 **Signal Chart** and trades
 
-## ⚙️ الإعدادات
+## ⚙️ Settings
 
-قم بتحديث ملف `config.py`:
+Update `config.py`:
 
-```python
-# إعدادات تلغرام
+```
+# Telegram Settings
 TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
 ADMIN_USER_ID = YOUR_TELEGRAM_USER_ID
 
-# إعدادات Bybit API
+# Bybit API Settings
 BYBIT_API_KEY = "YOUR_API_KEY"
 BYBIT_API_SECRET = "YOUR_API_SECRET"
 
-# إعدادات السيرفر (سيتم تحديثها تلقائياً)
+# Server Settings (will be updated automatically)
 WEBHOOK_URL = "https://your-ngrok-url.ngrok-free.app"
 WEBHOOK_PORT = 5000
 ```
 
-## 📱 أوامر البوت في تلجرام
+## 📱 Bot Commands in Telegram
 
-- **⚙️ الإعدادات**: تخصيص إعدادات التداول
-- **📊 حالة الحساب**: عرض الرصيد والإحصائيات
-- **🔄 الصفقات المفتوحة**: متابعة الصفقات الحالية
-- **▶️ تشغيل البوت**: بدء استقبال الإشارات
-- **⏹️ إيقاف البوت**: إيقاف التداول مؤقتاً
-- **📊 إحصائيات الإشارات**: عرض إحصائيات الأداء
+- **⚙️ Settings**: Customize trading settings
+- **📊 Account Status**: Display balance and statistics
+- **🔄 Open Orders**: Monitor current trades
+- **▶️ Run Bot**: Start receiving signals
+- **⏹️ Stop Bot**: Temporarily stop trading
+- **📊 Signal Statistics**: Display performance statistics
 
-## 🔔 الإشعارات التلقائية
+## 🔔 Automatic Notifications
 
-البوت يرسل إشعارات تلجرام عند:
-- 📡 استقبال إشارة جديدة
-- 💼 فتح صفقة جديدة
-- ✅ إغلاق صفقة
-- 🔄 تغيير رابط ngrok
-- ⚠️ حدوث أخطاء
+The bot sends Telegram notifications on:
+- 📡 Receiving a new signal
+- 💼 Opening a new order
+- ✅ Closing an order
+- 🔄 ngrok URL change
+- ⚠️ Errors
 
-## 📈 إعداد TradingView
+## 📈 Setting Up TradingView
 
-استخدم الرابط الذي يرسله البوت في تلجرام لإعداد webhook في TradingView:
+Use the URL sent by the bot in Telegram to set up a webhook in TradingView:
 
-```json
+```
 {
     "symbol": "{{ticker}}",
     "action": "{{strategy.order.action}}",
@@ -95,9 +124,9 @@ WEBHOOK_PORT = 5000
 }
 ```
 
-## 🔧 المتطلبات
+## 🔧 Requirements
 
-تم تحديث `requirements.txt` ليشمل:
+`requirements.txt` includes:
 ```
 python-telegram-bot==20.7
 requests==2.31.0
@@ -110,21 +139,21 @@ pandas==2.1.3
 pyngrok==7.0.0
 ```
 
-## 🛡️ الأمان
+## 🛡️ Security
 
-- جميع المفاتيح محفوظة في ملف `config.py`
-- التحقق من هوية المستخدم لأوامر تلجرام
-- حماية endpoints الحساسة
-- تشفير البيانات المرسلة
+- All keys are stored in `config.py`
+- User authentication for Telegram commands
+- Protection for sensitive endpoints
+- Data encryption for transmission
 
-## 📞 الدعم
+## 📞 Support
 
-إذا واجهت مشاكل:
-1. تأكد من صحة إعدادات API
-2. تحقق من اتصال الإنترنت
-3. راجع ملف `trading_bot.log` للأخطاء
-4. تأكد من تثبيت جميع المكتبات المطلوبة
+If you encounter issues:
+1. Verify API settings
+2. Check internet connection
+3. Review `trading_bot.log` for errors
+4. Ensure all required libraries are installed
 
 ---
 
-**ملاحظة**: البوت يدعم التداول التجريبي الداخلي والتداول الحقيقي. ابدأ دائماً بالوضع التجريبي لاختبار الإعدادات. 
+**Note**: The bot supports internal paper trading and real trading. Always start with the paper trading mode to test settings.

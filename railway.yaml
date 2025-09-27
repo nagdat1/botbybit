@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: bybit-trading-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_with_server.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: WEBHOOK_PORT
+        value: $PORT
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: ADMIN_USER_ID
+        sync: false
+      - key: BYBIT_API_KEY
+        sync: false
+      - key: BYBIT_API_SECRET
+        sync: false

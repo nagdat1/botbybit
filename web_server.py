@@ -219,16 +219,20 @@ class WebServer:
         self.socketio.emit('trade_update', trade_data)
     
     def setup_webhook_url(self):
-        """إعداد رابط Webhook (على Render سيتم استخدام الرابط المقدم)"""
+        """إعداد رابط Webhook (على Railway سيتم استخدام الرابط المقدم)"""
         try:
-            # على Render، سيتم استخدام الرابط المقدم من المتغيرات البيئية
-            # أو يمكن إنشاؤه بناءً على اسم الخدمة
+            # على Railway، سيتم استخدام الرابط المقدم من المتغيرات البيئية
+            railway_url = os.getenv('RAILWAY_PUBLIC_URL')
             render_url = os.getenv('RENDER_EXTERNAL_URL')
-            if render_url:
+            
+            if railway_url:
+                self.current_url = f"{railway_url}/webhook"
+            elif render_url:
                 self.current_url = f"{render_url}/webhook"
             else:
                 # استخدام الرابط المحلي للاختبار
-                self.current_url = f"http://localhost:{WEBHOOK_PORT}/webhook"
+                port = os.environ.get('PORT', WEBHOOK_PORT)
+                self.current_url = f"http://localhost:{port}/webhook"
             
             print(f"🌐 تم إعداد رابط Webhook: {self.current_url}")
             
@@ -239,7 +243,8 @@ class WebServer:
             
         except Exception as e:
             print(f"❌ خطأ في إعداد رابط Webhook: {e}")
-            local_url = f"http://localhost:{WEBHOOK_PORT}/webhook"
+            port = os.environ.get('PORT', WEBHOOK_PORT)
+            local_url = f"http://localhost:{port}/webhook"
             self.send_startup_notification(local_url)
             return local_url
 
@@ -362,7 +367,8 @@ class WebServer:
     def run(self, host='0.0.0.0', port=None, debug=False):
         """ تشغيل السيرفر"""
         if port is None:
-            port = WEBHOOK_PORT
+            # استخدام منفذ Railway إذا كان متاحاً، وإلا استخدام 5000 كافتراضي
+            port = int(os.environ.get('PORT', WEBHOOK_PORT))
         
         # إعداد رابط Webhook
         webhook_url = self.setup_webhook_url()
