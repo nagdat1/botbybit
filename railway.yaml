@@ -1,9 +1,11 @@
 services:
   - name: bybit-trading-bot
     runtime: python
-    startCommand: python app.py
+    startCommand: python main.py
     envVars:
       - key: PORT
+        value: "8080"
+      - key: WEBHOOK_PORT
         value: "5000"
       - key: PYTHONUNBUFFERED
         value: "1"
@@ -12,8 +14,6 @@ services:
       - key: ADMIN_USER_ID
         sync: false
       - key: BYBIT_API_KEY
-        sync: ture
+        sync: false
       - key: BYBIT_API_SECRET
         sync: false
-      - key: WEBHOOK_PORT
-        value: "5000"
