@@ -17,12 +17,17 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 def main():
     """الدالة الرئيسية لتشغيل البوت والسيرفر"""
     try:
+        print("🚀 بدء تشغيل بوت التداول مع السيرفر...")
+        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # طباعة متغيرات البيئة المهمة للتصحيح
+        print(f"🔧 PORT environment variable: {os.environ.get('PORT', 'Not set')}")
+        print(f"🔧 RAILWAY_PROJECT_ID: {os.environ.get('RAILWAY_PROJECT_ID', 'Not set')}")
+        print(f"🔧 RAILWAY_PUBLIC_URL: {os.environ.get('RAILWAY_PUBLIC_URL', 'Not set')}")
+        
         # استيراد الوحدات المطلوبة
         from bybit_trading_bot import trading_bot, main as bot_main
         from web_server import WebServer
-        
-        print("🚀 بدء تشغيل بوت التداول مع السيرفر...")
-        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         # إنشاء السيرفر وربطه بالبوت
         web_server = WebServer(trading_bot)

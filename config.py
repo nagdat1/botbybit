@@ -12,7 +12,14 @@ load_dotenv()
 
 # إعدادات تلغرام
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', '0')) if os.getenv('ADMIN_USER_ID') else None
+admin_user_id_str = os.getenv('ADMIN_USER_ID')
+if admin_user_id_str:
+    try:
+        ADMIN_USER_ID = int(admin_user_id_str)
+    except (ValueError, TypeError):
+        ADMIN_USER_ID = None
+else:
+    ADMIN_USER_ID = None
 
 # إعدادات Bybit API
 BYBIT_API_KEY = os.getenv('BYBIT_API_KEY')
@@ -22,7 +29,16 @@ BYBIT_BASE_URL = os.getenv('BYBIT_BASE_URL', 'https://api.bybit.com')
 # إعدادات Webhook
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 # استخدام منفذ Railway إذا كان متاحاً، وإلا استخدام 5000 كافتراضي
-WEBHOOK_PORT = int(os.environ.get('PORT', os.getenv('WEBHOOK_PORT', "5000")))
+port_env = os.environ.get('PORT')
+webhook_port_env = os.getenv('WEBHOOK_PORT', "5000")
+print(f"🔧 PORT environment variable: {port_env}")
+print(f"🔧 WEBHOOK_PORT environment variable: {webhook_port_env}")
+
+if port_env:
+    WEBHOOK_PORT = int(port_env)
+else:
+    WEBHOOK_PORT = int(webhook_port_env)
+print(f"🔧 Final WEBHOOK_PORT: {WEBHOOK_PORT}")
 
 # إعدادات افتراضية للبوت
 DEFAULT_SETTINGS = {
