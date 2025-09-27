@@ -8,8 +8,27 @@ import os
 import sys
 import threading
 import asyncio
-from datetime import datetime
-from flask import Flask, render_template, jsonify, request
+from datetime import date# إعداد مسار webhook للـ Telegram
+@app.route('/telegram', methods=['POST'])
+def telegram_webhook():
+    """معالجة تحديثات Telegram webhook"""
+    if request.method == 'POST':
+        update = Update.de_json(request.get_json(force=True), bot.bot)
+        bot.process_update(update)
+        return 'OK'
+
+if __name__ == "__main__":
+    try:
+        # تحديد المنفذ من متغيرات البيئة
+        port = int(os.environ.get("PORT", 8080))
+        
+        # بدء البوت
+        asyncio.run(start_bot())
+        
+    except Exception as e:
+        print(f"خطأ في تشغيل التطبيق: {e}")
+        import traceback
+        traceback.print_exc()ort Flask, render_template, jsonify, request
 
 # إضافة المسار الحالي إلى مسارات Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -73,12 +92,8 @@ def start_bot():
     """بدء تشغيل البوت"""
     global bot_thread
 
-    def run_bot():
-        """تشغيل البوت في thread منفصل"""
-        # إعداد event loop جديد للـ thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
+    async def run_bot_async():
+        """تشغيل البوت بشكل غير متزامن"""
         try:
             # إعداد Telegram bot
             from telegram.ext import Application
@@ -88,7 +103,21 @@ def start_bot():
                 handle_text_input, error_handler, TELEGRAM_TOKEN
             )
             
-            application = Application.builder().token(TELEGRAM_TOKEN).build()
+            # الحصول على عنوان الويب هوك من متغيرات البيئة
+            WEBHOOK_URL = os.environ.get('WEBHOOK_URL', f"https://{os.environ.get('RAILWAY_STATIC_URL')}")
+            if not WEBHOOK_URL:
+                raise ValueError("WEBHOOK_URL environment variable is not set")
+            
+            # إعداد التطبيق مع الويب هوك
+            application = (
+                Application.builder()
+                .token(TELEGRAM_TOKEN)
+                .webhook(
+                    webhook_url=f"{WEBHOOK_URL}/telegram",
+                    allowed_updates=['message', 'callback_query']
+                )
+                .build()
+            )
             
             # إضافة المعالجات
             from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters
@@ -98,10 +127,7 @@ def start_bot():
             application.add_error_handler(error_handler)
             
             # تحديث الأزواج عند البدء
-            try:
-                loop.run_until_complete(trading_bot.update_available_pairs())
-            except Exception as e:
-                print(f"خطأ في تحديث الأزواج: {e}")
+            await trading_bot.update_available_pairs()
             
             # بدء التحديث الدوري للأسعار
             async def price_update_loop():
@@ -112,36 +138,39 @@ def start_bot():
                     except Exception as e:
                         print(f"خطأ في التحديث الدوري: {e}")
                         await asyncio.sleep(60)
-
-            # تشغيل التحديث الدوري
-            price_update_task = loop.create_task(price_update_loop())
             
-            # تشغيل البوت
-            print("بدء تشغيل البوت...")
-            loop.run_until_complete(application.initialize())
-            loop.run_forever()
-
+            # تشغيل التحديث الدوري في مهمة منفصلة
+            asyncio.create_task(price_update_loop())
+            
+            print("🤖 بدء تشغيل البوت في وضع الويب هوك...")
+            
+            # تشغيل البوت مع الويب هوك
+            async with application:
+                await application.start()
+                print(f"✅ تم إعداد الويب هوك على: {WEBHOOK_URL}/telegram")
+                await application.updater.start_webhook(
+                    listen="0.0.0.0",
+                    port=int(os.environ.get("PORT", 8080)),
+                    webhook_url=f"{WEBHOOK_URL}/telegram"
+                )
+                await application.updater.bot.set_webhook(
+                    url=f"{WEBHOOK_URL}/telegram"
+                )
+                await application.idle()
+                
         except Exception as e:
             print(f"خطأ في تشغيل البوت: {e}")
             import traceback
             traceback.print_exc()
-        finally:
-            try:
-                # تنظيف وإغلاق الـ event loop
-                loop.stop()
-                loop.run_until_complete(loop.shutdown_asyncgens())
-                loop.close()
-            except Exception as e:
-                print(f"خطأ في إغلاق event loop: {e}")
-                import traceback
-                traceback.print_exc()
+            raise
     
-    # تشغيل البوت في thread منفصل
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-    print("✅ تم بدء تشغيل البوت في thread منفصل")
+# تشغيل البوت في thread منفصل
+async def init_bot():
+    await start_bot()
 
-def start_web_server():
+bot_thread = threading.Thread(target=lambda: asyncio.run(init_bot()), daemon=True)
+bot_thread.start()
+print("✅ تم بدء تشغيل البوت في thread منفصل")def start_web_server():
     """بدء تشغيل السيرفر الويب"""
     global web_server
     
