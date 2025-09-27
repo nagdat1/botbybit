@@ -122,9 +122,9 @@ def start_bot():
             # بدء التحديث الدوري
             start_price_updates()
             
-            # تشغيل البوت
+            # تشغيل البوت باستخدام asyncio.run لتجنب مشاكل event loop
             print("بدء تشغيل البوت...")
-            application.run_polling(allowed_updates=['message', 'callback_query'])
+            asyncio.run(application.run_polling(allowed_updates=['message', 'callback_query']))
             
         except Exception as e:
             print(f"خطأ في تشغيل البوت: {e}")
@@ -145,9 +145,9 @@ def start_web_server():
         web_server = WebServer(trading_bot)
         trading_bot.web_server = web_server
         
-        # تشغيل السيرفر في thread منفصل
+        # تشغيل السيرفر في thread منفصل على منفذ مختلف
         server_thread = threading.Thread(
-            target=lambda: web_server.run(debug=False, port=int(os.environ.get('PORT', 5000))), 
+            target=lambda: web_server.run(debug=False, port=int(os.environ.get('WEBHOOK_PORT', 5000))), 
             daemon=True
         )
         server_thread.start()
@@ -169,6 +169,6 @@ if __name__ == "__main__":
     # بدء السيرفر الويب
     start_web_server()
     
-    # تشغيل تطبيق Flask
-    port = int(os.environ.get('PORT', 5000))
+    # تشغيل تطبيق Flask على منفذ مختلف
+    port = int(os.environ.get('PORT', 8080))  # Railway will provide PORT
     app.run(host='0.0.0.0', port=port, debug=False)

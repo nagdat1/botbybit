@@ -24,7 +24,7 @@ BYBIT_BASE_URL = "https://api.bybit.com"
 RAILWAY_URL = os.getenv('RAILWAY_STATIC_URL')
 RENDER_URL = os.getenv('RENDER_EXTERNAL_URL')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL', RAILWAY_URL or RENDER_URL or "https://1557a38f4447.ngrok-free.app")
-WEBHOOK_PORT = int(os.getenv('PORT', os.getenv('WEBHOOK_PORT', "5000")))
+WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', os.getenv('PORT', "5000")))
 
 # إعدادات افتراضية للبوت
 DEFAULT_SETTINGS = {

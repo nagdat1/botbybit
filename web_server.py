@@ -230,8 +230,8 @@ class WebServer:
             elif render_url:
                 self.current_url = f"{render_url}/webhook"
             else:
-                # استخدام الرابط المحلي للاختبار
-                port = os.getenv('PORT', WEBHOOK_PORT)
+                # استخدام منفذ مختلف لتجنب التضارب
+                port = os.getenv('WEBHOOK_PORT', '5000')
                 self.current_url = f"http://localhost:{port}/webhook"
             
             print(f"🌐 تم إعداد رابط Webhook: {self.current_url}")
@@ -243,7 +243,7 @@ class WebServer:
             
         except Exception as e:
             print(f"❌ خطأ في إعداد رابط Webhook: {e}")
-            port = os.getenv('PORT', WEBHOOK_PORT)
+            port = os.getenv('WEBHOOK_PORT', '5000')
             local_url = f"http://localhost:{port}/webhook"
             self.send_startup_notification(local_url)
             return local_url
@@ -367,7 +367,7 @@ class WebServer:
     def run(self, host='0.0.0.0', port=None, debug=False):
         """ تشغيل السيرفر"""
         if port is None:
-            port = int(os.environ.get('PORT', WEBHOOK_PORT))
+            port = int(os.environ.get('WEBHOOK_PORT', 5000))  # استخدام منفذ مختلف لتجنب التضارب
         
         # إعداد رابط Webhook
         webhook_url = self.setup_webhook_url()
