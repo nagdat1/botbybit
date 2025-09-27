@@ -72,9 +72,13 @@ def webhook():
 def start_bot():
     """بدء تشغيل البوت"""
     global bot_thread
-    
+
     def run_bot():
         """تشغيل البوت في thread منفصل"""
+        # إعداد event loop جديد للـ thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
         try:
             # إعداد Telegram bot
             from telegram.ext import Application
@@ -95,41 +99,42 @@ def start_bot():
             
             # تحديث الأزواج عند البدء
             try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 loop.run_until_complete(trading_bot.update_available_pairs())
-                loop.close()
             except Exception as e:
                 print(f"خطأ في تحديث الأزواج: {e}")
             
             # بدء التحديث الدوري للأسعار
-            def start_price_updates():
-                """بدء التحديث الدوري للأسعار"""
-                def update_prices():
-                    while True:
-                        try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            loop.run_until_complete(trading_bot.update_open_positions_prices())
-                            loop.close()
-                            threading.Event().wait(30)  # انتظار 30 ثانية
-                        except Exception as e:
-                            print(f"خطأ في التحديث الدوري: {e}")
-                            threading.Event().wait(60)  # انتظار دقيقة في حالة الخطأ
-                
-                threading.Thread(target=update_prices, daemon=True).start()
+            async def price_update_loop():
+                while True:
+                    try:
+                        await trading_bot.update_open_positions_prices()
+                        await asyncio.sleep(30)
+                    except Exception as e:
+                        print(f"خطأ في التحديث الدوري: {e}")
+                        await asyncio.sleep(60)
+
+            # تشغيل التحديث الدوري
+            price_update_task = loop.create_task(price_update_loop())
             
-            # بدء التحديث الدوري
-            start_price_updates()
-            
-            # تشغيل البوت باستخدام asyncio.run لتجنب مشاكل event loop
+            # تشغيل البوت
             print("بدء تشغيل البوت...")
-            asyncio.run(application.run_polling(allowed_updates=['message', 'callback_query']))
-            
+            loop.run_until_complete(application.initialize())
+            loop.run_forever()
+
         except Exception as e:
             print(f"خطأ في تشغيل البوت: {e}")
             import traceback
             traceback.print_exc()
+        finally:
+            try:
+                # تنظيف وإغلاق الـ event loop
+                loop.stop()
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                loop.close()
+            except Exception as e:
+                print(f"خطأ في إغلاق event loop: {e}")
+                import traceback
+                traceback.print_exc()
     
     # تشغيل البوت في thread منفصل
     bot_thread = threading.Thread(target=run_bot, daemon=True)
@@ -163,12 +168,32 @@ if __name__ == "__main__":
     print("🚀 بدء تشغيل بوت التداول على Render...")
     print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # بدء البوت
-    start_bot()
+    # تحديد المنافذ
+    flask_port = int(os.environ.get('PORT', 8080))  # منفذ تطبيق Flask الرئيسي
+    webhook_port = int(os.environ.get('WEBHOOK_PORT', 5000))  # منفذ سيرفر الويب هوك
     
-    # بدء السيرفر الويب
-    start_web_server()
+    # التأكد من أن المنفذين مختلفين
+    if flask_port == webhook_port:
+        webhook_port = flask_port + 1
     
-    # تشغيل تطبيق Flask على منفذ مختلف
-    port = int(os.environ.get('PORT', 8080))  # Railway will provide PORT
-    app.run(host='0.0.0.0', port=port, debug=False)
+    os.environ['WEBHOOK_PORT'] = str(webhook_port)
+    
+    try:
+        # بدء البوت
+        bot_thread = threading.Thread(target=start_bot, daemon=True)
+        bot_thread.start()
+        print("✅ تم بدء تشغيل البوت في thread منفصل")
+        
+        # بدء السيرفر الويب
+        start_web_server()
+        
+        # انتظار لحظة للتأكد من بدء السيرفرات
+        import time
+        time.sleep(2)
+        
+        # تشغيل تطبيق Flask
+        app.run(host='0.0.0.0', port=flask_port, debug=False, use_reloader=False)
+    except Exception as e:
+        print(f"خطأ في تشغيل التطبيق: {e}")
+        import traceback
+        traceback.print_exc()

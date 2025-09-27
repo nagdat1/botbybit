@@ -31,3 +31,17 @@
 2025-09-27 02:21:26,338 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:36,368 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:46,407 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-09-27 03:06:49,718 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.2.0.2:5000
+2025-09-27 03:06:49,718 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://10.2.0.2:8080
+2025-09-27 03:06:49,718 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-09-27 03:06:49,718 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-09-27 03:06:50,454 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/sendMessage "HTTP/1.1 200 OK"
+2025-09-27 03:06:51,904 - bybit_trading_bot - INFO - تم تحديث الأزواج: Spot=688, Futures=500, Inverse=28
+2025-09-27 03:08:40,463 - asyncio - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-4' coro=<start_bot.<locals>.run_bot_async.<locals>.price_update_loop() done, defined at C:\Users\nagda\OneDrive\المستندات\GitHub\botbybit\app.py:103> wait_for=<Future pending cb=[Task.task_wakeup()]>>
