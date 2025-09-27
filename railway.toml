@@ -3,8 +3,13 @@ builder = "dockerfile"
 dockerfilePath = "./Dockerfile"
 
 [deploy]
-startCommand = "python run_with_server.py"
+startCommand = "gunicorn --bind '0.0.0.0:$PORT' --workers 1 --threads 8 --timeout 0 --worker-class gthread app:create_app()"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
+healthcheckInterval = 30
+startupTimeout = "5m"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
+
+[deploy.env]
+PYTHONUNBUFFERED = "1"
