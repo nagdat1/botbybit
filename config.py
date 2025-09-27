@@ -10,21 +10,33 @@ from dotenv import load_dotenv
 # تحميل متغيرات البيئة
 load_dotenv()
 
+# التحقق من وجود المتغيرات المطلوبة
+def get_required_env(key: str) -> str:
+    """الحصول على متغير بيئة مطلوب"""
+    value = os.getenv(key)
+    if not value:
+        raise ValueError(f"Missing required environment variable: {key}")
+    return value
+
 # إعدادات تلغرام
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw")
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
+TELEGRAM_TOKEN = get_required_env('TELEGRAM_TOKEN')
+ADMIN_USER_ID = int(get_required_env('ADMIN_USER_ID'))
 
 # إعدادات Bybit API
-BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "osH14PNXCGzrxQLT0T")
-BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "kpP2LHqNOc8Z2P1QjKB5Iw874x7Q2QXGfBHX")
-BYBIT_BASE_URL = "https://api.bybit.com"
+BYBIT_API_KEY = get_required_env('BYBIT_API_KEY')
+BYBIT_API_SECRET = get_required_env('BYBIT_API_SECRET')
+BYBIT_BASE_URL = "https://api.bybit.com"  # لا حاجة لتغييره عادةً
 
-# إعدادات Webhook
-# Use Railway's provided URL if available, otherwise use ngrok or localhost
-RAILWAY_URL = os.getenv('RAILWAY_STATIC_URL')
-RENDER_URL = os.getenv('RENDER_EXTERNAL_URL')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL', RAILWAY_URL or RENDER_URL or "https://1557a38f4447.ngrok-free.app")
-WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', os.getenv('PORT', "5000")))
+# إعدادات Webhook للـ Railway
+RAILWAY_STATIC_URL = os.getenv('RAILWAY_STATIC_URL')
+RAILWAY_PORT = int(os.getenv('PORT', '8080'))
+
+# إعداد عنوان الويب هوك
+def get_webhook_url():
+    """تحديد عنوان الويب هوك بناءً على بيئة التشغيل"""
+    if RAILWAY_STATIC_URL:
+        return f"https://{RAILWAY_STATIC_URL}"
+    return os.getenv('WEBHOOK_URL', 'http://localhost:8080')
 
 # إعدادات افتراضية للبوت
 DEFAULT_SETTINGS = {
@@ -49,17 +61,24 @@ DEMO_ACCOUNT_SETTINGS = {
 
 # إعدادات الأمان
 SECURITY_SETTINGS = {
-    'max_retries': 3,                    # عدد المحاولات القصوى
-    'request_timeout': 10,               # مهلة الطلب بالثواني
-    'rate_limit_delay': 0.1,            # تأخير بين الطلبات
+    'max_retries': int(os.getenv('MAX_RETRIES', '3')),        # عدد المحاولات القصوى
+    'request_timeout': int(os.getenv('REQUEST_TIMEOUT', '10')), # مهلة الطلب بالثواني
+    'rate_limit_delay': float(os.getenv('RATE_LIMIT_DELAY', '0.1')), # تأخير بين الطلبات
 }
 
 # إعدادات التسجيل
 LOGGING_SETTINGS = {
-    'log_file': 'trading_bot.log',
-    'log_level': 'INFO',
-    'max_log_size': 10 * 1024 * 1024,   # 10 MB
-    'backup_count': 5
+    'log_file': None,  # استخدام stdout في Railway
+    'log_level': os.getenv('LOG_LEVEL', 'INFO'),
+    'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    'date_format': '%Y-%m-%d %H:%M:%S'
+}
+
+# إعدادات Railway
+RAILWAY_CONFIG = {
+    'environment': os.getenv('RAILWAY_ENVIRONMENT', 'production'),
+    'project_id': os.getenv('RAILWAY_PROJECT_ID', ''),
+    'service_name': os.getenv('RAILWAY_SERVICE_NAME', ''),
 }
 
 # رسائل البوت
@@ -88,9 +107,10 @@ MESSAGES = {
     'unauthorized': "غير مصرح لك باستخدام هذا البوت"
 }
 
-# إعدادات قاعدة البيانات (إذا كنت تريد حفظ البيانات)
+# إعدادات قاعدة البيانات
 DATABASE_SETTINGS = {
-    'enabled': False,
-    'type': 'sqlite',  # sqlite, mysql, postgresql
-    'filename': 'trading_bot.db'
+    'enabled': os.getenv('DB_ENABLED', 'false').lower() == 'true',
+    'type': os.getenv('DB_TYPE', 'sqlite'),
+    'url': os.getenv('DATABASE_URL', ''),  # Railway يوفر هذا المتغير تلقائياً
+    'filename': os.getenv('DB_FILENAME', 'trading_bot.db')  # يستخدم فقط مع sqlite
 }

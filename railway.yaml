@@ -12,7 +12,7 @@ services:
       - key: ADMIN_USER_ID
         sync: false
       - key: BYBIT_API_KEY
-        sync: false
+        sync: ture
       - key: BYBIT_API_SECRET
         sync: false
       - key: WEBHOOK_PORT
