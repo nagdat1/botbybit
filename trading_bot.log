@@ -1,0 +1,33 @@
+2025-09-27 02:19:55,773 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.2.0.2:5000
+2025-09-27 02:19:55,773 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.2.0.2:5000
+2025-09-27 02:19:55,773 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-09-27 02:19:55,773 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-09-27 02:19:56,447 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/sendMessage "HTTP/1.1 200 OK"
+2025-09-27 02:19:57,941 - bybit_trading_bot - INFO - تم تحديث الأزواج: Spot=688, Futures=500, Inverse=28
+2025-09-27 02:20:52,224 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.2.0.2:5000
+2025-09-27 02:20:52,224 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-09-27 02:20:52,924 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/sendMessage "HTTP/1.1 200 OK"
+2025-09-27 02:20:55,868 - bybit_trading_bot - INFO - تم تحديث الأزواج: Spot=688, Futures=500, Inverse=28
+2025-09-27 02:20:55,869 - bybit_trading_bot - INFO - بدء تشغيل البوت...
+2025-09-27 02:20:56,050 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getMe "HTTP/1.1 200 OK"
+2025-09-27 02:20:56,089 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/deleteWebhook "HTTP/1.1 200 OK"
+2025-09-27 02:20:56,090 - telegram.ext.Application - INFO - Application started
+2025-09-27 02:20:56,223 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-09-27 02:20:56,417 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/sendMessage "HTTP/1.1 200 OK"
+2025-09-27 02:20:56,567 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/sendMessage "HTTP/1.1 200 OK"
+2025-09-27 02:20:56,637 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/sendMessage "HTTP/1.1 200 OK"
+2025-09-27 02:20:56,695 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/sendMessage "HTTP/1.1 200 OK"
+2025-09-27 02:21:06,267 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-09-27 02:21:16,301 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-09-27 02:21:26,338 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-09-27 02:21:36,368 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-09-27 02:21:46,407 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"

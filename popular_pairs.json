@@ -1,0 +1,4447 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHUSDT",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XRPUSDT",
+    "status": "Trading",
+    "baseCoin": "XRP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHBTC",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "XRPBTC",
+    "status": "Trading",
+    "baseCoin": "XRP",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "DOTUSDT",
+    "status": "Trading",
+    "baseCoin": "DOT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XLMUSDT",
+    "status": "Trading",
+    "baseCoin": "XLM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LTCUSDT",
+    "status": "Trading",
+    "baseCoin": "LTC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DOGEUSDT",
+    "status": "Trading",
+    "baseCoin": "DOGE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CHZUSDT",
+    "status": "Trading",
+    "baseCoin": "CHZ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AXSUSDT",
+    "status": "Trading",
+    "baseCoin": "AXS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MANAUSDT",
+    "status": "Trading",
+    "baseCoin": "MANA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DYDXUSDT",
+    "status": "Trading",
+    "baseCoin": "DYDX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MKRUSDT",
+    "status": "Trading",
+    "baseCoin": "MKR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "COMPUSDT",
+    "status": "Trading",
+    "baseCoin": "COMP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AAVEUSDT",
+    "status": "Trading",
+    "baseCoin": "AAVE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "YFIUSDT",
+    "status": "Trading",
+    "baseCoin": "YFI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LINKUSDT",
+    "status": "Trading",
+    "baseCoin": "LINK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SUSHIUSDT",
+    "status": "Trading",
+    "baseCoin": "SUSHI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "UNIUSDT",
+    "status": "Trading",
+    "baseCoin": "UNI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KSMUSDT",
+    "status": "Trading",
+    "baseCoin": "KSM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ICPUSDT",
+    "status": "Trading",
+    "baseCoin": "ICP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ADAUSDT",
+    "status": "Trading",
+    "baseCoin": "ADA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETCUSDT",
+    "status": "Trading",
+    "baseCoin": "ETC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XTZUSDT",
+    "status": "Trading",
+    "baseCoin": "XTZ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BCHUSDT",
+    "status": "Trading",
+    "baseCoin": "BCH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "QNTUSDT",
+    "status": "Trading",
+    "baseCoin": "QNT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDCUSDT",
+    "status": "Trading",
+    "baseCoin": "USDC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GRTUSDT",
+    "status": "Trading",
+    "baseCoin": "GRT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "status": "Trading",
+    "baseCoin": "SOL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FILUSDT",
+    "status": "Trading",
+    "baseCoin": "FIL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OMGUSDT",
+    "status": "Trading",
+    "baseCoin": "OMG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BATUSDT",
+    "status": "Trading",
+    "baseCoin": "BAT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZRXUSDT",
+    "status": "Trading",
+    "baseCoin": "ZRX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CRVUSDT",
+    "status": "Trading",
+    "baseCoin": "CRV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AGLDUSDT",
+    "status": "Trading",
+    "baseCoin": "AGLD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ANKRUSDT",
+    "status": "Trading",
+    "baseCoin": "ANKR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PERPUSDT",
+    "status": "Trading",
+    "baseCoin": "PERP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WAVESUSDT",
+    "status": "Trading",
+    "baseCoin": "WAVES",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LUNCUSDT",
+    "status": "Trading",
+    "baseCoin": "LUNC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SPELLUSDT",
+    "status": "Trading",
+    "baseCoin": "SPELL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SHIBUSDT",
+    "status": "Trading",
+    "baseCoin": "SHIB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ATOMUSDT",
+    "status": "Trading",
+    "baseCoin": "ATOM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ALGOUSDT",
+    "status": "Trading",
+    "baseCoin": "ALGO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ENJUSDT",
+    "status": "Trading",
+    "baseCoin": "ENJ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SANDUSDT",
+    "status": "Trading",
+    "baseCoin": "SAND",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "status": "Trading",
+    "baseCoin": "AVAX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WOOUSDT",
+    "status": "Trading",
+    "baseCoin": "WOO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FTTUSDT",
+    "status": "Trading",
+    "baseCoin": "FTT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GODSUSDT",
+    "status": "Trading",
+    "baseCoin": "GODS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "IMXUSDT",
+    "status": "Trading",
+    "baseCoin": "IMX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ENSUSDT",
+    "status": "Trading",
+    "baseCoin": "ENS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CAKEUSDT",
+    "status": "Trading",
+    "baseCoin": "CAKE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STETHUSDT",
+    "status": "Trading",
+    "baseCoin": "STETH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GALFTUSDT",
+    "status": "Trading",
+    "baseCoin": "GALFT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SLPUSDT",
+    "status": "Trading",
+    "baseCoin": "SLP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "C98USDT",
+    "status": "Trading",
+    "baseCoin": "C98",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GENEUSDT",
+    "status": "Trading",
+    "baseCoin": "GENE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AVAUSDT",
+    "status": "Trading",
+    "baseCoin": "AVA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ONEUSDT",
+    "status": "Trading",
+    "baseCoin": "ONE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BOBAUSDT",
+    "status": "Trading",
+    "baseCoin": "BOBA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JASMYUSDT",
+    "status": "Trading",
+    "baseCoin": "JASMY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GALAUSDT",
+    "status": "Trading",
+    "baseCoin": "GALA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TRVLUSDT",
+    "status": "Trading",
+    "baseCoin": "TRVL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WEMIXUSDT",
+    "status": "Trading",
+    "baseCoin": "WEMIX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XEMUSDT",
+    "status": "Trading",
+    "baseCoin": "XEM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BICOUSDT",
+    "status": "Trading",
+    "baseCoin": "BICO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "UMAUSDT",
+    "status": "Trading",
+    "baseCoin": "UMA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NEXOUSDT",
+    "status": "Trading",
+    "baseCoin": "NEXO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SNXUSDT",
+    "status": "Trading",
+    "baseCoin": "SNX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "1INCHUSDT",
+    "status": "Trading",
+    "baseCoin": "1INCH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TELUSDT",
+    "status": "Trading",
+    "baseCoin": "TEL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SISUSDT",
+    "status": "Trading",
+    "baseCoin": "SIS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LRCUSDT",
+    "status": "Trading",
+    "baseCoin": "LRC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LDOUSDT",
+    "status": "Trading",
+    "baseCoin": "LDO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHUSDC",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCUSDC",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "IZIUSDT",
+    "status": "Trading",
+    "baseCoin": "IZI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "QTUMUSDT",
+    "status": "Trading",
+    "baseCoin": "QTUM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZENUSDT",
+    "status": "Trading",
+    "baseCoin": "ZEN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "THETAUSDT",
+    "status": "Trading",
+    "baseCoin": "THETA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MXUSDT",
+    "status": "Trading",
+    "baseCoin": "MX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DGBUSDT",
+    "status": "Trading",
+    "baseCoin": "DGB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RVNUSDT",
+    "status": "Trading",
+    "baseCoin": "RVN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "EGLDUSDT",
+    "status": "Trading",
+    "baseCoin": "EGLD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RUNEUSDT",
+    "status": "Trading",
+    "baseCoin": "RUNE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XLMBTC",
+    "status": "Trading",
+    "baseCoin": "XLM",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "XLMUSDC",
+    "status": "Trading",
+    "baseCoin": "XLM",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLUSDC",
+    "status": "Trading",
+    "baseCoin": "SOL",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "XRPUSDC",
+    "status": "Trading",
+    "baseCoin": "XRP",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ALGOBTC",
+    "status": "Trading",
+    "baseCoin": "ALGO",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLBTC",
+    "status": "Trading",
+    "baseCoin": "SOL",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "XECUSDT",
+    "status": "Trading",
+    "baseCoin": "XEC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ICXUSDT",
+    "status": "Trading",
+    "baseCoin": "ICX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XDCUSDT",
+    "status": "Trading",
+    "baseCoin": "XDC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HNTUSDT",
+    "status": "Trading",
+    "baseCoin": "HNT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZILUSDT",
+    "status": "Trading",
+    "baseCoin": "ZIL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HBARUSDT",
+    "status": "Trading",
+    "baseCoin": "HBAR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FLOWUSDT",
+    "status": "Trading",
+    "baseCoin": "FLOW",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KASTAUSDT",
+    "status": "Trading",
+    "baseCoin": "KASTA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STXUSDT",
+    "status": "Trading",
+    "baseCoin": "STX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SIDUSUSDT",
+    "status": "Trading",
+    "baseCoin": "SIDUS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LOOKSUSDT",
+    "status": "Trading",
+    "baseCoin": "LOOKS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DAIUSDT",
+    "status": "Trading",
+    "baseCoin": "DAI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MVUSDT",
+    "status": "Trading",
+    "baseCoin": "MV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MIXUSDT",
+    "status": "Trading",
+    "baseCoin": "MIX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LTCUSDC",
+    "status": "Trading",
+    "baseCoin": "LTC",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "MANABTC",
+    "status": "Trading",
+    "baseCoin": "MANA",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "LTCBTC",
+    "status": "Trading",
+    "baseCoin": "LTC",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "DOTBTC",
+    "status": "Trading",
+    "baseCoin": "DOT",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "SANDBTC",
+    "status": "Trading",
+    "baseCoin": "SAND",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "MANAUSDC",
+    "status": "Trading",
+    "baseCoin": "MANA",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "SANDUSDC",
+    "status": "Trading",
+    "baseCoin": "SAND",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "DOTUSDC",
+    "status": "Trading",
+    "baseCoin": "DOT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "LUNCUSDC",
+    "status": "Trading",
+    "baseCoin": "LUNC",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "RSS3USDT",
+    "status": "Trading",
+    "baseCoin": "RSS3",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GMXUSDT",
+    "status": "Trading",
+    "baseCoin": "GMX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ACHUSDT",
+    "status": "Trading",
+    "baseCoin": "ACH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JSTUSDT",
+    "status": "Trading",
+    "baseCoin": "JST",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SUNUSDT",
+    "status": "Trading",
+    "baseCoin": "SUN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BTTUSDT",
+    "status": "Trading",
+    "baseCoin": "BTT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TRXUSDT",
+    "status": "Trading",
+    "baseCoin": "TRX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NFTUSDT",
+    "status": "Trading",
+    "baseCoin": "NFT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SCRTUSDT",
+    "status": "Trading",
+    "baseCoin": "SCRT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PSTAKEUSDT",
+    "status": "Trading",
+    "baseCoin": "PSTAKE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DOMEUSDT",
+    "status": "Trading",
+    "baseCoin": "DOME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USTCUSDT",
+    "status": "Trading",
+    "baseCoin": "USTC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BNBUSDT",
+    "status": "Trading",
+    "baseCoin": "BNB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NEARUSDT",
+    "status": "Trading",
+    "baseCoin": "NEAR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SDUSDT",
+    "status": "Trading",
+    "baseCoin": "SD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "APEUSDT",
+    "status": "Trading",
+    "baseCoin": "APE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FIDAUSDT",
+    "status": "Trading",
+    "baseCoin": "FIDA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MINAUSDT",
+    "status": "Trading",
+    "baseCoin": "MINA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SCUSDT",
+    "status": "Trading",
+    "baseCoin": "SC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RACAUSDT",
+    "status": "Trading",
+    "baseCoin": "RACA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CAPSUSDT",
+    "status": "Trading",
+    "baseCoin": "CAPS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STGUSDT",
+    "status": "Trading",
+    "baseCoin": "STG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GLMRUSDT",
+    "status": "Trading",
+    "baseCoin": "GLMR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MOVRUSDT",
+    "status": "Trading",
+    "baseCoin": "MOVR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHDAI",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "DAI",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCDAI",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "DAI",
+    "innovation": false
+  },
+  {
+    "symbol": "WBTCUSDT",
+    "status": "Trading",
+    "baseCoin": "WBTC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XAVAUSDT",
+    "status": "Trading",
+    "baseCoin": "XAVA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GMTUSDT",
+    "status": "Trading",
+    "baseCoin": "GMT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GSTUSDT",
+    "status": "Trading",
+    "baseCoin": "GST",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CELOUSDT",
+    "status": "Trading",
+    "baseCoin": "CELO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SFUNDUSDT",
+    "status": "Trading",
+    "baseCoin": "SFUND",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "APEXUSDT",
+    "status": "Trading",
+    "baseCoin": "APEX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CTCUSDT",
+    "status": "Trading",
+    "baseCoin": "CTC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FITFIUSDT",
+    "status": "Trading",
+    "baseCoin": "FITFI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDDUSDT",
+    "status": "Trading",
+    "baseCoin": "USDD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OPUSDT",
+    "status": "Trading",
+    "baseCoin": "OP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LUNAUSDT",
+    "status": "Trading",
+    "baseCoin": "LUNA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VINUUSDT",
+    "status": "Trading",
+    "baseCoin": "VINU",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BELUSDT",
+    "status": "Trading",
+    "baseCoin": "BEL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FORTUSDT",
+    "status": "Trading",
+    "baseCoin": "FORT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DOGEUSDC",
+    "status": "Trading",
+    "baseCoin": "DOGE",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "FLOKIUSDT",
+    "status": "Trading",
+    "baseCoin": "FLOKI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BABYDOGEUSDT",
+    "status": "Trading",
+    "baseCoin": "BABYDOGE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WAXPUSDT",
+    "status": "Trading",
+    "baseCoin": "WAXP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ARUSDT",
+    "status": "Trading",
+    "baseCoin": "AR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KDAUSDT",
+    "status": "Trading",
+    "baseCoin": "KDA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ROSEUSDT",
+    "status": "Trading",
+    "baseCoin": "ROSE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PSGUSDT",
+    "status": "Trading",
+    "baseCoin": "PSG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JUVUSDT",
+    "status": "Trading",
+    "baseCoin": "JUV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "INTERUSDT",
+    "status": "Trading",
+    "baseCoin": "INTER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AFCUSDT",
+    "status": "Trading",
+    "baseCoin": "AFC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CITYUSDT",
+    "status": "Trading",
+    "baseCoin": "CITY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLOUSDT",
+    "status": "Trading",
+    "baseCoin": "SOLO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WBTCBTC",
+    "status": "Trading",
+    "baseCoin": "WBTC",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "AVAXUSDC",
+    "status": "Trading",
+    "baseCoin": "AVAX",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ADAUSDC",
+    "status": "Trading",
+    "baseCoin": "ADA",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "OPUSDC",
+    "status": "Trading",
+    "baseCoin": "OP",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "APEXUSDC",
+    "status": "Trading",
+    "baseCoin": "APEX",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "TRXUSDC",
+    "status": "Trading",
+    "baseCoin": "TRX",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ICPUSDC",
+    "status": "Trading",
+    "baseCoin": "ICP",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "LINKUSDC",
+    "status": "Trading",
+    "baseCoin": "LINK",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "GMTUSDC",
+    "status": "Trading",
+    "baseCoin": "GMT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "CHZUSDC",
+    "status": "Trading",
+    "baseCoin": "CHZ",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "SHIBUSDC",
+    "status": "Trading",
+    "baseCoin": "SHIB",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "LDOUSDC",
+    "status": "Trading",
+    "baseCoin": "LDO",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "APEUSDC",
+    "status": "Trading",
+    "baseCoin": "APE",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "FILUSDC",
+    "status": "Trading",
+    "baseCoin": "FIL",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "CHRPUSDT",
+    "status": "Trading",
+    "baseCoin": "CHRP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SWEATUSDT",
+    "status": "Trading",
+    "baseCoin": "SWEAT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHWUSDT",
+    "status": "Trading",
+    "baseCoin": "ETHW",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "INJUSDT",
+    "status": "Trading",
+    "baseCoin": "INJ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MPLXUSDT",
+    "status": "Trading",
+    "baseCoin": "MPLX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AGLAUSDT",
+    "status": "Trading",
+    "baseCoin": "AGLA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "APTUSDT",
+    "status": "Trading",
+    "baseCoin": "APT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "APTUSDC",
+    "status": "Trading",
+    "baseCoin": "APT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "MCRTUSDT",
+    "status": "Trading",
+    "baseCoin": "MCRT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MASKUSDT",
+    "status": "Trading",
+    "baseCoin": "MASK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HFTUSDC",
+    "status": "Trading",
+    "baseCoin": "HFT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "HFTUSDT",
+    "status": "Trading",
+    "baseCoin": "HFT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PEOPLEUSDT",
+    "status": "Trading",
+    "baseCoin": "PEOPLE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TWTUSDT",
+    "status": "Trading",
+    "baseCoin": "TWT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ORTUSDT",
+    "status": "Trading",
+    "baseCoin": "ORT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HOOKUSDT",
+    "status": "Trading",
+    "baseCoin": "HOOK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OASUSDT",
+    "status": "Trading",
+    "baseCoin": "OAS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MAGICUSDT",
+    "status": "Trading",
+    "baseCoin": "MAGIC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MEEUSDT",
+    "status": "Trading",
+    "baseCoin": "MEE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TONUSDT",
+    "status": "Trading",
+    "baseCoin": "TON",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BONKUSDT",
+    "status": "Trading",
+    "baseCoin": "BONK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FLRUSDT",
+    "status": "Trading",
+    "baseCoin": "FLR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TIMEUSDT",
+    "status": "Trading",
+    "baseCoin": "TIME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RPLUSDT",
+    "status": "Trading",
+    "baseCoin": "RPL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SSVUSDT",
+    "status": "Trading",
+    "baseCoin": "SSV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FXSUSDT",
+    "status": "Trading",
+    "baseCoin": "FXS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "COREUSDT",
+    "status": "Trading",
+    "baseCoin": "CORE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RDNTUSDT",
+    "status": "Trading",
+    "baseCoin": "RDNT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BLURUSDT",
+    "status": "Trading",
+    "baseCoin": "BLUR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MDAOUSDT",
+    "status": "Trading",
+    "baseCoin": "MDAO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ACSUSDT",
+    "status": "Trading",
+    "baseCoin": "ACS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PRIMEUSDT",
+    "status": "Trading",
+    "baseCoin": "PRIME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "EVERUSDT",
+    "status": "Trading",
+    "baseCoin": "EVER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VRAUSDT",
+    "status": "Trading",
+    "baseCoin": "VRA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "IDUSDT",
+    "status": "Trading",
+    "baseCoin": "ID",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ARBUSDC",
+    "status": "Trading",
+    "baseCoin": "ARB",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ARBUSDT",
+    "status": "Trading",
+    "baseCoin": "ARB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XCADUSDT",
+    "status": "Trading",
+    "baseCoin": "XCAD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MBXUSDT",
+    "status": "Trading",
+    "baseCoin": "MBX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AXLUSDT",
+    "status": "Trading",
+    "baseCoin": "AXL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CGPTUSDT",
+    "status": "Trading",
+    "baseCoin": "CGPT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AGIUSDT",
+    "status": "Trading",
+    "baseCoin": "AGI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "status": "Trading",
+    "baseCoin": "SUI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SUIUSDC",
+    "status": "Trading",
+    "baseCoin": "SUI",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "MVLUSDT",
+    "status": "Trading",
+    "baseCoin": "MVL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PEPEUSDT",
+    "status": "Trading",
+    "baseCoin": "PEPE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LADYSUSDT",
+    "status": "Trading",
+    "baseCoin": "LADYS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LMWRUSDT",
+    "status": "Trading",
+    "baseCoin": "LMWR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TOMIUSDT",
+    "status": "Trading",
+    "baseCoin": "TOMI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TURBOSUSDT",
+    "status": "Trading",
+    "baseCoin": "TURBOS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FMBUSDT",
+    "status": "Trading",
+    "baseCoin": "FMB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VELOUSDT",
+    "status": "Trading",
+    "baseCoin": "VELO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCBRZ",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "BRZ",
+    "innovation": false
+  },
+  {
+    "symbol": "PENDLEUSDT",
+    "status": "Trading",
+    "baseCoin": "PENDLE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "EGOUSDT",
+    "status": "Trading",
+    "baseCoin": "EGO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NYMUSDT",
+    "status": "Trading",
+    "baseCoin": "NYM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MNTUSDT",
+    "status": "Trading",
+    "baseCoin": "MNT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MNTUSDC",
+    "status": "Trading",
+    "baseCoin": "MNT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "MNTBTC",
+    "status": "Trading",
+    "baseCoin": "MNT",
+    "quoteCoin": "BTC",
+    "innovation": false
+  },
+  {
+    "symbol": "GSWIFTUSDT",
+    "status": "Trading",
+    "baseCoin": "GSWIFT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ARKMUSDT",
+    "status": "Trading",
+    "baseCoin": "ARKM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NEONUSDT",
+    "status": "Trading",
+    "baseCoin": "NEON",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WLDUSDC",
+    "status": "Trading",
+    "baseCoin": "WLD",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "WLDUSDT",
+    "status": "Trading",
+    "baseCoin": "WLD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SEIUSDT",
+    "status": "Trading",
+    "baseCoin": "SEI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CYBERUSDT",
+    "status": "Trading",
+    "baseCoin": "CYBER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ORDIUSDT",
+    "status": "Trading",
+    "baseCoin": "ORDI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KAVAUSDT",
+    "status": "Trading",
+    "baseCoin": "KAVA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PYUSDUSDT",
+    "status": "Trading",
+    "baseCoin": "PYUSD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLEUR",
+    "status": "Trading",
+    "baseCoin": "SOL",
+    "quoteCoin": "EUR",
+    "innovation": false
+  },
+  {
+    "symbol": "ADAEUR",
+    "status": "Trading",
+    "baseCoin": "ADA",
+    "quoteCoin": "EUR",
+    "innovation": false
+  },
+  {
+    "symbol": "DOGEEUR",
+    "status": "Trading",
+    "baseCoin": "DOGE",
+    "quoteCoin": "EUR",
+    "innovation": false
+  },
+  {
+    "symbol": "XRPEUR",
+    "status": "Trading",
+    "baseCoin": "XRP",
+    "quoteCoin": "EUR",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHEUR",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "EUR",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCEUR",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "EUR",
+    "innovation": false
+  },
+  {
+    "symbol": "KASUSDT",
+    "status": "Trading",
+    "baseCoin": "KAS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FETUSDT",
+    "status": "Trading",
+    "baseCoin": "FET",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZTXUSDT",
+    "status": "Trading",
+    "baseCoin": "ZTX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JEFFUSDT",
+    "status": "Trading",
+    "baseCoin": "JEFF",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TUSDUSDT",
+    "status": "Trading",
+    "baseCoin": "TUSD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BEAMUSDT",
+    "status": "Trading",
+    "baseCoin": "BEAM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "POLUSDT",
+    "status": "Trading",
+    "baseCoin": "POL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TIAUSDT",
+    "status": "Trading",
+    "baseCoin": "TIA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TOKENUSDT",
+    "status": "Trading",
+    "baseCoin": "TOKEN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MEMEUSDT",
+    "status": "Trading",
+    "baseCoin": "MEME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SHRAPUSDT",
+    "status": "Trading",
+    "baseCoin": "SHRAP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RPKUSDT",
+    "status": "Trading",
+    "baseCoin": "RPK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FLIPUSDT",
+    "status": "Trading",
+    "baseCoin": "FLIP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ROOTUSDT",
+    "status": "Trading",
+    "baseCoin": "ROOT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PYTHUSDT",
+    "status": "Trading",
+    "baseCoin": "PYTH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KUBUSDT",
+    "status": "Trading",
+    "baseCoin": "KUB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KCSUSDT",
+    "status": "Trading",
+    "baseCoin": "KCS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VANRYUSDT",
+    "status": "Trading",
+    "baseCoin": "VANRY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "INSPUSDT",
+    "status": "Trading",
+    "baseCoin": "INSP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JTOUSDT",
+    "status": "Trading",
+    "baseCoin": "JTO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "METHUSDT",
+    "status": "Trading",
+    "baseCoin": "METH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "METHETH",
+    "status": "Trading",
+    "baseCoin": "METH",
+    "quoteCoin": "ETH",
+    "innovation": false
+  },
+  {
+    "symbol": "CBKUSDT",
+    "status": "Trading",
+    "baseCoin": "CBK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZIGUSDT",
+    "status": "Trading",
+    "baseCoin": "ZIG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TRCUSDT",
+    "status": "Trading",
+    "baseCoin": "TRC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SEIUSDC",
+    "status": "Trading",
+    "baseCoin": "SEI",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "FMCUSDT",
+    "status": "Trading",
+    "baseCoin": "FMC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MYRIAUSDT",
+    "status": "Trading",
+    "baseCoin": "MYRIA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AKIUSDT",
+    "status": "Trading",
+    "baseCoin": "AKI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MBOXUSDT",
+    "status": "Trading",
+    "baseCoin": "MBOX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ARTYUSDT",
+    "status": "Trading",
+    "baseCoin": "ARTY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "COQUSDT",
+    "status": "Trading",
+    "baseCoin": "COQ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AIOZUSDT",
+    "status": "Trading",
+    "baseCoin": "AIOZ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VICUSDT",
+    "status": "Trading",
+    "baseCoin": "VIC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RATSUSDT",
+    "status": "Trading",
+    "baseCoin": "RATS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SATSUSDT",
+    "status": "Trading",
+    "baseCoin": "SATS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PORT3USDT",
+    "status": "Trading",
+    "baseCoin": "PORT3",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XAIUSDT",
+    "status": "Trading",
+    "baseCoin": "XAI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ONDOUSDT",
+    "status": "Trading",
+    "baseCoin": "ONDO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SQRUSDT",
+    "status": "Trading",
+    "baseCoin": "SQR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DUELUSDT",
+    "status": "Trading",
+    "baseCoin": "DUEL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "APPUSDT",
+    "status": "Trading",
+    "baseCoin": "APP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SAROSUSDT",
+    "status": "Trading",
+    "baseCoin": "SAROS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDYUSDT",
+    "status": "Trading",
+    "baseCoin": "USDY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MANTAUSDT",
+    "status": "Trading",
+    "baseCoin": "MANTA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MYROUSDT",
+    "status": "Trading",
+    "baseCoin": "MYRO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GTAIUSDT",
+    "status": "Trading",
+    "baseCoin": "GTAI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DMAILUSDT",
+    "status": "Trading",
+    "baseCoin": "DMAIL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AFGUSDT",
+    "status": "Trading",
+    "baseCoin": "AFG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DYMUSDT",
+    "status": "Trading",
+    "baseCoin": "DYM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZETAUSDT",
+    "status": "Trading",
+    "baseCoin": "ZETA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JUPUSDT",
+    "status": "Trading",
+    "baseCoin": "JUP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DEFIUSDT",
+    "status": "Trading",
+    "baseCoin": "DEFI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FIREUSDT",
+    "status": "Trading",
+    "baseCoin": "FIRE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MAVIAUSDT",
+    "status": "Trading",
+    "baseCoin": "MAVIA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PURSEUSDT",
+    "status": "Trading",
+    "baseCoin": "PURSE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BCUTUSDT",
+    "status": "Trading",
+    "baseCoin": "BCUT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ALTUSDT",
+    "status": "Trading",
+    "baseCoin": "ALT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HTXUSDT",
+    "status": "Trading",
+    "baseCoin": "HTX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CSPRUSDT",
+    "status": "Trading",
+    "baseCoin": "CSPR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STRKUSDC",
+    "status": "Trading",
+    "baseCoin": "STRK",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "STRKUSDT",
+    "status": "Trading",
+    "baseCoin": "STRK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CPOOLUSDT",
+    "status": "Trading",
+    "baseCoin": "CPOOL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "QORPOUSDT",
+    "status": "Trading",
+    "baseCoin": "QORPO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SQTUSDT",
+    "status": "Trading",
+    "baseCoin": "SQT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PORTALUSDT",
+    "status": "Trading",
+    "baseCoin": "PORTAL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AEGUSDT",
+    "status": "Trading",
+    "baseCoin": "AEG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SCAUSDT",
+    "status": "Trading",
+    "baseCoin": "SCA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AEVOUSDT",
+    "status": "Trading",
+    "baseCoin": "AEVO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NIBIUSDT",
+    "status": "Trading",
+    "baseCoin": "NIBI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STARUSDT",
+    "status": "Trading",
+    "baseCoin": "STAR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BOMEUSDT",
+    "status": "Trading",
+    "baseCoin": "BOME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VENOMUSDT",
+    "status": "Trading",
+    "baseCoin": "VENOM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZKJUSDT",
+    "status": "Trading",
+    "baseCoin": "ZKJ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHFIUSDT",
+    "status": "Trading",
+    "baseCoin": "ETHFI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WEETHETH",
+    "status": "Trading",
+    "baseCoin": "WEETH",
+    "quoteCoin": "ETH",
+    "innovation": false
+  },
+  {
+    "symbol": "NAKAUSDT",
+    "status": "Trading",
+    "baseCoin": "NAKA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "APRSUSDT",
+    "status": "Trading",
+    "baseCoin": "APRS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WENUSDT",
+    "status": "Trading",
+    "baseCoin": "WEN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DEGENUSDT",
+    "status": "Trading",
+    "baseCoin": "DEGEN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ENAUSDT",
+    "status": "Trading",
+    "baseCoin": "ENA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDEUSDT",
+    "status": "Trading",
+    "baseCoin": "USDE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VELARUSDT",
+    "status": "Trading",
+    "baseCoin": "VELAR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XARUSDT",
+    "status": "Trading",
+    "baseCoin": "XAR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WUSDT",
+    "status": "Trading",
+    "baseCoin": "W",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "G3USDT",
+    "status": "Trading",
+    "baseCoin": "G3",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ESEUSDT",
+    "status": "Trading",
+    "baseCoin": "ESE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TNSRUSDT",
+    "status": "Trading",
+    "baseCoin": "TNSR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MASAUSDT",
+    "status": "Trading",
+    "baseCoin": "MASA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FOXYUSDT",
+    "status": "Trading",
+    "baseCoin": "FOXY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PRCLUSDT",
+    "status": "Trading",
+    "baseCoin": "PRCL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MSTARUSDT",
+    "status": "Trading",
+    "baseCoin": "MSTAR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OMNIUSDT",
+    "status": "Trading",
+    "baseCoin": "OMNI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BRETTUSDT",
+    "status": "Trading",
+    "baseCoin": "BRETT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MEWUSDT",
+    "status": "Trading",
+    "baseCoin": "MEW",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MERLUSDT",
+    "status": "Trading",
+    "baseCoin": "MERL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PBUXUSDT",
+    "status": "Trading",
+    "baseCoin": "PBUX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "EXVGUSDT",
+    "status": "Trading",
+    "baseCoin": "EXVG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LLUSDT",
+    "status": "Trading",
+    "baseCoin": "LL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SAFEUSDT",
+    "status": "Trading",
+    "baseCoin": "SAFE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "status": "Trading",
+    "baseCoin": "WIF",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SVLUSDT",
+    "status": "Trading",
+    "baseCoin": "SVL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KMNOUSDT",
+    "status": "Trading",
+    "baseCoin": "KMNO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZENTUSDT",
+    "status": "Trading",
+    "baseCoin": "ZENT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TAIUSDT",
+    "status": "Trading",
+    "baseCoin": "TAI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MODEUSDT",
+    "status": "Trading",
+    "baseCoin": "MODE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SPECUSDT",
+    "status": "Trading",
+    "baseCoin": "SPEC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GALAXISUSDT",
+    "status": "Trading",
+    "baseCoin": "GALAXIS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZEROUSDT",
+    "status": "Trading",
+    "baseCoin": "ZERO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LFTUSDT",
+    "status": "Trading",
+    "baseCoin": "LFT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PONKEUSDT",
+    "status": "Trading",
+    "baseCoin": "PONKE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BBUSDT",
+    "status": "Trading",
+    "baseCoin": "BB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CTAUSDT",
+    "status": "Trading",
+    "baseCoin": "CTA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NOTUSDT",
+    "status": "Trading",
+    "baseCoin": "NOT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NLKUSDT",
+    "status": "Trading",
+    "baseCoin": "NLK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DRIFTUSDT",
+    "status": "Trading",
+    "baseCoin": "DRIFT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SQDUSDT",
+    "status": "Trading",
+    "baseCoin": "SQD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NUTSUSDT",
+    "status": "Trading",
+    "baseCoin": "NUTS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDEUSDC",
+    "status": "Trading",
+    "baseCoin": "USDE",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLUSDE",
+    "status": "Trading",
+    "baseCoin": "SOL",
+    "quoteCoin": "USDE",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHUSDE",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "USDE",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCUSDE",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "USDE",
+    "innovation": false
+  },
+  {
+    "symbol": "MONUSDT",
+    "status": "Trading",
+    "baseCoin": "MON",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ELIXUSDT",
+    "status": "Trading",
+    "baseCoin": "ELIX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MOGUSDT",
+    "status": "Trading",
+    "baseCoin": "MOG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TAIKOUSDT",
+    "status": "Trading",
+    "baseCoin": "TAIKO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ULTIUSDT",
+    "status": "Trading",
+    "baseCoin": "ULTI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AURORAUSDT",
+    "status": "Trading",
+    "baseCoin": "AURORA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AARKUSDT",
+    "status": "Trading",
+    "baseCoin": "AARK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "IOUSDT",
+    "status": "Trading",
+    "baseCoin": "IO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ATHUSDT",
+    "status": "Trading",
+    "baseCoin": "ATH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "COOKIEUSDT",
+    "status": "Trading",
+    "baseCoin": "COOKIE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PIRATEUSDT",
+    "status": "Trading",
+    "baseCoin": "PIRATE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XZKUSDT",
+    "status": "Trading",
+    "baseCoin": "XZK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZKUSDC",
+    "status": "Trading",
+    "baseCoin": "ZK",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ZKUSDT",
+    "status": "Trading",
+    "baseCoin": "ZK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "POPCATUSDT",
+    "status": "Trading",
+    "baseCoin": "POPCAT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZROUSDC",
+    "status": "Trading",
+    "baseCoin": "ZRO",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ZROUSDT",
+    "status": "Trading",
+    "baseCoin": "ZRO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NRNUSDT",
+    "status": "Trading",
+    "baseCoin": "NRN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZEXUSDT",
+    "status": "Trading",
+    "baseCoin": "ZEX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BLASTUSDT",
+    "status": "Trading",
+    "baseCoin": "BLAST",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCBRL",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "BRL",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHBRL",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "BRL",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLBRL",
+    "status": "Trading",
+    "baseCoin": "SOL",
+    "quoteCoin": "BRL",
+    "innovation": false
+  },
+  {
+    "symbol": "DOP1USDT",
+    "status": "Trading",
+    "baseCoin": "DOP1",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AVAXEUR",
+    "status": "Trading",
+    "baseCoin": "AVAX",
+    "quoteCoin": "EUR",
+    "innovation": false
+  },
+  {
+    "symbol": "MOCAUSDT",
+    "status": "Trading",
+    "baseCoin": "MOCA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PIXFIUSDT",
+    "status": "Trading",
+    "baseCoin": "PIXFI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "UXLINKUSDT",
+    "status": "Trading",
+    "baseCoin": "UXLINK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "A8USDT",
+    "status": "Trading",
+    "baseCoin": "A8",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CLOUDUSDT",
+    "status": "Trading",
+    "baseCoin": "CLOUD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZKLUSDT",
+    "status": "Trading",
+    "baseCoin": "ZKL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AVAILUSDT",
+    "status": "Trading",
+    "baseCoin": "AVAIL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "L3USDT",
+    "status": "Trading",
+    "baseCoin": "L3",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RENDERUSDT",
+    "status": "Trading",
+    "baseCoin": "RENDER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GUSDT",
+    "status": "Trading",
+    "baseCoin": "G",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TONUSDC",
+    "status": "Trading",
+    "baseCoin": "TON",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "WIFUSDC",
+    "status": "Trading",
+    "baseCoin": "WIF",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "PEPEUSDC",
+    "status": "Trading",
+    "baseCoin": "PEPE",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "DOGSUSDT",
+    "status": "Trading",
+    "baseCoin": "DOGS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NOTUSDC",
+    "status": "Trading",
+    "baseCoin": "NOT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BNBUSDC",
+    "status": "Trading",
+    "baseCoin": "BNB",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BONKUSDC",
+    "status": "Trading",
+    "baseCoin": "BONK",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "DOGSUSDC",
+    "status": "Trading",
+    "baseCoin": "DOGS",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "NEIROUSDT",
+    "status": "Trading",
+    "baseCoin": "NEIRO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHPLN",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "PLN",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCPLN",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "PLN",
+    "innovation": false
+  },
+  {
+    "symbol": "FLOKIUSDC",
+    "status": "Trading",
+    "baseCoin": "FLOKI",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BCHUSDC",
+    "status": "Trading",
+    "baseCoin": "BCH",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "NEARUSDC",
+    "status": "Trading",
+    "baseCoin": "NEAR",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ORDERUSDT",
+    "status": "Trading",
+    "baseCoin": "ORDER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ETHTRY",
+    "status": "Trading",
+    "baseCoin": "ETH",
+    "quoteCoin": "TRY",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCTRY",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "TRY",
+    "innovation": false
+  },
+  {
+    "symbol": "MEWUSDC",
+    "status": "Trading",
+    "baseCoin": "MEW",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "KASUSDC",
+    "status": "Trading",
+    "baseCoin": "KAS",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ONDOUSDC",
+    "status": "Trading",
+    "baseCoin": "ONDO",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "JASMYUSDC",
+    "status": "Trading",
+    "baseCoin": "JASMY",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ATOMUSDC",
+    "status": "Trading",
+    "baseCoin": "ATOM",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "FETUSDC",
+    "status": "Trading",
+    "baseCoin": "FET",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "UNIUSDC",
+    "status": "Trading",
+    "baseCoin": "UNI",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BRETTUSDC",
+    "status": "Trading",
+    "baseCoin": "BRETT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "TIAUSDC",
+    "status": "Trading",
+    "baseCoin": "TIA",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "INJUSDC",
+    "status": "Trading",
+    "baseCoin": "INJ",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "MAKUSDT",
+    "status": "Trading",
+    "baseCoin": "MAK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SUNDOGUSDT",
+    "status": "Trading",
+    "baseCoin": "SUNDOG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CATIUSDT",
+    "status": "Trading",
+    "baseCoin": "CATI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HMSTRUSDT",
+    "status": "Trading",
+    "baseCoin": "HMSTR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CATIUSDC",
+    "status": "Trading",
+    "baseCoin": "CATI",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "EGP1USDT",
+    "status": "Trading",
+    "baseCoin": "EGP1",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HMSTRUSDC",
+    "status": "Trading",
+    "baseCoin": "HMSTR",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "EIGENUSDT",
+    "status": "Trading",
+    "baseCoin": "EIGEN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CATSUSDT",
+    "status": "Trading",
+    "baseCoin": "CATS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NAVXUSDT",
+    "status": "Trading",
+    "baseCoin": "NAVX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BBSOLUSDC",
+    "status": "Trading",
+    "baseCoin": "BBSOL",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BBSOLUSDT",
+    "status": "Trading",
+    "baseCoin": "BBSOL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CARVUSDT",
+    "status": "Trading",
+    "baseCoin": "CARV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DEEPUSDT",
+    "status": "Trading",
+    "baseCoin": "DEEP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PUFFERUSDT",
+    "status": "Trading",
+    "baseCoin": "PUFFER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DBRUSDT",
+    "status": "Trading",
+    "baseCoin": "DBR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PUFFUSDT",
+    "status": "Trading",
+    "baseCoin": "PUFF",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SCRUSDT",
+    "status": "Trading",
+    "baseCoin": "SCR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XUSDT",
+    "status": "Trading",
+    "baseCoin": "X",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "COOKUSDT",
+    "status": "Trading",
+    "baseCoin": "COOK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GRASSUSDT",
+    "status": "Trading",
+    "baseCoin": "GRASS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SMILEUSDT",
+    "status": "Trading",
+    "baseCoin": "SMILE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KAIAUSDT",
+    "status": "Trading",
+    "baseCoin": "KAIA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SWELLUSDT",
+    "status": "Trading",
+    "baseCoin": "SWELL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BBQUSDT",
+    "status": "Trading",
+    "baseCoin": "BBQ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SWELLUSDC",
+    "status": "Trading",
+    "baseCoin": "SWELL",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "NSUSDT",
+    "status": "Trading",
+    "baseCoin": "NS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GOATUSDT",
+    "status": "Trading",
+    "baseCoin": "GOAT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CMETHUSDT",
+    "status": "Trading",
+    "baseCoin": "CMETH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MORPHOUSDT",
+    "status": "Trading",
+    "baseCoin": "MORPHO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NEIROCTOUSDT",
+    "status": "Trading",
+    "baseCoin": "NEIROCTO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STOPUSDT",
+    "status": "Trading",
+    "baseCoin": "STOP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BANUSDT",
+    "status": "Trading",
+    "baseCoin": "BAN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OLUSDT",
+    "status": "Trading",
+    "baseCoin": "OL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VIRTUALUSDT",
+    "status": "Trading",
+    "baseCoin": "VIRTUAL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MAJORUSDT",
+    "status": "Trading",
+    "baseCoin": "MAJOR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MEMEFIUSDT",
+    "status": "Trading",
+    "baseCoin": "MEMEFI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PNUTUSDT",
+    "status": "Trading",
+    "baseCoin": "PNUT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SPXUSDT",
+    "status": "Trading",
+    "baseCoin": "SPX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZRCUSDT",
+    "status": "Trading",
+    "baseCoin": "ZRC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LUCEUSDT",
+    "status": "Trading",
+    "baseCoin": "LUCE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CHILLGUYUSDT",
+    "status": "Trading",
+    "baseCoin": "CHILLGUY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SUPRAUSDT",
+    "status": "Trading",
+    "baseCoin": "SUPRA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PAALUSDT",
+    "status": "Trading",
+    "baseCoin": "PAAL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FUSDT",
+    "status": "Trading",
+    "baseCoin": "F",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HPOS10IUSDT",
+    "status": "Trading",
+    "baseCoin": "HPOS10I",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XIONUSDT",
+    "status": "Trading",
+    "baseCoin": "XION",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MOVEUSDT",
+    "status": "Trading",
+    "baseCoin": "MOVE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MOZUSDT",
+    "status": "Trading",
+    "baseCoin": "MOZ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MEUSDT",
+    "status": "Trading",
+    "baseCoin": "ME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZEREBROUSDT",
+    "status": "Trading",
+    "baseCoin": "ZEREBRO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SENDUSDT",
+    "status": "Trading",
+    "baseCoin": "SEND",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AEROUSDT",
+    "status": "Trading",
+    "baseCoin": "AERO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STREAMUSDT",
+    "status": "Trading",
+    "baseCoin": "STREAM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VANAUSDT",
+    "status": "Trading",
+    "baseCoin": "VANA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LUNAIUSDT",
+    "status": "Trading",
+    "baseCoin": "LUNAI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PENGUUSDT",
+    "status": "Trading",
+    "baseCoin": "PENGU",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MNRYUSDT",
+    "status": "Trading",
+    "baseCoin": "MNRY",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FLUIDUSDT",
+    "status": "Trading",
+    "baseCoin": "FLUID",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FUELUSDT",
+    "status": "Trading",
+    "baseCoin": "FUEL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ODOSUSDT",
+    "status": "Trading",
+    "baseCoin": "ODOS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ALCHUSDT",
+    "status": "Trading",
+    "baseCoin": "ALCH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FLOCKUSDT",
+    "status": "Trading",
+    "baseCoin": "FLOCK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SONICUSDT",
+    "status": "Trading",
+    "baseCoin": "SONIC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SERAPHUSDT",
+    "status": "Trading",
+    "baseCoin": "SERAPH",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LAVAUSDT",
+    "status": "Trading",
+    "baseCoin": "LAVA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XTERUSDT",
+    "status": "Trading",
+    "baseCoin": "XTER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AI16ZUSDT",
+    "status": "Trading",
+    "baseCoin": "AI16Z",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GAMEUSDT",
+    "status": "Trading",
+    "baseCoin": "GAME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AIXBTUSDT",
+    "status": "Trading",
+    "baseCoin": "AIXBT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JUSDT",
+    "status": "Trading",
+    "baseCoin": "J",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SUSDT",
+    "status": "Trading",
+    "baseCoin": "S",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BMTUSDT",
+    "status": "Trading",
+    "baseCoin": "BMT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TOSHIUSDT",
+    "status": "Trading",
+    "baseCoin": "TOSHI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GPSUSDT",
+    "status": "Trading",
+    "baseCoin": "GPS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SOLVUSDT",
+    "status": "Trading",
+    "baseCoin": "SOLV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OBTUSDT",
+    "status": "Trading",
+    "baseCoin": "OBT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SOSOUSDT",
+    "status": "Trading",
+    "baseCoin": "SOSO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "status": "Trading",
+    "baseCoin": "TRUMP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TRUMPUSDC",
+    "status": "Trading",
+    "baseCoin": "TRUMP",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "PLUMEUSDT",
+    "status": "Trading",
+    "baseCoin": "PLUME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ANIMEUSDT",
+    "status": "Trading",
+    "baseCoin": "ANIME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LAYERUSDT",
+    "status": "Trading",
+    "baseCoin": "LAYER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PINEYEUSDT",
+    "status": "Trading",
+    "baseCoin": "PINEYE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BERAUSDT",
+    "status": "Trading",
+    "baseCoin": "BERA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AVLUSDT",
+    "status": "Trading",
+    "baseCoin": "AVL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "B3USDT",
+    "status": "Trading",
+    "baseCoin": "B3",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DIAMUSDT",
+    "status": "Trading",
+    "baseCoin": "DIAM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "G7USDT",
+    "status": "Trading",
+    "baseCoin": "G7",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "IPUSDT",
+    "status": "Trading",
+    "baseCoin": "IP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OMUSDT",
+    "status": "Trading",
+    "baseCoin": "OM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDTBUSDT",
+    "status": "Trading",
+    "baseCoin": "USDTB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ROAMUSDT",
+    "status": "Trading",
+    "baseCoin": "ROAM",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ELXUSDT",
+    "status": "Trading",
+    "baseCoin": "ELX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "REDUSDT",
+    "status": "Trading",
+    "baseCoin": "RED",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OIKUSDT",
+    "status": "Trading",
+    "baseCoin": "OIK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PELLUSDT",
+    "status": "Trading",
+    "baseCoin": "PELL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BRUSDT",
+    "status": "Trading",
+    "baseCoin": "BR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VVVUSDT",
+    "status": "Trading",
+    "baseCoin": "VVV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDQUSDT",
+    "status": "Trading",
+    "baseCoin": "USDQ",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCUSDQ",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "USDQ",
+    "innovation": false
+  },
+  {
+    "symbol": "WALUSDT",
+    "status": "Trading",
+    "baseCoin": "WAL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AMIUSDT",
+    "status": "Trading",
+    "baseCoin": "AMI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PARTIUSDT",
+    "status": "Trading",
+    "baseCoin": "PARTI",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CORNUSDT",
+    "status": "Trading",
+    "baseCoin": "CORN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "B3TRUSDT",
+    "status": "Trading",
+    "baseCoin": "B3TR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "KILOUSDT",
+    "status": "Trading",
+    "baseCoin": "KILO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "B3TRUSDC",
+    "status": "Trading",
+    "baseCoin": "B3TR",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "PUMPBTCUSDT",
+    "status": "Trading",
+    "baseCoin": "PUMPBTC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "USDRUSDT",
+    "status": "Trading",
+    "baseCoin": "USDR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BTCUSDR",
+    "status": "Trading",
+    "baseCoin": "BTC",
+    "quoteCoin": "USDR",
+    "innovation": false
+  },
+  {
+    "symbol": "FHEUSDT",
+    "status": "Trading",
+    "baseCoin": "FHE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BABY1USDT",
+    "status": "Trading",
+    "baseCoin": "BABY1",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "XAUTUSDT",
+    "status": "Trading",
+    "baseCoin": "XAUT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VETUSDT",
+    "status": "Trading",
+    "baseCoin": "VET",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "VTHOUSDT",
+    "status": "Trading",
+    "baseCoin": "VTHO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "WCTUSDT",
+    "status": "Trading",
+    "baseCoin": "WCT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PAWSUSDT",
+    "status": "Trading",
+    "baseCoin": "PAWS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "EPTUSDT",
+    "status": "Trading",
+    "baseCoin": "EPT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DOLOUSDT",
+    "status": "Trading",
+    "baseCoin": "DOLO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HYPERUSDT",
+    "status": "Trading",
+    "baseCoin": "HYPER",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ZORAUSDT",
+    "status": "Trading",
+    "baseCoin": "ZORA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "INITUSDT",
+    "status": "Trading",
+    "baseCoin": "INIT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SIGNUSDT",
+    "status": "Trading",
+    "baseCoin": "SIGN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HAEDALUSDT",
+    "status": "Trading",
+    "baseCoin": "HAEDAL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MILKUSDT",
+    "status": "Trading",
+    "baseCoin": "MILK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "OBOLUSDT",
+    "status": "Trading",
+    "baseCoin": "OBOL",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SXTUSDT",
+    "status": "Trading",
+    "baseCoin": "SXT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "DOODUSDT",
+    "status": "Trading",
+    "baseCoin": "DOOD",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NXPCUSDT",
+    "status": "Trading",
+    "baseCoin": "NXPC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TGTUSDT",
+    "status": "Trading",
+    "baseCoin": "TGT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PFVSUSDT",
+    "status": "Trading",
+    "baseCoin": "PFVS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HUMAUSDT",
+    "status": "Trading",
+    "baseCoin": "HUMA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ELDEUSDT",
+    "status": "Trading",
+    "baseCoin": "ELDE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AOUSDT",
+    "status": "Trading",
+    "baseCoin": "AO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AUSDT",
+    "status": "Trading",
+    "baseCoin": "A",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ASRRUSDT",
+    "status": "Trading",
+    "baseCoin": "ASRR",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "BDXNUSDT",
+    "status": "Trading",
+    "baseCoin": "BDXN",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "LAUSDT",
+    "status": "Trading",
+    "baseCoin": "LA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CUDISUSDT",
+    "status": "Trading",
+    "baseCoin": "CUDIS",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "RESOLVUSDT",
+    "status": "Trading",
+    "baseCoin": "RESOLV",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SKATEUSDT",
+    "status": "Trading",
+    "baseCoin": "SKATE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ALGOUSDC",
+    "status": "Trading",
+    "baseCoin": "ALGO",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "HBARUSDC",
+    "status": "Trading",
+    "baseCoin": "HBAR",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ENAUSDC",
+    "status": "Trading",
+    "baseCoin": "ENA",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "AAVEUSDC",
+    "status": "Trading",
+    "baseCoin": "AAVE",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "HOMEUSDT",
+    "status": "Trading",
+    "baseCoin": "HOME",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JUPUSDC",
+    "status": "Trading",
+    "baseCoin": "JUP",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "MOVEUSDC",
+    "status": "Trading",
+    "baseCoin": "MOVE",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "RENDERUSDC",
+    "status": "Trading",
+    "baseCoin": "RENDER",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "CRVUSDC",
+    "status": "Trading",
+    "baseCoin": "CRV",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BOMBUSDT",
+    "status": "Trading",
+    "baseCoin": "BOMB",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SPKUSDT",
+    "status": "Trading",
+    "baseCoin": "SPK",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HUSDT",
+    "status": "Trading",
+    "baseCoin": "H",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NEWTUSDT",
+    "status": "Trading",
+    "baseCoin": "NEWT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "EIGENUSDC",
+    "status": "Trading",
+    "baseCoin": "EIGEN",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "POLUSDC",
+    "status": "Trading",
+    "baseCoin": "POL",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "BERAUSDC",
+    "status": "Trading",
+    "baseCoin": "BERA",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "GALAUSDC",
+    "status": "Trading",
+    "baseCoin": "GALA",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "XOUSDT",
+    "status": "Trading",
+    "baseCoin": "XO",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "SAHARAUSDT",
+    "status": "Trading",
+    "baseCoin": "SAHARA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ICNTUSDT",
+    "status": "Trading",
+    "baseCoin": "ICNT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "FRAGUSDT",
+    "status": "Trading",
+    "baseCoin": "FRAG",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "NVDAXUSDT",
+    "status": "Trading",
+    "baseCoin": "NVDAX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "COINXUSDT",
+    "status": "Trading",
+    "baseCoin": "COINX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AIXBTUSDC",
+    "status": "Trading",
+    "baseCoin": "AIXBT",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "PENDLEUSDC",
+    "status": "Trading",
+    "baseCoin": "PENDLE",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ARUSDC",
+    "status": "Trading",
+    "baseCoin": "AR",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "SUSDC",
+    "status": "Trading",
+    "baseCoin": "S",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "AAPLXUSDT",
+    "status": "Trading",
+    "baseCoin": "AAPLX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CRCLXUSDT",
+    "status": "Trading",
+    "baseCoin": "CRCLX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "METAXUSDT",
+    "status": "Trading",
+    "baseCoin": "METAX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HOODXUSDT",
+    "status": "Trading",
+    "baseCoin": "HOODX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "AMZNXUSDT",
+    "status": "Trading",
+    "baseCoin": "AMZNX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "GOOGLXUSDT",
+    "status": "Trading",
+    "baseCoin": "GOOGLX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "STXUSDC",
+    "status": "Trading",
+    "baseCoin": "STX",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ENSUSDC",
+    "status": "Trading",
+    "baseCoin": "ENS",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "ORDIUSDC",
+    "status": "Trading",
+    "baseCoin": "ORDI",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "PYTHUSDC",
+    "status": "Trading",
+    "baseCoin": "PYTH",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "USD1USDT",
+    "status": "Trading",
+    "baseCoin": "USD1",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "MCDXUSDT",
+    "status": "Trading",
+    "baseCoin": "MCDX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TSLAXUSDT",
+    "status": "Trading",
+    "baseCoin": "TSLAX",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "HYPEUSDT",
+    "status": "Trading",
+    "baseCoin": "HYPE",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "JTOUSDC",
+    "status": "Trading",
+    "baseCoin": "JTO",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "DYDXUSDC",
+    "status": "Trading",
+    "baseCoin": "DYDX",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "WUSDC",
+    "status": "Trading",
+    "baseCoin": "W",
+    "quoteCoin": "USDC",
+    "innovation": false
+  },
+  {
+    "symbol": "TACUSDT",
+    "status": "Trading",
+    "baseCoin": "TAC",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "PUMPUSDT",
+    "status": "Trading",
+    "baseCoin": "PUMP",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ESUSDT",
+    "status": "Trading",
+    "baseCoin": "ES",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "ERAUSDT",
+    "status": "Trading",
+    "baseCoin": "ERA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "TAUSDT",
+    "status": "Trading",
+    "baseCoin": "TA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "COAUSDT",
+    "status": "Trading",
+    "baseCoin": "COA",
+    "quoteCoin": "USDT",
+    "innovation": false
+  },
+  {
+    "symbol": "CATUSDT",
+    "status": "Trading",
+    "baseCoin": "CAT",
+    "quoteCoin": "USDT",
+    "innovation": false
+  }
+]
