@@ -86,7 +86,7 @@ WEBHOOK_PORT = 5000
 
 استخدم الرابط الذي يرسله البوت في تلجرام لإعداد webhook في TradingView:
 
-```
+```json
 {
     "symbol": "{{ticker}}",
     "action": "{{strategy.order.action}}",
@@ -128,82 +128,3 @@ pyngrok==7.0.0
 ---
 
 **ملاحظة**: البوت يدعم التداول التجريبي الداخلي والتداول الحقيقي. ابدأ دائماً بالوضع التجريبي لاختبار الإعدادات. 
-
-# Bybit Trading Bot
-
-A comprehensive trading bot for Bybit with Telegram integration, web dashboard, and TradingView webhook support.
-
-## Features
-
-- Spot and Futures trading on Bybit
-- Telegram bot interface for control and notifications
-- Web dashboard with real-time data and charts
-- TradingView webhook integration
-- Demo trading mode
-- Advanced profit taking strategies
-- Risk management features
-
-## Deployment to Railway
-
-This project is ready for deployment to Railway. Follow these steps:
-
-1. Fork this repository to your GitHub account
-2. Go to [Railway.app](https://railway.app) and create an account
-3. Create a new project and select "Deploy from GitHub repo"
-4. Select your forked repository
-5. Railway will automatically detect this is a Python project and use the `railway.yaml` configuration
-
-### Environment Variables
-
-Set these environment variables in your Railway project:
-
-- `TELEGRAM_TOKEN`: Your Telegram bot token
-- `ADMIN_USER_ID`: Your Telegram user ID (for admin access)
-- `BYBIT_API_KEY`: Your Bybit API key
-- `BYBIT_API_SECRET`: Your Bybit API secret
-
-### Configuration
-
-The bot will automatically use Railway's provided URL for webhooks. No additional configuration is needed.
-
-## Local Development
-
-1. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-2. Create a `.env` file with your credentials:
-   ```
-   TELEGRAM_TOKEN=your_telegram_bot_token
-   ADMIN_USER_ID=your_telegram_user_id
-   BYBIT_API_KEY=your_bybit_api_key
-   BYBIT_API_SECRET=your_bybit_api_secret
-   ```
-
-3. Run the bot:
-   ```
-   python app.py
-   ```
-
-## Usage
-
-Once deployed, the bot will be accessible via:
-- Telegram bot interface
-- Web dashboard at your Railway URL
-- TradingView webhook at `/webhook`
-
-## Support
-
-For issues or questions, please open an issue on GitHub.
-
-## Railway-Specific Notes
-
-This project includes Railway-specific configuration files:
-- `railway.yaml`: Main Railway configuration
-- `railway.toml`: Additional Railway settings
-- `.railway/build.toml`: Build configuration
-- `.railway/deploy.toml`: Deployment configuration
-
-The application will automatically bind to the PORT environment variable provided by Railway.
-Health checks are performed on the `/health` endpoint.

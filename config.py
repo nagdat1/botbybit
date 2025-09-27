@@ -20,11 +20,8 @@ BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "kpP2LHqNOc8Z2P1QjKB5Iw874x7Q2Q
 BYBIT_BASE_URL = "https://api.bybit.com"
 
 # إعدادات Webhook
-# Use Railway's provided URL if available, otherwise use ngrok or localhost
-RAILWAY_URL = os.getenv('RAILWAY_STATIC_URL')
-RENDER_URL = os.getenv('RENDER_EXTERNAL_URL')
-WEBHOOK_URL = os.getenv('WEBHOOK_URL', RAILWAY_URL or RENDER_URL or "https://1557a38f4447.ngrok-free.app")
-WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', os.getenv('PORT', "5000")))
+WEBHOOK_URL = os.getenv('WEBHOOK_URL', "https://1557a38f4447.ngrok-free.app")
+WEBHOOK_PORT = int(os.getenv('WEBHOOK_PORT', "5000"))
 
 # إعدادات افتراضية للبوت
 DEFAULT_SETTINGS = {
@@ -93,4 +90,4 @@ DATABASE_SETTINGS = {
     'enabled': False,
     'type': 'sqlite',  # sqlite, mysql, postgresql
     'filename': 'trading_bot.db'
-}
+} 

@@ -221,18 +221,14 @@ class WebServer:
     def setup_webhook_url(self):
         """إعداد رابط Webhook (على Render سيتم استخدام الرابط المقدم)"""
         try:
-            # Check for Railway URL first, then Render, then fallback to ngrok or localhost
-            railway_url = os.getenv('RAILWAY_STATIC_URL')
+            # على Render، سيتم استخدام الرابط المقدم من المتغيرات البيئية
+            # أو يمكن إنشاؤه بناءً على اسم الخدمة
             render_url = os.getenv('RENDER_EXTERNAL_URL')
-            
-            if railway_url:
-                self.current_url = f"{railway_url}/webhook"
-            elif render_url:
+            if render_url:
                 self.current_url = f"{render_url}/webhook"
             else:
-                # استخدام منفذ مختلف لتجنب التضارب
-                port = os.getenv('WEBHOOK_PORT', '5000')
-                self.current_url = f"http://localhost:{port}/webhook"
+                # استخدام الرابط المحلي للاختبار
+                self.current_url = f"http://localhost:{WEBHOOK_PORT}/webhook"
             
             print(f"🌐 تم إعداد رابط Webhook: {self.current_url}")
             
@@ -243,8 +239,7 @@ class WebServer:
             
         except Exception as e:
             print(f"❌ خطأ في إعداد رابط Webhook: {e}")
-            port = os.getenv('WEBHOOK_PORT', '5000')
-            local_url = f"http://localhost:{port}/webhook"
+            local_url = f"http://localhost:{WEBHOOK_PORT}/webhook"
             self.send_startup_notification(local_url)
             return local_url
 
@@ -367,7 +362,7 @@ class WebServer:
     def run(self, host='0.0.0.0', port=None, debug=False):
         """ تشغيل السيرفر"""
         if port is None:
-            port = int(os.environ.get('WEBHOOK_PORT', 5000))  # استخدام منفذ مختلف لتجنب التضارب
+            port = WEBHOOK_PORT
         
         # إعداد رابط Webhook
         webhook_url = self.setup_webhook_url()
@@ -380,4 +375,4 @@ class WebServer:
             print(f"🌐 رابط Webhook: {webhook_url}")
         
         # تشغيل السيرفر
-        self.socketio.run(self.app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
+        self.socketio.run(self.app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True) 

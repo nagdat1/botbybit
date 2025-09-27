@@ -1,29 +1,29 @@
-# Use Python 3.11 as base image
+# استخدام Python 3.11 كصورة أساسية
 FROM python:3.11-slim
 
-# Set environment variables
+# تعيين متغيرات البيئة
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Set working directory
+# إنشاء مجلد العمل
 WORKDIR /app
 
-# Copy requirements first (for better Docker layer caching)
+# نسخ ملفات المتطلبات أولاً (لتحسين بناء Docker layers)
 COPY requirements.txt .
 
-# Install dependencies
+# تثبيت المتطلبات
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all project files
+# نسخ باقي ملفات المشروع
 COPY . .
 
-# Create non-root user for security
+# إنشاء مستخدم غير root للأمان
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
 USER app
 
-# Expose port (Railway will set PORT environment variable)
-EXPOSE $PORT
+# فتح المنفذ
+EXPOSE 5000
 
-# Run the application using the new main.py
-CMD ["python", "main.py"]
+# تشغيل التطبيق
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "app:app"]
