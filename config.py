@@ -11,16 +11,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # إعدادات تلغرام
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw")
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID'))
 
 # إعدادات Bybit API
-BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "osH14PNXCGzrxQLT0T")
-BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "kpP2LHqNOc8Z2P1QjKB5Iw874x7Q2QXGfBHX")
-BYBIT_BASE_URL = "https://api.bybit.com"
+BYBIT_API_KEY = os.getenv('BYBIT_API_KEY')
+BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET')
+BYBIT_BASE_URL = os.getenv('BYBIT_BASE_URL')
 
 # إعدادات Webhook
-WEBHOOK_URL = os.getenv('WEBHOOK_URL', "https://1557a38f4447.ngrok-free.app")
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 # استخدام منفذ Railway إذا كان متاحاً، وإلا استخدام 5000 كافتراضي
 WEBHOOK_PORT = int(os.environ.get('PORT', os.getenv('WEBHOOK_PORT', "5000")))
 
@@ -60,35 +60,4 @@ LOGGING_SETTINGS = {
     'backup_count': 5
 }
 
-# رسائل البوت
-MESSAGES = {
-    'welcome': """
-🤖 مرحباً بك في بوت التداول على Bybit
-
-🔧 الميزات المتاحة:
-• التداول الحقيقي والتجريبي الداخلي
-• دعم أسواق Spot و Futures
-• استقبال إشارات من TradingView
-• خطط جني الأرباح المتقدمة
-• إدارة المخاطر
-
-استخدم الأزرار أدناه للتنقل في البوت
-    """,
-    
-    'bot_started': "✅ تم تشغيل البوت، سيتم معالجة الإشارات الواردة",
-    'bot_stopped': "⏹️ تم إيقاف البوت، لن يتم معالجة الإشارات الجديدة",
-    'symbol_not_found': "❌ الرمز {} غير موجود في منصة Bybit",
-    'insufficient_balance': "❌ الرصيد غير كافي لفتح الصفقة",
-    'trade_success': "✅ تم تنفيذ الصفقة بنجاح",
-    'trade_failed': "❌ فشل في تنفيذ الصفقة: {}",
-    'no_open_positions': "📭 لا توجد صفقات مفتوحة حالياً",
-    'position_closed': "✅ تم إغلاق الصفقة بنجاح",
-    'unauthorized': "غير مصرح لك باستخدام هذا البوت"
-}
-
-# إعدادات قاعدة البيانات (إذا كنت تريد حفظ البيانات)
-DATABASE_SETTINGS = {
-    'enabled': False,
-    'type': 'sqlite',  # sqlite, mysql, postgresql
-    'filename': 'trading_bot.db'
-} 
+// ... existing code ...
