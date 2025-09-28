@@ -25,5 +25,5 @@ USER app
 # Expose port (Railway will set PORT environment variable)
 EXPOSE $PORT
 
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--timeout", "120", "app:app"]
+# Run the application using run_with_server.py as entry point
+CMD ["python", "run_with_server.py"]

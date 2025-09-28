@@ -13,6 +13,9 @@ from datetime import datetime
 # إضافة المسار الحالي إلى مسارات Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Get PORT from environment variable (Railway will set this)
+PORT = int(os.environ.get('PORT', 5000))
+
 def main():
     """الدالة الرئيسية لتشغيل البوت والسيرفر"""
     try:
@@ -22,6 +25,7 @@ def main():
         
         print("🚀 بدء تشغيل بوت التداول مع السيرفر...")
         print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"🔗 المنفذ: {PORT}")
         
         # إنشاء السيرفر وربطه بالبوت
         web_server = WebServer(trading_bot)
@@ -29,9 +33,9 @@ def main():
         
         print("🌐 إعداد السيرفر المحلي...")
         
-        # تشغيل السيرفر في thread منفصل
+        # تشغيل السيرفر في thread منفصل مع PORT من Railway
         server_thread = threading.Thread(
-            target=lambda: web_server.run(debug=False), 
+            target=lambda: web_server.run(debug=False, port=PORT), 
             daemon=True
         )
         server_thread.start()

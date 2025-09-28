@@ -98,7 +98,7 @@ WEBHOOK_PORT = 5000
 ## 🔧 المتطلبات
 
 تم تحديث `requirements.txt` ليشمل:
-```
+````
 python-telegram-bot==20.7
 requests==2.31.0
 flask==2.3.3
@@ -108,7 +108,7 @@ dash==2.14.2
 dash-bootstrap-components==1.5.0
 pandas==2.1.3
 pyngrok==7.0.0
-```
+````
 
 ## 🛡️ الأمان
 
@@ -183,7 +183,7 @@ The bot will automatically use Railway's provided URL for webhooks. No additiona
 
 3. Run the bot:
    ```
-   python app.py
+   python run_with_server.py
    ```
 
 ## Usage

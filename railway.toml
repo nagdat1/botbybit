@@ -3,5 +3,5 @@ builder = "dockerfile"
 dockerfilePath = "./Dockerfile"
 
 [deploy]
-startCommand = "python app.py"
+startCommand = "python run_with_server.py"
 restartPolicyType = "never"

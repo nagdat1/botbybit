@@ -1,7 +1,7 @@
 services:
   - name: bybit-trading-bot
     runtime: python
-    startCommand: python app.py
+    startCommand: python run_with_server.py
     envVars:
       - key: PORT
         value: "5000"
