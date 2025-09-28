@@ -214,10 +214,13 @@ class WebServer:
         """إعداد رابط Webhook (على Railway سيتم استخدام الرابط المقدم)"""
         try:
             # Check for Railway URL first, then Render, then fallback to localhost
-            railway_url = os.getenv('RAILWAY_STATIC_URL')
+            railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
             render_url = os.getenv('RENDER_EXTERNAL_URL')
             
             if railway_url:
+                # Ensure the URL has the correct protocol
+                if not railway_url.startswith('http'):
+                    railway_url = f"https://{railway_url}"
                 self.current_url = f"{railway_url}/webhook"
             elif render_url:
                 self.current_url = f"{render_url}/webhook"
@@ -244,8 +247,11 @@ class WebServer:
         """إرسال إشعار بدء التشغيل"""
         try:
             # التحقق مما إذا كان عنوان Railway متوفرًا
-            railway_url = os.getenv('RAILWAY_STATIC_URL')
+            railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
             if railway_url:
+                # Ensure the URL has the correct protocol
+                if not railway_url.startswith('http'):
+                    railway_url = f"https://{railway_url}"
                 # استخدام عنوان Railway للإشعارات
                 display_url = f"{railway_url}/webhook"
             else:

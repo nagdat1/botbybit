@@ -6,23 +6,20 @@ This document summarizes all the changes made to make the project ready for Rail
 
 ### 1. Railway Configuration Files
 - `railway.yaml` - Main Railway configuration
-- `railway.toml` - Additional Railway settings
-- `.railway/build.toml` - Build configuration
-- `.railway/deploy.toml` - Deployment configuration
-
-### 2. Docker Configuration
+- `railway.toml` - Additional Railway settings with environment variables
 - `Dockerfile` - Updated to use Railway's PORT environment variable
 
-### 3. Application Code Updates
-- `config.py` - Updated to handle Railway URLs
-- `app.py` - Updated to use Railway's PORT environment variable
-- `web_server.py` - Updated to handle Railway URLs
+### 2. Application Code Updates
+- `config.py` - Updated to handle Railway URLs and environment variables
+- `run_with_server.py` - Updated to use Railway's PORT and send notifications
+- `web_server.py` - Updated to handle Railway URLs and notifications
 
-### 4. Documentation
-- `README.md` - Added Railway deployment instructions
+### 3. Documentation
+- `README.md` - Added Railway deployment instructions and features
 - `RAILWAY_DEPLOYMENT_CHECKLIST.md` - This file
 
-### 5. Helper Files
+### 4. Helper Files
+- `test_railway_env.py` - Script to test Railway environment variables
 - `test_railway.py` - Script to verify Railway readiness
 - `health.py` - Simple health check endpoint
 
@@ -30,8 +27,15 @@ This document summarizes all the changes made to make the project ready for Rail
 
 ### Environment Variable Handling
 - The application now properly uses Railway's `PORT` environment variable
-- Webhook URLs are automatically configured based on Railway's provided URL
+- Webhook URLs are automatically configured using `RAILWAY_PUBLIC_DOMAIN` or `RAILWAY_STATIC_URL`
 - All configuration now respects Railway's environment variables
+- Added fallback support for multiple Railway URL formats
+
+### Notification System
+- Added automatic Telegram notifications when the bot starts on Railway
+- Sends webhook URL to admin via Telegram
+- Displays environment type (Railway Cloud, Render Cloud, or Local)
+- Enhanced console output with clear webhook URL display
 
 ### Docker Support
 - Updated Dockerfile to work with Railway's build system
@@ -56,7 +60,22 @@ This document summarizes all the changes made to make the project ready for Rail
 
 ## Verification
 
-Run `python test_railway.py` to verify that all required files are present and the project is ready for deployment.
+Run these commands to verify Railway readiness:
+```bash
+# Test environment variables
+python test_railway_env.py
+
+# Test general Railway readiness
+python test_railway.py
+```
+
+## Expected Behavior on Railway
+
+1. **Startup**: The bot will start and bind to Railway's provided PORT
+2. **URL Detection**: Automatically detect Railway's public domain
+3. **Telegram Notification**: Send webhook URL to admin via Telegram
+4. **Console Output**: Display clear webhook URL in console logs
+5. **Webhook Ready**: Accept TradingView signals at `/webhook` endpoint
 
 ## Notes
 
@@ -64,3 +83,4 @@ Run `python test_railway.py` to verify that all required files are present and t
 - Webhook URLs will be automatically configured using Railway's domain
 - Health checks are performed on the `/health` endpoint
 - The application uses gunicorn for production deployment
+- **Important**: The bot will send you the webhook URL via Telegram when it starts on Railway

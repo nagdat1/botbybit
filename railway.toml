@@ -5,3 +5,7 @@ dockerfilePath = "./Dockerfile"
 [deploy]
 startCommand = "python run_with_server.py"
 restartPolicyType = "never"
+
+[env]
+PORT = "5000"
+PYTHONUNBUFFERED = "1"

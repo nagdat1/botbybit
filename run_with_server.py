@@ -26,10 +26,23 @@ def send_railway_url_notification(webhook_url):
         async def send_message():
             try:
                 application = Application.builder().token(TELEGRAM_TOKEN).build()
+                
+                # تحديد نوع البيئة
+                if "railway" in webhook_url.lower() or "railway.app" in webhook_url:
+                    environment = "🚂 Railway Cloud"
+                elif "render" in webhook_url.lower():
+                    environment = "☁️ Render Cloud"
+                else:
+                    environment = "💻 Local Development"
+                
                 message = f"🚀 بدء تشغيل بوت التداول\n\n"
-                message += f"🌐 رابط استقبال الإشارات:\n{webhook_url}\n\n"
-                message += f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
+                message += f"🌍 البيئة: {environment}\n"
+                message += f"🌐 رابط استقبال الإشارات:\n`{webhook_url}`\n\n"
+                message += f"📡 استخدم هذا الرابط في TradingView لإرسال الإشارات\n"
+                message += f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                message += f"✅ البوت جاهز لاستقبال الإشارات!"
+                
+                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
             except Exception as e:
                 print(f"❌ خطأ في إرسال إشعار Railway: {e}")
         
@@ -57,6 +70,13 @@ def main():
         print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"🔗 المنفذ: {PORT}")
         
+        # طباعة معلومات البيئة
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        if railway_url:
+            print(f"🚂 Railway URL: {railway_url}")
+        else:
+            print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
+        
         # إنشاء السيرفر وربطه بالبوت
         web_server = WebServer(trading_bot)
         trading_bot.web_server = web_server
@@ -73,16 +93,25 @@ def main():
         print("✅ تم تشغيل السيرفر بنجاح")
         
         # إعداد وإرسال إشعار برابط Webhook من Railway
-        railway_url = os.getenv('RAILWAY_STATIC_URL')
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
         if railway_url:
+            # Ensure the URL has the correct protocol
+            if not railway_url.startswith('http'):
+                railway_url = f"https://{railway_url}"
             webhook_url = f"{railway_url}/webhook"
-            print(f"🌐 رابط Webhook للاستقبال من Railway: {webhook_url}")
+            print("=" * 60)
+            print("🌐 رابط Webhook للاستقبال من Railway:")
+            print(f"   {webhook_url}")
+            print("=" * 60)
             # إرسال إشعار عبر تلجرام مع رابط Railway
             send_railway_url_notification(webhook_url)
         else:
             # استخدام الرابط من الإعدادات
             webhook_url = WEBHOOK_URL
-            print(f"🌐 رابط Webhook: {webhook_url}")
+            print("=" * 60)
+            print("🌐 رابط Webhook:")
+            print(f"   {webhook_url}")
+            print("=" * 60)
             # إرسال إشعار محلي
             send_railway_url_notification(webhook_url)
         

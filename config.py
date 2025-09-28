@@ -21,7 +21,7 @@ BYBIT_BASE_URL = "https://api.bybit.com"
 
 # إعدادات Webhook
 # Use Railway's provided URL if available, otherwise use ngrok or localhost
-RAILWAY_URL = os.getenv('RAILWAY_STATIC_URL')
+RAILWAY_URL = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
 RENDER_URL = os.getenv('RENDER_EXTERNAL_URL')
 
 # Railway will set the PORT environment variable
@@ -29,6 +29,9 @@ PORT = int(os.getenv('PORT', '5000'))
 
 # Webhook URL configuration for Railway
 if RAILWAY_URL:
+    # Ensure the URL has the correct protocol
+    if not RAILWAY_URL.startswith('http'):
+        RAILWAY_URL = f"https://{RAILWAY_URL}"
     WEBHOOK_URL = f"{RAILWAY_URL}/webhook"
 elif RENDER_URL:
     WEBHOOK_URL = f"{RENDER_URL}/webhook"
