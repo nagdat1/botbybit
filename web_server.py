@@ -243,8 +243,17 @@ class WebServer:
     def send_startup_notification(self, current_url):
         """إرسال إشعار بدء التشغيل"""
         try:
+            # التحقق مما إذا كان عنوان Railway متوفرًا
+            railway_url = os.getenv('RAILWAY_STATIC_URL')
+            if railway_url:
+                # استخدام عنوان Railway للإشعارات
+                display_url = f"{railway_url}/webhook"
+            else:
+                # استخدام العنوان المحلي
+                display_url = current_url
+                
             notification_data = {
-                "الرابط الحالي": current_url,
+                "رابط استقبال الإشارات": display_url,
                 "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 "الحالة": "السيرفر قيد التشغيل ✅"
             }
