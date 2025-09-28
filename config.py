@@ -11,34 +11,31 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # إعدادات تلغرام
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-admin_user_id_str = os.getenv('ADMIN_USER_ID')
-if admin_user_id_str:
-    try:
-        ADMIN_USER_ID = int(admin_user_id_str)
-    except (ValueError, TypeError):
-        ADMIN_USER_ID = None
-else:
-    ADMIN_USER_ID = None
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw")
+ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
 
 # إعدادات Bybit API
-BYBIT_API_KEY = os.getenv('BYBIT_API_KEY')
-BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET')
-BYBIT_BASE_URL = os.getenv('BYBIT_BASE_URL', 'https://api.bybit.com')
+BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "osH14PNXCGzrxQLT0T")
+BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "kpP2LHqNOc8Z2P1QjKB5Iw874x7Q2QXGfBHX")
+BYBIT_BASE_URL = "https://api.bybit.com"
 
 # إعدادات Webhook
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-# استخدام منفذ Railway إذا كان متاحاً، وإلا استخدام 5000 كافتراضي
-port_env = os.environ.get('PORT')
-webhook_port_env = os.getenv('WEBHOOK_PORT', "5000")
-print(f"🔧 PORT environment variable: {port_env}")
-print(f"🔧 WEBHOOK_PORT environment variable: {webhook_port_env}")
+# Use Railway's provided URL if available, otherwise use ngrok or localhost
+RAILWAY_URL = os.getenv('RAILWAY_STATIC_URL')
+RENDER_URL = os.getenv('RENDER_EXTERNAL_URL')
 
-if port_env:
-    WEBHOOK_PORT = int(port_env)
+# Railway will set the PORT environment variable
+PORT = int(os.getenv('PORT', '5000'))
+
+# Webhook URL configuration for Railway
+if RAILWAY_URL:
+    WEBHOOK_URL = f"{RAILWAY_URL}/webhook"
+elif RENDER_URL:
+    WEBHOOK_URL = f"{RENDER_URL}/webhook"
 else:
-    WEBHOOK_PORT = int(webhook_port_env)
-print(f"🔧 Final WEBHOOK_PORT: {WEBHOOK_PORT}")
+    WEBHOOK_URL = os.getenv('WEBHOOK_URL', f"http://localhost:{PORT}/webhook")
+
+WEBHOOK_PORT = PORT  # Use Railway's PORT
 
 # إعدادات افتراضية للبوت
 DEFAULT_SETTINGS = {

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 سيرفر ويب محلي لعرض بيانات التداول والرسوم البيانية
-مع دعم التحديثات المباشرة عبر WebSocket و ngrok
+مع دعم التحديثات المباشرة عبر WebSocket
 """
 
 import os
@@ -21,10 +21,6 @@ import requests
 # استيراد إعدادات البوت
 from config import *
 
-# استيراد مكتبات تلجرام
-from telegram import Bot
-from telegram.ext import Application
-
 class WebServer:
     def __init__(self, trading_bot):
         self.trading_bot = trading_bot
@@ -40,10 +36,6 @@ class WebServer:
             'trades': [],
             'balance_history': []
         }
-        
-        # ngrok tunnel
-        self.ngrok_tunnel = None
-        self.current_url = None
         
         self.setup_routes()
         self.setup_socketio_events()
@@ -132,9 +124,8 @@ class WebServer:
                 
                 threading.Thread(target=process_signal_async, daemon=True).start()
                 
-                # إرسال إشعار تلجرام إذا كان مكوناً
-                if TELEGRAM_TOKEN and ADMIN_USER_ID:
-                    self.send_telegram_notification("📡 تم استقبال إشارة جديدة", data)
+                # إرسال إشعار تلجرام
+                self.send_telegram_notification("📡 تم استقبال إشارة جديدة", data)
                 
                 return jsonify({"status": "success"}), 200
                 
@@ -222,13 +213,8 @@ class WebServer:
     def setup_webhook_url(self):
         """إعداد رابط Webhook (على Railway سيتم استخدام الرابط المقدم)"""
         try:
-            # طباعة معلومات التصحيح
-            print(f"🔧 RAILWAY_PUBLIC_URL: {os.getenv('RAILWAY_PUBLIC_URL', 'Not set')}")
-            print(f"🔧 RENDER_EXTERNAL_URL: {os.getenv('RENDER_EXTERNAL_URL', 'Not set')}")
-            print(f"🔧 RAILWAY_PROJECT_ID: {os.getenv('RAILWAY_PROJECT_ID', 'Not set')}")
-            
-            # على Railway، سيتم استخدام الرابط المقدم من المتغيرات البيئية
-            railway_url = os.getenv('RAILWAY_PUBLIC_URL')
+            # Check for Railway URL first, then Render, then fallback to localhost
+            railway_url = os.getenv('RAILWAY_STATIC_URL')
             render_url = os.getenv('RENDER_EXTERNAL_URL')
             
             if railway_url:
@@ -236,16 +222,9 @@ class WebServer:
             elif render_url:
                 self.current_url = f"{render_url}/webhook"
             else:
-                # استخدام الرابط المحلي للاختبار أو Railway إذا كان PORT متوفر
-                port = os.environ.get('PORT', WEBHOOK_PORT)
-                # Check if we're on Railway by checking for Railway-specific env vars
-                if os.getenv('RAILWAY_PROJECT_ID'):
-                    # We're on Railway, construct URL using the default Railway domain
-                    railway_project_name = os.getenv('RAILWAY_PROJECT_NAME', 'trading-bot')
-                    railway_environment = os.getenv('RAILWAY_ENVIRONMENT', 'production')
-                    self.current_url = f"https://{railway_project_name}-up.{railway_environment}.railway.app/webhook"
-                else:
-                    self.current_url = f"http://localhost:{port}/webhook"
+                # استخدام المنفذ المحدد من Railway أو القيمة الافتراضية
+                port = PORT
+                self.current_url = f"http://localhost:{port}/webhook"
             
             print(f"🌐 تم إعداد رابط Webhook: {self.current_url}")
             
@@ -256,7 +235,7 @@ class WebServer:
             
         except Exception as e:
             print(f"❌ خطأ في إعداد رابط Webhook: {e}")
-            port = os.environ.get('PORT', WEBHOOK_PORT)
+            port = PORT
             local_url = f"http://localhost:{port}/webhook"
             self.send_startup_notification(local_url)
             return local_url
@@ -264,11 +243,6 @@ class WebServer:
     def send_startup_notification(self, current_url):
         """إرسال إشعار بدء التشغيل"""
         try:
-            # Check if Telegram is properly configured
-            if not TELEGRAM_TOKEN or not ADMIN_USER_ID:
-                print("⚠️  Telegram not configured, skipping startup notification")
-                return
-                
             notification_data = {
                 "الرابط الحالي": current_url,
                 "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -286,11 +260,6 @@ class WebServer:
     def send_detailed_startup_notification(self, current_url, old_url=None):
         """إرسال إشعار بدء التشغيل المفصل مع تفاصيل URL"""
         try:
-            # Check if Telegram is properly configured
-            if not TELEGRAM_TOKEN or not ADMIN_USER_ID:
-                print("⚠️  Telegram not configured, skipping detailed startup notification")
-                return
-                
             # If old_url is not provided, use the one from config
             if old_url is None:
                 old_url = WEBHOOK_URL
@@ -341,11 +310,6 @@ class WebServer:
     def send_telegram_notification(self, title, data):
         """إرسال إشعار تلجرام"""
         try:
-            # Check if Telegram is properly configured
-            if not TELEGRAM_TOKEN or not ADMIN_USER_ID:
-                print("⚠️  Telegram not configured, skipping notification")
-                return
-                
             message = f"{title}\n\n"
             
             if isinstance(data, dict):
@@ -356,6 +320,7 @@ class WebServer:
             
             # إرسال الرسالة (سيتم تنفيذها من خلال البوت)
             import asyncio
+            from telegram.ext import Application
             
             async def send_message():
                 try:
@@ -395,13 +360,7 @@ class WebServer:
     def run(self, host='0.0.0.0', port=None, debug=False):
         """ تشغيل السيرفر"""
         if port is None:
-            # استخدام منفذ Railway إذا كان متاحاً، وإلا استخدام 5000 كافتراضي
-            port = int(os.environ.get('PORT', WEBHOOK_PORT))
-        
-        # طباعة معلومات التصحيح
-        print(f"🔧 Web server port: {port}")
-        print(f"🔧 WEBHOOK_PORT from config: {WEBHOOK_PORT}")
-        print(f"🔧 PORT environment variable: {os.environ.get('PORT', 'Not set')}")
+            port = PORT
         
         # إعداد رابط Webhook
         webhook_url = self.setup_webhook_url()
@@ -414,4 +373,4 @@ class WebServer:
             print(f"🌐 رابط Webhook: {webhook_url}")
         
         # تشغيل السيرفر
-        self.socketio.run(self.app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True) 
+        self.socketio.run(self.app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-تطبيق Flask الرئيسي لبوت التداول على Render
+تطبيق Flask الرئيسي لبوت التداول على Railway
 """
 
 import os
@@ -17,6 +17,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # استيراد الوحدات المطلوبة
 from bybit_trading_bot import trading_bot
 from web_server import WebServer
+from config import PORT
 
 # إنشاء تطبيق Flask
 app = Flask(__name__)
@@ -147,7 +148,7 @@ def start_web_server():
         
         # تشغيل السيرفر في thread منفصل
         server_thread = threading.Thread(
-            target=lambda: web_server.run(debug=False, port=5000), 
+            target=lambda: web_server.run(debug=False, port=PORT), 
             daemon=True
         )
         server_thread.start()
@@ -160,8 +161,9 @@ def start_web_server():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    print("🚀 بدء تشغيل بوت التداول على Render...")
+    print("🚀 بدء تشغيل بوت التداول على Railway...")
     print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"🔗 المنفذ: {PORT}")
     
     # بدء البوت
     start_bot()
@@ -170,5 +172,4 @@ if __name__ == "__main__":
     start_web_server()
     
     # تشغيل تطبيق Flask
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=PORT, debug=False)
