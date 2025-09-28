@@ -22,6 +22,7 @@ def main():
         # استيراد الوحدات المطلوبة
         from bybit_trading_bot import trading_bot, main as bot_main
         from web_server import WebServer
+        from config import WEBHOOK_URL
         
         print("🚀 بدء تشغيل بوت التداول مع السيرفر...")
         print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -41,6 +42,16 @@ def main():
         server_thread.start()
         
         print("✅ تم تشغيل السيرفر بنجاح")
+        
+        # إرسال إشعار برابط Webhook من Railway
+        railway_url = os.getenv('RAILWAY_STATIC_URL')
+        if railway_url:
+            webhook_url = f"{railway_url}/webhook"
+            print(f"🌐 رابط Webhook للاستقبال من Railway: {webhook_url}")
+        else:
+            webhook_url = f"http://localhost:{PORT}/webhook"
+            print(f"🌐 رابط Webhook محلي: {webhook_url}")
+        
         print("🤖 بدء تشغيل بوت التلجرام...")
         
         # تشغيل البوت الرئيسي
