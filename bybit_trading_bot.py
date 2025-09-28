@@ -1138,10 +1138,13 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trading_bot.update_open_positions_prices()
         
         if not trading_bot.open_positions:
+            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
             if update.callback_query is not None:
-                await update.callback_query.edit_message_text("🔄 لا توجد صفقات مفتوحة حالياً")
+                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+                if update.callback_query.message.text != message_text:
+                    await update.callback_query.edit_message_text(message_text)
             elif update.message is not None:
-                await update.message.reply_text("🔄 لا توجد صفقات مفتوحة حالياً")
+                await update.message.reply_text(message_text)
             return
         
         # فصل الصفقات حسب النوع
@@ -1167,25 +1170,41 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # إذا لم تكن هناك صفقات من أي نوع
         if not spot_positions and not futures_positions:
+            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
             if update.callback_query is not None:
-                await update.callback_query.edit_message_text("🔄 لا توجد صفقات مفتوحة حالياً")
+                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+                if update.callback_query.message.text != message_text:
+                    await update.callback_query.edit_message_text(message_text)
             elif update.message is not None:
-                await update.message.reply_text("🔄 لا توجد صفقات مفتوحة حالياً")
+                await update.message.reply_text(message_text)
         
     except Exception as e:
         logger.error(f"خطأ في عرض الصفقات المفتوحة: {e}")
+        error_message = f"❌ خطأ في عرض الصفقات المفتوحة: {e}"
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text(f"❌ خطأ في عرض الصفقات المفتوحة: {e}")
+            # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+            if update.callback_query.message.text != error_message:
+                try:
+                    await update.callback_query.edit_message_text(error_message)
+                except Exception as edit_error:
+                    if "Message is not modified" in str(edit_error):
+                        # تجاهل الخطأ إذا لم يتغير المحتوى
+                        pass
+                    else:
+                        raise
         elif update.message is not None:
-            await update.message.reply_text(f"❌ خطأ في عرض الصفقات المفتوحة: {e}")
+            await update.message.reply_text(error_message)
 
 async def send_spot_positions_message(update: Update, spot_positions: dict):
     """إرسال رسالة صفقات السبوت مع عرض زر إغلاق وسعر الربح/الخسارة"""
     if not spot_positions:
+        message_text = "🔄 لا توجد صفقات سبوت مفتوحة حالياً"
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text("🔄 لا توجد صفقات سبوت مفتوحة حالياً")
+            # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+            if update.callback_query.message.text != message_text:
+                await update.callback_query.edit_message_text(message_text)
         elif update.message is not None:
-            await update.message.reply_text("🔄 لا توجد صفقات سبوت مفتوحة حالياً")
+            await update.message.reply_text(message_text)
         return
         
     spot_text = "🔄 الصفقات المفتوحة - سبوت:\n\n"
@@ -1253,17 +1272,29 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
     spot_reply_markup = InlineKeyboardMarkup(spot_keyboard)
     
     if update.callback_query is not None:
-        await update.callback_query.edit_message_text(spot_text, reply_markup=spot_reply_markup)
+        # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+        if update.callback_query.message.text != spot_text or update.callback_query.message.reply_markup != spot_reply_markup:
+            try:
+                await update.callback_query.edit_message_text(spot_text, reply_markup=spot_reply_markup)
+            except Exception as e:
+                if "Message is not modified" in str(e):
+                    # تجاهل الخطأ إذا لم يتغير المحتوى
+                    pass
+                else:
+                    raise
     elif update.message is not None:
         await update.message.reply_text(spot_text, reply_markup=spot_reply_markup)
 
 async def send_futures_positions_message(update: Update, futures_positions: dict):
     """إرسال رسالة صفقات الفيوتشر مع معلومات مفصلة وزر إغلاق وسعر الربح/الخسارة"""
     if not futures_positions:
+        message_text = "🔄 لا توجد صفقات فيوتشر مفتوحة حالياً"
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text("🔄 لا توجد صفقات فيوتشر مفتوحة حالياً")
+            # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+            if update.callback_query.message.text != message_text:
+                await update.callback_query.edit_message_text(message_text)
         elif update.message is not None:
-            await update.message.reply_text("🔄 لا توجد صفقات فيوتشر مفتوحة حالياً")
+            await update.message.reply_text(message_text)
         return
         
     futures_text = "🔄 الصفقات المفتوحة - فيوتشر:\n\n"
@@ -1356,7 +1387,16 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
     
     if update.callback_query is not None:
-        await update.callback_query.edit_message_text(futures_text, reply_markup=futures_reply_markup)
+        # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+        try:
+            if update.callback_query.message.text != futures_text or update.callback_query.message.reply_markup != futures_reply_markup:
+                await update.callback_query.edit_message_text(futures_text, reply_markup=futures_reply_markup)
+        except Exception as e:
+            if "Message is not modified" in str(e):
+                # تجاهل الخطأ إذا لم يتغير المحتوى
+                pass
+            else:
+                raise
     elif update.message is not None:
         await update.message.reply_text(futures_text, reply_markup=futures_reply_markup)
 
