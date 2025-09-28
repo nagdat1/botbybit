@@ -80,8 +80,11 @@ def main():
             # إرسال إشعار عبر تلجرام مع رابط Railway
             send_railway_url_notification(webhook_url)
         else:
-            webhook_url = f"http://localhost:{PORT}/webhook"
-            print(f"🌐 رابط Webhook محلي: {webhook_url}")
+            # استخدام الرابط من الإعدادات
+            webhook_url = WEBHOOK_URL
+            print(f"🌐 رابط Webhook: {webhook_url}")
+            # إرسال إشعار محلي
+            send_railway_url_notification(webhook_url)
         
         print("🤖 بدء تشغيل بوت التلجرام...")
         

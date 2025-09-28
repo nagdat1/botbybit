@@ -228,7 +228,7 @@ class WebServer:
             
             print(f"🌐 تم إعداد رابط Webhook: {self.current_url}")
             
-            # إرسال إشعار بدء التشغيل مع رابط Webhook الصحيح
+            # إرسال إشعار بدء التشغيل
             self.send_startup_notification(self.current_url)
             
             return self.current_url
