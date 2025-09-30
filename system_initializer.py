@@ -79,19 +79,42 @@ class SystemInitializer:
         """تهيئة قاعدة البيانات"""
         try:
             from database import db_manager
-            
+
+            # معلومات تشخيصية
+            logger.info(f"تهيئة قاعدة البيانات - الكائن: {db_manager}")
+            logger.info(f"نوع الكائن: {type(db_manager)}")
+            logger.info(f"الإعدادات: {self.config['database']}")
+
+            # التحقق من وجود الطريقة
+            if not hasattr(db_manager, 'init_database'):
+                error_msg = f"الكائن {db_manager} لا يحتوي على طريقة init_database"
+                logger.error(error_msg)
+                raise AttributeError(error_msg)
+
+            # التحقق من توقيع الطريقة
+            import inspect
+            try:
+                sig = inspect.signature(db_manager.init_database)
+                logger.info(f"توقيع الطريقة: {sig}")
+            except Exception as sig_error:
+                logger.error(f"خطأ في الحصول على توقيع الطريقة: {sig_error}")
+
             # تهيئة قاعدة البيانات مع الإعدادات
+            logger.info("بدء استدعاء init_database...")
             db_manager.init_database(
                 url=self.config['database']['url'],
                 pool_size=self.config['database']['pool_size'],
                 max_overflow=self.config['database']['max_overflow']
             )
-            
+            logger.info("انتهى استدعاء init_database بنجاح")
+
             self.components['database'] = db_manager
             logger.info("✅ تم تهيئة قاعدة البيانات")
-            
+
         except Exception as e:
             logger.error(f"❌ خطأ في تهيئة قاعدة البيانات: {e}")
+            import traceback
+            logger.error(f"تتبع الخطأ: {traceback.format_exc()}")
             raise
     
     async def _init_security(self):

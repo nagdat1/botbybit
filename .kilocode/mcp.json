@@ -1,14 +1,38 @@
 {
   "mcpServers": {
-    "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp"
-      ],
+    "simple-working-mcp": {
+      "command": "python",
       "env": {
-        "DEFAULT_MINIMUM_TOKENS": ""
-      }
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONPATH": "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\3",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "args": [
+        "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\3\\simple_working_mcp.py"
+      ]
+    },
+    "my-python-mcp": {
+      "command": "python",
+      "env": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONPATH": "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\4\\python-sdk\\src;C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\4",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "args": [
+        "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\4\\my_mcp_server.py"
+      ]
+    },
+    "memory-server": {
+      "command": "node",
+      "env": {
+        "NODE_ENV": "production",
+        "NODE_PATH": "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\1\\node_modules"
+      },
+      "args": [
+        "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\1\\index.js"
+      ]
     },
     "notion": {
       "command": "npx",
@@ -19,6 +43,81 @@
       "env": {
         "OPENAPI_MCP_HEADERS": "{\"Authorization\": \"Bearer ntn_L92506169839cIA6mSiqtbG9BxsaWP6FuEaOe9HLh0K3OI\", \"Notion-Version\": \"2022-06-28\"}"
       }
+    },
+    "firecrawl-mcp": {
+      "command": "npx",
+      "env": {
+        "FIRECRAWL_API_KEY": "fc-f3e75eb9113b4b91a837bd385609a75b"
+      },
+      "args": [
+        "-y",
+        "firecrawl-mcp"
+      ]
+    },
+    "ccxt-mcp-server": {
+      "command": "node",
+      "env": {
+        "LOG_LEVEL": "info",
+        "NODE_ENV": "production",
+        "NODE_PATH": "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\5\\node_modules"
+      },
+      "args": [
+        "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\5\\build\\index.js"
+      ]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "env": {},
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "Framelink Figma MCP": {
+      "command": "npx",
+      "env": {},
+      "args": [
+        "-y",
+        "figma-developer-mcp",
+        "--figma-api-key=FIGMA_API_ACCESS_TOKEN",
+        "--stdio"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "env": {
+        "DEFAULT_MINIMUM_TOKENS": ""
+      }
+    },
+    "telegram": {
+      "command": "python",
+      "env": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONPATH": "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\4\\python-sdk\\src;C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\2\\telegram-mcp",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "args": [
+        "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\2\\telegram-mcp\\simple_main.py"
+      ]
+    },
+    "tools": {
+      "command": "python",
+      "env": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONPATH": "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\4\\python-sdk\\src;C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\tools-mcp",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "args": [
+        "C:\\Users\\nagda\\OneDrive\\Desktop\\mcp\\tools-mcp\\main.py"
+      ],
+      "disabled": true,
+      "alwaysAllow": []
     }
   }
 }

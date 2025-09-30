@@ -99,6 +99,16 @@ class IntegratedTradingBot:
             # تهيئة قاعدة البيانات
             from system_config import get_system_config
             config = get_system_config()
+            logger.info(f"تهيئة قاعدة البيانات في النظام الجديد - الكائن: {db_manager}")
+            logger.info(f"نوع الكائن: {type(db_manager)}")
+            logger.info(f"الإعدادات: {config['database']}")
+
+            # التحقق من وجود الطريقة
+            if not hasattr(db_manager, 'init_database'):
+                error_msg = f"الكائن {db_manager} لا يحتوي على طريقة init_database"
+                logger.error(error_msg)
+                raise AttributeError(error_msg)
+
             db_manager.init_database(
                 url=config['database']['url'],
                 pool_size=config['database']['pool_size'],

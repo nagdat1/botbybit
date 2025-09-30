@@ -26,8 +26,18 @@ class DatabaseManager:
     def init_database(self, url: str = None, pool_size: int = 5, max_overflow: int = 10):
         """تهيئة قاعدة البيانات وإنشاء الجداول"""
         try:
+            # التحقق من صحة المعاملات وإضافة معلومات تشخيصية
+            logger.info(f"بدء تهيئة قاعدة البيانات - المعاملات: url={url}, pool_size={pool_size}, max_overflow={max_overflow}")
+            logger.info(f"نوع معامل url: {type(url)}")
+
+            if url is not None and not isinstance(url, str):
+                error_msg = f"معامل url يجب أن يكون نصاً أو None، لكن تم تمرير: {type(url)} - القيمة: {repr(url)}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+
             # تحديث مسار قاعدة البيانات إذا تم تمريره
             if url:
+                logger.info(f"تحديث مسار قاعدة البيانات من '{self.db_path}' إلى '{url}'")
                 # استخراج مسار الملف من URL SQLite
                 if url.startswith("sqlite:///"):
                     self.db_path = url.replace("sqlite:///", "")
