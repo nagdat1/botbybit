@@ -39,6 +39,42 @@ class WebServer:
         
         self.setup_routes()
         self.setup_socketio_events()
+
+        # إعدادات السيرفر
+        self.host = '0.0.0.0'
+        self.port = PORT
+        self.webhook_path = '/webhook'
+
+    def configure(self, host: str = '0.0.0.0', port: int = None, webhook_path: str = '/webhook'):
+        """تكوين إعدادات السيرفر"""
+        try:
+            print(f"تكوين السيرفر - المعاملات: host={host}, port={port}, webhook_path={webhook_path}")
+
+            # تحديث إعدادات السيرفر
+            self.host = host
+            if port is not None:
+                self.port = port
+            self.webhook_path = webhook_path
+
+            print("✅ تم تكوين السيرفر بنجاح")
+
+        except Exception as e:
+            print(f"خطأ في تكوين السيرفر: {e}")
+            raise
+
+    def get_status(self) -> dict:
+        """الحصول على حالة السيرفر"""
+        try:
+            return {
+                'host': self.host,
+                'port': self.port,
+                'webhook_path': self.webhook_path,
+                'current_url': getattr(self, 'current_url', None),
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            print(f"خطأ في الحصول على حالة السيرفر: {e}")
+            return {'error': str(e)}
         
     def setup_routes(self):
         """إعداد المسارات"""
