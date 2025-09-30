@@ -217,15 +217,15 @@ class WebServer:
             # الاحتفاظ بآخر 200 نقطة
             if len(self.chart_data['balance_history']) > 200:
                 self.chart_data['balance_history'] = self.chart_data['balance_history'][-200:]
+            
+            # إرسال التحديث للعملاء
+            self.socketio.emit('balance_update', {
+                'timestamp': timestamp,
+                'balance': account_info.get('balance', 10000),
+                'unrealized_pnl': account_info.get('unrealized_pnl', 0)
+            })
         except Exception as e:
             logger.error(f"خطأ في تحديث الرسوم البيانية: {e}")
-        
-        # إرسال التحديث للعملاء
-        self.socketio.emit('balance_update', {
-            'timestamp': timestamp,
-            'balance': account_info['balance'],
-            'unrealized_pnl': account_info['unrealized_pnl']
-        })
     
     def add_trade_to_chart(self, trade_data):
         """إضافة صفقة جديدة للرسم البياني"""
