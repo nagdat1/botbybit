@@ -53,6 +53,8 @@ class BotController:
         # إعدادات المراقبة
         self.monitoring_interval = 60  # ثانية
         self.health_check_interval = 300  # 5 دقائق
+        self.price_update_interval = 5  # ثانية
+        self.balance_update_interval = 30  # ثانية
         
     def start_monitoring(self):
         """بدء مراقبة النظام"""
@@ -393,6 +395,42 @@ class BotController:
         except Exception as e:
             logger.error(f"خطأ في الحصول على المستخدمين غير النشطين: {e}")
             return []
+
+    def configure(self, update_interval: int = 60, price_interval: int = 5, balance_interval: int = 30):
+        """تكوين إعدادات مراقبة النظام"""
+        try:
+            logger.info(f"تكوين مراقبة النظام - المعاملات: update_interval={update_interval}, price_interval={price_interval}, balance_interval={balance_interval}")
+
+            # تحديث إعدادات المراقبة
+            self.monitoring_interval = update_interval
+            self.price_update_interval = price_interval
+            self.balance_update_interval = balance_interval
+
+            logger.info("✅ تم تكوين مراقبة النظام بنجاح")
+
+        except Exception as e:
+            logger.error(f"خطأ في تكوين مراقبة النظام: {e}")
+            raise
+
+    def get_status(self) -> Dict:
+        """الحصول على حالة مراقبة النظام"""
+        try:
+            return {
+                'global_status': self.global_status.value,
+                'is_monitoring': self.is_monitoring,
+                'maintenance_mode': self.maintenance_mode,
+                'error_count': self.error_count,
+                'stats': self.stats.copy(),
+                'settings': {
+                    'monitoring_interval': self.monitoring_interval,
+                    'health_check_interval': self.health_check_interval,
+                    'price_update_interval': self.price_update_interval,
+                    'balance_update_interval': self.balance_update_interval
+                }
+            }
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على حالة مراقبة النظام: {e}")
+            return {'error': str(e)}
 
 # إنشاء مثيل عام لتحكم البوت
 bot_controller = BotController()

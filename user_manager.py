@@ -304,5 +304,41 @@ class UserManager:
         # يمكن إضافة منطق إضافي للصلاحيات هنا
         return True
 
+    def configure(self, require_verification: bool = True, session_timeout: int = 86400,
+                  max_accounts: int = 3, demo_balance: float = 10000):
+        """تكوين إعدادات إدارة المستخدمين"""
+        try:
+            logger.info(f"تكوين إدارة المستخدمين - المعاملات: require_verification={require_verification}, session_timeout={session_timeout}, max_accounts={max_accounts}, demo_balance={demo_balance}")
+
+            # حفظ الإعدادات في مدير المستخدمين
+            self.require_verification = require_verification
+            self.session_timeout = session_timeout
+            self.max_accounts = max_accounts
+            self.demo_balance = demo_balance
+
+            logger.info("✅ تم تكوين إدارة المستخدمين بنجاح")
+
+        except Exception as e:
+            logger.error(f"خطأ في تكوين إدارة المستخدمين: {e}")
+            raise
+
+    def get_status(self) -> Dict:
+        """الحصول على حالة إدارة المستخدمين"""
+        try:
+            return {
+                'total_users': self.get_user_count(),
+                'active_users': len(self.get_all_active_users()),
+                'user_environments_count': len(self.user_environments),
+                'settings': {
+                    'require_verification': getattr(self, 'require_verification', True),
+                    'session_timeout': getattr(self, 'session_timeout', 86400),
+                    'max_accounts': getattr(self, 'max_accounts', 3),
+                    'demo_balance': getattr(self, 'demo_balance', 10000)
+                }
+            }
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على حالة إدارة المستخدمين: {e}")
+            return {'error': str(e)}
+
 # إنشاء مثيل عام لمدير المستخدمين
 user_manager = UserManager()

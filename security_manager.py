@@ -51,6 +51,7 @@ class SecurityManager:
         self.session_timeout = 7200  # ساعتان
         self.rate_limit_window = 60  # دقيقة واحدة
         self.max_requests_per_minute = 30
+        self.allowed_ips: Set[str] = set()  # IPs المسموحة
         
         # مراقبة الأمان
         self.security_monitor_thread = None
@@ -67,6 +68,50 @@ class SecurityManager:
         
         # قفل للعمليات المتزامنة
         self.lock = threading.Lock()
+
+    def configure(self, max_attempts: int = 5, timeout: int = 300,
+                  rate_limit: int = 60, allowed_ips: List[str] = None):
+        """تكوين إعدادات الأمان"""
+        try:
+            logger.info(f"تكوين نظام الأمان - المعاملات: max_attempts={max_attempts}, timeout={timeout}, rate_limit={rate_limit}")
+
+            # تحديث إعدادات الأمان
+            self.max_failed_attempts = max_attempts
+            self.block_duration = timeout
+            self.max_requests_per_minute = rate_limit
+
+            # تكوين IPs المسموحة
+            if allowed_ips is None:
+                allowed_ips = []
+            self.allowed_ips = set(allowed_ips) if allowed_ips else set()
+
+            logger.info("✅ تم تكوين نظام الأمان بنجاح")
+
+        except Exception as e:
+            logger.error(f"خطأ في تكوين نظام الأمان: {e}")
+            raise
+
+    def get_status(self) -> Dict:
+        """الحصول على حالة نظام الأمان"""
+        try:
+            return {
+                'is_monitoring': self.is_monitoring,
+                'blocked_users_count': len(self.blocked_users),
+                'active_sessions': len(self.user_sessions),
+                'failed_attempts_count': sum(len(attempts) for attempts in self.failed_attempts.values()),
+                'suspicious_activities_count': sum(len(activities) for activities in self.suspicious_activities.values()),
+                'security_stats': self.security_stats.copy(),
+                'settings': {
+                    'max_failed_attempts': self.max_failed_attempts,
+                    'block_duration': self.block_duration,
+                    'session_timeout': self.session_timeout,
+                    'rate_limit_window': self.rate_limit_window,
+                    'max_requests_per_minute': self.max_requests_per_minute
+                }
+            }
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على حالة نظام الأمان: {e}")
+            return {'error': str(e)}
     
     def start_security_monitoring(self):
         """بدء مراقبة الأمان"""
