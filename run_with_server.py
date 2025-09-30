@@ -156,11 +156,7 @@ class IntegratedTradingBot:
         """إعداد المعالجات المتكاملة"""
         try:
             # استيراد المعالجات من النظام الجديد
-            from smart_trading_bot import SmartTradingBot
             from commands import command_handler
-            
-            # إنشاء مثيل البوت الذكي
-            self.new_bot = SmartTradingBot()
             
             # إضافة المعالجات الأساسية
             application.add_handler(CommandHandler("start", self._handle_start))
@@ -281,6 +277,8 @@ class IntegratedTradingBot:
             
             # الحصول على معلومات من النظام الجديد
             from user_manager import user_manager
+            from order_manager import order_manager
+            
             user_env = user_manager.get_user_environment(user_id)
             
             balance_info = user_env.get_balance_info()
@@ -291,6 +289,7 @@ class IntegratedTradingBot:
             old_balance_info = ""
             if self.old_bot:
                 try:
+                    # الحصول على الحساب الحالي من البوت القديم
                     account = self.old_bot.get_current_account()
                     account_info = account.get_account_info()
                     old_balance_info = f"""
@@ -298,7 +297,8 @@ class IntegratedTradingBot:
 • الرصيد: {account_info['balance']:.2f}
 • الصفقات المفتوحة: {account_info['open_positions']}
                     """
-                except:
+                except Exception as e:
+                    logger.error(f"خطأ في الحصول على معلومات النظام القديم: {e}")
                     old_balance_info = "📊 النظام التقليدي: غير متاح"
             
             balance_text = f"""
@@ -491,6 +491,7 @@ class IntegratedTradingBot:
             
             # استخدام النظام الجديد للإعدادات
             from ui_manager import ui_manager
+            from user_manager import user_manager
             keyboard = ui_manager.get_settings_keyboard(user_id)
             
             user_env = user_manager.get_user_environment(user_id)
