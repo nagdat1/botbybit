@@ -156,11 +156,10 @@ class IntegratedTradingBot:
         """إعداد المعالجات المتكاملة"""
         try:
             # استيراد المعالجات من النظام الجديد
-            from smart_trading_bot import SmartTradingBot
             from commands import command_handler
+            from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters
             
             # إنشاء مثيل البوت الذكي
-            self.new_bot = SmartTradingBot()
             
             # إضافة المعالجات الأساسية
             application.add_handler(CommandHandler("start", self._handle_start))
@@ -815,7 +814,7 @@ def send_railway_url_notification(webhook_url):
                 
                 # تحديد نوع البيئة
                 if "railway" in webhook_url.lower() or "railway.app" in webhook_url:
-                    environment = "🚂 Railway Cloud"
+                    environment = "ityEngine Railway Cloud"
                 elif "render" in webhook_url.lower():
                     environment = "☁️ Render Cloud"
                 else:
@@ -854,7 +853,7 @@ async def main():
         # طباعة معلومات البيئة
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
         if railway_url:
-            print(f"🚂 Railway URL: {railway_url}")
+            print(f"ityEngine URL: {railway_url}")
         else:
             print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
         
