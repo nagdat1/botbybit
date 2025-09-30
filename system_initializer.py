@@ -188,7 +188,7 @@ class SystemInitializer:
             trading_bot.configure(
                 market_type=self.config['trading']['default_market_type'],
                 leverage=self.config['trading']['default_leverage'],
-                trade_amount=self.config['trading']['default_trade_amount'],
+                trade_amount=self.config['trading']['default_amount'],
                 risk_config=self.config['risk_management']
             )
             
