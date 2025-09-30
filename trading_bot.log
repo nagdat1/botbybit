@@ -31,22 +31,3 @@
 2025-09-27 02:21:26,338 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:36,368 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:46,407 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
-2025-09-30 03:45:11,696 - __main__ - INFO - 🚀 بدء تهيئة النظام المتكامل...
-2025-09-30 03:45:11,724 - database - INFO - تم تهيئة قاعدة البيانات بنجاح
-2025-09-30 03:45:11,837 - database - INFO - تم تهيئة قاعدة البيانات بنجاح
-2025-09-30 03:45:11,839 - security_manager - INFO - تم بدء مراقبة الأمان
-2025-09-30 03:45:11,839 - bot_controller - INFO - تم بدء مراقبة النظام
-2025-09-30 03:45:11,839 - bot_controller - WARNING - بعض اتصالات API غير متاحة
-2025-09-30 03:45:11,839 - order_manager - INFO - تم بدء مراقبة الأسعار
-2025-09-30 03:45:11,839 - __main__ - INFO - ✅ تم تهيئة النظام الجديد
-2025-09-30 03:45:12,323 - __main__ - INFO - ✅ تم تهيئة النظام القديم
-2025-09-30 03:45:14,180 - __main__ - INFO - ✅ تم تهيئة السيرفر الويب
-2025-09-30 03:45:14,180 - __main__ - INFO - ✅ تم تهيئة النظام المتكامل بنجاح
-2025-09-30 03:45:14,226 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
- * Running on all addresses (0.0.0.0)
- * Running on http://127.0.0.1:5000
- * Running on http://10.2.0.2:5000
-2025-09-30 03:45:14,227 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
-2025-09-30 03:45:14,802 - __main__ - INFO - ✅ تم إعداد المعالجات المتكاملة
-2025-09-30 03:45:14,802 - __main__ - INFO - 🤖 بدء تشغيل بوت التليجرام المتكامل...
-2025-09-30 03:45:14,803 - __main__ - ERROR - ❌ خطأ في تشغيل بوت التليجرام: Cannot close a running event loop
