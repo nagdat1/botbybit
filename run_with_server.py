@@ -3,13 +3,6 @@
 """
 مشروع متكامل ومترابط للتداول على Bybit
 يدعم النظام القديم والجديد مع دعم Railway
-
-هذا الملف يحتوي على:
-1. SmartTradingBot - البوت الذكي لإدارة الحسابات
-2. IntegratedTradingBot - البوت المتكامل الذي يجمع الأنظمة
-3. جميع المعالجات والوظائف الرئيسية
-
-ملف واحد شامل لا يحتاج لملفات خارجية
 """
 
 import sys
@@ -35,66 +28,6 @@ logger = logging.getLogger(__name__)
 
 # الحصول على المنفذ من متغير البيئة (Railway)
 PORT = int(os.environ.get('PORT', 5000))
-
-class SmartTradingBot:
-    """البوت الذكي للتداول - يدير حسابات متعددة للمستخدمين"""
-    
-    def __init__(self):
-        """تهيئة البوت الذكي"""
-        self.accounts = {}
-        self.user_settings = {}
-        logger.info("✅ تم تهيئة SmartTradingBot داخلياً")
-    
-    def get_current_account(self, user_id=None):
-        """الحصول على الحساب الحالي للمستخدم"""
-        try:
-            from bybit_trading_bot import TradingAccount
-            
-            if user_id is None:
-                # إرجاع أول حساب متاح أو إنشاء حساب افتراضي
-                if self.accounts:
-                    return list(self.accounts.values())[0]
-                else:
-                    return TradingAccount(initial_balance=10000.0)
-            
-            # إرجاع حساب المستخدم أو إنشاء حساب جديد
-            if user_id not in self.accounts:
-                logger.info(f"📝 إنشاء حساب جديد للمستخدم {user_id}")
-                self.accounts[user_id] = TradingAccount(initial_balance=10000.0)
-                self.user_settings[user_id] = {
-                    'market_type': 'spot',
-                    'leverage': 1,
-                    'trade_amount': 100,
-                    'risk_percentage': 2.0
-                }
-            
-            return self.accounts[user_id]
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على الحساب: {e}")
-            from bybit_trading_bot import TradingAccount
-            return TradingAccount(initial_balance=10000.0)
-    
-    def get_user_settings(self, user_id):
-        """الحصول على إعدادات المستخدم"""
-        if user_id not in self.user_settings:
-            self.user_settings[user_id] = {
-                'market_type': 'spot',
-                'leverage': 1,
-                'trade_amount': 100,
-                'risk_percentage': 2.0
-            }
-        return self.user_settings[user_id]
-    
-    def process_signal(self, signal_data):
-        """معالجة إشارة تداول"""
-        try:
-            logger.info(f"📊 معالجة إشارة: {signal_data}")
-            # المعالجة الأساسية للإشارة
-            return True
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة الإشارة: {e}")
-            return False
 
 class IntegratedTradingBot:
     """البوت المتكامل الذي يجمع النظام القديم والجديد"""
@@ -181,26 +114,6 @@ class IntegratedTradingBot:
             logger.error(f"❌ خطأ في تهيئة النظام القديم: {e}")
             # لا نرفع الخطأ لأن النظام الجديد يمكن أن يعمل منفرداً
     
-    def get_current_account(self, user_id=None):
-        """الحصول على الحساب الحالي (للتوافق مع النظام القديم)"""
-        try:
-            # محاولة استخدام النظام الجديد أولاً
-            if self.new_bot and hasattr(self.new_bot, 'get_current_account'):
-                return self.new_bot.get_current_account(user_id)
-            
-            # محاولة استخدام النظام القديم
-            if self.old_bot and hasattr(self.old_bot, 'get_current_account'):
-                return self.old_bot.get_current_account()
-            
-            # إنشاء حساب افتراضي
-            from bybit_trading_bot import TradingAccount
-            return TradingAccount(initial_balance=10000.0)
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على الحساب: {e}")
-            from bybit_trading_bot import TradingAccount
-            return TradingAccount(initial_balance=10000.0)
-    
     async def _initialize_web_server(self):
         """تهيئة السيرفر الويب"""
         try:
@@ -242,14 +155,12 @@ class IntegratedTradingBot:
     def _setup_integrated_handlers(self, application):
         """إعداد المعالجات المتكاملة"""
         try:
-            # إنشاء مثيل البوت الذكي (داخلياً)
-            self.new_bot = SmartTradingBot()
+            # استيراد المعالجات من النظام الجديد
+            from smart_trading_bot import SmartTradingBot
+            from commands import command_handler
             
-            # استيراد المعالجات من النظام الجديد (إذا كانت متاحة)
-            try:
-                from commands import command_handler
-            except ImportError:
-                logger.warning("⚠️ لم يتم العثور على commands module")
+            # إنشاء مثيل البوت الذكي
+            self.new_bot = SmartTradingBot()
             
             # إضافة المعالجات الأساسية
             application.add_handler(CommandHandler("start", self._handle_start))
