@@ -295,7 +295,7 @@ class IntegratedTradingBot:
             
             # الحصول على معلومات من النظام القديم (إذا كان متاحاً)
             old_balance_info = ""
-            if self.old_bot:
+            if self.old_bot and hasattr(self.old_bot, 'get_current_account'):
                 try:
                     account = self.old_bot.get_current_account()
                     account_info = account.get_account_info()
@@ -868,7 +868,7 @@ async def main():
         # طباعة معلومات البيئة
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
         if railway_url:
-            print(f"🚂 Railway URL: {railway_url}")
+            print(f"ityEngine Railway URL: {railway_url}")
         else:
             print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
         
@@ -908,46 +908,36 @@ async def main():
         
         print("🤖 بدء تشغيل بوت التلجرام المتكامل...")
         
-        # تشغيل بوت التليجرام في سلسلة تنفيذ منفصلة
-        def run_telegram_bot():
+        # إضافة المعالجات المتكاملة للبوت الرئيسي
+        from telegram.ext import Application
+        from config import TELEGRAM_TOKEN
+        
+        # إنشاء تطبيق التليجرام في الحلقة الرئيسية
+        application = Application.builder().token(TELEGRAM_TOKEN).build()
+        integrated_bot._setup_integrated_handlers(application)
+        
+        print("✅ تم إعداد المعالجات المتكاملة")
+        print("🤖 بدء تشغيل بوت التليجرام المتكامل...")
+        
+        # تشغيل البوت في الخلفية دون إعاقة السيرفر
+        async def run_bot_in_background():
             try:
-                # إنشاء loop جديد للسلسلة المنفصلة
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                # إنشاء تطبيق التليجرام
-                from telegram.ext import Application
-                from config import TELEGRAM_TOKEN
-                
-                async def start_bot():
-                    application = Application.builder().token(TELEGRAM_TOKEN).build()
-                    
-                    # إضافة المعالجات المتكاملة
-                    integrated_bot._setup_integrated_handlers(application)
-                    
-                    print("✅ تم إعداد المعالجات المتكاملة")
-                    print("🤖 بدء تشغيل بوت التليجرام المتكامل...")
-                    
-                    # تشغيل البوت
-                    await application.run_polling(
-                        allowed_updates=['message', 'callback_query'],
-                        drop_pending_updates=True
-                    )
-                
-                loop.run_until_complete(start_bot())
+                await application.run_polling(
+                    allowed_updates=['message', 'callback_query'],
+                    drop_pending_updates=True
+                )
             except Exception as e:
                 print(f"❌ خطأ في تشغيل بوت التليجرام: {e}")
                 import traceback
                 traceback.print_exc()
         
-        # تشغيل بوت التليجرام في سلسلة تنفيذ منفصلة
-        telegram_thread = threading.Thread(target=run_telegram_bot, daemon=True)
-        telegram_thread.start()
+        # تشغيل البوت في مهمة غير متزامنة منفصلة
+        asyncio.create_task(run_bot_in_background())
         
         # الانتظار حتى إنهاء التطبيق
         try:
             while True:
-                time.sleep(1)
+                await asyncio.sleep(1)
         except KeyboardInterrupt:
             print("\n⏹️ تم إيقاف البوت المتكامل بواسطة المستخدم")
             

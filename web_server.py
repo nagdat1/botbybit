@@ -51,15 +51,31 @@ class WebServer:
         @self.app.route('/api/bot_status')
         def bot_status():
             """الحصول على حالة البوت"""
-            account = self.trading_bot.get_current_account()
-            account_info = account.get_account_info()
+            # التحقق من وجود البوت ومن ثم الحصول على معلومات الحساب
+            # استخدام old_bot إذا كان متاحاً، وإلا استخدام trading_bot مباشرة
+            bot_to_use = getattr(self.trading_bot, 'old_bot', None)
+            if bot_to_use is None:
+                bot_to_use = self.trading_bot
+                
+            if hasattr(bot_to_use, 'get_current_account') and bot_to_use is not None:
+                account = bot_to_use.get_current_account()
+                account_info = account.get_account_info()
+            else:
+                # إذا لم يكن هناك حساب، نعيد قيم افتراضية
+                account_info = {
+                    'balance': 0,
+                    'total_trades': 0,
+                    'win_rate': 0,
+                    'winning_trades': 0,
+                    'losing_trades': 0
+                }
             
             return jsonify({
-                'is_running': self.trading_bot.is_running,
-                'signals_received': self.trading_bot.signals_received,
-                'open_positions': len(self.trading_bot.open_positions),
-                'account_type': self.trading_bot.user_settings['account_type'],
-                'market_type': self.trading_bot.user_settings['market_type'],
+                'is_running': getattr(self.trading_bot, 'is_running', False),
+                'signals_received': getattr(self.trading_bot, 'signals_received', 0),
+                'open_positions': len(getattr(self.trading_bot, 'open_positions', {})),
+                'account_type': getattr(self.trading_bot, 'user_settings', {}).get('account_type', 'demo'),
+                'market_type': getattr(self.trading_bot, 'user_settings', {}).get('market_type', 'spot'),
                 'balance': account_info['balance'],
                 'total_trades': account_info['total_trades'],
                 'win_rate': account_info['win_rate'],
@@ -75,12 +91,17 @@ class WebServer:
         @self.app.route('/api/positions')
         def get_positions():
             """الحصول على الصفقات المفتوحة"""
+            # استخدام old_bot إذا كان متاحاً، وإلا استخدام trading_bot مباشرة
+            bot_to_use = getattr(self.trading_bot, 'old_bot', None)
+            if bot_to_use is None:
+                bot_to_use = self.trading_bot
+                
             positions = []
-            for pos_id, pos_info in self.trading_bot.open_positions.items():
+            for pos_id, pos_info in bot_to_use.open_positions.items():
                 # الحصول على السعر الحالي
-                current_price = self.trading_bot.bybit_api.get_ticker_price(
+                current_price = bot_to_use.bybit_api.get_ticker_price(
                     pos_info['symbol'], 
-                    self.trading_bot.user_settings['market_type']
+                    bot_to_use.user_settings['market_type']
                 )
                 
                 if current_price:
@@ -116,10 +137,15 @@ class WebServer:
                 self.socketio.emit('new_signal', data)
                 
                 # معالجة الإشارة في البوت
+                # استخدام old_bot إذا كان متاحاً، وإلا استخدام trading_bot مباشرة
+                bot_to_use = getattr(self.trading_bot, 'old_bot', None)
+                if bot_to_use is None:
+                    bot_to_use = self.trading_bot
+                    
                 def process_signal_async():
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self.trading_bot.process_signal(data))
+                    loop.run_until_complete(bot_to_use.process_signal(data))
                     loop.close()
                 
                 threading.Thread(target=process_signal_async, daemon=True).start()
@@ -169,8 +195,21 @@ class WebServer:
     
     def update_balance_chart(self):
         """تحديث رسم البياني للرصيد"""
-        account = self.trading_bot.get_current_account()
-        account_info = account.get_account_info()
+        # التحقق من وجود البوت ومن ثم الحصول على معلومات الحساب
+        # استخدام old_bot إذا كان متاحاً، وإلا استخدام trading_bot مباشرة
+        bot_to_use = getattr(self.trading_bot, 'old_bot', None)
+        if bot_to_use is None:
+            bot_to_use = self.trading_bot
+            
+        if hasattr(bot_to_use, 'get_current_account') and bot_to_use is not None:
+            account = bot_to_use.get_current_account()
+            account_info = account.get_account_info()
+        else:
+            # إذا لم يكن هناك حساب، نعيد قيم افتراضية
+            account_info = {
+                'balance': 0,
+                'unrealized_pnl': 0
+            }
         
         timestamp = datetime.now().isoformat()
         self.chart_data['balance_history'].append({
