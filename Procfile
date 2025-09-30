@@ -1,1 +1,1 @@
-web: python run_with_server.py
+web: gunicorn -c gunicorn.conf.py 'wsgi:create_integrated_app()'

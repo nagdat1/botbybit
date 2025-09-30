@@ -11,6 +11,15 @@ import threading
 import asyncio
 import logging
 from datetime import datetime
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters
+)
+from telegram import ReplyKeyboardMarkup, KeyboardButton
+from user_manager import user_manager
 
 # إضافة المسار الحالي إلى مسارات Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -38,6 +47,7 @@ class IntegratedTradingBot:
         self.web_server = None
         self.is_running = False
         self.start_time = None
+        self.current_account = None
         
         # إحصائيات النظام
         self.stats = {
@@ -48,6 +58,10 @@ class IntegratedTradingBot:
             'uptime': 0,
             'mode': 'integrated'
         }
+    
+    def get_current_account(self):
+        """الحصول على الحساب الحالي"""
+        return self.current_account
     
     async def initialize(self):
         """تهيئة النظام المتكامل"""
@@ -847,26 +861,25 @@ def send_railway_url_notification(webhook_url):
 async def main():
     """الدالة الرئيسية لتشغيل النظام المتكامل"""
     try:
-        print("🚀 بدء تشغيل البوت المتكامل للتداول على Bybit...")
+        print("🚀 بدء تشغيل النظام المتكامل للتداول على Bybit...")
         print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"🔗 المنفذ: {PORT}")
         
-        # طباعة معلومات البيئة
-        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
-        if railway_url:
-            print(f"🚂 Railway URL: {railway_url}")
-        else:
-            print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
+        # إنشاء مُهيئ النظام
+        from system_initializer import SystemInitializer
+        initializer = SystemInitializer()
         
-        # إنشاء البوت المتكامل
-        integrated_bot = IntegratedTradingBot()
+        # تهيئة النظام بالكامل
+        if not await initializer.initialize_system():
+            raise Exception("فشل في تهيئة النظام")
         
-        # تهيئة النظام
-        await integrated_bot.initialize()
+        # الحصول على المكونات الأساسية
+        web_server = initializer.get_component('web_server')
+        telegram_bot = initializer.get_component('telegram')
+        trading_bot = initializer.get_component('trading')
         
         # تشغيل السيرفر الويب في thread منفصل
         server_thread = threading.Thread(
-            target=integrated_bot.start_web_server, 
+            target=web_server.run,
             daemon=True
         )
         server_thread.start()
