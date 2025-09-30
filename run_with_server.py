@@ -10,6 +10,7 @@ import os
 import threading
 import asyncio
 import logging
+import time
 from datetime import datetime
 
 # إضافة المسار الحالي إلى مسارات Python
@@ -252,7 +253,13 @@ class IntegratedTradingBot:
             
         except Exception as e:
             logger.error(f"❌ خطأ في إنشاء لوحة المفاتيح: {e}")
-            return ReplyKeyboardMarkup([], resize_keyboard=True)
+            # التأكد من استيراد ReplyKeyboardMarkup
+            try:
+                from telegram import ReplyKeyboardMarkup
+                return ReplyKeyboardMarkup([], resize_keyboard=True)
+            except:
+                # إذا فشل الاستيراد، نعيد None
+                return None
     
     async def _handle_balance(self, update, context):
         """معالجة أمر /balance المتكامل"""
@@ -490,6 +497,8 @@ class IntegratedTradingBot:
             
             # استخدام النظام الجديد للإعدادات
             from ui_manager import ui_manager
+            from user_manager import user_manager  # إضافة الاستيراد المفقود
+            
             keyboard = ui_manager.get_settings_keyboard(user_id)
             
             user_env = user_manager.get_user_environment(user_id)
@@ -577,7 +586,7 @@ class IntegratedTradingBot:
                 if not railway_url.startswith('http'):
                     railway_url = f"https://{railway_url}"
                 webhook_url = f"{railway_url}/webhook"
-                environment = "🚂 Railway Cloud"
+                environment = "ityEngine Railway Cloud"
             else:
                 webhook_url = f"http://localhost:{PORT}/webhook"
                 environment = "💻 Local Development"
@@ -634,6 +643,7 @@ class IntegratedTradingBot:
     
     async def _handle_callback(self, update, context):
         """معالجة الأزرار المضغوطة"""
+        query = None
         try:
             query = update.callback_query
             await query.answer()
@@ -666,7 +676,12 @@ class IntegratedTradingBot:
                 
         except Exception as e:
             logger.error(f"❌ خطأ في معالجة الأزرار: {e}")
-            await query.edit_message_text("❌ حدث خطأ في معالجة الزر")
+            # التأكد من أن query معرف قبل استخدامه
+            if query is not None:
+                try:
+                    await query.edit_message_text("❌ حدث خطأ في معالجة الزر")
+                except:
+                    pass  # تجاهل الخطأ إذا فشل إرسال الرسالة
     
     async def _handle_set_amount_callback(self, update, context, data):
         """معالجة زر تعيين مبلغ التداول"""
@@ -853,7 +868,7 @@ async def main():
         # طباعة معلومات البيئة
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
         if railway_url:
-            print(f"ityEngine URL: {railway_url}")
+            print(f"🚂 Railway URL: {railway_url}")
         else:
             print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
         
@@ -893,11 +908,49 @@ async def main():
         
         print("🤖 بدء تشغيل بوت التلجرام المتكامل...")
         
-        # تشغيل بوت التليجرام
-        await integrated_bot.start_telegram_bot()
+        # تشغيل بوت التليجرام في سلسلة تنفيذ منفصلة
+        def run_telegram_bot():
+            try:
+                # إنشاء loop جديد للسلسلة المنفصلة
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # إنشاء تطبيق التليجرام
+                from telegram.ext import Application
+                from config import TELEGRAM_TOKEN
+                
+                async def start_bot():
+                    application = Application.builder().token(TELEGRAM_TOKEN).build()
+                    
+                    # إضافة المعالجات المتكاملة
+                    integrated_bot._setup_integrated_handlers(application)
+                    
+                    print("✅ تم إعداد المعالجات المتكاملة")
+                    print("🤖 بدء تشغيل بوت التليجرام المتكامل...")
+                    
+                    # تشغيل البوت
+                    await application.run_polling(
+                        allowed_updates=['message', 'callback_query'],
+                        drop_pending_updates=True
+                    )
+                
+                loop.run_until_complete(start_bot())
+            except Exception as e:
+                print(f"❌ خطأ في تشغيل بوت التليجرام: {e}")
+                import traceback
+                traceback.print_exc()
         
-    except KeyboardInterrupt:
-        print("\n⏹️ تم إيقاف البوت المتكامل بواسطة المستخدم")
+        # تشغيل بوت التليجرام في سلسلة تنفيذ منفصلة
+        telegram_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+        telegram_thread.start()
+        
+        # الانتظار حتى إنهاء التطبيق
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n⏹️ تم إيقاف البوت المتكامل بواسطة المستخدم")
+            
     except Exception as e:
         print(f"❌ خطأ في تشغيل البوت المتكامل: {e}")
         import traceback
@@ -911,4 +964,6 @@ if __name__ == "__main__":
     except:
         pass
     
-    asyncio.run(main())
+    # تشغيل التطبيق في حلقة الأحداث الرئيسية
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
