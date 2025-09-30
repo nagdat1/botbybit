@@ -131,7 +131,13 @@ class IntegratedTradingBot:
     async def start_telegram_bot(self):
         """بدء بوت التليجرام المتكامل"""
         try:
-            from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+            from telegram.ext import (
+                Application, 
+                CommandHandler, 
+                MessageHandler, 
+                CallbackQueryHandler, 
+                filters
+            )
             from config import TELEGRAM_TOKEN
             
             # إنشاء تطبيق التليجرام
@@ -155,7 +161,8 @@ class IntegratedTradingBot:
     def _setup_integrated_handlers(self, application):
         """إعداد المعالجات المتكاملة"""
         try:
-            # استيراد المعالجات من النظام الجديد
+            # استيراد المعالجات الضرورية
+            from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters
             from commands import command_handler
             
             # إضافة المعالجات الأساسية
