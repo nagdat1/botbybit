@@ -16,42 +16,19 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """مدير قاعدة البيانات مع دعم متعدد المستخدمين"""
-
+    
     def __init__(self, db_path: str = "trading_bot.db"):
         self.db_path = db_path
         self.lock = threading.Lock()
-        self.pool_size = 5
-        self.max_overflow = 10
-
-    def init_database(self, url: str = None, pool_size: int = 5, max_overflow: int = 10):
+        self.init_database()
+    
+    def init_database(self):
         """تهيئة قاعدة البيانات وإنشاء الجداول"""
         try:
-            # التحقق من صحة المعاملات وإضافة معلومات تشخيصية
-            logger.info(f"بدء تهيئة قاعدة البيانات - المعاملات: url={url}, pool_size={pool_size}, max_overflow={max_overflow}")
-            logger.info(f"نوع معامل url: {type(url)}")
-
-            if url is not None and not isinstance(url, str):
-                error_msg = f"معامل url يجب أن يكون نصاً أو None، لكن تم تمرير: {type(url)} - القيمة: {repr(url)}"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
-
-            # تحديث مسار قاعدة البيانات إذا تم تمريره
-            if url:
-                logger.info(f"تحديث مسار قاعدة البيانات من '{self.db_path}' إلى '{url}'")
-                # استخراج مسار الملف من URL SQLite
-                if url.startswith("sqlite:///"):
-                    self.db_path = url.replace("sqlite:///", "")
-                else:
-                    self.db_path = url
-
-            # تحديث إعدادات التجمع
-            self.pool_size = pool_size
-            self.max_overflow = max_overflow
-
             with self.lock:
                 conn = sqlite3.connect(self.db_path)
                 cursor = conn.cursor()
-
+                
                 # جدول المستخدمين
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS users (
@@ -67,7 +44,7 @@ class DatabaseManager:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
-
+                
                 # جدول الصفقات
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS orders (
@@ -90,7 +67,7 @@ class DatabaseManager:
                         FOREIGN KEY (user_id) REFERENCES users (user_id)
                     )
                 ''')
-
+                
                 # جدول تاريخ التداول
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS trade_history (
@@ -111,7 +88,7 @@ class DatabaseManager:
                         FOREIGN KEY (order_id) REFERENCES orders (order_id)
                     )
                 ''')
-
+                
                 # جدول إحصائيات المستخدمين
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS user_stats (
@@ -126,15 +103,14 @@ class DatabaseManager:
                         FOREIGN KEY (user_id) REFERENCES users (user_id)
                     )
                 ''')
-
+                
                 conn.commit()
                 conn.close()
                 logger.info("تم تهيئة قاعدة البيانات بنجاح")
-
+                
         except Exception as e:
             logger.error(f"خطأ في تهيئة قاعدة البيانات: {e}")
             raise
-    
     
     def get_connection(self):
         """الحصول على اتصال قاعدة البيانات"""

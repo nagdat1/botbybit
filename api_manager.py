@@ -379,35 +379,5 @@ class APIManager:
             logger.error(f"خطأ في التحقق من مفاتيح API: {e}")
             return False
 
-    def configure(self, version: str = "v2", timeout: int = 30):
-        """تكوين إعدادات مدير API"""
-        try:
-            logger.info(f"تكوين مدير API - المعاملات: version={version}, timeout={timeout}")
-
-            # حفظ الإعدادات في مدير API
-            self.api_version = version
-            self.request_timeout = timeout
-
-            logger.info("✅ تم تكوين مدير API بنجاح")
-
-        except Exception as e:
-            logger.error(f"خطأ في تكوين مدير API: {e}")
-            raise
-
-    def get_status(self) -> Dict:
-        """الحصول على حالة مدير API"""
-        try:
-            return {
-                'total_users': self.get_user_count(),
-                'active_apis': len(self.user_apis),
-                'settings': {
-                    'api_version': getattr(self, 'api_version', 'v2'),
-                    'request_timeout': getattr(self, 'request_timeout', 30)
-                }
-            }
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على حالة مدير API: {e}")
-            return {'error': str(e)}
-
 # إنشاء مثيل عام لمدير API
 api_manager = APIManager()

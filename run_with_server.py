@@ -11,15 +11,6 @@ import threading
 import asyncio
 import logging
 from datetime import datetime
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    filters
-)
-from telegram import ReplyKeyboardMarkup, KeyboardButton
-from user_manager import user_manager
 
 # إضافة المسار الحالي إلى مسارات Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -47,7 +38,6 @@ class IntegratedTradingBot:
         self.web_server = None
         self.is_running = False
         self.start_time = None
-        self.current_account = None
         
         # إحصائيات النظام
         self.stats = {
@@ -58,10 +48,6 @@ class IntegratedTradingBot:
             'uptime': 0,
             'mode': 'integrated'
         }
-    
-    def get_current_account(self):
-        """الحصول على الحساب الحالي"""
-        return self.current_account
     
     async def initialize(self):
         """تهيئة النظام المتكامل"""
@@ -97,23 +83,7 @@ class IntegratedTradingBot:
             from bot_controller import bot_controller
             
             # تهيئة قاعدة البيانات
-            from system_config import get_system_config
-            config = get_system_config()
-            logger.info(f"تهيئة قاعدة البيانات في النظام الجديد - الكائن: {db_manager}")
-            logger.info(f"نوع الكائن: {type(db_manager)}")
-            logger.info(f"الإعدادات: {config['database']}")
-
-            # التحقق من وجود الطريقة
-            if not hasattr(db_manager, 'init_database'):
-                error_msg = f"الكائن {db_manager} لا يحتوي على طريقة init_database"
-                logger.error(error_msg)
-                raise AttributeError(error_msg)
-
-            db_manager.init_database(
-                url=config['database']['url'],
-                pool_size=config['database']['pool_size'],
-                max_overflow=config['database']['max_overflow']
-            )
+            db_manager.init_database()
             
             # بدء مراقبة الأمان
             security_manager.start_security_monitoring()
@@ -877,25 +847,26 @@ def send_railway_url_notification(webhook_url):
 async def main():
     """الدالة الرئيسية لتشغيل النظام المتكامل"""
     try:
-        print("🚀 بدء تشغيل النظام المتكامل للتداول على Bybit...")
+        print("🚀 بدء تشغيل البوت المتكامل للتداول على Bybit...")
         print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"🔗 المنفذ: {PORT}")
         
-        # إنشاء مُهيئ النظام
-        from system_initializer import SystemInitializer
-        initializer = SystemInitializer()
+        # طباعة معلومات البيئة
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        if railway_url:
+            print(f"🚂 Railway URL: {railway_url}")
+        else:
+            print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
         
-        # تهيئة النظام بالكامل
-        if not await initializer.initialize_system():
-            raise Exception("فشل في تهيئة النظام")
+        # إنشاء البوت المتكامل
+        integrated_bot = IntegratedTradingBot()
         
-        # الحصول على المكونات الأساسية
-        web_server = initializer.get_component('web_server')
-        telegram_bot = initializer.get_component('telegram')
-        trading_bot = initializer.get_component('trading')
+        # تهيئة النظام
+        await integrated_bot.initialize()
         
         # تشغيل السيرفر الويب في thread منفصل
         server_thread = threading.Thread(
-            target=web_server.run,
+            target=integrated_bot.start_web_server, 
             daemon=True
         )
         server_thread.start()
@@ -923,8 +894,7 @@ async def main():
         
         print("🤖 بدء تشغيل بوت التلجرام المتكامل...")
         
-        # إنشاء البوت المتكامل وتشغيل بوت التليجرام
-        integrated_bot = IntegratedTradingBot()
+        # تشغيل بوت التليجرام
         await integrated_bot.start_telegram_bot()
         
     except KeyboardInterrupt:
