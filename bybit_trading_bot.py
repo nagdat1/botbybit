@@ -2310,10 +2310,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "📊 إحصائيات الإشارات":
         # عرض إحصائيات الإشارات
         message = f"""
-📊 إحصائيات الإشارات:
+إحصائيات الإشارات:
 
-📈 إشارات مستلمة: {trading_bot.signals_received}
-✅ صفقات مفتوحة: {len(trading_bot.open_positions)}
+إشارات مستلمة: {trading_bot.signals_received}
+صفقات مفتوحة: {len(trading_bot.open_positions)}
         """
         if update.message is not None:
             await update.message.reply_text(message)
@@ -2384,7 +2384,7 @@ def main():
     
     # بدء التحديث الدوري للأسعار
     def start_price_updates():
-        """بدء التحديث الدوري للأسعار"""
+        """Start periodic price updates"""
         def update_prices():
             while True:
                 try:
