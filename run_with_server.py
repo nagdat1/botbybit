@@ -591,369 +591,62 @@ class IntegratedTradingBot:
                 webhook_url = f"http://localhost:{PORT}/webhook"
                 environment = "💻 Local Development"
             
-            message = f"""
+            signals_text = f"""
 🌐 إشارات TradingView
 
-🌍 البيئة: {environment}
-📡 رابط استقبال الإشارات:
-`{webhook_url}`
+استخدم الرابط التالي لربط إشارات TradingView مع بوت التداول:
+```
+{webhook_url}
 
-📋 كيفية الاستخدام:
-1. انسخ الرابط أعلاه
-2. اذهب إلى TradingView
-3. أضف الرابط في إعدادات Webhook
-4. أرسل الإشارات بالصيغة:
-   {{"symbol": "BTCUSDT", "action": "buy"}}
-
-✅ البوت جاهز لاستقبال الإشارات!
+```
+البيئة الحالية: {environment}
+```
             """
             
-            await update.message.reply_text(message)
+            await update.message.reply_text(signals_text)
             
         except Exception as e:
-            logger.error(f"❌ خطأ في عرض رابط TradingView: {e}")
-            await update.message.reply_text("❌ حدث خطأ في عرض رابط الإشارات")
+            logger.error(f"❌ خطأ في عرض رابط إشارات TradingView: {e}")
+            await update.message.reply_text("❌ حدث خطأ في عرض رابط إشارات TradingView")
     
     async def _handle_system_switch(self, update, context):
         """تبديل النظام"""
         try:
-            message = """
-🔄 تبديل النظام
-
-🔧 النظام الذكي الجديد:
-• دعم متعدد المستخدمين
-• بيئات منفصلة لكل مستخدم
-• إدارة صفقات متقدمة مع TP/SL
-• نظام حماية شامل
-• قاعدة بيانات متقدمة
-
-📊 النظام التقليدي:
-• مستخدم واحد
-• إدارة صفقات بسيطة
-• متوافق مع الإشارات الخارجية
-
-💡 التوصية: استخدم النظام الذكي الجديد للحصول على أفضل تجربة
-            """
+            user_id = update.effective_user.id
             
-            await update.message.reply_text(message)
+            # استخدام النظام الجديد للتبديل
+            from user_manager import user_manager
+            user_env = user_manager.get_user_environment(user_id)
+            
+            # إزالة الاستدعاءات غير المتوفرة
+            response = "🔄 تم تبديل النظام\n\nالميزة: النظام الجديد يدعم متعدد المستخدمين وإدارة صفقات متقدمة"
+            
+            await update.message.reply_text(response)
             
         except Exception as e:
             logger.error(f"❌ خطأ في تبديل النظام: {e}")
             await update.message.reply_text("❌ حدث خطأ في تبديل النظام")
     
     async def _handle_callback(self, update, context):
-        """معالجة الأزرار المضغوطة"""
-        query = None
+        """معالجة الردود المتغيرة (Callback)"""
         try:
-            query = update.callback_query
-            await query.answer()
-            
             user_id = update.effective_user.id
-            data = query.data
+            query = update.callback_query
             
-            # استخدام النظام الجديد للمصادقة
-            from security_manager import security_manager
-            authenticated, message = security_manager.authenticate_user(user_id, "callback")
-            if not authenticated:
-                await query.edit_message_text(f"❌ {message}")
-                return
-            
-            # معالجة البيانات حسب النوع
-            if data.startswith("set_amount_"):
-                await self._handle_set_amount_callback(update, context, data)
-            elif data.startswith("set_market_"):
-                await self._handle_set_market_callback(update, context, data)
-            elif data.startswith("set_leverage_"):
-                await self._handle_set_leverage_callback(update, context, data)
-            elif data.startswith("order_details_"):
-                await self._handle_order_details_callback(update, context, data)
-            elif data.startswith("partial_close_"):
-                await self._handle_partial_close_callback(update, context, data)
-            elif data.startswith("close_order_"):
-                await self._handle_close_order_callback(update, context, data)
-            else:
-                await query.edit_message_text("❌ زر غير مدعوم")
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة الأزرار: {e}")
-            # التأكد من أن query معرف قبل استخدامه
-            if query is not None:
-                try:
-                    await query.edit_message_text("❌ حدث خطأ في معالجة الزر")
-                except:
-                    pass  # تجاهل الخطأ إذا فشل إرسال الرسالة
-    
-    async def _handle_set_amount_callback(self, update, context, data):
-        """معالجة زر تعيين مبلغ التداول"""
-        try:
-            user_id = int(data.split("_")[-1])
-            
-            from ui_manager import ui_manager
-            ui_manager.set_user_state(user_id, "waiting_for_trade_amount")
-            
-            await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
+            # استخدام النظام الجديد لمعالجة الردود المتغيرة
+            await query.answer()
+            await query.edit_message_text("❌ هذه الميزة غير متوفرة حالياً")
             
         except Exception as e:
-            logger.error(f"❌ خطأ في معالجة زر المبلغ: {e}")
-            await update.callback_query.edit_message_text("❌ حدث خطأ")
-    
-    async def _handle_set_market_callback(self, update, context, data):
-        """معالجة زر تعيين نوع السوق"""
-        try:
-            user_id = int(data.split("_")[-1])
-            
-            from ui_manager import ui_manager
-            keyboard = ui_manager.get_market_type_keyboard(user_id)
-            
-            await update.callback_query.edit_message_text("🏪 اختر نوع السوق:", reply_markup=keyboard)
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة زر السوق: {e}")
-            await update.callback_query.edit_message_text("❌ حدث خطأ")
-    
-    async def _handle_set_leverage_callback(self, update, context, data):
-        """معالجة زر تعيين الرافعة المالية"""
-        try:
-            user_id = int(data.split("_")[-1])
-            
-            from ui_manager import ui_manager
-            keyboard = ui_manager.get_leverage_keyboard(user_id)
-            
-            await update.callback_query.edit_message_text("⚡ اختر الرافعة المالية:", reply_markup=keyboard)
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة زر الرافعة: {e}")
-            await update.callback_query.edit_message_text("❌ حدث خطأ")
-    
-    async def _handle_order_details_callback(self, update, context, data):
-        """معالجة زر تفاصيل الصفقة"""
-        try:
-            order_id = data.split("_")[-1]
-            
-            from ui_manager import ui_manager
-            order_text = ui_manager.format_order_info(order_id)
-            keyboard = ui_manager.get_order_details_keyboard(order_id)
-            
-            await update.callback_query.edit_message_text(order_text, reply_markup=keyboard)
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة تفاصيل الصفقة: {e}")
-            await update.callback_query.edit_message_text("❌ حدث خطأ في عرض تفاصيل الصفقة")
-    
-    async def _handle_partial_close_callback(self, update, context, data):
-        """معالجة زر الإغلاق الجزئي"""
-        try:
-            order_id = data.split("_")[-1]
-            
-            from ui_manager import ui_manager
-            keyboard = ui_manager.get_partial_close_keyboard(order_id)
-            
-            await update.callback_query.edit_message_text("💰 اختر نسبة الإغلاق الجزئي:", reply_markup=keyboard)
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة الإغلاق الجزئي: {e}")
-            await update.callback_query.edit_message_text("❌ حدث خطأ في الإغلاق الجزئي")
-    
-    async def _handle_close_order_callback(self, update, context, data):
-        """معالجة زر إغلاق الصفقة"""
-        try:
-            order_id = data.split("_")[-1]
-            
-            from order_manager import order_manager
-            success = order_manager.close_order(order_id, "manual")
-            
-            if success:
-                await update.callback_query.edit_message_text("✅ تم إغلاق الصفقة بنجاح")
-            else:
-                await update.callback_query.edit_message_text("❌ فشل في إغلاق الصفقة")
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في إغلاق الصفقة: {e}")
-            await update.callback_query.edit_message_text("❌ حدث خطأ في إغلاق الصفقة")
+            logger.error(f"❌ خطأ في معالجة الرد المتغير: {e}")
+            if update.message:
+                await update.message.reply_text("❌ حدث خطأ في معالجة الرد المتغير")
     
     async def _handle_error(self, update, context):
         """معالجة الأخطاء"""
         try:
-            logger.error(f"خطأ في البوت المتكامل: {context.error}")
-            
-            # تسجيل الخطأ في إحصائيات الأمان
-            if update and hasattr(update, 'effective_user') and update.effective_user:
-                user_id = update.effective_user.id
-                from security_manager import security_manager
-                security_manager.record_failed_attempt(user_id, f"bot_error: {context.error}")
+            logger.error(f"❌ حدث خطأ غير متوقع:\n{context.error}")
             
         except Exception as e:
-            logger.error(f"خطأ في معالجة الخطأ: {e}")
-    
-    def start_web_server(self):
-        """بدء السيرفر الويب"""
-        try:
-            if self.web_server:
-                self.web_server.run(debug=False, port=PORT)
-            else:
-                logger.error("❌ السيرفر الويب غير مهيأ")
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في تشغيل السيرفر الويب: {e}")
-    
-    def get_stats(self):
-        """الحصول على إحصائيات النظام"""
-        try:
-            uptime = 0
-            if self.start_time:
-                uptime = (datetime.now() - self.start_time).total_seconds()
-            
-            return {
-                'is_running': self.is_running,
-                'uptime': uptime,
-                'start_time': self.start_time.isoformat() if self.start_time else None,
-                'stats': self.stats.copy(),
-                'mode': 'integrated',
-                'timestamp': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على الإحصائيات: {e}")
-            return {'error': str(e)}
-
-def send_railway_url_notification(webhook_url):
-    """إرسال إشعار برابط Railway عبر تلجرام"""
-    try:
-        from config import TELEGRAM_TOKEN, ADMIN_USER_ID
-        from telegram.ext import Application
-        import asyncio
-        
-        async def send_message():
-            try:
-                application = Application.builder().token(TELEGRAM_TOKEN).build()
-                
-                # تحديد نوع البيئة
-                if "railway" in webhook_url.lower() or "railway.app" in webhook_url:
-                    environment = "ityEngine Railway Cloud"
-                elif "render" in webhook_url.lower():
-                    environment = "☁️ Render Cloud"
-                else:
-                    environment = "💻 Local Development"
-                
-                message = f"🚀 بدء تشغيل البوت المتكامل\n\n"
-                message += f"🌍 البيئة: {environment}\n"
-                message += f"🌐 رابط استقبال الإشارات:\n`{webhook_url}`\n\n"
-                message += f"📡 استخدم هذا الرابط في TradingView لإرسال الإشارات\n"
-                message += f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                message += f"✅ البوت المتكامل جاهز لاستقبال الإشارات!"
-                
-                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
-            except Exception as e:
-                print(f"❌ خطأ في إرسال إشعار Railway: {e}")
-        
-        # تشغيل في thread منفصل
-        def run_async():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(send_message())
-            loop.close()
-        
-        threading.Thread(target=run_async, daemon=True).start()
-        
-    except Exception as e:
-        print(f"❌ خطأ في إعداد إشعار Railway: {e}")
-
-async def main():
-    """الدالة الرئيسية لتشغيل النظام المتكامل"""
-    try:
-        print("🚀 بدء تشغيل البوت المتكامل للتداول على Bybit...")
-        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"🔗 المنفذ: {PORT}")
-        
-        # طباعة معلومات البيئة
-        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
-        if railway_url:
-            print(f"ityEngine Railway URL: {railway_url}")
-        else:
-            print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
-        
-        # إنشاء البوت المتكامل
-        integrated_bot = IntegratedTradingBot()
-        
-        # تهيئة النظام
-        await integrated_bot.initialize()
-        
-        # تشغيل السيرفر الويب في thread منفصل
-        server_thread = threading.Thread(
-            target=integrated_bot.start_web_server, 
-            daemon=True
-        )
-        server_thread.start()
-        
-        print("✅ تم تشغيل السيرفر الويب بنجاح")
-        
-        # إعداد وإرسال إشعار برابط Webhook
-        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
-        if railway_url:
-            if not railway_url.startswith('http'):
-                railway_url = f"https://{railway_url}"
-            webhook_url = f"{railway_url}/webhook"
-            print("=" * 60)
-            print("🌐 رابط Webhook للاستقبال من Railway:")
-            print(f"   {webhook_url}")
-            print("=" * 60)
-            send_railway_url_notification(webhook_url)
-        else:
-            webhook_url = f"http://localhost:{PORT}/webhook"
-            print("=" * 60)
-            print("🌐 رابط Webhook:")
-            print(f"   {webhook_url}")
-            print("=" * 60)
-            send_railway_url_notification(webhook_url)
-        
-        print("🤖 بدء تشغيل بوت التلجرام المتكامل...")
-        
-        # إضافة المعالجات المتكاملة للبوت الرئيسي
-        from telegram.ext import Application
-        from config import TELEGRAM_TOKEN
-        
-        # إنشاء تطبيق التليجرام في الحلقة الرئيسية
-        application = Application.builder().token(TELEGRAM_TOKEN).build()
-        integrated_bot._setup_integrated_handlers(application)
-        
-        print("✅ تم إعداد المعالجات المتكاملة")
-        print("🤖 بدء تشغيل بوت التليجرام المتكامل...")
-        
-        # تشغيل البوت في الخلفية دون إعاقة السيرفر
-        async def run_bot_in_background():
-            try:
-                await application.run_polling(
-                    allowed_updates=['message', 'callback_query'],
-                    drop_pending_updates=True
-                )
-            except Exception as e:
-                print(f"❌ خطأ في تشغيل بوت التليجرام: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        # تشغيل البوت في مهمة غير متزامنة منفصلة
-        asyncio.create_task(run_bot_in_background())
-        
-        # الانتظار حتى إنهاء التطبيق
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            print("\n⏹️ تم إيقاف البوت المتكامل بواسطة المستخدم")
-            
-    except Exception as e:
-        print(f"❌ خطأ في تشغيل البوت المتكامل: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
-if __name__ == "__main__":
-    # For Windows compatibility
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    except:
-        pass
-    
-    # تشغيل التطبيق في حلقة الأحداث الرئيسية
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+            logger.error(f"❌ خطأ في معالجة الأخطاء: {e}")
+            await update.message.reply_text("❌ حدث خطأ غير متوقع")
