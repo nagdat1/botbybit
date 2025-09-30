@@ -48,6 +48,14 @@ class WebServer:
             """الصفحة الرئيسية - لوحة التحكم"""
             return render_template('dashboard.html')
         
+        @self.app.route('/health')
+        def health():
+            """Health check endpoint"""
+            return jsonify({
+                "status": "healthy",
+                "timestamp": datetime.now().isoformat()
+            })
+
         @self.app.route('/api/bot_status')
         def bot_status():
             """الحصول على حالة البوت"""
