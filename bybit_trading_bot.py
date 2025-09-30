@@ -277,6 +277,86 @@ class TradingAccount:
             logger.error(f"خطأ في إغلاق صفقة الفيوتشر: {e}")
             return False, {"error": str(e)}
     
+    def close_futures_position_partial(self, position_id: str, closing_price: float, percentage: float) -> tuple[bool, dict]:
+        """إغلاق نسبة مئوية من صفقة فيوتشر"""
+        try:
+            if position_id not in self.positions:
+                return False, {"error": "ال صفقة غير موجودة"}
+            
+            position = self.positions[position_id]
+            
+            if not isinstance(position, FuturesPosition):
+                return False, {"error": "ال صفقة ليست صفقة فيوتشر"}
+            
+            # التأكد من أن النسبة بين 0 و 100
+            percentage = max(0, min(100, percentage))
+            
+            if percentage == 100:
+                # إذا كانت النسبة 100%، نستخدم الدالة الأصلية
+                return self.close_futures_position(position_id, closing_price)
+            
+            # حساب المبالغ الجزئية
+            partial_margin_amount = position.margin_amount * (percentage / 100)
+            partial_contracts = position.contracts * (percentage / 100)
+            partial_position_size = position.position_size * (percentage / 100)
+            
+            # حساب الربح/الخسارة الجزئية
+            if position.side == "buy":
+                realized_pnl = (closing_price - position.entry_price) * partial_contracts
+            else:
+                realized_pnl = (position.entry_price - closing_price) * partial_contracts
+            
+            # تحديث الهامش المحجوز
+            self.margin_locked -= partial_margin_amount
+            
+            # تحديث الرصيد (الهامش الجزئي + الربح/الخسارة الجزئي)
+            self.balance += partial_margin_amount + realized_pnl
+            
+            # تسجيل الصفقة في التاريخ
+            trade_record = {
+                'symbol': position.symbol,
+                'side': position.side,
+                'entry_price': position.entry_price,
+                'closing_price': closing_price,
+                'margin_amount': partial_margin_amount,
+                'position_size': partial_position_size,
+                'leverage': position.leverage,
+                'market_type': 'futures',
+                'contracts': partial_contracts,
+                'pnl': realized_pnl,
+                'liquidation_price': position.liquidation_price,
+                'timestamp': position.timestamp,
+                'close_timestamp': datetime.now(),
+                'percentage_closed': percentage
+            }
+            
+            self.trade_history.append(trade_record)
+            self.total_trades += 1
+            
+            if realized_pnl > 0:
+                self.winning_trades += 1
+            else:
+                self.losing_trades += 1
+            
+            # إذا تم إغلاق جزء من الصفقة، نحتاج إلى تحديث الصفقة الأصلية
+            if percentage < 100:
+                # تحديث الصفقة الأصلية بخصم الجزء المغلق
+                position.margin_amount -= partial_margin_amount
+                position.contracts -= partial_contracts
+                position.position_size -= partial_position_size
+                # إعادة حساب سعر التصفية
+                position.liquidation_price = position.calculate_liquidation_price()
+            else:
+                # حذف الصفقة بالكامل
+                del self.positions[position_id]
+            
+            logger.info(f"تم إغلاق {percentage}% من صفقة فيوتشر: {position.symbol} PnL: {realized_pnl:.2f}")
+            return True, trade_record
+            
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق نسبة من صفقة الفيوتشر: {e}")
+            return False, {"error": str(e)}
+    
     def close_spot_position(self, position_id: str, closing_price: float) -> tuple[bool, dict]:
         """إغلاق صفقة سبوت"""
         try:
@@ -333,6 +413,84 @@ class TradingAccount:
             
         except Exception as e:
             logger.error(f"خطأ في إغلاق صفقة السبوت: {e}")
+            return False, {"error": str(e)}
+    
+    def close_spot_position_partial(self, position_id: str, closing_price: float, percentage: float) -> tuple[bool, dict]:
+        """إغلاق نسبة مئوية من صفقة سبوت"""
+        try:
+            if position_id not in self.positions:
+                return False, {"error": "ال صفقة غير موجودة"}
+            
+            position = self.positions[position_id]
+            
+            if isinstance(position, FuturesPosition):
+                return False, {"error": "ال صفقة ليست صفقة سبوت"}
+            
+            # التأكد من أن النسبة بين 0 و 100
+            percentage = max(0, min(100, percentage))
+            
+            if percentage == 100:
+                # إذا كانت النسبة 100%، نستخدم الدالة الأصلية
+                return self.close_spot_position(position_id, closing_price)
+            
+            entry_price = position['price']
+            total_amount = position['amount']
+            side = position['side']
+            
+            # حساب المبالغ الجزئية
+            partial_amount = total_amount * (percentage / 100)
+            contracts = position.get('contracts', total_amount / entry_price)
+            partial_contracts = contracts * (percentage / 100)
+            
+            # حساب الربح/الخسارة الجزئية
+            if side.lower() == "buy":
+                # بيع الأصل المشترى
+                pnl = partial_contracts * closing_price - partial_amount
+            else:
+                # تغطية البيع (نادر في السبوت)
+                pnl = (entry_price - closing_price) * partial_contracts
+            
+            # تحديث الرصيد
+            self.balance += partial_amount + pnl
+            
+            # تسجيل الصفقة
+            trade_record = {
+                'symbol': position['symbol'],
+                'side': side,
+                'entry_price': entry_price,
+                'closing_price': closing_price,
+                'amount': partial_amount,
+                'leverage': 1,
+                'market_type': 'spot',
+                'contracts': partial_contracts,
+                'pnl': pnl,
+                'timestamp': position['timestamp'],
+                'close_timestamp': datetime.now(),
+                'percentage_closed': percentage
+            }
+            
+            self.trade_history.append(trade_record)
+            self.total_trades += 1
+            
+            if pnl > 0:
+                self.winning_trades += 1
+            else:
+                self.losing_trades += 1
+            
+            # إذا تم إغلاق جزء من الصفقة، نحتاج إلى تحديث الصفقة الأصلية
+            if percentage < 100:
+                # تحديث الصفقة الأصلية بخصم الجزء المغلق
+                position['amount'] -= partial_amount
+                position['contracts'] = position.get('contracts', position['amount'] / entry_price) - partial_contracts
+            else:
+                # حذف الصفقة بالكامل
+                del self.positions[position_id]
+            
+            logger.info(f"تم إغلاق {percentage}% من صفقة سبوت: {position['symbol']} PnL: {pnl:.2f}")
+            return True, trade_record
+            
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق نسبة من صفقة السبوت: {e}")
             return False, {"error": str(e)}
     
     def update_positions_pnl(self, prices: Dict[str, float]):
@@ -883,7 +1041,8 @@ class TradingBot:
                             'liquidation_price': position.liquidation_price,
                             'contracts': position.contracts,
                             'current_price': price,
-                            'pnl_percent': 0.0
+                            'pnl_percent': 0.0,
+                            'timestamp': position.timestamp
                         }
                         
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}")
@@ -1216,6 +1375,15 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         side = position_info['side']
         amount = position_info.get('amount', position_info.get('margin_amount', 0))
         
+        # الحصول على التاريخ من الصفقة
+        timestamp = position_info.get('timestamp')
+        date_str = ""
+        if timestamp:
+            if isinstance(timestamp, datetime):
+                date_str = timestamp.strftime('%Y-%m-%d %H:%M')
+            else:
+                date_str = str(timestamp)
+        
         # الحصول على السعر الحالي من البيانات المحدثة
         current_price = position_info.get('current_price')
         pnl_percent = position_info.get('pnl_percent', 0.0)
@@ -1247,6 +1415,7 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
             spot_text += f"""
 {pnl_emoji} {symbol}
 🔄 النوع: {side.upper()}
+📅 التاريخ: {date_str}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: {current_price:.6f}
 💰 المبلغ: {amount:.2f}
@@ -1257,16 +1426,34 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
             spot_text += f"""
 📊 {symbol}
 🔄 النوع: {side.upper()}
+📅 التاريخ: {date_str}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: غير متاح
 💰 المبلغ: {amount:.2f}
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
+        # إضافة أزرار إغلاق الصفقة مع عرض الربح/الخسارة
         pnl_display = f"({pnl_value:+.2f})" if current_price else ""
+        
+        # زر الإغلاق الكامل
         close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
         spot_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
+        
+        # أزرار الإغلاق بنسبة مئوية
+        if current_price:
+            percentage_buttons = []
+            if pnl_percent >= 1.0:  # إذا كان الربح 1% أو أكثر
+                percentage_buttons.append(InlineKeyboardButton("50%", callback_data=f"close_percent_50_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("75%", callback_data=f"close_percent_75_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("100%", callback_data=f"close_{position_id}"))
+            elif pnl_percent <= -1.0:  # إذا كانت الخسارة 1% أو أكثر
+                percentage_buttons.append(InlineKeyboardButton("50%", callback_data=f"close_percent_50_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("75%", callback_data=f"close_percent_75_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("100%", callback_data=f"close_{position_id}"))
+            
+            if percentage_buttons:
+                spot_keyboard.append(percentage_buttons)
     
     spot_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     spot_reply_markup = InlineKeyboardMarkup(spot_keyboard)
@@ -1310,6 +1497,15 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
         margin_amount = position_info.get('margin_amount', 0)
         position_size = position_info.get('position_size', 0)
         liquidation_price = position_info.get('liquidation_price', 0)
+        
+        # الحصول على التاريخ من الصفقة
+        timestamp = position_info.get('timestamp')
+        date_str = ""
+        if timestamp:
+            if isinstance(timestamp, datetime):
+                date_str = timestamp.strftime('%Y-%m-%d %H:%M')
+            else:
+                date_str = str(timestamp)
         
         # الحصول على الصفقة من الحساب للحصول على معلومات مفصلة
         actual_position = account.positions.get(position_id)
@@ -1355,6 +1551,7 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
             futures_text += f"""
 {liquidation_warning}{pnl_emoji} {symbol}
 🔄 النوع: {side.upper()}
+📅 التاريخ: {date_str}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: {current_price:.6f}
 💰 الهامش المحجوز: {margin_amount:.2f}
@@ -1369,6 +1566,7 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
             futures_text += f"""
 📊 {symbol}
 🔄 النوع: {side.upper()}
+📅 التاريخ: {date_str}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: غير متاح
 💰 الهامش المحجوز: {margin_amount:.2f}
@@ -1378,10 +1576,27 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
+        # إضافة أزرار إغلاق الصفقة مع عرض الربح/الخسارة
         pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
+        
+        # زر الإغلاق الكامل
         close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
         futures_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
+        
+        # أزرار الإغلاق بنسبة مئوية
+        if current_price:
+            percentage_buttons = []
+            if pnl_percent >= 1.0:  # إذا كان الربح 1% أو أكثر
+                percentage_buttons.append(InlineKeyboardButton("50%", callback_data=f"close_percent_50_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("75%", callback_data=f"close_percent_75_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("100%", callback_data=f"close_{position_id}"))
+            elif pnl_percent <= -1.0:  # إذا كانت الخسارة 1% أو أكثر
+                percentage_buttons.append(InlineKeyboardButton("50%", callback_data=f"close_percent_50_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("75%", callback_data=f"close_percent_75_{position_id}"))
+                percentage_buttons.append(InlineKeyboardButton("100%", callback_data=f"close_{position_id}"))
+            
+            if percentage_buttons:
+                futures_keyboard.append(percentage_buttons)
     
     futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
@@ -1412,6 +1627,20 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
         symbol = position_info['symbol']
         category = position_info.get('category', 'spot')
         market_type = position_info.get('account_type', 'spot')
+        
+        # التحقق مما إذا كان هذا إغلاق بنسبة مئوية
+        if position_id.startswith("percent_"):
+            # استخراج النسبة المئوية و ID الصفقة الفعلي
+            parts = position_id.split("_")
+            if len(parts) >= 3:
+                try:
+                    percentage = float(parts[1])
+                    actual_position_id = "_".join(parts[2:])
+                    # إعادة التوجيه إلى دالة الإغلاق بنسبة مئوية
+                    await close_position_by_percentage(actual_position_id, percentage, update, context)
+                    return
+                except ValueError:
+                    pass  # إذا فشل التحويل، نواصل كالمعتاد
         
         # الحصول على السعر الحالي
         current_price = position_info.get('current_price')
@@ -1515,6 +1744,145 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                 # حذف الصفقة من القائمة العامة
                 if position_id in trading_bot.open_positions:
                     del trading_bot.open_positions[position_id]
+                
+            else:
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text(f"❌ فشل في إغلاق الصفقة: {result}")
+        else:
+            # إغلاق الصفقة الحقيقية (يتطلب تنفيذ API إضافي)
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text("⚠️ إغلاق الصفقات الحقيقية يتطلب تنفيذاً يدوياً حالياً")
+        
+    except Exception as e:
+        logger.error(f"خطأ في إغلاق الصفقة: {e}")
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(f"❌ خطأ في إغلاق الصفقة: {e}")
+
+async def close_position_by_percentage(position_id: str, percentage: float, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إغلاق نسبة مئوية من الصفقة"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        category = position_info.get('category', 'spot')
+        market_type = position_info.get('account_type', 'spot')
+        
+        # الحصول على السعر الحالي
+        current_price = position_info.get('current_price')
+        if not current_price and trading_bot.bybit_api:
+            current_price = trading_bot.bybit_api.get_ticker_price(symbol, category)
+        
+        if current_price is None:
+            # استخدام سعر وهمي للاختبار
+            current_price = position_info['entry_price'] * 1.01  # ربح 1%
+        
+        if trading_bot.user_settings['account_type'] == 'demo':
+            # تحديد الحساب الصحيح
+            if market_type == 'spot':
+                account = trading_bot.demo_account_spot
+                # إغلاق نسبة مئوية من الصفقة السبوت
+                success, result = account.close_spot_position_partial(position_id, current_price, percentage)
+            else:
+                account = trading_bot.demo_account_futures
+                # إغلاق نسبة مئوية من الصفقة الفيوتشر
+                success, result = account.close_futures_position_partial(position_id, current_price, percentage)
+                
+            if success:
+                trade_record = result
+                
+                if isinstance(trade_record, dict) and 'pnl' in trade_record:
+                    pnl = float(trade_record['pnl'])
+                    percentage_closed = trade_record.get('percentage_closed', percentage)
+                    
+                    # مؤشرات بصرية واضحة للربح والخسارة
+                    if pnl > 0:
+                        pnl_emoji = "🟢💰✅"
+                        status_text = "رابحة"
+                        arrow = "⬆️💚"
+                        visual_indicator = "🟩🟩🟩🟩🟩"
+                    else:
+                        pnl_emoji = "🔴💸❌"
+                        status_text = "خاسرة"
+                        arrow = "⬇️💔"
+                        visual_indicator = "🟥🟥🟥🟥🟥"
+                    
+                    if market_type == 'futures':
+                        margin_amount = trade_record.get('margin_amount', 0)
+                        position_size = trade_record.get('position_size', 0)
+                        leverage = trade_record.get('leverage', 1)
+                        liquidation_price = trade_record.get('liquidation_price', 0)
+                        pnl_percent = (pnl / margin_amount) * 100 if margin_amount > 0 else 0
+                        
+                        message = f"""
+✅ تم إغلاق {percentage_closed}% من صفقة الفيوتشر
+{pnl_emoji} {symbol}
+{visual_indicator}
+🔄 النوع: {position_info['side'].upper()}
+💲 سعر الدخول: {position_info['entry_price']:.6f}
+💲 سعر الإغلاق: {current_price:.6f}
+💰 الهامش المحجوز: {margin_amount:.2f}
+📈 حجم الصفقة: {position_size:.2f}
+{arrow} الربح/الخسارة: {pnl:.2f} ({pnl_percent:.2f}%) - {status_text}
+⚡ الرافعة: {leverage}x
+⚠️ سعر التصفية كان: {liquidation_price:.6f}
+📊 عدد العقود: {trade_record.get('contracts', 0):.6f}
+
+💰 رصيد الحساب الجديد: {account.balance:.2f}
+💳 الرصيد المتاح: {account.get_available_balance():.2f}
+🔒 الهامش المحجوز: {account.margin_locked:.2f}
+📈 إجمالي الصفقات: {account.total_trades}
+✅ الصفقات الرابحة: {account.winning_trades}
+❌ الصفقات الخاسرة: {account.losing_trades}
+🎯 معدل النجاح: {account.get_account_info()['win_rate']}%
+                        """
+                    else:
+                        message = f"""
+✅ تم إغلاق {percentage_closed}% من الصفقة التجريبية
+{pnl_emoji} {symbol}
+{visual_indicator}
+🔄 النوع: {position_info['side'].upper()}
+💲 سعر الدخول: {position_info['entry_price']:.6f}
+💲 سعر الإغلاق: {current_price:.6f}
+{arrow} الربح/الخسارة: {pnl:.2f} ({status_text})
+
+💰 رصيد الحساب الجديد: {account.balance:.2f}
+📈 إجمالي الصفقات: {account.total_trades}
+✅ الصفقات الرابحة: {account.winning_trades}
+❌ الصفقات الخاسرة: {account.losing_trades}
+🎯 معدل النجاح: {account.get_account_info()['win_rate']}%
+                        """
+                    
+                    if update.callback_query is not None:
+                        await update.callback_query.edit_message_text(message)
+                
+                # تحديث معلومات الصفقة في القائمة العامة إذا لم تتم إزالتها بالكامل
+                if position_id in trading_bot.open_positions:
+                    # إذا تم إغلاق جزء فقط، نحتاج إلى تحديث المعلومات
+                    if percentage < 100:
+                        # الحصول على الصفقة المحدثة
+                        updated_position = account.positions.get(position_id)
+                        if updated_position:
+                            if isinstance(updated_position, FuturesPosition):
+                                # تحديث معلومات الصفقة الفيوتشر
+                                trading_bot.open_positions[position_id].update({
+                                    'margin_amount': updated_position.margin_amount,
+                                    'position_size': updated_position.position_size,
+                                    'contracts': updated_position.contracts,
+                                    'liquidation_price': updated_position.liquidation_price
+                                })
+                            else:
+                                # تحديث معلومات الصفقة السبوت
+                                trading_bot.open_positions[position_id].update({
+                                    'amount': updated_position.get('amount', 0),
+                                    'contracts': updated_position.get('contracts', 0)
+                                })
+                    else:
+                        # إذا تم إغلاق الصفقة بالكامل، نحذفها من القائمة
+                        del trading_bot.open_positions[position_id]
                 
             else:
                 if update.callback_query is not None:
@@ -1717,6 +2085,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+    elif data.startswith("close_percent_"):
+        # معالجة إغلاق بنسبة مئوية
+        parts = data.split("_")
+        if len(parts) >= 4:
+            try:
+                percentage = float(parts[2])
+                position_id = "_".join(parts[3:])
+                await close_position_by_percentage(position_id, percentage, update, context)
+            except ValueError:
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text("❌ خطأ في معالجة النسبة المئوية")
+        else:
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text("❌ تنسيق زر غير صحيح")
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
