@@ -10,3 +10,13 @@ pyngrok==7.0.0
 gunicorn==21.2.0
 python-dotenv==1.0.0
 websocket-client==1.6.4
+sqlite3
+asyncio
+threading
+datetime
+decimal
+typing
+enum
+hashlib
+hmac
+urllib3
