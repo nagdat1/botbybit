@@ -31,3 +31,8 @@
 2025-09-27 02:21:26,338 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:36,368 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:46,407 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-09-30 05:38:44,435 - system_initializer - INFO - ✅ تم تهيئة نظام التسجيل
+2025-09-30 05:38:44,441 - database - INFO - تم تهيئة قاعدة البيانات بنجاح
+2025-09-30 05:38:44,441 - system_initializer - INFO - ✅ تم تهيئة قاعدة البيانات
+2025-09-30 05:38:44,449 - system_initializer - ERROR - ❌ خطأ في تهيئة نظام الأمان: 'SecurityManager' object has no attribute 'configure'
+2025-09-30 05:38:44,449 - system_initializer - ERROR - ❌ خطأ في تهيئة النظام: 'SecurityManager' object has no attribute 'configure'

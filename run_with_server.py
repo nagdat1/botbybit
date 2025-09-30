@@ -97,7 +97,13 @@ class IntegratedTradingBot:
             from bot_controller import bot_controller
             
             # تهيئة قاعدة البيانات
-            db_manager.init_database()
+            from system_config import get_system_config
+            config = get_system_config()
+            db_manager.init_database(
+                url=config['database']['url'],
+                pool_size=config['database']['pool_size'],
+                max_overflow=config['database']['max_overflow']
+            )
             
             # بدء مراقبة الأمان
             security_manager.start_security_monitoring()
