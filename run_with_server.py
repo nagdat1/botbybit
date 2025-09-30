@@ -923,7 +923,8 @@ async def main():
         
         print("🤖 بدء تشغيل بوت التلجرام المتكامل...")
         
-        # تشغيل بوت التليجرام
+        # إنشاء البوت المتكامل وتشغيل بوت التليجرام
+        integrated_bot = IntegratedTradingBot()
         await integrated_bot.start_telegram_bot()
         
     except KeyboardInterrupt:

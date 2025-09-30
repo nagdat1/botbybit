@@ -4,6 +4,8 @@
 إعدادات تهيئة النظام المتكامل
 """
 
+import os
+
 # إعدادات عامة
 SYSTEM_NAME = "Bybit Trading Bot"
 VERSION = "2.0.0"
@@ -11,12 +13,17 @@ DEBUG = False
 
 # إعدادات السيرفر
 SERVER_HOST = "0.0.0.0"
-SERVER_PORT = 8080
+SERVER_PORT = int(os.environ.get('PORT', 5000))  # استخدام نفس المنفذ من config.py
+PORT = SERVER_PORT  # للتوافق مع الملفات الأخرى
 WEBHOOK_PATH = "/webhook"
 
 # إعدادات التلجرام
 TELEGRAM_POLLING = True  # True للتشغيل المحلي، False للويب هوك
 TELEGRAM_WEBHOOK_URL = None  # سيتم تعيينه تلقائياً
+
+# مفاتيح API للتداول (للتوافق مع الملفات الأخرى)
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw")
+ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
 
 # إعدادات قاعدة البيانات
 DATABASE_URL = "sqlite:///trading_bot.db"
