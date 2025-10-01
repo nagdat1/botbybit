@@ -1,0 +1,161 @@
+{
+  "project": {
+    "name": "Bybit Telegram Multi-User Bot",
+    "run_file": "run_with_server.py",
+    "deployment": "Railway",
+    "description": "بوت تيليجرام متعدد المستخدمين لإدارة التداول على Bybit، يدعم TP/SL/Partial Close، وإدارة الرصيد لكل مستخدم بشكل مستقل.",
+    "structure": {
+      "core_files": ["bybit_trading_bot.py", "web_server.py", "config.py", "app.py", "health.py", "run_with_server.py", "test_railway.py"],
+      "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml", "railway.yaml", "render.yaml", "env.example", "railway_start.sh", "RAILWAY_DEPLOYMENT_CHECKLIST.md"],
+      "data_files": ["spot_pairs.json", "futures_pairs.json", "popular_pairs.json"],
+      "test_files": ["test_railway_env.py", "test_railway.py"],
+      "docs": ["README.md", "RAILWAY_DEPLOYMENT_CHECKLIST.md"],
+      "helpers": ["trading_bot.log", "run_with_server.py", "health.py"],
+      "hidden_folders": [".qodo/", ".railway/"]
+    }
+  },
+  "users": [
+    {
+      "user_id": 123456789,
+      "api_key": "API_KEY_EXAMPLE",
+      "api_secret": "API_SECRET_EXAMPLE",
+      "settings": {
+        "balance": 1000.0,
+        "partial_percents": [25, 50, 25],
+        "tps_percents": [1.5, 3.0, 5.0],
+        "is_active": true,
+        "preferences": {
+          "notifications": true,
+          "preferred_symbols": ["BTCUSDT", "ETHUSDT"]
+        }
+      },
+      "orders": [
+        {
+          "order_id": "ORD123",
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entry_price": 30000.0,
+          "quantity": 0.1,
+          "open_time": "2025-10-01T10:00:00",
+          "close_time": null,
+          "tps": [30100.0, 30200.0, 30500.0],
+          "sl": 29500.0,
+          "partial_close": [25, 50, 25],
+          "status": "OPEN",
+          "notes": "الصفقة مفتوحة، تتغير حسب TP وSL"
+        }
+      ]
+    }
+  ],
+  "commands": {
+    "/start": {
+      "description": "بدء البوت وعرض زر 🔗 الربط لكل مستخدم",
+      "effects": "حفظ API_KEY و API_SECRET في جدول users"
+    },
+    "/balance": {
+      "description": "عرض رصيد المستخدم الحالي",
+      "effects": "يعرض فقط للمستخدم الذي طلبه ويتحقق من is_active"
+    },
+    "/buy": {
+      "description": "فتح صفقة شراء",
+      "effects": "يتم تنفيذها على حساب المستخدم فقط، يتحقق من is_active، يضيف الصفقة إلى orders"
+    },
+    "/sell": {
+      "description": "فتح صفقة بيع",
+      "effects": "يتم تنفيذها على حساب المستخدم فقط، يتحقق من is_active، يضيف الصفقة إلى orders"
+    },
+    "/settings": {
+      "description": "قسم ⚙️ الإعدادات لكل مستخدم",
+      "effects": "يحتوي على زر تشغيل/إيقاف البوت، تحديث API، وتفضيلات الإشعارات"
+    }
+  },
+  "settings_section": {
+    "description": "قسم الإعدادات لكل مستخدم",
+    "buttons": ["toggle_active", "update_api", "notification_preferences"]
+  },
+  "orders_section": {
+    "description": "إدارة الصفقات لكل مستخدم",
+    "buttons": ["تاريخ الصفقة", "إغلاق جزئي", "TP1", "TP2", "TP3", "Stop Loss", "إلغاء الصفقة"],
+    "effects": "تغييرات TP/SL/Partial Close تؤثر فقط على رصيد المستخدم المعني"
+  },
+  "user_isolation": {
+    "description": "فصل المستخدمين في البوت",
+    "principles": [
+      "كل مستخدم له بيئة مستقلة بالكامل (API, صفقات, إعدادات, رصيد)",
+      "لا يمكن لأي مستخدم الوصول إلى بيانات مستخدم آخر",
+      "جميع الأوامر والتغييرات مرتبطة بـ user_id فقط",
+      "الصفقات والتعديلات على TP/SL/Partial Close تؤثر فقط على رصيد المستخدم المعني",
+      "قسم الإعدادات وإدارة الأوامر مخصص لكل مستخدم بشكل منفصل",
+      "JSON Context لكل مستخدم يحتوي على جميع المعلومات الخاصة به"
+    ]
+  },
+  "run_environment": {
+    "file": "run_with_server.py",
+    "platform": "Railway",
+    "description": "مسؤول عن تشغيل المشروع الكامل، يشغل البوت، الصفقات، والأوامر لجميع المستخدمين"
+  },
+  "similar_projects": [
+    {
+      "project_name": "Binance Futures Trading Bot",
+      "description": "بوت تداول العقود الآجلة على Binance، يدعم أوامر buy/sell، TP/SL، وتنبيهات لكل مستخدم.",
+      "structure": {
+        "core_files": ["binance_trading_bot.py", "web_server.py", "config.py", "app.py", "run_server.py"],
+        "deployment_files": ["requirements.txt", "Dockerfile", "deploy.yaml", "env.example"],
+        "data_files": ["futures_pairs.json", "popular_pairs.json"],
+        "test_files": ["test_env.py", "test_bot.py"],
+        "docs": ["README.md"],
+        "helpers": ["trading_bot.log"]
+      },
+      "features": [
+        "Multi-user مع فصل البيئات لكل مستخدم",
+        "API Keys لكل مستخدم",
+        "صفقات منفصلة لكل مستخدم",
+        "تشغيل على Docker وRailway"
+      ]
+    },
+    {
+      "project_name": "Crypto Signal Telegram Bot",
+      "description": "بوت تيليجرام يقدم إشارات تداول للعملات المشفرة، يدعم إشعارات متعددة للمستخدمين، وتخصيص الإشعارات لكل مستخدم.",
+      "structure": {
+        "core_files": ["signal_bot.py", "web_server.py", "config.py", "app.py"],
+        "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml"],
+        "data_files": ["signal_pairs.json", "popular_pairs.json"],
+        "test_files": ["test_signals.py"],
+        "docs": ["README.md"],
+        "helpers": ["bot.log"]
+      },
+      "features": [
+        "Multi-user environment مع تخصيص إشعارات",
+        "إدارة إعدادات كل مستخدم",
+        "تخزين البيانات لكل مستخدم بشكل منفصل",
+        "تشغيل على Railway"
+      ]
+    },
+    {
+      "project_name": "AI Crypto Trading Agent",
+      "description": "مشروع تجريبي لوكيل تداول ذكي يستخدم Machine Learning لتحليل السوق، يدعم صفقات تلقائية لكل مستخدم.",
+      "structure": {
+        "core_files": ["ai_trading_agent.py", "ml_model.py", "config.py", "app.py", "run_with_server.py"],
+        "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml", "env.example"],
+        "data_files": ["market_data.json", "user_profiles.json"],
+        "test_files": ["test_agent.py"],
+        "docs": ["README.md"],
+        "helpers": ["agent.log"]
+      },
+      "features": [
+        "Multi-user environment لكل user_id",
+        "صفقات تلقائية وتحليل بيانات السوق",
+        "تخزين بيانات المستخدمين في JSON وSQLite",
+        "تشغيل كامل عبر run_with_server.py على Railway"
+      ]
+    }
+  ],
+  "context_notes": [
+    "المشروع الحالي يجب أن يبقى كما هو، لا تحذف أي ملفات.",
+    "تعدد المستخدمين يجب أن يكون معزول بالكامل، بدون أي تداخل.",
+    "run_with_server.py مسؤول عن تشغيل المشروع الكامل على Railway.",
+    "التغييرات على الصفقات تؤثر على رصيد المستخدم فقط.",
+    "زر تشغيل/إيقاف البوت موجود داخل قسم الإعدادات فقط.",
+    "يمكن للـ Agent الاستفادة من المشاريع المشابهة لفهم أنماط البنية والتنظيم."
+  ]
+}

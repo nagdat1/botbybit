@@ -51,47 +51,21 @@ class WebServer:
         @self.app.route('/api/bot_status')
         def bot_status():
             """الحصول على حالة البوت"""
-            try:
-                # محاولة الحصول على معلومات من النظام القديم
-                if hasattr(self.trading_bot, 'old_bot') and self.trading_bot.old_bot:
-                    account = self.trading_bot.old_bot.get_current_account()
-                    account_info = account.get_account_info()
-                else:
-                    # قيم افتراضية إذا لم يكن النظام القديم متاحاً
-                    account_info = {
-                        'balance': 10000,
-                        'total_trades': 0,
-                        'win_rate': 0,
-                        'winning_trades': 0,
-                        'losing_trades': 0
-                    }
-                
-                return jsonify({
-                    'is_running': self.trading_bot.is_running,
-                    'signals_received': getattr(self.trading_bot, 'signals_received', 0),
-                    'open_positions': len(getattr(self.trading_bot, 'open_positions', {})),
-                    'account_type': 'integrated',
-                    'market_type': 'spot',
-                    'balance': account_info['balance'],
-                    'total_trades': account_info['total_trades'],
-                    'win_rate': account_info['win_rate'],
-                    'winning_trades': account_info['winning_trades'],
-                    'losing_trades': account_info['losing_trades']
-                })
-            except Exception as e:
-                logger.error(f"خطأ في تحديث الرسوم البيانية: {e}")
-                return jsonify({
-                    'is_running': False,
-                    'signals_received': 0,
-                    'open_positions': 0,
-                    'account_type': 'integrated',
-                    'market_type': 'spot',
-                    'balance': 0,
-                    'total_trades': 0,
-                    'win_rate': 0,
-                    'winning_trades': 0,
-                    'losing_trades': 0
-                })
+            account = self.trading_bot.get_current_account()
+            account_info = account.get_account_info()
+            
+            return jsonify({
+                'is_running': self.trading_bot.is_running,
+                'signals_received': self.trading_bot.signals_received,
+                'open_positions': len(self.trading_bot.open_positions),
+                'account_type': self.trading_bot.user_settings['account_type'],
+                'market_type': self.trading_bot.user_settings['market_type'],
+                'balance': account_info['balance'],
+                'total_trades': account_info['total_trades'],
+                'win_rate': account_info['win_rate'],
+                'winning_trades': account_info['winning_trades'],
+                'losing_trades': account_info['losing_trades']
+            })
         
         @self.app.route('/api/chart_data')
         def get_chart_data():
@@ -195,37 +169,26 @@ class WebServer:
     
     def update_balance_chart(self):
         """تحديث رسم البياني للرصيد"""
-        try:
-            # محاولة الحصول على معلومات من النظام القديم
-            if hasattr(self.trading_bot, 'old_bot') and self.trading_bot.old_bot:
-                account = self.trading_bot.old_bot.get_current_account()
-                account_info = account.get_account_info()
-            else:
-                # قيم افتراضية إذا لم يكن النظام القديم متاحاً
-                account_info = {
-                    'balance': 10000,
-                    'unrealized_pnl': 0
-                }
-            
-            timestamp = datetime.now().isoformat()
-            self.chart_data['balance_history'].append({
-                'timestamp': timestamp,
-                'balance': account_info.get('balance', 10000),
-                'unrealized_pnl': account_info.get('unrealized_pnl', 0)
-            })
-            
-            # الاحتفاظ بآخر 200 نقطة
-            if len(self.chart_data['balance_history']) > 200:
-                self.chart_data['balance_history'] = self.chart_data['balance_history'][-200:]
-            
-            # إرسال التحديث للعملاء
-            self.socketio.emit('balance_update', {
-                'timestamp': timestamp,
-                'balance': account_info.get('balance', 10000),
-                'unrealized_pnl': account_info.get('unrealized_pnl', 0)
-            })
-        except Exception as e:
-            logger.error(f"خطأ في تحديث الرسوم البيانية: {e}")
+        account = self.trading_bot.get_current_account()
+        account_info = account.get_account_info()
+        
+        timestamp = datetime.now().isoformat()
+        self.chart_data['balance_history'].append({
+            'timestamp': timestamp,
+            'balance': account_info['balance'],
+            'unrealized_pnl': account_info['unrealized_pnl']
+        })
+        
+        # الاحتفاظ بآخر 200 نقطة
+        if len(self.chart_data['balance_history']) > 200:
+            self.chart_data['balance_history'] = self.chart_data['balance_history'][-200:]
+        
+        # إرسال التحديث للعملاء
+        self.socketio.emit('balance_update', {
+            'timestamp': timestamp,
+            'balance': account_info['balance'],
+            'unrealized_pnl': account_info['unrealized_pnl']
+        })
     
     def add_trade_to_chart(self, trade_data):
         """إضافة صفقة جديدة للرسم البياني"""

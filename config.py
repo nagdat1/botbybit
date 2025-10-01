@@ -40,23 +40,19 @@ else:
 
 WEBHOOK_PORT = PORT  # Use Railway's PORT
 
-# إعدادات افتراضية للبوت الذكي
+# إعدادات افتراضية للبوت
 DEFAULT_SETTINGS = {
     'account_type': 'demo',          # demo أو real
     'market_type': 'spot',           # spot أو futures
     'trade_amount': 100.0,           # مبلغ التداول الافتراضي
     'leverage': 10,                  # الرافعة المالية للفيوتشر
-    'profit_plan': 'multi_tp',       # trailing أو multi_tp
+    'profit_plan': 'trailing',       # trailing أو multi_tp
     'trailing_stop_percent': 0.5,    # نسبة التوقف المتحرك
     'tp1_percent': 1.5,              # هدف الربح الأول
     'tp2_percent': 3.0,              # هدف الربح الثاني
     'tp3_percent': 6.0,              # هدف الربح الثالث
     'stop_loss_percent': 2.0,        # نسبة وقف الخسارة
-    'language': 'ar',                # اللغة
-    'auto_tp': True,                 # تفعيل أهداف الربح التلقائية
-    'auto_sl': True,                 # تفعيل وقف الخسارة التلقائي
-    'notifications': True,           # تفعيل الإشعارات
-    'risk_management': True          # تفعيل إدارة المخاطر
+    'language': 'ar'                 # اللغة
 }
 
 # إعدادات الحساب التجريبي الداخلي

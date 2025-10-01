@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-نظام إدارة المستخدمين مع بيئات منفصلة
-يدعم كل مستخدم بيئة خاصة بالكامل
+مدير المستخدمين المتعددين مع العزل الكامل
 """
 
 import logging
@@ -14,295 +13,407 @@ from database import db_manager
 
 logger = logging.getLogger(__name__)
 
-class UserEnvironment:
-    """بيئة المستخدم المنفصلة"""
-    
-    def __init__(self, user_id: int):
-        self.user_id = user_id
-        self.user_data = None
-        self.user_stats = None
-        self.open_orders = []
-        self.trade_history = []
-        self.is_active = True
-        self.last_update = datetime.now()
-        
-        # تحميل بيانات المستخدم
-        self.load_user_data()
-    
-    def load_user_data(self):
-        """تحميل بيانات المستخدم من قاعدة البيانات"""
-        try:
-            self.user_data = db_manager.get_user(self.user_id)
-            self.user_stats = db_manager.get_user_stats(self.user_id)
-            self.open_orders = db_manager.get_user_orders(self.user_id, 'open')
-            self.trade_history = db_manager.get_trade_history(self.user_id, 50)
-            
-            if self.user_data:
-                self.is_active = self.user_data.get('is_active', True)
-            
-            logger.info(f"تم تحميل بيانات المستخدم: {self.user_id}")
-            
-        except Exception as e:
-            logger.error(f"خطأ في تحميل بيانات المستخدم {self.user_id}: {e}")
-    
-    def refresh_data(self):
-        """تحديث بيانات المستخدم"""
-        self.load_user_data()
-        self.last_update = datetime.now()
-    
-    def get_settings(self) -> Dict:
-        """الحصول على إعدادات المستخدم"""
-        if self.user_data:
-            return self.user_data.get('settings', {})
-        return {}
-    
-    def update_settings(self, settings: Dict) -> bool:
-        """تحديث إعدادات المستخدم"""
-        try:
-            current_settings = self.get_settings()
-            current_settings.update(settings)
-            
-            success = db_manager.update_user_settings(self.user_id, current_settings)
-            if success:
-                self.refresh_data()
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"خطأ في تحديث إعدادات المستخدم {self.user_id}: {e}")
-            return False
-    
-    def set_active(self, is_active: bool) -> bool:
-        """تحديث حالة نشاط المستخدم"""
-        try:
-            success = db_manager.set_user_active(self.user_id, is_active)
-            if success:
-                self.is_active = is_active
-                self.refresh_data()
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"خطأ في تحديث حالة نشاط المستخدم {self.user_id}: {e}")
-            return False
-    
-    def has_api_keys(self) -> bool:
-        """التحقق من وجود مفاتيح API"""
-        if self.user_data:
-            api_key = self.user_data.get('api_key')
-            api_secret = self.user_data.get('api_secret')
-            return bool(api_key and api_secret)
-        return False
-    
-    def get_api_keys(self) -> tuple:
-        """الحصول على مفاتيح API"""
-        if self.user_data:
-            return (
-                self.user_data.get('api_key', ''),
-                self.user_data.get('api_secret', '')
-            )
-        return ('', '')
-    
-    def set_api_keys(self, api_key: str, api_secret: str) -> bool:
-        """تحديث مفاتيح API"""
-        try:
-            success = db_manager.update_user_api(self.user_id, api_key, api_secret)
-            if success:
-                self.refresh_data()
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"خطأ في تحديث مفاتيح API للمستخدم {self.user_id}: {e}")
-            return False
-    
-    def get_balance_info(self) -> Dict:
-        """الحصول على معلومات الرصيد"""
-        if self.user_stats:
-            return {
-                'balance': self.user_stats.get('balance', 10000),
-                'available_balance': self.user_stats.get('available_balance', 10000),
-                'margin_locked': self.user_stats.get('margin_locked', 0),
-                'total_pnl': self.user_stats.get('total_pnl', 0)
-            }
-        return {
-            'balance': 10000,
-            'available_balance': 10000,
-            'margin_locked': 0,
-            'total_pnl': 0
-        }
-    
-    def get_trading_stats(self) -> Dict:
-        """الحصول على إحصائيات التداول"""
-        if self.user_stats:
-            return {
-                'total_trades': self.user_stats.get('total_trades', 0),
-                'winning_trades': self.user_stats.get('winning_trades', 0),
-                'losing_trades': self.user_stats.get('losing_trades', 0),
-                'win_rate': self.user_stats.get('win_rate', 0)
-            }
-        return {
-            'total_trades': 0,
-            'winning_trades': 0,
-            'losing_trades': 0,
-            'win_rate': 0
-        }
-    
-    def get_open_orders(self) -> List[Dict]:
-        """الحصول على الصفقات المفتوحة"""
-        return self.open_orders
-    
-    def get_trade_history(self, limit: int = 10) -> List[Dict]:
-        """الحصول على تاريخ التداول"""
-        return self.trade_history[:limit]
-    
-    def can_trade(self) -> bool:
-        """التحقق من إمكانية التداول"""
-        return self.is_active and self.has_api_keys()
-    
-    def get_user_info(self) -> Dict:
-        """الحصول على معلومات المستخدم الشاملة"""
-        return {
-            'user_id': self.user_id,
-            'user_data': self.user_data,
-            'user_stats': self.user_stats,
-            'settings': self.get_settings(),
-            'balance_info': self.get_balance_info(),
-            'trading_stats': self.get_trading_stats(),
-            'open_orders': self.open_orders,
-            'is_active': self.is_active,
-            'has_api_keys': self.has_api_keys(),
-            'can_trade': self.can_trade(),
-            'last_update': self.last_update
-        }
-
 class UserManager:
-    """مدير المستخدمين مع دعم البيئات المنفصلة"""
+    """مدير المستخدمين المتعددين مع العزل الكامل"""
     
-    def __init__(self):
-        self.user_environments: Dict[int, UserEnvironment] = {}
-        self.user_input_states: Dict[int, str] = {}
-    
-    def get_user_environment(self, user_id: int) -> UserEnvironment:
-        """الحصول على بيئة المستخدم أو إنشاؤها"""
-        if user_id not in self.user_environments:
-            # إنشاء بيئة جديدة للمستخدم
-            self.user_environments[user_id] = UserEnvironment(user_id)
-            
-            # إضافة المستخدم إلى قاعدة البيانات إذا لم يكن موجوداً
-            if not self.user_environments[user_id].user_data:
-                db_manager.add_user(user_id)
-                self.user_environments[user_id].refresh_data()
+    def __init__(self, trading_account_class=None, bybit_api_class=None):
+        self.users: Dict[int, Dict] = {}  # تخزين مؤقت لبيانات المستخدمين
+        self.user_accounts: Dict[int, Dict] = {}  # حسابات تجريبية لكل مستخدم
+        self.user_apis: Dict[int, Any] = {}  # APIs لكل مستخدم
+        self.user_positions: Dict[int, Dict[str, Dict]] = {}  # صفقات كل مستخدم
         
-        return self.user_environments[user_id]
+        # تخزين الفئات للاستخدام عند الحاجة
+        self.TradingAccount = trading_account_class
+        self.BybitAPI = bybit_api_class
+        
+        # تحميل المستخدمين من قاعدة البيانات
+        # سيتم استدعاء load_all_users يدوياً بعد تهيئة الفئات
+        # self.load_all_users()
     
-    def refresh_user_environment(self, user_id: int):
-        """تحديث بيئة المستخدم"""
-        if user_id in self.user_environments:
-            self.user_environments[user_id].refresh_data()
+    def load_all_users(self):
+        """تحميل جميع المستخدمين من قاعدة البيانات"""
+        try:
+            users_data = db_manager.get_all_active_users()
+            
+            for user_data in users_data:
+                user_id = user_data['user_id']
+                self.users[user_id] = user_data
+                
+                # إنشاء حسابات تجريبية للمستخدم
+                self._create_user_accounts(user_id, user_data)
+                
+                # إنشاء API للمستخدم إذا كان لديه مفاتيح
+                if user_data.get('api_key') and user_data.get('api_secret'):
+                    self._create_user_api(user_id, user_data['api_key'], user_data['api_secret'])
+            
+            logger.info(f"تم تحميل {len(self.users)} مستخدم")
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحميل المستخدمين: {e}")
     
-    def set_user_input_state(self, user_id: int, state: str):
-        """تحديد حالة إدخال المستخدم"""
-        self.user_input_states[user_id] = state
+    def _create_user_accounts(self, user_id: int, user_data: Dict):
+        """إنشاء حسابات تجريبية للمستخدم"""
+        try:
+            if not self.TradingAccount:
+                logger.warning(f"TradingAccount class not set, skipping account creation for user {user_id}")
+                return
+                
+            # حساب سبوت
+            spot_account = self.TradingAccount(
+                initial_balance=user_data.get('balance', 10000.0),
+                account_type='spot'
+            )
+            
+            # حساب فيوتشر
+            futures_account = self.TradingAccount(
+                initial_balance=user_data.get('balance', 10000.0),
+                account_type='futures'
+            )
+            
+            self.user_accounts[user_id] = {
+                'spot': spot_account,
+                'futures': futures_account
+            }
+            
+            # تهيئة قائمة الصفقات للمستخدم
+            self.user_positions[user_id] = {}
+            
+            logger.info(f"تم إنشاء حسابات للمستخدم {user_id}")
+            
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء حسابات المستخدم {user_id}: {e}")
     
-    def get_user_input_state(self, user_id: int) -> Optional[str]:
-        """الحصول على حالة إدخال المستخدم"""
-        return self.user_input_states.get(user_id)
+    def _create_user_api(self, user_id: int, api_key: str, api_secret: str):
+        """إنشاء API للمستخدم"""
+        try:
+            if not self.BybitAPI:
+                logger.warning(f"BybitAPI class not set, skipping API creation for user {user_id}")
+                return
+                
+            self.user_apis[user_id] = self.BybitAPI(api_key, api_secret)
+            logger.info(f"تم إنشاء API للمستخدم {user_id}")
+            
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء API للمستخدم {user_id}: {e}")
     
-    def clear_user_input_state(self, user_id: int):
-        """مسح حالة إدخال المستخدم"""
-        if user_id in self.user_input_states:
-            del self.user_input_states[user_id]
+    def create_user(self, user_id: int, api_key: str = None, api_secret: str = None) -> bool:
+        """إنشاء مستخدم جديد"""
+        try:
+            # إنشاء في قاعدة البيانات
+            success = db_manager.create_user(user_id, api_key, api_secret)
+            
+            if success:
+                # تحميل بيانات المستخدم الجديد
+                user_data = db_manager.get_user(user_id)
+                
+                if user_data:
+                    self.users[user_id] = user_data
+                    self._create_user_accounts(user_id, user_data)
+                    
+                    # إنشاء API إذا تم توفير المفاتيح
+                    if api_key and api_secret:
+                        self._create_user_api(user_id, api_key, api_secret)
+                    
+                    logger.info(f"تم إنشاء مستخدم جديد: {user_id}")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء المستخدم {user_id}: {e}")
+            return False
     
-    def is_user_active(self, user_id: int) -> bool:
-        """التحقق من نشاط المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.is_active
+    def get_user(self, user_id: int) -> Optional[Dict]:
+        """الحصول على بيانات المستخدم"""
+        return self.users.get(user_id)
     
-    def can_user_trade(self, user_id: int) -> bool:
-        """التحقق من إمكانية تداول المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.can_trade()
+    def get_user_account(self, user_id: int, market_type: str = 'spot') -> Optional[Any]:
+        """الحصول على حساب المستخدم"""
+        user_accounts = self.user_accounts.get(user_id)
+        if user_accounts:
+            return user_accounts.get(market_type)
+        return None
     
-    def get_user_settings(self, user_id: int) -> Dict:
-        """الحصول على إعدادات المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.get_settings()
+    def get_user_api(self, user_id: int) -> Optional[Any]:
+        """الحصول على API المستخدم"""
+        return self.user_apis.get(user_id)
+    
+    def get_user_positions(self, user_id: int) -> Dict[str, Dict]:
+        """الحصول على صفقات المستخدم"""
+        return self.user_positions.get(user_id, {})
+    
+    def update_user_api(self, user_id: int, api_key: str, api_secret: str) -> bool:
+        """تحديث API keys للمستخدم"""
+        try:
+            # تحديث في قاعدة البيانات
+            success = db_manager.update_user_api(user_id, api_key, api_secret)
+            
+            if success:
+                # تحديث في الذاكرة
+                if user_id in self.users:
+                    self.users[user_id]['api_key'] = api_key
+                    self.users[user_id]['api_secret'] = api_secret
+                
+                # إنشاء API جديد
+                self._create_user_api(user_id, api_key, api_secret)
+                
+                logger.info(f"تم تحديث API للمستخدم {user_id}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحديث API للمستخدم {user_id}: {e}")
+            return False
+    
+    def toggle_user_active(self, user_id: int) -> bool:
+        """تبديل حالة تشغيل/إيقاف المستخدم"""
+        try:
+            success = db_manager.toggle_user_active(user_id)
+            
+            if success:
+                # تحديث في الذاكرة
+                if user_id in self.users:
+                    current_status = self.users[user_id]['is_active']
+                    self.users[user_id]['is_active'] = not current_status
+                    
+                    logger.info(f"تم تبديل حالة المستخدم {user_id} إلى: {not current_status}")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في تبديل حالة المستخدم {user_id}: {e}")
+            return False
+    
+    def update_user_balance(self, user_id: int, balance: float) -> bool:
+        """تحديث رصيد المستخدم"""
+        try:
+            success = db_manager.update_user_balance(user_id, balance)
+            
+            if success:
+                # تحديث في الذاكرة
+                if user_id in self.users:
+                    self.users[user_id]['balance'] = balance
+                
+                # تحديث حسابات المستخدم
+                user_accounts = self.user_accounts.get(user_id)
+                if user_accounts:
+                    user_accounts['spot'].update_balance(balance)
+                    user_accounts['futures'].update_balance(balance)
+                
+                logger.info(f"تم تحديث رصيد المستخدم {user_id} إلى: {balance}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحديث رصيد المستخدم {user_id}: {e}")
+            return False
     
     def update_user_settings(self, user_id: int, settings: Dict) -> bool:
         """تحديث إعدادات المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.update_settings(settings)
-    
-    def set_user_active(self, user_id: int, is_active: bool) -> bool:
-        """تحديث حالة نشاط المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.set_active(is_active)
-    
-    def set_user_api_keys(self, user_id: int, api_key: str, api_secret: str) -> bool:
-        """تحديث مفاتيح API للمستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.set_api_keys(api_key, api_secret)
-    
-    def get_user_balance(self, user_id: int) -> Dict:
-        """الحصول على رصيد المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.get_balance_info()
-    
-    def get_user_stats(self, user_id: int) -> Dict:
-        """الحصول على إحصائيات المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.get_trading_stats()
-    
-    def get_user_orders(self, user_id: int) -> List[Dict]:
-        """الحصول على صفقات المستخدم المفتوحة"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.get_open_orders()
-    
-    def get_user_trade_history(self, user_id: int, limit: int = 10) -> List[Dict]:
-        """الحصول على تاريخ تداول المستخدم"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.get_trade_history(limit)
-    
-    def get_user_info(self, user_id: int) -> Dict:
-        """الحصول على معلومات المستخدم الشاملة"""
-        user_env = self.get_user_environment(user_id)
-        return user_env.get_user_info()
-    
-    def cleanup_inactive_users(self, max_age_hours: int = 24):
-        """تنظيف بيئات المستخدمين غير النشطين"""
         try:
-            current_time = datetime.now()
-            users_to_remove = []
+            success = db_manager.update_user_settings(user_id, settings)
             
-            for user_id, user_env in self.user_environments.items():
-                age_hours = (current_time - user_env.last_update).total_seconds() / 3600
-                if age_hours > max_age_hours:
-                    users_to_remove.append(user_id)
+            if success:
+                # تحديث في الذاكرة
+                if user_id in self.users:
+                    for key, value in settings.items():
+                        if key in ['partial_percents', 'tps_percents', 'notifications']:
+                            self.users[user_id][key] = value
+                
+                logger.info(f"تم تحديث إعدادات المستخدم {user_id}")
+                return True
             
-            for user_id in users_to_remove:
-                del self.user_environments[user_id]
-                logger.info(f"تم تنظيف بيئة المستخدم غير النشط: {user_id}")
+            return False
             
         except Exception as e:
-            logger.error(f"خطأ في تنظيف المستخدمين غير النشطين: {e}")
+            logger.error(f"خطأ في تحديث إعدادات المستخدم {user_id}: {e}")
+            return False
+    
+    def is_user_active(self, user_id: int) -> bool:
+        """التحقق من حالة المستخدم النشط"""
+        user_data = self.get_user(user_id)
+        return user_data and user_data.get('is_active', False)
+    
+    def has_api_keys(self, user_id: int) -> bool:
+        """التحقق من وجود API keys للمستخدم"""
+        user_data = self.get_user(user_id)
+        return (user_data and 
+                user_data.get('api_key') and 
+                user_data.get('api_secret'))
+    
+    def execute_user_trade(self, user_id: int, symbol: str, action: str, price: float, 
+                          amount: float, market_type: str = 'spot') -> tuple[bool, str]:
+        """تنفيذ صفقة للمستخدم"""
+        try:
+            # التحقق من حالة المستخدم
+            if not self.is_user_active(user_id):
+                return False, "المستخدم غير نشط"
+            
+            # الحصول على حساب المستخدم
+            account = self.get_user_account(user_id, market_type)
+            if not account:
+                return False, "حساب المستخدم غير موجود"
+            
+            # تنفيذ الصفقة حسب نوع السوق
+            if market_type == 'futures':
+                leverage = self.users[user_id].get('leverage', 10)
+                success, result = account.open_futures_position(
+                    symbol=symbol,
+                    side=action,
+                    margin_amount=amount,
+                    price=price,
+                    leverage=leverage
+                )
+            else:
+                success, result = account.open_spot_position(
+                    symbol=symbol,
+                    side=action,
+                    amount=amount,
+                    price=price
+                )
+            
+            if success:
+                position_id = result
+                
+                # حفظ الصفقة في قاعدة البيانات
+                order_data = {
+                    'order_id': position_id,
+                    'user_id': user_id,
+                    'symbol': symbol,
+                    'side': action,
+                    'entry_price': price,
+                    'quantity': amount,
+                    'status': 'OPEN'
+                }
+                
+                db_manager.create_order(order_data)
+                
+                # حفظ في الذاكرة
+                self.user_positions[user_id][position_id] = {
+                    'symbol': symbol,
+                    'entry_price': price,
+                    'side': action,
+                    'account_type': market_type,
+                    'quantity': amount,
+                    'current_price': price,
+                    'pnl_percent': 0.0
+                }
+                
+                logger.info(f"تم تنفيذ صفقة للمستخدم {user_id}: {symbol} {action}")
+                return True, position_id
+            
+            return False, result
+            
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ صفقة المستخدم {user_id}: {e}")
+            return False, str(e)
+    
+    def close_user_position(self, user_id: int, position_id: str, close_price: float) -> tuple[bool, Dict]:
+        """إغلاق صفقة المستخدم"""
+        try:
+            # الحصول على بيانات الصفقة
+            position_data = self.user_positions[user_id].get(position_id)
+            if not position_data:
+                return False, {"error": "الصفقة غير موجودة"}
+            
+            # الحصول على حساب المستخدم
+            account = self.get_user_account(user_id, position_data['account_type'])
+            if not account:
+                return False, {"error": "حساب المستخدم غير موجود"}
+            
+            # إغلاق الصفقة في الحساب
+            if position_data['account_type'] == 'futures':
+                success, result = account.close_futures_position(position_id, close_price)
+            else:
+                success, result = account.close_spot_position(position_id, close_price)
+            
+            if success:
+                # تحديث في قاعدة البيانات
+                db_manager.close_order(position_id, close_price, result.get('pnl', 0))
+                
+                # حذف من الذاكرة
+                del self.user_positions[user_id][position_id]
+                
+                # تحديث الرصيد في قاعدة البيانات
+                new_balance = account.balance
+                self.update_user_balance(user_id, new_balance)
+                
+                logger.info(f"تم إغلاق صفقة المستخدم {user_id}: {position_id}")
+                return True, result
+            
+            return False, result
+            
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق صفقة المستخدم {user_id}: {e}")
+            return False, {"error": str(e)}
+    
+    def update_user_positions_prices(self, user_id: int, prices: Dict[str, float]):
+        """تحديث أسعار صفقات المستخدم"""
+        try:
+            user_positions = self.user_positions.get(user_id, {})
+            if not user_positions:
+                return
+            
+            # تحديث الأسعار
+            for position_id, position_data in user_positions.items():
+                symbol = position_data['symbol']
+                if symbol in prices:
+                    current_price = prices[symbol]
+                    position_data['current_price'] = current_price
+                    
+                    # حساب الربح/الخسارة
+                    entry_price = position_data['entry_price']
+                    side = position_data['side']
+                    
+                    if side.lower() == "buy":
+                        pnl_percent = ((current_price - entry_price) / entry_price) * 100
+                    else:
+                        pnl_percent = ((entry_price - current_price) / entry_price) * 100
+                    
+                    position_data['pnl_percent'] = pnl_percent
+            
+            # تحديث في الحسابات التجريبية
+            account = self.get_user_account(user_id, 'spot')
+            if account:
+                account.update_positions_pnl(prices)
+            
+            account = self.get_user_account(user_id, 'futures')
+            if account:
+                account.update_positions_pnl(prices)
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث أسعار صفقات المستخدم {user_id}: {e}")
+    
+    def get_user_account_info(self, user_id: int, market_type: str = 'spot') -> Dict:
+        """الحصول على معلومات حساب المستخدم"""
+        try:
+            account = self.get_user_account(user_id, market_type)
+            if account:
+                return account.get_account_info()
+            return {}
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات حساب المستخدم {user_id}: {e}")
+            return {}
     
     def get_all_active_users(self) -> List[int]:
-        """الحصول على قائمة جميع المستخدمين النشطين"""
-        active_users = []
-        for user_id, user_env in self.user_environments.items():
-            if user_env.is_active:
-                active_users.append(user_id)
-        return active_users
+        """الحصول على جميع المستخدمين النشطين"""
+        return [user_id for user_id, user_data in self.users.items() 
+                if user_data.get('is_active', False)]
     
-    def get_user_count(self) -> int:
-        """الحصول على عدد المستخدمين"""
-        return len(self.user_environments)
-    
-    def is_user_authorized(self, user_id: int) -> bool:
-        """التحقق من صلاحية المستخدم"""
-        # يمكن إضافة منطق إضافي للصلاحيات هنا
-        return True
+    def reload_user_data(self, user_id: int):
+        """إعادة تحميل بيانات المستخدم من قاعدة البيانات"""
+        try:
+            user_data = db_manager.get_user(user_id)
+            if user_data:
+                self.users[user_id] = user_data
+                logger.info(f"تم إعادة تحميل بيانات المستخدم {user_id}")
+                
+        except Exception as e:
+            logger.error(f"خطأ في إعادة تحميل بيانات المستخدم {user_id}: {e}")
 
-# إنشاء مثيل عام لمدير المستخدمين
-user_manager = UserManager()
+# سيتم إنشاء مثيل UserManager بعد تهيئة الفئات في bybit_trading_bot.py
+user_manager = None

@@ -26,6 +26,10 @@ import threading
 # استيراد الإعدادات من ملف منفصل
 from config import *
 
+# استيراد إدارة المستخدمين وقاعدة البيانات
+from database import db_manager
+from user_manager import user_manager
+
 # إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -970,44 +974,100 @@ class TradingBot:
 # إنشاء البوت العام
 trading_bot = TradingBot()
 
+# تهيئة مدير المستخدمين مع الفئات اللازمة
+import user_manager as um_module
+um_module.user_manager = um_module.UserManager(TradingAccount, BybitAPI)
+user_manager = um_module.user_manager
+
+# تحميل المستخدمين من قاعدة البيانات
+user_manager.load_all_users()
+
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
 
 # وظائف البوت (نفس الوظائف السابقة مع تحديثات طفيفة)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """بدء البوت"""
-    if update.effective_user is None or update.effective_user.id != ADMIN_USER_ID:
-        if update.message is not None:
-            await update.message.reply_text("❌ غير مصرح لك باستخدام هذا البوت")
+    """بدء البوت مع دعم تعدد المستخدمين"""
+    if update.effective_user is None:
         return
     
+    user_id = update.effective_user.id
+    
+    # التحقق من وجود المستخدم في قاعدة البيانات
+    user_data = user_manager.get_user(user_id)
+    
+    if not user_data:
+        # مستخدم جديد - إنشاء حساب
+        user_manager.create_user(user_id)
+        user_data = user_manager.get_user(user_id)
+        
+        # رسالة ترحيب للمستخدم الجديد
+        welcome_message = f"""
+🤖 مرحباً بك في بوت التداول Bybit متعدد المستخدمين
+
+👋 أهلاً {update.effective_user.first_name}!
+
+🔗 للبدء، يرجى ربط حسابك على Bybit:
+• اضغط على زر "🔗 ربط API" أدناه
+• سيطلب منك إدخال API_KEY و API_SECRET
+• يمكنك الحصول على المفاتيح من: https://api.bybit.com
+
+⚠️ ملاحظة: البوت يدعم التداول الحقيقي والتجريبي
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🔗 ربط API", callback_data="link_api")],
+            [InlineKeyboardButton("ℹ️ معلومات", callback_data="info")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.message is not None:
+            await update.message.reply_text(welcome_message, reply_markup=reply_markup)
+        return
+    
+    # مستخدم موجود - عرض القائمة الرئيسية
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("▶️ تشغيل البوت"), KeyboardButton("⏹️ إيقاف البوت")],
-        [KeyboardButton("📊 إحصائيات الإشارات"), KeyboardButton("💰 المحفظة")],
-        [KeyboardButton("🔄 تحديث الأزواج"), KeyboardButton("💳 تعديل الرصيد")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
+    
+    # إضافة أزرار إضافية إذا كان المستخدم نشطاً
+    if user_data.get('is_active'):
+        keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
+    else:
+        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    # الحصول على معلومات الحساب الحالي
-    account = trading_bot.get_current_account()
-    account_info = account.get_account_info()
+    # الحصول على معلومات حساب المستخدم
+    market_type = user_data.get('market_type', 'spot')
+    account = user_manager.get_user_account(user_id, market_type)
+    
+    if account:
+        account_info = account.get_account_info()
+    else:
+        account_info = {
+            'balance': user_data.get('balance', 10000.0),
+            'available_balance': user_data.get('balance', 10000.0),
+            'open_positions': 0
+        }
+    
+    # حالة البوت
+    bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
+    api_status = "🟢 مرتبط" if user_data.get('api_key') else "🔴 غير مرتبط"
     
     welcome_message = f"""
-🤖 مرحباً بك في بوت التداول Bybit المطور
+🤖 مرحباً بك {update.effective_user.first_name}
 
-📊 الحالة الحالية:
-• نوع الحساب: {'حقيقي' if trading_bot.user_settings['account_type'] == 'real' else 'تجريبي داخلي'}
-• نوع السوق: {trading_bot.user_settings['market_type'].upper()}
-• مبلغ التداول: {trading_bot.user_settings['trade_amount']}
-• الرافعة المالية: {trading_bot.user_settings['leverage']}x
+📊 حالة البوت: {bot_status}
+🔗 حالة API: {api_status}
 
-💰 معلومات الحساب الحالي:
-• الرصيد الكلي: {account_info['balance']:.2f}
-• الرصيد المتاح: {account_info.get('available_balance', account_info['balance']):.2f}
-• الصفقات المفتوحة: {account_info['open_positions']}
+💰 معلومات الحساب:
+• الرصيد الكلي: {account_info.get('balance', 0):.2f} USDT
+• الرصيد المتاح: {account_info.get('available_balance', 0):.2f} USDT
+• الصفقات المفتوحة: {account_info.get('open_positions', 0)}
 
 استخدم الأزرار أدناه للتنقل في البوت
     """
@@ -1016,32 +1076,72 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(welcome_message, reply_markup=reply_markup)
 
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """قائمة الإعدادات"""
+    """قائمة الإعدادات لكل مستخدم"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    user_data = user_manager.get_user(user_id)
+    
+    if not user_data:
+        if update.message is not None:
+            await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+        return
+    
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")],
         [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
-        [InlineKeyboardButton("🔙 العودة", callback_data="main_menu")]
+        [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")]
     ]
+    
+    # إضافة زر تشغيل/إيقاف البوت
+    if user_data.get('is_active'):
+        keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
+    else:
+        keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
+    
+    keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    account = trading_bot.get_current_account()
-    account_info = account.get_account_info()
+    # الحصول على معلومات حساب المستخدم
+    market_type = user_data.get('market_type', 'spot')
+    account = user_manager.get_user_account(user_id, market_type)
+    
+    if account:
+        account_info = account.get_account_info()
+    else:
+        account_info = {
+            'balance': user_data.get('balance', 10000.0),
+            'available_balance': user_data.get('balance', 10000.0),
+            'margin_locked': 0,
+            'unrealized_pnl': 0
+        }
+    
+    # حالة البوت
+    bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
+    api_status = "🟢 مرتبط" if user_data.get('api_key') else "🔴 غير مرتبط"
+    account_type = user_data.get('account_type', 'demo')
+    trade_amount = user_data.get('trade_amount', 100.0)
+    leverage = user_data.get('leverage', 10)
     
     settings_text = f"""
 ⚙️ إعدادات البوت الحالية:
 
-💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']}
-🏪 نوع السوق: {trading_bot.user_settings['market_type'].upper()}
-👤 نوع الحساب: {'حقيقي' if trading_bot.user_settings['account_type'] == 'real' else 'تجريبي داخلي'}
-⚡ الرافعة المالية: {trading_bot.user_settings['leverage']}x
+📊 حالة البوت: {bot_status}
+🔗 حالة API: {api_status}
 
-📊 معلومات الحساب الحالي ({trading_bot.user_settings['market_type'].upper()}):
-💰 الرصيد الكلي: {account_info['balance']:.2f}
-💳 الرصيد المتاح: {account_info.get('available_balance', account_info['balance']):.2f}
+💰 مبلغ التداول: {trade_amount}
+🏪 نوع السوق: {market_type.upper()}
+👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}
+⚡ الرافعة المالية: {leverage}x
+
+📊 معلومات الحساب الحالي ({market_type.upper()}):
+💰 الرصيد الكلي: {account_info.get('balance', 0):.2f}
+💳 الرصيد المتاح: {account_info.get('available_balance', 0):.2f}
 🔒 الهامش المحجوز: {account_info.get('margin_locked', 0):.2f}
 📈 الربح/الخسارة غير المحققة: {account_info.get('unrealized_pnl', 0):.2f}
     """
@@ -1707,7 +1807,54 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     data = query.data
     
-    if data == "main_menu":
+    # معالجة زر الربط API
+    if data == "link_api":
+        if user_id is not None:
+            user_input_state[user_id] = "waiting_for_api_key"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("""
+🔗 ربط API - الخطوة 1
+
+أرسل API_KEY الخاص بك من Bybit
+
+⚠️ تأكد من:
+• عدم مشاركة المفاتيح مع أي شخص
+• إنشاء مفاتيح API محدودة الصلاحيات
+• يمكنك الحصول على المفاتيح من: https://api.bybit.com
+            """)
+    # معالجة زر تشغيل/إيقاف البوت
+    elif data == "toggle_bot":
+        if user_id is not None:
+            success = user_manager.toggle_user_active(user_id)
+            if success:
+                user_data = user_manager.get_user(user_id)
+                is_active = user_data.get('is_active', False)
+                status_text = "✅ تم تشغيل البوت بنجاح" if is_active else "⏹️ تم إيقاف البوت"
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text(status_text)
+                # العودة إلى قائمة الإعدادات
+                await asyncio.sleep(1)
+                await settings_menu(update, context)
+            else:
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
+    elif data == "info":
+        info_text = """
+ℹ️ معلومات البوت
+
+هذا بوت تداول متعدد المستخدمين يدعم:
+• التداول الآلي على Bybit
+• إدارة الصفقات (TP/SL/Partial Close)
+• دعم Spot و Futures
+• حسابات منفصلة لكل مستخدم
+• اتصال آمن عبر Bybit Live API
+
+🔗 الموقع الرسمي: https://bybit.com
+📧 للدعم: استخدم أمر /start
+        """
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(info_text)
+    elif data == "main_menu":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
@@ -1806,7 +1953,53 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id is not None and user_id in user_input_state:
         state = user_input_state[user_id]
         
-        if state == "waiting_for_trade_amount":
+        if state == "waiting_for_api_key":
+            # حفظ API_KEY مؤقتاً
+            if not hasattr(context, 'user_data') or context.user_data is None:
+                context.user_data = {}
+            context.user_data['temp_api_key'] = text
+            # الانتقال إلى الخطوة التالية
+            user_input_state[user_id] = "waiting_for_api_secret"
+            if update.message is not None:
+                await update.message.reply_text("""
+🔗 ربط API - الخطوة 2
+
+الآن أرسل API_SECRET الخاص بك
+
+⚠️ ملاحظة: سيتم تشفير المفاتيح وتخزينها بشكل آمن
+                """)
+        elif state == "waiting_for_api_secret":
+            # الحصول على API_KEY المحفوظ مؤقتاً
+            if hasattr(context, 'user_data') and context.user_data and 'temp_api_key' in context.user_data:
+                api_key = context.user_data['temp_api_key']
+                api_secret = text
+                
+                # حفظ في قاعدة البيانات
+                success = user_manager.update_user_api(user_id, api_key, api_secret)
+                
+                if success:
+                    # مسح البيانات المؤقتة
+                    del context.user_data['temp_api_key']
+                    del user_input_state[user_id]
+                    
+                    if update.message is not None:
+                        await update.message.reply_text("""
+✅ تم ربط API بنجاح!
+
+🔗 الاتصال: https://api.bybit.com (Live)
+📊 يمكنك الآن استخدام جميع ميزات البوت
+
+استخدم /start للعودة إلى القائمة الرئيسية
+                        """)
+                else:
+                    if update.message is not None:
+                        await update.message.reply_text("❌ فشل في حفظ مفاتيح API. حاول مرة أخرى.")
+            else:
+                if update.message is not None:
+                    await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
+                if user_id in user_input_state:
+                    del user_input_state[user_id]
+        elif state == "waiting_for_trade_amount":
             try:
                 amount = float(text)
                 if amount > 0:
