@@ -41,6 +41,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def mask_api_credentials(api_key: str, api_secret: str) -> tuple[str, str]:
+    """إخفاء معلومات API جزئياً للعرض الآمن"""
+    if not api_key or not api_secret:
+        return "غير محدد", "غير محدد"
+    
+    # إظهار أول 4 وآخر 4 أحرف فقط
+    masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "****"
+    masked_secret = f"{api_secret[:4]}...{api_secret[-4:]}" if len(api_secret) > 8 else "****"
+    
+    return masked_key, masked_secret
+
+async def verify_api_connection(api_key: str, api_secret: str) -> tuple[bool, str]:
+    """التحقق من صحة اتصال API"""
+    try:
+        # إنشاء كائن API مؤقت للاختبار
+        test_api = BybitAPI(api_key, api_secret)
+        
+        # محاولة جلب معلومات الحساب للتحقق
+        response = test_api.get_account_balance()
+        
+        if response.get("retCode") == 0:
+            return True, "✅ الاتصال ناجح"
+        else:
+            error_msg = response.get("retMsg", "خطأ غير محدد")
+            return False, f"❌ فشل الاتصال: {error_msg}"
+            
+    except Exception as e:
+        logger.error(f"خطأ في التحقق ��ن API: {e}")
+        return False, f"❌ خطأ في الاتصال: {str(e)}"
+
 class FuturesPosition:
     """فئة لإدارة صفقات الفيوتشر"""
     
@@ -565,44 +595,29 @@ class BybitAPI:
         try:
             endpoint = "/v5/account/wallet-balance"
             params = {"accountType": account_type}
-
+            
             response = self._make_request("GET", endpoint, params)
             return response
-
+            
         except Exception as e:
             logger.error(f"خطأ في الحصول على الرصيد: {e}")
             return {"retCode": -1, "retMsg": str(e)}
-
-    def test_connection(self) -> tuple[bool, str]:
-        """اختبار اتصال API والتحقق من صحة المفاتيح"""
+            
+    async def verify_api_connection(self) -> tuple[bool, str]:
+        """التحقق من صحة اتصال API"""
         try:
-            # اختبار بسيط: جلب معلومات الحساب
+            # محاولة جلب معلومات الحساب للتحقق
             response = self.get_account_balance()
-
+            
             if response.get("retCode") == 0:
-                # محاولة جلب بعض البيانات للتأكد من صحة المفاتيح
-                balance_info = response.get("result", {}).get("list", [])
-                if balance_info:
-                    account_type = balance_info[0].get("accountType", "غير محدد")
-                    total_balance = balance_info[0].get("totalEquity", "0")
-
-                    return True, f"✅ تم الاتصال بنجاح!\n📊 نوع الحساب: {account_type}\n💰 إجمالي الرصيد: {total_balance} USDT"
-                else:
-                    return True, "✅ تم الاتصال بنجاح! (حساب جديد بدون رصيد)"
+                return True, "✅ الاتصال ناجح"
             else:
                 error_msg = response.get("retMsg", "خطأ غير محدد")
-                if "Invalid API Key" in error_msg or "invalid api_key" in error_msg:
-                    return False, "❌ مفتاح API غير صحيح"
-                elif "Invalid API Secret" in error_msg or "invalid api_secret" in error_msg:
-                    return False, "❌ مفتاح API Secret غير صحيح"
-                elif "permission denied" in error_msg.lower():
-                    return False, "❌ صلاحيات غير كافية للمفاتيح"
-                else:
-                    return False, f"❌ خطأ في الاتصال: {error_msg}"
-
+                return False, f"❌ فشل الاتصال: {error_msg}"
+                
         except Exception as e:
-            logger.error(f"خطأ في اختبار الاتصال: {e}")
-            return False, f"❌ خطأ في اختبار الاتصال: {str(e)}"
+            logger.error(f"خطأ في التحقق من API: {e}")
+            return False, f"❌ خطأ في الاتصال: {str(e)}"
 
 class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
@@ -626,14 +641,7 @@ class TradingBot:
         # حالة البوت
         self.is_running = True
         self.signals_received = 0
-
-        # حالة اتصال API
-        self.api_connection_status = {
-            'connected': False,
-            'last_test': None,
-            'message': 'لم يتم اختبار الاتصال بعد'
-        }
-
+        
         # إعدادات المستخدم
         self.user_settings = DEFAULT_SETTINGS.copy()
         
@@ -1009,33 +1017,6 @@ class TradingBot:
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
 
-    def test_api_connection(self) -> tuple[bool, str]:
-        """اختبار اتصال API للمستخدم الحالي"""
-        try:
-            if not self.bybit_api:
-                return False, "❌ API غير متاح"
-
-            # اختبار الاتصال
-            success, message = self.bybit_api.test_connection()
-
-            # تحديث حالة الاتصال
-            self.api_connection_status = {
-                'connected': success,
-                'last_test': datetime.now(),
-                'message': message
-            }
-
-            return success, message
-
-        except Exception as e:
-            error_msg = f"❌ خطأ في اختبار الاتصال: {str(e)}"
-            self.api_connection_status = {
-                'connected': False,
-                'last_test': datetime.now(),
-                'message': error_msg
-            }
-            return False, error_msg
-
 # إنشاء البوت العام
 trading_bot = TradingBot()
 
@@ -1076,10 +1057,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • اضغط على زر "🔗 ربط API" أدناه
 • سيطلب منك إدخال API_KEY و API_SECRET
 • يمكنك الحصول على المفاتيح من: https://api.bybit.com
-
-📝 مثال شكل API Keys:
-API Key: A1b2C3d4E5f6G7h8I9j0...
-API Secret: abcdef123456789...
 
 ⚠️ ملاحظة: البوت يدعم التداول الحقيقي والتجريبي
         """
@@ -1125,13 +1102,35 @@ API Secret: abcdef123456789...
     
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
-    api_status = "🟢 مرتبط" if user_data.get('api_key') else "🔴 غير مرتبط"
+    
+    # التحقق من حالة API
+    api_key = user_data.get('api_key')
+    api_secret = user_data.get('api_secret')
+    
+    if api_key and api_secret:
+        # التحقق من صحة الاتصال
+        is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
+        api_status = "🟢 متصل" if is_connected else "🔴 غير متصل"
+        
+        # إخفاء معلومات API جزئياً
+        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
+        api_info = f"""
+🔑 معلومات API:
+• API Key: {masked_key}
+• API Secret: {masked_secret}
+• الحالة: {api_status}
+        """
+    else:
+        api_status = "🔴 غير مرتبط"
+        api_info = "🔗 API غير مرتبط - استخدم زر الإعدادات للربط"
     
     welcome_message = f"""
 🤖 مرحباً بك {update.effective_user.first_name}
 
 📊 حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
+
+{api_info}
 
 💰 معلومات الحساب:
 • الرصيد الكلي: {account_info.get('balance', 0):.2f} USDT
@@ -1157,27 +1156,13 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ يرجى استخدام /start أولاً")
         return
     
-            # Testing API connection first
-    api_connection = {"connected": False, "message": ""}
-    if user_data.get('api_key') and user_data.get('api_secret'):
-        success, message = trading_bot.test_api_connection()
-        api_connection = {
-            "connected": success,
-            "message": message,
-            "timestamp": datetime.now().strftime('%H:%M:%S'),
-            "status_emoji": "🟢" if success else "🔴"
-        }
-        # Store connection status for future reference
-        trading_bot.api_connection_status = api_connection
-
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")],
         [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
-        [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
-        [InlineKeyboardButton("🧪 اختبار API" + (" ✅" if api_connection["connected"] else " ❌"), callback_data="test_api")]
+        [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")]
     ]
     
     # إضافة زر تشغيل/إيقاف البوت
@@ -1206,22 +1191,28 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
-
-    # حالة API مع الألوان والتفاصيل
-    api_key_exists = user_data.get('api_key')
-    if api_key_exists:
-        # فحص حالة الاتصال من آخر اختبار
-        connection_status = trading_bot.api_connection_status
-        if connection_status['connected']:
-            api_status = "🟢 متصل ويعمل بشكل صحيح"
-            api_details = f"✅ آخر اختبار: {connection_status['last_test'].strftime('%H:%M:%S') if connection_status['last_test'] else 'غير محدد'}\n💬 {connection_status['message']}"
-        else:
-            api_status = "🟡 مرتبط لكن يحتاج اختبار"
-            api_details = f"⚠️ آخر اختبار: {connection_status['last_test'].strftime('%H:%M:%S') if connection_status['last_test'] else 'لم يتم اختبار بعد'}\n💬 {connection_status['message']}"
+    
+    # التحقق من حالة API وإظهار المعلومات
+    api_key = user_data.get('api_key')
+    api_secret = user_data.get('api_secret')
+    
+    if api_key and api_secret:
+        # التحقق من صحة الاتصال
+        is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
+        api_status = "🟢 متصل وفعال" if is_connected else "🔴 غير متصل"
+        
+        # إخفاء معلومات API جزئياً
+        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
+        api_details = f"""
+🔑 تفاصيل API:
+• Key: {masked_key}
+• Secret: {masked_secret}
+• الحالة: {api_status}
+        """
     else:
         api_status = "🔴 غير مرتبط"
-        api_details = "❌ لم يتم ربط مفاتيح API بعد"
-
+        api_details = "⚠️ لم يتم ربط API بعد"
+    
     account_type = user_data.get('account_type', 'demo')
     trade_amount = user_data.get('trade_amount', 100.0)
     leverage = user_data.get('leverage', 10)
@@ -1231,6 +1222,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📊 حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
+
+{api_details}
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
@@ -1242,9 +1235,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💳 الرصيد المتاح: {account_info.get('available_balance', 0):.2f}
 🔒 الهامش المحجوز: {account_info.get('margin_locked', 0):.2f}
 📈 الربح/الخسارة غير المحققة: {account_info.get('unrealized_pnl', 0):.2f}
-
-🔗 تفاصيل اتصال API:
-{api_details}
     """
     
     if update.callback_query is not None:
@@ -2037,34 +2027,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data == "test_api":
-        # اختبار اتصال API
-        success, message = trading_bot.test_api_connection()
-        status_emoji = "🟢" if success else "🔴"
-        test_time = datetime.now().strftime('%H:%M:%S')
-        
-        result_message = f"""
-🔌 نتيجة اختبار API:
-{status_emoji} حالة الاتصال: {'متصل' if success else 'غير متصل'}
-⏰ وقت الاختبار: {test_time}
-
-💬 التفاصيل:
-{message}
-        """
-        
-        # حفظ حالة الاتصال للرجوع إليها لاحقاً
-        trading_bot.api_connection_status = {
-            'connected': success,
-            'message': message,
-            'timestamp': test_time,
-            'status_emoji': status_emoji
-        }
-        
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(result_message)
-            # العودة إلى قائمة الإعدادات بعد 3 ثوانٍ
-            await asyncio.sleep(3)
-            await settings_menu(update, context)
     else:
         # معالجة أي أزرار أخرى غير محددة
         if update.callback_query is not None:
@@ -2097,6 +2059,73 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚠️ ملاحظة: سيتم تشفير المفاتيح وتخزينها بشكل آمن
                 """)
+        elif state == "waiting_for_api_secret":
+            # الحصول على API_KEY المحفوظ مؤقتاً
+            if hasattr(context, 'user_data') and context.user_data and 'temp_api_key' in context.user_data:
+                api_key = context.user_data['temp_api_key']
+                api_secret = text
+                
+                # التحقق من صحة الاتصال أولاً
+                if update.message is not None:
+                    await update.message.reply_text("⏳ جاري التحقق من الاتصال...")
+                
+                is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
+                
+                if is_connected:
+                    # حفظ في قاعدة البيانات
+                    success = user_manager.update_user_api(user_id, api_key, api_secret)
+                    
+                    if success:
+                        # مسح البيانات المؤقتة
+                        del context.user_data['temp_api_key']
+                        del user_input_state[user_id]
+                        
+                        # إخفاء معلومات API للعرض
+                        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
+                        
+                        if update.message is not None:
+                            await update.message.reply_text(f"""
+✅ تم ربط API بنجاح!
+
+🔑 معلومات API:
+• API Key: {masked_key}
+• API Secret: {masked_secret}
+• الحالة: 🟢 متصل وفعال
+
+🔗 الاتصال: https://api.bybit.com (Live)
+📊 يمكنك الآن استخدام جميع ميزات البوت
+
+استخدم /start للعودة إلى القائمة الرئيسية
+                            """)
+                    else:
+                        if update.message is not None:
+                            await update.message.reply_text("❌ فشل في حفظ مفاتيح API. حاول مرة أخرى.")
+                else:
+                    # فشل الاتصال - عدم حفظ المفاتيح
+                    if update.message is not None:
+                        await update.message.reply_text(f"""
+❌ فشل التحقق من الاتصال!
+
+{connection_msg}
+
+⚠️ يرجى التحقق من:
+• صحة API Key و API Secret
+• صلاحيات API على حسابك في Bybit
+• اتصالك بالإنترنت
+
+حاول مرة أخرى باستخدام /start
+                        """)
+                    
+                    # مسح البيانات المؤقتة
+                    if 'temp_api_key' in context.user_data:
+                        del context.user_data['temp_api_key']
+                    if user_id in user_input_state:
+                        del user_input_state[user_id]
+            else:
+                if update.message is not None:
+                    await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
+                if user_id in user_input_state:
+                    del user_input_state[user_id]
         elif state == "waiting_for_api_secret":
             # الحصول على API_KEY المحفوظ مؤقتاً
             if hasattr(context, 'user_data') and context.user_data and 'temp_api_key' in context.user_data:
