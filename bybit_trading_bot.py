@@ -2329,47 +2329,47 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data.startswith("close_"):
-        position_id = data.replace("close_", "")
-        await close_position(position_id, update, context)
-    elif data == "refresh_positions":
-        await open_positions(update, context)
-    elif data.startswith("tp_"):
-        # معالجة أزرار أهداف الربح
-        parts = data.split("_")
-        if len(parts) >= 3:
-            trade_id = parts[1]
-            percentage = float(parts[2])
-            await execute_tp(update, context, trade_id, percentage)
-    elif data.startswith("sl_"):
-        # معالجة أزرار وقف الخسارة
-        parts = data.split("_")
-        if len(parts) >= 3:
-            trade_id = parts[1]
-            percentage = float(parts[2])
-            await execute_sl(update, context, trade_id, percentage)
-    elif data.startswith("partial_"):
-        # معالجة أزرار الإغلاق الجزئي
-        parts = data.split("_")
-        if len(parts) >= 3:
-            trade_id = parts[1]
-            percentage = float(parts[2])
-            await execute_partial_close(update, context, trade_id, percentage)
-    elif data.startswith("close_"):
-        # معالجة زر الإغلاق الكامل
-        trade_id = data.replace("close_", "")
-        await execute_full_close(update, context, trade_id)
-    elif data.startswith("settings_"):
-        # معالجة زر تعديل النسب
-        trade_id = data.replace("settings_", "")
-        await show_trade_settings(update, context, trade_id)
-    elif data.startswith("refresh_"):
-        # معالجة زر التحديث
-        trade_id = data.replace("refresh_", "")
-        await refresh_trade(update, context, trade_id)
-    elif data == "open_positions":
-        # العودة إلى قائمة الصفقات المفتوحة
-        await open_positions(update, context)
+           elif data.startswith("close_"):
+               position_id = data.replace("close_", "")
+               await close_position(position_id, update, context)
+           elif data == "refresh_positions":
+               await open_positions(update, context)
+           elif data.startswith("tp_"):
+               # معالجة أزرار أهداف الربح
+               parts = data.split("_")
+               if len(parts) >= 3:
+                   trade_id = parts[1]
+                   percentage = float(parts[2])
+                   await execute_tp(update, context, trade_id, percentage)
+           elif data.startswith("sl_"):
+               # معالجة أزرار وقف الخسارة
+               parts = data.split("_")
+               if len(parts) >= 3:
+                   trade_id = parts[1]
+                   percentage = float(parts[2])
+                   await execute_sl(update, context, trade_id, percentage)
+           elif data.startswith("partial_"):
+               # معالجة أزرار الإغلاق الجزئي
+               parts = data.split("_")
+               if len(parts) >= 3:
+                   trade_id = parts[1]
+                   percentage = float(parts[2])
+                   await execute_partial_close(update, context, trade_id, percentage)
+           elif data.startswith("close_"):
+               # معالجة زر الإغلاق الكامل
+               trade_id = data.replace("close_", "")
+               await execute_full_close(update, context, trade_id)
+           elif data.startswith("settings_"):
+               # معالجة زر تعديل النسب
+               trade_id = data.replace("settings_", "")
+               await show_trade_settings(update, context, trade_id)
+           elif data.startswith("refresh_"):
+               # معالجة زر التحديث
+               trade_id = data.replace("refresh_", "")
+               await refresh_trade(update, context, trade_id)
+           elif data == "open_positions":
+               # العودة إلى قائمة الصفقات المفتوحة
+               await open_positions(update, context)
     elif data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
