@@ -822,8 +822,31 @@ class TradingBot:
             return "❌ خطأ في الحصول على الأزواج"
     
     async def process_signal(self, signal_data: dict):
-        """معالجة إشارة التداول مع دعم محسن للفيوتشر"""
+        """معالجة إشارة التداول مع دعم TP/SL والفيوتشر"""
         try:
+            # التحقق من البيانات المطلوبة
+            required_fields = ['symbol', 'action']
+            for field in required_fields:
+                if field not in signal_data:
+                    await self.send_message_to_admin(f"❌ الحقل {field} مفقود في الإشارة")
+                    return
+
+            symbol = signal_data['symbol'].upper()
+            action = signal_data['action'].lower()
+            take_profit = signal_data.get('take_profit')
+            stop_loss = signal_data.get('stop_loss')
+            trailing_stop = signal_data.get('trailing_stop')
+            trailing_step = signal_data.get('trailing_step')
+
+            # تحويل القيم إلى أرقام إذا وجدت
+            try:
+                if take_profit: take_profit = float(take_profit)
+                if stop_loss: stop_loss = float(stop_loss)
+                if trailing_stop: trailing_stop = float(trailing_stop)
+                if trailing_step: trailing_step = float(trailing_step)
+            except ValueError as e:
+                await self.send_message_to_admin(f"❌ خطأ في تحويل قيم TP/SL: {e}")
+                return
             self.signals_received += 1
             
             if not self.is_running:
@@ -1003,6 +1026,21 @@ class TradingBot:
                                 stop_loss: float = None,
                                 trailing_stop: float = None,
                                 trailing_step: float = None):
+        """تنفيذ صفقة تجريبية مع دعم TP/SL وTrailing Stop"""
+        try:
+            # التحقق من قيم TP/SL
+            if take_profit and take_profit <= 0:
+                await self.send_message_to_admin("❌ قيمة Take Profit يجب أن تكون أكبر من 0")
+                return
+
+            if stop_loss and stop_loss <= 0:
+                await self.send_message_to_admin("❌ قيمة Stop Loss يجب أن تكون أكبر من 0")
+                return
+
+            # التحقق من قيم Trailing Stop
+            if trailing_stop and trailing_stop <= 0:
+                await self.send_message_to_admin("❌ قيمة Trailing Stop يجب أن تكون أكبر من 0")
+                return
         """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر وTP/SL"""
         try:
             # التحقق من صحة المعلمات
