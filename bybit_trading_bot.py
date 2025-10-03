@@ -1162,14 +1162,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات التداول")]
     ]
-    
-    # إضافة أزرار إضافية إذا كان المستخدم نشطاً
-    if user_data.get('is_active'):
-        keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
-    else:
-        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
@@ -1893,6 +1887,78 @@ exampleInputEmail: {time_str}
         logger.error(f"خطأ في عرض تاريخ التداول: {e}")
         if update.message is not None:
             await update.message.reply_text(f"❌ خطأ في عرض تاريخ التداول: {e}")
+
+async def trading_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض إحصائيات التداول المفصلة"""
+    try:
+        # الحصول على معلومات الحسابات
+        spot_account = trading_bot.demo_account_spot
+        futures_account = trading_bot.demo_account_futures
+        
+        spot_info = spot_account.get_account_info()
+        futures_info = futures_account.get_account_info()
+        
+        # حساب الإحصائيات الإجمالية
+        total_trades = spot_info['total_trades'] + futures_info['total_trades']
+        total_winning = spot_info['winning_trades'] + futures_info['winning_trades']
+        total_losing = spot_info['losing_trades'] + futures_info['losing_trades']
+        
+        # حساب معدل الربح
+        win_rate = (total_winning / max(total_trades, 1)) * 100
+        
+        # حساب الأداء المالي
+        initial_balance_spot = spot_account.initial_balance
+        initial_balance_futures = futures_account.initial_balance
+        current_balance_spot = spot_info['balance']
+        current_balance_futures = futures_info['balance']
+        
+        total_profit = (current_balance_spot + current_balance_futures) - (initial_balance_spot + initial_balance_futures)
+        profit_percentage = (total_profit / (initial_balance_spot + initial_balance_futures)) * 100 if (initial_balance_spot + initial_balance_futures) > 0 else 0
+        
+        # تحديد أداء البوت
+        performance_emoji = "🌟" if win_rate > 60 else "⭐" if win_rate > 50 else "📊"
+        profit_emoji = "💰🟢" if total_profit > 0 else "💸🔴"
+        
+        statistics_message = f"""
+📊 إحصائيات التداول المفصلة {performance_emoji}
+
+💫 الأداء العام:
+• إجمالي الصفقات: {total_trades}
+• الصفقات الرابحة: {total_winning}✅
+• الصفقات الخاسرة: {total_losing}❌
+• معدل النجاح: {win_rate:.2f}%
+
+💰 الأداء المالي {profit_emoji}:
+• الرصيد الأولي: {initial_balance_spot + initial_balance_futures:.2f} USDT
+• الرصيد الحالي: {current_balance_spot + current_balance_futures:.2f} USDT
+• صافي الربح/الخسارة: {total_profit:.2f} USDT ({profit_percentage:+.2f}%)
+
+📈 إحصائيات السبوت:
+• عدد الصفقات: {spot_info['total_trades']}
+• الصفقات الرابحة: {spot_info['winning_trades']}
+• الصفقات الخاسرة: {spot_info['losing_trades']}
+• معدل النجاح: {spot_info['win_rate']}%
+
+📊 إحصائيات الفيوتشر:
+• عدد الصفقات: {futures_info['total_trades']}
+• الصفقات الرابحة: {futures_info['winning_trades']}
+• الصفقات الخاسرة: {futures_info['losing_trades']}
+• معدل النجاح: {futures_info['win_rate']}%
+• نسبة الهامش: {futures_info.get('margin_ratio', '∞')}
+
+⚙️ الإعدادات الحالية:
+• نوع السوق: {trading_bot.user_settings['market_type'].upper()}
+• مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
+• الرافعة المالية: {trading_bot.user_settings['leverage']}x
+"""
+        
+        if update.message is not None:
+            await update.message.reply_text(statistics_message)
+            
+    except Exception as e:
+        logger.error(f"خطأ في عرض الإحصائيات: {e}")
+        if update.message is not None:
+            await update.message.reply_text(f"❌ خطأ في عرض الإحصائيات: {e}")
 
 async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض معلومات المحفظة مع تفاصيل الفيوتشر"""
