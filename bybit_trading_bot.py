@@ -30,6 +30,9 @@ from config import *
 from database import db_manager
 from user_manager import user_manager
 
+# استيراد رسائل التداول
+from trade_messages import TRADE_ERROR_MESSAGES, TRADE_SUCCESS_MESSAGES
+
 # إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -627,6 +630,20 @@ class TradingBot:
         self.bybit_api = None
         if BYBIT_API_KEY and BYBIT_API_SECRET:
             self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
+            
+        # إعداد مدير الأخطاء
+        from trade_error_manager import TradeErrorManager
+        self.error_manager = TradeErrorManager()
+            
+        # وظيفة التحقق من API والحساب
+        self.last_api_check = 0  # آخر وقت تم فيه التحقق من API
+        self.api_check_interval = 300  # 5 دقائق بين كل تحقق
+        self.api_status = {
+            'is_valid': False,
+            'error_message': None,
+            'last_error': None,
+            'permissions': []
+        }
         
         # إعداد الحسابات التجريبية
         self.demo_account_spot = TradingAccount(
@@ -797,14 +814,21 @@ class TradingBot:
             self.signals_received += 1
             
             if not self.is_running:
-                logger.info("البوت متوقف، تم تجاهل الإشارة")
+                await self.send_message_to_admin("❌ البوت متوقف حالياً. لن يتم تنفيذ الإشارة.\nاستخدم زر 'تشغيل البوت' لبدء تنفيذ الإشارات.")
                 return
             
+            # التحقق من صحة بيانات الإشارة
             symbol = signal_data.get('symbol', '').upper()
             action = signal_data.get('action', '').lower()  # buy أو sell
             
             if not symbol or not action:
-                logger.error("بيانات الإشارة غير مكتملة")
+                error_msg = "❌ بيانات الإشارة غير مكتملة:\n"
+                if not symbol:
+                    error_msg += "- الرمز (symbol) مفقود\n"
+                if not action:
+                    error_msg += "- نوع الأمر (action) مفقود\n"
+                error_msg += "\nتأكد من إرسال إشارة صحيحة تحتوي على جميع البيانات المطلوبة."
+                await self.send_message_to_admin(error_msg)
                 return
             
             # تحديث الأزواج إذا لزم الأمر
@@ -862,41 +886,103 @@ class TradingBot:
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
         """تنفيذ صفقة حقيقية"""
         try:
+            # التحقق من توفر API
+            # التحقق من توفر API
             if not self.bybit_api:
-                await self.send_message_to_admin("❌ API غير متاح للتداول الحقيقي")
+                await self.send_message_to_admin(TRADE_ERROR_MESSAGES['api_not_available'])
+                return
+
+            # التحقق من الرصيد قبل التنفيذ
+            balance_info = self.bybit_api.get_account_balance()
+            if balance_info.get("retCode") != 0:
+                error_details = balance_info.get('retMsg', 'خطأ غير معروف')
+                await self.send_message_to_admin(TRADE_ERROR_MESSAGES['api_error'].format(error_details=error_details))
+                return
+
+            available_balance = float(balance_info.get("result", {}).get("availableBalance", 0))
+            amount = float(self.user_settings['trade_amount'])
+            
+            if available_balance < amount:
+                await self.send_message_to_admin(TRADE_ERROR_MESSAGES['insufficient_balance'].format(
+                    available=available_balance,
+                    required=amount
+                ))
                 return
                 
-            amount = str(self.user_settings['trade_amount'])
             side = "Buy" if action == "buy" else "Sell"
+            
+            # التحقق من صلاحيات API قبل التنفيذ
+            if not self._check_api_permissions():
+                await self.send_message_to_admin("❌ صلاحيات API غير كافية للتداول\nيرجى التأكد من تفعيل صلاحيات التداول في إعدادات API على منصة Bybit")
+                return
             
             response = self.bybit_api.place_order(
                 symbol=symbol,
                 side=side,
                 order_type="Market",
-                qty=amount,
+                qty=str(amount),
                 category=category
             )
             
             if response.get("retCode") == 0:
                 order_id = response.get("result", {}).get("orderId", "")
-                message = f"✅ تم تنفيذ أمر {action.upper()} للرمز {symbol}\n"
-                message += f"💰 المبلغ: {amount}\n"
-                message += f"💲 السعر: {price:.6f}\n"
-                message += f"🏪 السوق: {category.upper()}\n"
-                message += f"🆔 رقم الأمر: {order_id}"
+                message = TRADE_SUCCESS_MESSAGES['order_placed'].format(
+                    symbol=symbol,
+                    side=action.upper(),
+                    amount=amount,
+                    price=price,
+                    market=category.upper(),
+                    order_id=order_id
+                )
                 
                 await self.send_message_to_admin(message)
             else:
                 error_msg = response.get("retMsg", "خطأ غير محدد")
-                await self.send_message_to_admin(f"❌ فشل في تنفيذ الأمر: {error_msg}")
+                error_code = response.get("retCode")
+                error_message = TRADE_ERROR_MESSAGES['execution_error'].format(
+                    error_type=error_code,
+                    details=error_msg
+                )
+
+                await self.send_message_to_admin(error_message)
                 
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة الحقيقية: {e}")
-            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
+            error_message = f"""❌ خطأ في تنفيذ الصفقة الحقيقية
+
+⚠️ نوع الخطأ: {type(e).__name__}
+📝 تفاصيل الخطأ: {str(e)}
+
+🔍 الحلول المقترحة:
+- تأكد من اتصال الإنترنت
+- تحقق من صحة إعدادات API
+- راجع سجلات البوت للمزيد من التفاصيل"""
+            
+            await self.send_message_to_admin(error_message)
     
+    def _validate_trade_parameters(self, symbol: str, action: str, amount: float) -> tuple[bool, str]:
+        """التحقق من صحة معلمات التداول"""
+        try:
+            if not symbol:
+                return False, "الرمز غير محدد"
+            if action not in ['buy', 'sell']:
+                return False, f"نوع الأمر غير صالح: {action}"
+            if amount <= 0:
+                return False, f"المبلغ غير صالح: {amount}"
+            return True, ""
+        except Exception as e:
+            return False, f"خطأ في التحقق من معلمات التداول: {str(e)}"
+
     async def execute_demo_trade(self, symbol: str, action: str, price: float, category: str, market_type: str):
         """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر"""
         try:
+            # التحقق من صحة المعلمات
+            amount = float(self.user_settings['trade_amount'])
+            params_valid, params_error = self._validate_trade_parameters(symbol, action, amount)
+            if not params_valid:
+                await self.send_message_to_admin(f"❌ خطأ في معلمات التداول:\n{params_error}")
+                return
+
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
             logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}")
