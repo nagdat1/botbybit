@@ -658,6 +658,9 @@ class TradingBot:
             'permissions': []
         }
         
+        # إنشاء صفقة تجريبية للاختبار
+        self.create_demo_trade()
+        
         # إعداد الحسابات التجريبية
         self.demo_account_spot = TradingAccount(
             initial_balance=DEMO_ACCOUNT_SETTINGS['initial_balance_spot'],
@@ -779,6 +782,42 @@ class TradingBot:
                         
         except Exception as e:
             logger.error(f"خطأ في تحديث أسعار الصفقات: {e}")
+    
+    def create_demo_trade(self):
+        """إنشاء صفقة تجريبية للاختبار"""
+        try:
+            # إنشاء صفقة تجريبية للمستخدم الأول (ADMIN_USER_ID)
+            demo_trade_data = {
+                'user_id': ADMIN_USER_ID,
+                'symbol': 'BTCUSDT',
+                'side': 'BUY',
+                'entry_price': 45000.0,
+                'quantity': 0.01
+            }
+            
+            trade_id = self.trade_manager.create_trade(demo_trade_data)
+            if trade_id:
+                logger.info(f"تم إنشاء صفقة تجريبية: {trade_id}")
+                
+                # تحديث السعر الحالي
+                self.trade_manager.update_trade_price(trade_id, 45200.0)
+                
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء الصفقة التجريبية: {e}")
+    
+    def _check_api_permissions(self) -> bool:
+        """التحقق من صلاحيات API"""
+        try:
+            # التحقق من صلاحيات التداول
+            if not self.api_status.get('permissions'):
+                return False
+            
+            required_permissions = ['trade', 'read']
+            return all(perm in self.api_status['permissions'] for perm in required_permissions)
+            
+        except Exception as e:
+            logger.error(f"خطأ في التحقق من صلاحيات API: {e}")
+            return False
     
     def get_available_pairs_message(self, category=None, brief=False, limit=50):
         """الحصول على رسالة الأزواج المتاحة"""
@@ -1430,70 +1469,126 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
+    """عرض الصفقات المفتوحة مع نظام إدارة متقدم"""
     try:
-        logger.info(f"عرض الصفقات المفتوحة: {len(trading_bot.open_positions)} صفقة مفتوحة")
+        if update.effective_user is None:
+            return
         
-        # تحديث الأسعار الحالية أولاً
-        await trading_bot.update_open_positions_prices()
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
         
-        if not trading_bot.open_positions:
-            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
+        if not user_data:
+            if update.message:
+                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+            return
+        
+        # الحصول على صفقات المستخدم من نظام إدارة الصفقات
+        user_trades = trading_bot.trade_manager.get_user_trades(user_id)
+        
+        if not user_trades:
+            message_text = TRADE_INFO_MESSAGES['no_open_trades']
             if update.callback_query is not None:
-                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
-                if update.callback_query.message.text != message_text:
-                    await update.callback_query.edit_message_text(message_text)
+                await update.callback_query.edit_message_text(message_text)
             elif update.message is not None:
                 await update.message.reply_text(message_text)
             return
         
-        # فصل الصفقات حسب النوع
-        spot_positions = {}
-        futures_positions = {}
-        
-        for position_id, position_info in trading_bot.open_positions.items():
-            market_type = position_info.get('account_type', 'spot')
-            logger.info(f"الصفقة {position_id}: نوع السوق = {market_type}")
-            if market_type == 'spot':
-                spot_positions[position_id] = position_info
-            else:
-                futures_positions[position_id] = position_info
-        
-        logger.info(f"الصفقات السبوت: {len(spot_positions)}, الصفقات الفيوتشر: {len(futures_positions)}")
-        
-        # إرسال رسالة منفصلة لكل نوع
-        if spot_positions:
-            await send_spot_positions_message(update, spot_positions)
-        
-        if futures_positions:
-            await send_futures_positions_message(update, futures_positions)
-        
-        # إذا لم تكن هناك صفقات من أي نوع
-        if not spot_positions and not futures_positions:
-            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
-            if update.callback_query is not None:
-                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
-                if update.callback_query.message.text != message_text:
-                    await update.callback_query.edit_message_text(message_text)
-            elif update.message is not None:
-                await update.message.reply_text(message_text)
+        # إرسال رسالة منفصلة لكل صفقة مع أزرار الإدارة
+        for trade in user_trades:
+            await send_individual_trade_message(update, trade)
         
     except Exception as e:
         logger.error(f"خطأ في عرض الصفقات المفتوحة: {e}")
         error_message = f"❌ خطأ في عرض الصفقات المفتوحة: {e}"
         if update.callback_query is not None:
-            # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
-            if update.callback_query.message.text != error_message:
-                try:
-                    await update.callback_query.edit_message_text(error_message)
-                except Exception as edit_error:
-                    if "Message is not modified" in str(edit_error):
-                        # تجاهل الخطأ إذا لم يتغير المحتوى
-                        pass
-                    else:
-                        raise
+            try:
+                await update.callback_query.edit_message_text(error_message)
+            except Exception as edit_error:
+                if "Message is not modified" not in str(edit_error):
+                    raise
         elif update.message is not None:
             await update.message.reply_text(error_message)
+
+async def send_individual_trade_message(update: Update, trade: dict):
+    """إرسال رسالة منفصلة لكل صفقة مع أزرار الإدارة"""
+    try:
+        trade_id = trade['trade_id']
+        symbol = trade['symbol']
+        side = trade['side']
+        entry_price = trade['entry_price']
+        current_price = trade['current_price']
+        pnl = trade['pnl']
+        pnl_percentage = trade['pnl_percentage']
+        remaining_quantity = trade['remaining_quantity']
+        
+        # تحديد الرموز والألوان
+        side_emoji = "🟢" if side.upper() == 'BUY' else "🔴"
+        side_text = "شراء" if side.upper() == 'BUY' else "بيع"
+        pnl_emoji = "💰" if pnl >= 0 else "💸"
+        
+        # بناء رسالة الصفقة
+        trade_message = f"""📊 **{symbol}** {side_emoji}
+
+🔄 النوع: {side_text}
+💰 سعر الدخول: `{entry_price:.6f}`
+📈 السعر الحالي: `{current_price:.6f}`
+{pnl_emoji} الربح/الخسارة: `{pnl:.2f} USDT` ({pnl_percentage:+.2f}%)
+📊 الكمية المتبقية: `{remaining_quantity:.6f}`
+
+🆔 معرف الصفقة: `{trade_id}`
+"""
+        
+        # الحصول على إعدادات النسب
+        settings = trading_bot.trade_manager.get_trade_settings()
+        tp_percentages = settings['tp_percentages']
+        sl_percentages = settings['sl_percentages']
+        partial_percentages = settings['partial_close_percentages']
+        
+        # بناء الأزرار الديناميكية
+        keyboard = []
+        
+        # أزرار أهداف الربح (TP)
+        tp_row = []
+        for tp in tp_percentages:
+            tp_row.append(InlineKeyboardButton(f"🎯 TP {tp}%", callback_data=f"tp_{trade_id}_{tp}"))
+        keyboard.append(tp_row)
+        
+        # أزرار وقف الخسارة (SL)
+        sl_row = []
+        for sl in sl_percentages:
+            sl_row.append(InlineKeyboardButton(f"🛑 SL {sl}%", callback_data=f"sl_{trade_id}_{sl}"))
+        keyboard.append(sl_row)
+        
+        # أزرار الإغلاق الجزئي
+        partial_row = []
+        for partial in partial_percentages:
+            partial_row.append(InlineKeyboardButton(f"✂️ {partial}%", callback_data=f"partial_{trade_id}_{partial}"))
+        keyboard.append(partial_row)
+        
+        # أزرار التحكم الإضافية
+        control_row = [
+            InlineKeyboardButton("🔒 إغلاق كامل", callback_data=f"close_{trade_id}"),
+            InlineKeyboardButton("⚙️ تعديل النسب", callback_data=f"settings_{trade_id}")
+        ]
+        keyboard.append(control_row)
+        
+        # أزرار التحديث والعودة
+        action_row = [
+            InlineKeyboardButton("🔄 تحديث", callback_data=f"refresh_{trade_id}"),
+            InlineKeyboardButton("🔙 العودة", callback_data="open_positions")
+        ]
+        keyboard.append(action_row)
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # إرسال الرسالة
+        if update.callback_query is not None:
+            await update.callback_query.message.reply_text(trade_message, reply_markup=reply_markup, parse_mode='Markdown')
+        elif update.message is not None:
+            await update.message.reply_text(trade_message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في إرسال رسالة الصفقة الفردية: {e}")
 
 async def send_spot_positions_message(update: Update, spot_positions: dict):
     """إرسال رسالة صفقات السبوت مع عرض زر إغلاق وسعر الربح/الخسارة"""
@@ -2234,11 +2329,47 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data.startswith("close_"):
-        position_id = data.replace("close_", "")
-        await close_position(position_id, update, context)
-    elif data == "refresh_positions":
-        await open_positions(update, context)
+           elif data.startswith("close_"):
+               position_id = data.replace("close_", "")
+               await close_position(position_id, update, context)
+           elif data == "refresh_positions":
+               await open_positions(update, context)
+           elif data.startswith("tp_"):
+               # معالجة أزرار أهداف الربح
+               parts = data.split("_")
+               if len(parts) >= 3:
+                   trade_id = parts[1]
+                   percentage = float(parts[2])
+                   await execute_tp(update, context, trade_id, percentage)
+           elif data.startswith("sl_"):
+               # معالجة أزرار وقف الخسارة
+               parts = data.split("_")
+               if len(parts) >= 3:
+                   trade_id = parts[1]
+                   percentage = float(parts[2])
+                   await execute_sl(update, context, trade_id, percentage)
+           elif data.startswith("partial_"):
+               # معالجة أزرار الإغلاق الجزئي
+               parts = data.split("_")
+               if len(parts) >= 3:
+                   trade_id = parts[1]
+                   percentage = float(parts[2])
+                   await execute_partial_close(update, context, trade_id, percentage)
+           elif data.startswith("close_"):
+               # معالجة زر الإغلاق الكامل
+               trade_id = data.replace("close_", "")
+               await execute_full_close(update, context, trade_id)
+           elif data.startswith("settings_"):
+               # معالجة زر تعديل النسب
+               trade_id = data.replace("settings_", "")
+               await show_trade_settings(update, context, trade_id)
+           elif data.startswith("refresh_"):
+               # معالجة زر التحديث
+               trade_id = data.replace("refresh_", "")
+               await refresh_trade(update, context, trade_id)
+           elif data == "open_positions":
+               # العودة إلى قائمة الصفقات المفتوحة
+               await open_positions(update, context)
     elif data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
@@ -2611,6 +2742,282 @@ def main():
     # تشغيل البوت
     logger.info("بدء تشغيل البوت...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+async def execute_tp(update: Update, context: ContextTypes.DEFAULT_TYPE, trade_id: str, percentage: float):
+    """تنفيذ هدف الربح"""
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        
+        # التحقق من وجود الصفقة
+        trade_info = trading_bot.trade_manager.get_trade_info(trade_id)
+        if not trade_info:
+            error_msg = TRADE_ERROR_MESSAGES['trade_not_found']
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # التحقق من أن الصفقة تنتمي للمستخدم
+        if trade_info.get('user_id') != user_id:
+            error_msg = "❌ هذه الصفقة لا تنتمي لك"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # تنفيذ هدف الربح
+        success, message = trading_bot.trade_manager.execute_tp(trade_id, percentage)
+        
+        if success:
+            # إرسال إشعار نجاح
+            await trading_bot.trade_notifications.send_tp_executed(trade_id, percentage, trade_info)
+            
+            # تحديث رسالة الصفقة
+            await send_individual_trade_message(update, trade_info)
+            
+            # إرسال رسالة تأكيد
+            if update.callback_query is not None:
+                await update.callback_query.answer(f"✅ {message}")
+        else:
+            error_msg = f"❌ فشل في تنفيذ TP: {message}"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+        
+    except Exception as e:
+        logger.error(f"خطأ في تنفيذ TP: {e}")
+        error_msg = f"❌ خطأ في تنفيذ TP: {e}"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(error_msg)
+
+async def execute_sl(update: Update, context: ContextTypes.DEFAULT_TYPE, trade_id: str, percentage: float):
+    """تنفيذ وقف الخسارة"""
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        
+        # التحقق من وجود الصفقة
+        trade_info = trading_bot.trade_manager.get_trade_info(trade_id)
+        if not trade_info:
+            error_msg = TRADE_ERROR_MESSAGES['trade_not_found']
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # التحقق من أن الصفقة تنتمي للمستخدم
+        if trade_info.get('user_id') != user_id:
+            error_msg = "❌ هذه الصفقة لا تنتمي لك"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # تنفيذ وقف الخسارة
+        success, message = trading_bot.trade_manager.execute_sl(trade_id, percentage)
+        
+        if success:
+            # إرسال إشعار نجاح
+            await trading_bot.trade_notifications.send_sl_executed(trade_id, percentage, trade_info)
+            
+            # تحديث رسالة الصفقة
+            await send_individual_trade_message(update, trade_info)
+            
+            # إرسال رسالة تأكيد
+            if update.callback_query is not None:
+                await update.callback_query.answer(f"✅ {message}")
+        else:
+            error_msg = f"❌ فشل في تنفيذ SL: {message}"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+        
+    except Exception as e:
+        logger.error(f"خطأ في تنفيذ SL: {e}")
+        error_msg = f"❌ خطأ في تنفيذ SL: {e}"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(error_msg)
+
+async def execute_partial_close(update: Update, context: ContextTypes.DEFAULT_TYPE, trade_id: str, percentage: float):
+    """تنفيذ الإغلاق الجزئي"""
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        
+        # التحقق من وجود الصفقة
+        trade_info = trading_bot.trade_manager.get_trade_info(trade_id)
+        if not trade_info:
+            error_msg = TRADE_ERROR_MESSAGES['trade_not_found']
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # التحقق من أن الصفقة تنتمي للمستخدم
+        if trade_info.get('user_id') != user_id:
+            error_msg = "❌ هذه الصفقة لا تنتمي لك"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # تنفيذ الإغلاق الجزئي
+        success, message = trading_bot.trade_manager.execute_partial_close(trade_id, percentage)
+        
+        if success:
+            # إرسال إشعار نجاح
+            await trading_bot.trade_notifications.send_partial_close_executed(trade_id, percentage, trade_info)
+            
+            # تحديث رسالة الصفقة
+            await send_individual_trade_message(update, trade_info)
+            
+            # إرسال رسالة تأكيد
+            if update.callback_query is not None:
+                await update.callback_query.answer(f"✅ {message}")
+        else:
+            error_msg = f"❌ فشل في الإغلاق الجزئي: {message}"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+        
+    except Exception as e:
+        logger.error(f"خطأ في الإغلاق الجزئي: {e}")
+        error_msg = f"❌ خطأ في الإغلاق الجزئي: {e}"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(error_msg)
+
+async def execute_full_close(update: Update, context: ContextTypes.DEFAULT_TYPE, trade_id: str):
+    """تنفيذ الإغلاق الكامل"""
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        
+        # التحقق من وجود الصفقة
+        trade_info = trading_bot.trade_manager.get_trade_info(trade_id)
+        if not trade_info:
+            error_msg = TRADE_ERROR_MESSAGES['trade_not_found']
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # التحقق من أن الصفقة تنتمي للمستخدم
+        if trade_info.get('user_id') != user_id:
+            error_msg = "❌ هذه الصفقة لا تنتمي لك"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # تنفيذ الإغلاق الكامل
+        success, message = trading_bot.trade_manager.close_trade_completely(trade_id)
+        
+        if success:
+            # إرسال إشعار نجاح
+            await trading_bot.trade_notifications.send_trade_closed(trade_id, trade_info)
+            
+            # إرسال رسالة تأكيد
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(f"✅ {message}")
+        else:
+            error_msg = f"❌ فشل في الإغلاق الكامل: {message}"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+        
+    except Exception as e:
+        logger.error(f"خطأ في الإغلاق الكامل: {e}")
+        error_msg = f"❌ خطأ في الإغلاق الكامل: {e}"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(error_msg)
+
+async def show_trade_settings(update: Update, context: ContextTypes.DEFAULT_TYPE, trade_id: str):
+    """عرض إعدادات النسب للصفقة"""
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        
+        # الحصول على إعدادات النسب الحالية
+        settings = trading_bot.trade_manager.get_trade_settings()
+        
+        # بناء رسالة الإعدادات
+        settings_message = f"""⚙️ إعدادات النسب للصفقة `{trade_id}`
+
+🎯 أهداف الربح الحالية:
+{', '.join([f'{tp}%' for tp in settings['tp_percentages']])}
+
+🛑 وقف الخسارة الحالي:
+{', '.join([f'{sl}%' for sl in settings['sl_percentages']])}
+
+✂️ الإغلاق الجزئي الحالي:
+{', '.join([f'{partial}%' for partial in settings['partial_close_percentages']])}
+
+💡 يمكنك تعديل هذه النسب أدناه
+"""
+        
+        # بناء أزرار التعديل
+        keyboard = [
+            [InlineKeyboardButton("🎯 تعديل TP", callback_data=f"edit_tp_{trade_id}")],
+            [InlineKeyboardButton("🛑 تعديل SL", callback_data=f"edit_sl_{trade_id}")],
+            [InlineKeyboardButton("✂️ تعديل Partial", callback_data=f"edit_partial_{trade_id}")],
+            [InlineKeyboardButton("🔙 العودة للصفقة", callback_data=f"refresh_{trade_id}")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(settings_message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض إعدادات الصفقة: {e}")
+        error_msg = f"❌ خطأ في عرض الإعدادات: {e}"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(error_msg)
+
+async def refresh_trade(update: Update, context: ContextTypes.DEFAULT_TYPE, trade_id: str):
+    """تحديث معلومات الصفقة"""
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        
+        # الحصول على معلومات الصفقة المحدثة
+        trade_info = trading_bot.trade_manager.get_trade_info(trade_id)
+        if not trade_info:
+            error_msg = TRADE_ERROR_MESSAGES['trade_not_found']
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # التحقق من أن الصفقة تنتمي للمستخدم
+        if trade_info.get('user_id') != user_id:
+            error_msg = "❌ هذه الصفقة لا تنتمي لك"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(error_msg)
+            return
+        
+        # تحديث السعر الحالي (محاكاة)
+        # في التطبيق الحقيقي، ستحصل على السعر من API
+        import random
+        price_change = random.uniform(-0.02, 0.02)  # تغيير عشوائي ±2%
+        new_price = trade_info['entry_price'] * (1 + price_change)
+        trading_bot.trade_manager.update_trade_price(trade_id, new_price)
+        
+        # الحصول على المعلومات المحدثة
+        updated_trade_info = trading_bot.trade_manager.get_trade_info(trade_id)
+        
+        # إرسال الرسالة المحدثة
+        await send_individual_trade_message(update, updated_trade_info)
+        
+        # إرسال رسالة تأكيد التحديث
+        if update.callback_query is not None:
+            await update.callback_query.answer("🔄 تم تحديث الصفقة")
+        
+    except Exception as e:
+        logger.error(f"خطأ في تحديث الصفقة: {e}")
+        error_msg = f"❌ خطأ في التحديث: {e}"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(error_msg)
 
 if __name__ == "__main__":
     main()
