@@ -33,6 +33,9 @@ from user_manager import user_manager
 # استيراد رسائل التداول
 from trade_messages import TRADE_ERROR_MESSAGES, TRADE_SUCCESS_MESSAGES
 
+# استيراد معالجات الأزرار
+from position_handlers import handle_position_buttons, update_position_message
+
 # استيراد نظام إدارة الصفقات والإشعارات
 from trade_manager import TradeManager
 from trade_notifications import TradeNotifications
@@ -1874,12 +1877,36 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
-        pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
-        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
-        futures_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
-    
-    futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
+            # إنشاء لوحة التحكم للصفقة
+            position_keyboard = [
+                # أزرار تحديد هدف الربح
+                [
+                    InlineKeyboardButton(f"TP 1% 📈", callback_data=f"tp_{position_id}_1"),
+                    InlineKeyboardButton(f"TP 2% 📈", callback_data=f"tp_{position_id}_2"),
+                    InlineKeyboardButton(f"TP 5% 📈", callback_data=f"tp_{position_id}_5")
+                ],
+                # أزرار تحديد وقف الخسارة
+                [
+                    InlineKeyboardButton(f"SL 1% 📉", callback_data=f"sl_{position_id}_1"),
+                    InlineKeyboardButton(f"SL 2% 📉", callback_data=f"sl_{position_id}_2"),
+                    InlineKeyboardButton(f"SL 3% 📉", callback_data=f"sl_{position_id}_3")
+                ],
+                # أزرار الإغلاق الجزئي
+                [
+                    InlineKeyboardButton(f"إغلاق 25% 🔄", callback_data=f"close_{position_id}_25"),
+                    InlineKeyboardButton(f"إغلاق 50% 🔄", callback_data=f"close_{position_id}_50"),
+                    InlineKeyboardButton(f"إغلاق 75% 🔄", callback_data=f"close_{position_id}_75")
+                ],
+                # زر الإغلاق الكامل
+                [InlineKeyboardButton(f"❌ إغلاق كامل {symbol} ({unrealized_pnl:+.2f})", callback_data=f"close_{position_id}_100")]
+            ]
+            
+            # إضافة الأزرار إلى لوحة المفاتيح
+            # إضافة الأزرار للصفقة
+            futures_keyboard.extend(position_keyboard)
+            
+            # إضافة زر التحديث
+            futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
     
     if update.callback_query is not None:
