@@ -823,6 +823,10 @@ class TradingBot:
     
     async def process_signal(self, signal_data: dict):
         """معالجة إشارة التداول مع دعم TP/SL والفيوتشر"""
+        if not isinstance(signal_data, dict):
+            await self.send_message_to_admin("❌ بيانات الإشارة غير صالحة")
+            return
+
         try:
             # التحقق من البيانات المطلوبة
             required_fields = ['symbol', 'action']
@@ -1041,6 +1045,54 @@ class TradingBot:
             if trailing_stop and trailing_stop <= 0:
                 await self.send_message_to_admin("❌ قيمة Trailing Stop يجب أن تكون أكبر من 0")
                 return
+
+            # التحقق من صحة المعلمات
+            params_valid, params_error = self._validate_trade_parameters(symbol, action, self.user_settings['trade_amount'])
+            if not params_valid:
+                await self.send_message_to_admin(f"❌ خطأ في معلمات التداول:\n{params_error}")
+                return
+
+            # اختيار الحساب الصحيح
+            if market_type == 'futures':
+                account = self.demo_account_futures
+                margin_amount = float(self.user_settings['trade_amount'])
+                leverage = int(self.user_settings['leverage'])
+
+                # فتح صفقة فيوتشر مع TP/SL
+                success, position_id = account.open_futures_position(
+                    symbol=symbol,
+                    side=action,
+                    margin_amount=margin_amount,
+                    price=price,
+                    leverage=leverage,
+                    take_profit=take_profit,
+                    stop_loss=stop_loss,
+                    trailing_stop=trailing_stop,
+                    trailing_step=trailing_step
+                )
+
+            else:  # spot
+                account = self.demo_account_spot
+                amount = float(self.user_settings['trade_amount'])
+
+                # فتح صفقة سبوت مع TP/SL
+                success, position_id = account.open_spot_position(
+                    symbol=symbol,
+                    side=action,
+                    amount=amount,
+                    price=price,
+                    take_profit=take_profit,
+                    stop_loss=stop_loss
+                )
+
+            if success:
+                # حفظ معلومات الصفقة
+                position = account.positions[position_id]
+                await self.trade_notifications.send_trade_open_notification(position.get_position_info())
+
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ الصفقة التجريبية: {e}")
+            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
         """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر وTP/SL"""
         try:
             # التحقق من صحة المعلمات
