@@ -491,3 +491,4 @@ class DatabaseManager:
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()
+
