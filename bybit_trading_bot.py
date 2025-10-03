@@ -574,7 +574,34 @@ class BybitAPI:
             logger.error(f"خطأ في التحقق من الرمز: {e}")
             return False
     
-    def place_order(self, symbol: str, side: str, order_type: str, qty: str, price: Optional[str] = None, category: str = "spot") -> dict:
+    def place_order(self, symbol: str, side: str, order_type: str, qty: str, price: Optional[str] = None, category: str = "spot", take_profit: Optional[str] = None, stop_loss: Optional[str] = None) -> dict:
+        """وضع أمر تداول مع دعم TP/SL"""
+        try:
+            endpoint = "/v5/order/create"
+            
+            params = {
+                "category": category,
+                "symbol": symbol,
+                "side": side.capitalize(),
+                "orderType": order_type,
+                "qty": qty
+            }
+            
+            if price and order_type.lower() == "limit":
+                params["price"] = price
+            
+            # إضافة TP/SL إذا تم توفيرهما
+            if take_profit:
+                params["takeProfit"] = take_profit
+            if stop_loss:
+                params["stopLoss"] = stop_loss
+            
+            response = self._make_request("POST", endpoint, params)
+            return response
+            
+        except Exception as e:
+            logger.error(f"خطأ في وضع الأمر: {e}")
+            return {"retCode": -1, "retMsg": str(e)}
         """وضع أمر تداول"""
         try:
             endpoint = "/v5/order/create"
@@ -724,6 +751,7 @@ class TradingBot:
             logger.error(f"خطأ في تحديث الأزواج: {e}")
     
     async def update_open_positions_prices(self):
+        """تحديث أسعار الصفقات المفتوحة مع مراقبة TP/SL"""
         """تحديث أسعار الصفقات المفتوحة"""
         try:
             if not self.open_positions:
@@ -822,6 +850,16 @@ class TradingBot:
             return "❌ خطأ في الحصول على الأزواج"
     
     async def process_signal(self, signal_data: dict):
+        """
+        معالجة إشارة التداول مع دعم TP/SL
+        
+        signal_data يجب أن يحتوي على:
+        - symbol: رمز الزوج
+        - action: نوع الأمر (buy/sell)
+        - take_profit: (اختياري) سعر هدف الربح
+        - stop_loss: (اختياري) سعر وقف الخسارة
+        - trailing_stop: (اختياري) المسافة للتريلينج ستوب
+        """
         """معالجة إشارة التداول مع دعم محسن للفيوتشر"""
         try:
             self.signals_received += 1
@@ -833,6 +871,12 @@ class TradingBot:
             # التحقق من صحة بيانات الإشارة
             symbol = signal_data.get('symbol', '').upper()
             action = signal_data.get('action', '').lower()  # buy أو sell
+            
+            # استخراج قيم TP/SL إن وجدت
+            take_profit = signal_data.get('take_profit')
+            stop_loss = signal_data.get('stop_loss')
+            trailing_stop = signal_data.get('trailing_stop')
+            trailing_step = signal_data.get('trailing_step')
             
             if not symbol or not action:
                 error_msg = "❌ بيانات الإشارة غير مكتملة:\n"
@@ -941,7 +985,9 @@ class TradingBot:
                 side=side,
                 order_type="Market",
                 qty=str(amount),
-                category=category
+                category=category,
+                take_profit=str(take_profit) if take_profit else None,
+                stop_loss=str(stop_loss) if stop_loss else None
             )
             
             if response.get("retCode") == 0:
@@ -1033,6 +1079,21 @@ class TradingBot:
                     position_id = result
                     position = account.positions[position_id]
                     
+                    # إضافة الصفقة إلى مدير الصفقات مع TP/SL
+                    if take_profit or stop_loss:
+                        self.trade_manager.create_position(
+                            position_id=position_id,
+                            symbol=symbol,
+                            side=action,
+                            entry_price=price,
+                            quantity=position.position_size,
+                            leverage=leverage,
+                            take_profit=take_profit,
+                            stop_loss=stop_loss,
+                            trailing_stop=trailing_stop,
+                            trailing_step=trailing_step
+                        )
+                    
                     # التأكد من أن position هو FuturesPosition
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في القائمة العامة
@@ -1123,6 +1184,54 @@ class TradingBot:
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة التجريبية: {e}")
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
+    
+    async def update_tp_sl(self, position_id: str, take_profit: Optional[float] = None, stop_loss: Optional[float] = None) -> bool:
+        """تحديث مستويات TP/SL لصفقة محددة"""
+        try:
+            if position_id not in self.open_positions:
+                return False
+            
+            position_info = self.open_positions[position_id]
+            
+            if self.user_settings['account_type'] == 'real' and self.bybit_api:
+                # تحديث الصفقة الحقيقية
+                symbol = position_info['symbol']
+                category = position_info['category']
+                
+                # تحديث TP/SL على Bybit
+                response = self.bybit_api.update_position_tp_sl(
+                    symbol=symbol,
+                    category=category,
+                    take_profit=str(take_profit) if take_profit else None,
+                    stop_loss=str(stop_loss) if stop_loss else None
+                )
+                
+                if response.get("retCode") == 0:
+                    # تحديث المعلومات محلياً
+                    position_info['take_profit'] = take_profit
+                    position_info['stop_loss'] = stop_loss
+                    return True
+                else:
+                    return False
+            else:
+                # تحديث الصفقة التجريبية
+                result = self.trade_manager.update_position_tp_sl(
+                    position_id=position_id,
+                    new_tp=take_profit,
+                    new_sl=stop_loss
+                )
+                
+                if result['success']:
+                    # تحديث المعلومات محلياً
+                    position_info['take_profit'] = take_profit
+                    position_info['stop_loss'] = stop_loss
+                    return True
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث TP/SL: {e}")
+            return False
     
     async def send_message_to_admin(self, message: str):
         """إرسال رسالة للمدير"""
@@ -1657,6 +1766,8 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🔄 النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: {current_price:.6f}
+💎 هدف الربح: {position_info.get('take_profit', 'غير محدد')}
+🛑 وقف الخسارة: {position_info.get('stop_loss', 'غير محدد')}
 💰 الهامش المحجوز: {margin_amount:.2f}
 📈 حجم الصفقة: {position_size:.2f}
 {arrow} الربح/الخسارة: {unrealized_pnl:.2f} ({pnl_percent:.2f}%) - {pnl_status}
