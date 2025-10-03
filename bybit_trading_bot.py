@@ -33,6 +33,10 @@ from user_manager import user_manager
 # استيراد رسائل التداول
 from trade_messages import TRADE_ERROR_MESSAGES, TRADE_SUCCESS_MESSAGES
 
+# استيراد نظام إدارة الصفقات والإشعارات
+from trade_manager import TradeManager
+from trade_notifications import TradeNotifications
+
 # إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -631,6 +635,15 @@ class TradingBot:
         if BYBIT_API_KEY and BYBIT_API_SECRET:
             self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
             
+        # إعداد نظام إدارة الصفقات
+        self.trade_manager = TradeManager()
+        
+        # إعداد نظام الإشعارات
+        self.trade_notifications = TradeNotifications(
+            bot_token=TELEGRAM_TOKEN,
+            chat_id=str(ADMIN_USER_ID)
+        )
+            
         # إعداد مدير الأخطاء
         from trade_error_manager import TradeErrorManager
         self.error_manager = TradeErrorManager()
@@ -883,8 +896,15 @@ class TradingBot:
             logger.error(f"خطأ في معالجة الإشارة: {e}")
             await self.send_message_to_admin(f"❌ خطأ في معالجة الإشارة: {e}")
     
-    async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
-        """تنفيذ صفقة حقيقية"""
+    async def execute_real_trade(self, 
+                               symbol: str, 
+                               action: str, 
+                               price: float, 
+                               category: str,
+                               take_profit: float = None,
+                               stop_loss: float = None,
+                               trailing_stop: float = None):
+        """تنفيذ صفقة حقيقية مع دعم TP/SL"""
         try:
             # التحقق من توفر API
             # التحقق من توفر API
@@ -973,8 +993,17 @@ class TradingBot:
         except Exception as e:
             return False, f"خطأ في التحقق من معلمات التداول: {str(e)}"
 
-    async def execute_demo_trade(self, symbol: str, action: str, price: float, category: str, market_type: str):
-        """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر"""
+    async def execute_demo_trade(self, 
+                                symbol: str, 
+                                action: str, 
+                                price: float, 
+                                category: str, 
+                                market_type: str,
+                                take_profit: float = None,
+                                stop_loss: float = None,
+                                trailing_stop: float = None,
+                                trailing_step: float = None):
+        """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر وTP/SL"""
         try:
             # التحقق من صحة المعلمات
             amount = float(self.user_settings['trade_amount'])
@@ -1800,6 +1829,23 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(f"❌ خطأ في إغلاق الصفقة: {e}")
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالجة الرسائل النصية"""
+    if update.message is None or update.effective_user is None:
+        return
+
+    user_id = update.effective_user.id
+    message_text = update.message.text
+
+    if not message_text:
+        return
+
+    if message_text == "📊 إحصائيات التداول":
+        await trading_statistics(update, context)
+    elif message_text == "📈 تاريخ التداول":
+        await trade_history(update, context)
+    # ... باقي المعالجات
+
 async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض تاريخ التداول مع تفاصيل محسنة للفيوتشر"""
     try:
@@ -1889,6 +1935,87 @@ exampleInputEmail: {time_str}
             await update.message.reply_text(f"❌ خطأ في عرض تاريخ التداول: {e}")
 
 async def trading_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض إحصائيات التداول المفصلة"""
+    try:
+        if update.effective_user is None:
+            return
+
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
+
+        if not user_data:
+            if update.message:
+                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+            return
+
+        # الحصول على معلومات الحسابات
+        spot_account = user_manager.get_user_account(user_id, 'spot')
+        futures_account = user_manager.get_user_account(user_id, 'futures')
+
+        if not spot_account or not futures_account:
+            if update.message:
+                await update.message.reply_text("❌ خطأ في الحصول على معلومات الحساب")
+            return
+
+        spot_info = spot_account.get_account_info()
+        futures_info = futures_account.get_account_info()
+
+        # حساب الإحصائيات الإجمالية
+        total_trades = spot_info['total_trades'] + futures_info['total_trades']
+        total_winning = spot_info['winning_trades'] + futures_info['winning_trades']
+        total_losing = spot_info['losing_trades'] + futures_info['losing_trades']
+        win_rate = (total_winning / max(total_trades, 1)) * 100
+
+        # حساب الأداء المالي
+        total_balance = spot_info['balance'] + futures_info['balance']
+        total_initial = spot_account.initial_balance + futures_account.initial_balance
+        total_pnl = total_balance - total_initial
+        pnl_percentage = (total_pnl / total_initial * 100) if total_initial > 0 else 0
+
+        # تحديد الرموز
+        performance_emoji = "🌟" if win_rate > 60 else "⭐" if win_rate > 50 else "📊"
+        pnl_emoji = "💰🟢" if total_pnl > 0 else "💸🔴"
+
+        # بناء الرسالة
+        message = f"""📊 إحصائيات التداول المفصلة {performance_emoji}
+
+💫 الأداء العام:
+• إجمالي الصفقات: {total_trades}
+• الصفقات الرابحة: {total_winning}✅
+• الصفقات الخاسرة: {total_losing}❌
+• معدل النجاح: {win_rate:.2f}%
+
+💰 الأداء المالي {pnl_emoji}:
+• الرصيد الأولي: {total_initial:.2f} USDT
+• الرصيد الحالي: {total_balance:.2f} USDT
+• صافي الربح/الخسارة: {total_pnl:.2f} USDT ({pnl_percentage:+.2f}%)
+
+📈 إحصائيات السبوت:
+• عدد الصفقات: {spot_info['total_trades']}
+• الصفقات الرابحة: {spot_info['winning_trades']}
+• الصفقات الخاسرة: {spot_info['losing_trades']}
+• معدل النجاح: {spot_info['win_rate']}%
+
+📊 إحصائيات الفيوتشر:
+• عدد الصفقات: {futures_info['total_trades']}
+• الصفقات الرابحة: {futures_info['winning_trades']}
+• الصفقات الخاسرة: {futures_info['losing_trades']}
+• معدل النجاح: {futures_info['win_rate']}%
+• نسبة الهامش: {futures_info.get('margin_ratio', '∞')}
+
+⚙️ الإعدادات الحالية:
+• نوع السوق: {user_data.get('market_type', 'spot').upper()}
+• مبلغ التداول: {user_data.get('trade_amount', 0)} USDT
+• الرافعة المالية: {user_data.get('leverage', 1)}x"""
+
+        if update.message:
+            await update.message.reply_text(message)
+
+    except Exception as e:
+        logger.error(f"خطأ في عرض الإحصائيات: {e}")
+        if update.message:
+            await update.message.reply_text(f"❌ خطأ في عرض الإحصائيات: {e}")
+
     """عرض إحصائيات التداول المفصلة"""
     try:
         # الحصول على معلومات الحسابات
