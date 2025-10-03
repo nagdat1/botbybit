@@ -1538,6 +1538,91 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message is not None:
             await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
 
+async def create_position_keyboard(self, position_info: dict) -> InlineKeyboardMarkup:
+    """إنشاء لوحة مفاتيح للتحكم بالصفقة"""
+    symbol = position_info['symbol']
+    position_id = position_info.get('position_id')
+    current_price = position_info.get('current_price', 0)
+    entry_price = position_info.get('entry_price', 0)
+    side = position_info.get('side', 'buy')
+    
+    keyboard = [
+        # أزرار تحديد هدف الربح
+        [
+            InlineKeyboardButton(f"TP 1% 📈", callback_data=f"tp_{position_id}_1"),
+            InlineKeyboardButton(f"TP 2% 📈", callback_data=f"tp_{position_id}_2"),
+            InlineKeyboardButton(f"TP 5% 📈", callback_data=f"tp_{position_id}_5")
+        ],
+        # أزرار تحديد وقف الخسارة
+        [
+            InlineKeyboardButton(f"SL 1% 📉", callback_data=f"sl_{position_id}_1"),
+            InlineKeyboardButton(f"SL 2% 📉", callback_data=f"sl_{position_id}_2"),
+            InlineKeyboardButton(f"SL 3% 📉", callback_data=f"sl_{position_id}_3")
+        ],
+        # أزرار الإغلاق الجزئي
+        [
+            InlineKeyboardButton(f"إغلاق 25% 🔄", callback_data=f"close_{position_id}_25"),
+            InlineKeyboardButton(f"إغلاق 50% 🔄", callback_data=f"close_{position_id}_50"),
+            InlineKeyboardButton(f"إغلاق 75% 🔄", callback_data=f"close_{position_id}_75")
+        ],
+        # زر الإغلاق الكامل
+        [InlineKeyboardButton(f"❌ إغلاق كامل {symbol}", callback_data=f"close_{position_id}_100")]
+    ]
+    
+    return InlineKeyboardMarkup(keyboard)
+
+async def handle_position_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالجة الضغط على أزرار التحكم بالصفقة"""
+    query = update.callback_query
+    if not query:
+        return
+    
+    data = query.data.split('_')
+    if len(data) < 3:
+        return
+    
+    action = data[0]      # tp, sl, أو close
+    position_id = data[1] # معرف الصفقة
+    value = float(data[2]) # النسبة المئوية
+    
+    position_info = self.open_positions.get(position_id)
+    if not position_info:
+        await query.answer("❌ الصفقة غير موجودة")
+        return
+    
+    current_price = position_info.get('current_price', 0)
+    entry_price = position_info.get('entry_price', 0)
+    side = position_info.get('side', 'buy')
+    
+    if action == 'tp':
+        # حساب هدف الربح بالنسبة المئوية
+        if side.lower() == 'buy':
+            price = entry_price * (1 + value/100)
+        else:
+            price = entry_price * (1 - value/100)
+        await self.update_tp_sl(position_id, take_profit=price)
+        await query.answer(f"✅ تم تحديد هدف الربح عند {price:.2f} ({value}%)")
+    
+    elif action == 'sl':
+        # حساب وقف الخسارة بالنسبة المئوية
+        if side.lower() == 'buy':
+            price = entry_price * (1 - value/100)
+        else:
+            price = entry_price * (1 + value/100)
+        await self.update_tp_sl(position_id, stop_loss=price)
+        await query.answer(f"✅ تم تحديد وقف الخسارة عند {price:.2f} ({value}%)")
+    
+    elif action == 'close':
+        # تنفيذ الإغلاق الجزئي أو الكامل
+        if value == 100:
+            await self.close_position(position_id, update, context)
+        else:
+            await self.partial_close_position(position_id, value/100, current_price)
+        await query.answer(f"✅ تم إغلاق {value}% من الصفقة")
+    
+    # تحديث عرض الصفقة
+    await self.update_position_message(query.message, position_id)
+
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
     try:
