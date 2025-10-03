@@ -33,9 +33,6 @@ from user_manager import user_manager
 # استيراد رسائل التداول
 from trade_messages import TRADE_ERROR_MESSAGES, TRADE_SUCCESS_MESSAGES
 
-# استيراد معالجات الأزرار
-from position_handlers import handle_position_buttons, update_position_message
-
 # استيراد نظام إدارة الصفقات والإشعارات
 from trade_manager import TradeManager
 from trade_notifications import TradeNotifications
@@ -577,34 +574,7 @@ class BybitAPI:
             logger.error(f"خطأ في التحقق من الرمز: {e}")
             return False
     
-    def place_order(self, symbol: str, side: str, order_type: str, qty: str, price: Optional[str] = None, category: str = "spot", take_profit: Optional[str] = None, stop_loss: Optional[str] = None) -> dict:
-        """وضع أمر تداول مع دعم TP/SL"""
-        try:
-            endpoint = "/v5/order/create"
-            
-            params = {
-                "category": category,
-                "symbol": symbol,
-                "side": side.capitalize(),
-                "orderType": order_type,
-                "qty": qty
-            }
-            
-            if price and order_type.lower() == "limit":
-                params["price"] = price
-            
-            # إضافة TP/SL إذا تم توفيرهما
-            if take_profit:
-                params["takeProfit"] = take_profit
-            if stop_loss:
-                params["stopLoss"] = stop_loss
-            
-            response = self._make_request("POST", endpoint, params)
-            return response
-            
-        except Exception as e:
-            logger.error(f"خطأ في وضع الأمر: {e}")
-            return {"retCode": -1, "retMsg": str(e)}
+    def place_order(self, symbol: str, side: str, order_type: str, qty: str, price: Optional[str] = None, category: str = "spot") -> dict:
         """وضع أمر تداول"""
         try:
             endpoint = "/v5/order/create"
@@ -754,7 +724,6 @@ class TradingBot:
             logger.error(f"خطأ في تحديث الأزواج: {e}")
     
     async def update_open_positions_prices(self):
-        """تحديث أسعار الصفقات المفتوحة مع مراقبة TP/SL"""
         """تحديث أسعار الصفقات المفتوحة"""
         try:
             if not self.open_positions:
@@ -853,16 +822,6 @@ class TradingBot:
             return "❌ خطأ في الحصول على الأزواج"
     
     async def process_signal(self, signal_data: dict):
-        """
-        معالجة إشارة التداول مع دعم TP/SL
-        
-        signal_data يجب أن يحتوي على:
-        - symbol: رمز الزوج
-        - action: نوع الأمر (buy/sell)
-        - take_profit: (اختياري) سعر هدف الربح
-        - stop_loss: (اختياري) سعر وقف الخسارة
-        - trailing_stop: (اختياري) المسافة للتريلينج ستوب
-        """
         """معالجة إشارة التداول مع دعم محسن للفيوتشر"""
         try:
             self.signals_received += 1
@@ -874,12 +833,6 @@ class TradingBot:
             # التحقق من صحة بيانات الإشارة
             symbol = signal_data.get('symbol', '').upper()
             action = signal_data.get('action', '').lower()  # buy أو sell
-            
-            # استخراج قيم TP/SL إن وجدت
-            take_profit = signal_data.get('take_profit')
-            stop_loss = signal_data.get('stop_loss')
-            trailing_stop = signal_data.get('trailing_stop')
-            trailing_step = signal_data.get('trailing_step')
             
             if not symbol or not action:
                 error_msg = "❌ بيانات الإشارة غير مكتملة:\n"
@@ -988,9 +941,7 @@ class TradingBot:
                 side=side,
                 order_type="Market",
                 qty=str(amount),
-                category=category,
-                take_profit=str(take_profit) if take_profit else None,
-                stop_loss=str(stop_loss) if stop_loss else None
+                category=category
             )
             
             if response.get("retCode") == 0:
@@ -1082,21 +1033,6 @@ class TradingBot:
                     position_id = result
                     position = account.positions[position_id]
                     
-                    # إضافة الصفقة إلى مدير الصفقات مع TP/SL
-                    if take_profit or stop_loss:
-                        self.trade_manager.create_position(
-                            position_id=position_id,
-                            symbol=symbol,
-                            side=action,
-                            entry_price=price,
-                            quantity=position.position_size,
-                            leverage=leverage,
-                            take_profit=take_profit,
-                            stop_loss=stop_loss,
-                            trailing_stop=trailing_stop,
-                            trailing_step=trailing_step
-                        )
-                    
                     # التأكد من أن position هو FuturesPosition
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في القائمة العامة
@@ -1187,54 +1123,6 @@ class TradingBot:
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة التجريبية: {e}")
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
-    
-    async def update_tp_sl(self, position_id: str, take_profit: Optional[float] = None, stop_loss: Optional[float] = None) -> bool:
-        """تحديث مستويات TP/SL لصفقة محددة"""
-        try:
-            if position_id not in self.open_positions:
-                return False
-            
-            position_info = self.open_positions[position_id]
-            
-            if self.user_settings['account_type'] == 'real' and self.bybit_api:
-                # تحديث الصفقة الحقيقية
-                symbol = position_info['symbol']
-                category = position_info['category']
-                
-                # تحديث TP/SL على Bybit
-                response = self.bybit_api.update_position_tp_sl(
-                    symbol=symbol,
-                    category=category,
-                    take_profit=str(take_profit) if take_profit else None,
-                    stop_loss=str(stop_loss) if stop_loss else None
-                )
-                
-                if response.get("retCode") == 0:
-                    # تحديث المعلومات محلياً
-                    position_info['take_profit'] = take_profit
-                    position_info['stop_loss'] = stop_loss
-                    return True
-                else:
-                    return False
-            else:
-                # تحديث الصفقة التجريبية
-                result = self.trade_manager.update_position_tp_sl(
-                    position_id=position_id,
-                    new_tp=take_profit,
-                    new_sl=stop_loss
-                )
-                
-                if result['success']:
-                    # تحديث المعلومات محلياً
-                    position_info['take_profit'] = take_profit
-                    position_info['stop_loss'] = stop_loss
-                    return True
-                
-                return False
-                
-        except Exception as e:
-            logger.error(f"خطأ في تحديث TP/SL: {e}")
-            return False
     
     async def send_message_to_admin(self, message: str):
         """إرسال رسالة للمدير"""
@@ -1541,91 +1429,6 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message is not None:
             await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
 
-async def create_position_keyboard(self, position_info: dict) -> InlineKeyboardMarkup:
-    """إنشاء لوحة مفاتيح للتحكم بالصفقة"""
-    symbol = position_info['symbol']
-    position_id = position_info.get('position_id')
-    current_price = position_info.get('current_price', 0)
-    entry_price = position_info.get('entry_price', 0)
-    side = position_info.get('side', 'buy')
-    
-    keyboard = [
-        # أزرار تحديد هدف الربح
-        [
-            InlineKeyboardButton(f"TP 1% 📈", callback_data=f"tp_{position_id}_1"),
-            InlineKeyboardButton(f"TP 2% 📈", callback_data=f"tp_{position_id}_2"),
-            InlineKeyboardButton(f"TP 5% 📈", callback_data=f"tp_{position_id}_5")
-        ],
-        # أزرار تحديد وقف الخسارة
-        [
-            InlineKeyboardButton(f"SL 1% 📉", callback_data=f"sl_{position_id}_1"),
-            InlineKeyboardButton(f"SL 2% 📉", callback_data=f"sl_{position_id}_2"),
-            InlineKeyboardButton(f"SL 3% 📉", callback_data=f"sl_{position_id}_3")
-        ],
-        # أزرار الإغلاق الجزئي
-        [
-            InlineKeyboardButton(f"إغلاق 25% 🔄", callback_data=f"close_{position_id}_25"),
-            InlineKeyboardButton(f"إغلاق 50% 🔄", callback_data=f"close_{position_id}_50"),
-            InlineKeyboardButton(f"إغلاق 75% 🔄", callback_data=f"close_{position_id}_75")
-        ],
-        # زر الإغلاق الكامل
-        [InlineKeyboardButton(f"❌ إغلاق كامل {symbol}", callback_data=f"close_{position_id}_100")]
-    ]
-    
-    return InlineKeyboardMarkup(keyboard)
-
-async def handle_position_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة الضغط على أزرار التحكم بالصفقة"""
-    query = update.callback_query
-    if not query:
-        return
-    
-    data = query.data.split('_')
-    if len(data) < 3:
-        return
-    
-    action = data[0]      # tp, sl, أو close
-    position_id = data[1] # معرف الصفقة
-    value = float(data[2]) # النسبة المئوية
-    
-    position_info = self.open_positions.get(position_id)
-    if not position_info:
-        await query.answer("❌ الصفقة غير موجودة")
-        return
-    
-    current_price = position_info.get('current_price', 0)
-    entry_price = position_info.get('entry_price', 0)
-    side = position_info.get('side', 'buy')
-    
-    if action == 'tp':
-        # حساب هدف الربح بالنسبة المئوية
-        if side.lower() == 'buy':
-            price = entry_price * (1 + value/100)
-        else:
-            price = entry_price * (1 - value/100)
-        await self.update_tp_sl(position_id, take_profit=price)
-        await query.answer(f"✅ تم تحديد هدف الربح عند {price:.2f} ({value}%)")
-    
-    elif action == 'sl':
-        # حساب وقف الخسارة بالنسبة المئوية
-        if side.lower() == 'buy':
-            price = entry_price * (1 - value/100)
-        else:
-            price = entry_price * (1 + value/100)
-        await self.update_tp_sl(position_id, stop_loss=price)
-        await query.answer(f"✅ تم تحديد وقف الخسارة عند {price:.2f} ({value}%)")
-    
-    elif action == 'close':
-        # تنفيذ الإغلاق الجزئي أو الكامل
-        if value == 100:
-            await self.close_position(position_id, update, context)
-        else:
-            await self.partial_close_position(position_id, value/100, current_price)
-        await query.answer(f"✅ تم إغلاق {value}% من الصفقة")
-    
-    # تحديث عرض الصفقة
-    await self.update_position_message(query.message, position_id)
-
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
     try:
@@ -1693,61 +1496,6 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(error_message)
 
 async def send_spot_positions_message(update: Update, spot_positions: dict):
-    """إرسال رسالة صفقات السبوت مع أزرار التحكم"""
-    if not spot_positions:
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("🔄 لا توجد صفقات سبوت مفتوحة حالياً")
-        elif update.message is not None:
-            await update.message.reply_text("🔄 لا توجد صفقات سبوت مفتوحة حالياً")
-        return
-
-    for position_id, position_info in spot_positions.items():
-        symbol = position_info['symbol']
-        entry_price = position_info['entry_price']
-        current_price = position_info.get('current_price', entry_price)
-        side = position_info['side']
-        amount = position_info.get('amount', 0)
-        unrealized_pnl = position_info.get('unrealized_pnl', 0)
-        
-        # إنشاء نص الرسالة
-        message_text = f"""💰 صفقة {symbol}:
-🔄 النوع: {side.upper()}
-💲 سعر الدخول: {entry_price:.6f}
-💲 السعر الحالي: {current_price:.6f}
-💰 المبلغ: {amount:.2f}
-💰 الربح/الخسارة: {unrealized_pnl:+.2f}"""
-
-        # إنشاء أزرار التحكم
-        keyboard = [
-            # أزرار هدف الربح
-            [
-                InlineKeyboardButton("📈 TP 1%", callback_data=f"tp_{position_id}_1"),
-                InlineKeyboardButton("📈 TP 2%", callback_data=f"tp_{position_id}_2"),
-                InlineKeyboardButton("📈 TP 5%", callback_data=f"tp_{position_id}_5")
-            ],
-            # أزرار وقف الخسارة
-            [
-                InlineKeyboardButton("📉 SL 1%", callback_data=f"sl_{position_id}_1"),
-                InlineKeyboardButton("📉 SL 2%", callback_data=f"sl_{position_id}_2"),
-                InlineKeyboardButton("📉 SL 3%", callback_data=f"sl_{position_id}_3")
-            ],
-            # أزرار الإغلاق الجزئي
-            [
-                InlineKeyboardButton("🔄 25%", callback_data=f"close_{position_id}_25"),
-                InlineKeyboardButton("🔄 50%", callback_data=f"close_{position_id}_50"),
-                InlineKeyboardButton("🔄 75%", callback_data=f"close_{position_id}_75")
-            ],
-            # زر الإغلاق الكامل
-            [InlineKeyboardButton("❌ إغلاق كامل", callback_data=f"close_{position_id}_100")]
-        ]
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # إرسال الرسالة لكل صفقة
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
-        elif update.message is not None:
-            await update.message.reply_text(message_text, reply_markup=reply_markup)
     """إرسال رسالة صفقات السبوت مع عرض زر إغلاق وسعر الربح/الخسارة"""
     if not spot_positions:
         message_text = "🔄 لا توجد صفقات سبوت مفتوحة حالياً"
@@ -1838,61 +1586,6 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         await update.message.reply_text(spot_text, reply_markup=spot_reply_markup)
 
 async def send_futures_positions_message(update: Update, futures_positions: dict):
-    """إرسال رسالة صفقات الفيوتشر مع أزرار التحكم"""
-    if not futures_positions:
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("🔄 لا توجد صفقات فيوتشر مفتوحة حالياً")
-        elif update.message is not None:
-            await update.message.reply_text("🔄 لا توجد صفقات فيوتشر مفتوحة حالياً")
-        return
-
-    for position_id, position_info in futures_positions.items():
-        symbol = position_info['symbol']
-        entry_price = position_info['entry_price']
-        current_price = position_info.get('current_price', entry_price)
-        side = position_info['side']
-        leverage = position_info.get('leverage', 1)
-        unrealized_pnl = position_info.get('unrealized_pnl', 0)
-        
-        # إنشاء نص الرسالة
-        message_text = f"""💰 صفقة {symbol}:
-🔄 النوع: {side.upper()}
-💲 سعر الدخول: {entry_price:.6f}
-💲 السعر الحالي: {current_price:.6f}
-⚙️ الرافعة: {leverage}x
-💰 الربح/الخسارة: {unrealized_pnl:+.2f}"""
-
-        # إنشاء أزرار التحكم
-        keyboard = [
-            # أزرار هدف الربح
-            [
-                InlineKeyboardButton("📈 TP 1%", callback_data=f"tp_{position_id}_1"),
-                InlineKeyboardButton("📈 TP 2%", callback_data=f"tp_{position_id}_2"),
-                InlineKeyboardButton("📈 TP 5%", callback_data=f"tp_{position_id}_5")
-            ],
-            # أزرار وقف الخسارة
-            [
-                InlineKeyboardButton("📉 SL 1%", callback_data=f"sl_{position_id}_1"),
-                InlineKeyboardButton("📉 SL 2%", callback_data=f"sl_{position_id}_2"),
-                InlineKeyboardButton("📉 SL 3%", callback_data=f"sl_{position_id}_3")
-            ],
-            # أزرار الإغلاق الجزئي
-            [
-                InlineKeyboardButton("🔄 25%", callback_data=f"close_{position_id}_25"),
-                InlineKeyboardButton("🔄 50%", callback_data=f"close_{position_id}_50"),
-                InlineKeyboardButton("🔄 75%", callback_data=f"close_{position_id}_75")
-            ],
-            # زر الإغلاق الكامل
-            [InlineKeyboardButton("❌ إغلاق كامل", callback_data=f"close_{position_id}_100")]
-        ]
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # إرسال الرسالة لكل صفقة
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
-        elif update.message is not None:
-            await update.message.reply_text(message_text, reply_markup=reply_markup)
     """إرسال رسالة صفقات الفيوتشر مع معلومات مفصلة وزر إغلاق وسعر الربح/الخسارة"""
     if not futures_positions:
         message_text = "🔄 لا توجد صفقات فيوتشر مفتوحة حالياً"
@@ -1964,8 +1657,6 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🔄 النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: {current_price:.6f}
-💎 هدف الربح: {position_info.get('take_profit', 'غير محدد')}
-🛑 وقف الخسارة: {position_info.get('stop_loss', 'غير محدد')}
 💰 الهامش المحجوز: {margin_amount:.2f}
 📈 حجم الصفقة: {position_size:.2f}
 {arrow} الربح/الخسارة: {unrealized_pnl:.2f} ({pnl_percent:.2f}%) - {pnl_status}
@@ -1987,36 +1678,12 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🆔 رقم الصفقة: {position_id}
             """
         
-            # إنشاء لوحة التحكم للصفقة
-            position_keyboard = [
-                # أزرار تحديد هدف الربح
-                [
-                    InlineKeyboardButton(f"TP 1% 📈", callback_data=f"tp_{position_id}_1"),
-                    InlineKeyboardButton(f"TP 2% 📈", callback_data=f"tp_{position_id}_2"),
-                    InlineKeyboardButton(f"TP 5% 📈", callback_data=f"tp_{position_id}_5")
-                ],
-                # أزرار تحديد وقف الخسارة
-                [
-                    InlineKeyboardButton(f"SL 1% 📉", callback_data=f"sl_{position_id}_1"),
-                    InlineKeyboardButton(f"SL 2% 📉", callback_data=f"sl_{position_id}_2"),
-                    InlineKeyboardButton(f"SL 3% 📉", callback_data=f"sl_{position_id}_3")
-                ],
-                # أزرار الإغلاق الجزئي
-                [
-                    InlineKeyboardButton(f"إغلاق 25% 🔄", callback_data=f"close_{position_id}_25"),
-                    InlineKeyboardButton(f"إغلاق 50% 🔄", callback_data=f"close_{position_id}_50"),
-                    InlineKeyboardButton(f"إغلاق 75% 🔄", callback_data=f"close_{position_id}_75")
-                ],
-                # زر الإغلاق الكامل
-                [InlineKeyboardButton(f"❌ إغلاق كامل {symbol} ({unrealized_pnl:+.2f})", callback_data=f"close_{position_id}_100")]
-            ]
-            
-            # إضافة الأزرار إلى لوحة المفاتيح
-            # إضافة الأزرار للصفقة
-            futures_keyboard.extend(position_keyboard)
-            
-            # إضافة زر التحديث
-            futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
+        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
+        pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
+        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
+        futures_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
+    
+    futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
     
     if update.callback_query is not None:

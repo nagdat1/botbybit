@@ -36,21 +36,9 @@ class TradePosition:
         self.leverage = leverage
         
         # أهداف الربح والخسارة
-        self.take_profits = [] # قائمة بأهداف الربح المتعددة
-        if take_profit:
-            if isinstance(take_profit, (list, tuple)):
-                self.take_profits = sorted(take_profit)
-            else:
-                self.take_profits = [take_profit]
-        
-        self.stop_losses = [] # قائمة بمستويات وقف الخسارة
-        if stop_loss:
-            if isinstance(stop_loss, (list, tuple)):
-                self.stop_losses = sorted(stop_loss, reverse=True)
-            else:
-                self.stop_losses = [stop_loss]
-        
-        self.initial_stop_losses = self.stop_losses.copy()
+        self.take_profit = take_profit
+        self.stop_loss = stop_loss
+        self.initial_stop_loss = stop_loss
         
         # إعدادات Trailing Stop
         self.trailing_stop = trailing_stop
