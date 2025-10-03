@@ -1783,6 +1783,61 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         await update.message.reply_text(spot_text, reply_markup=spot_reply_markup)
 
 async def send_futures_positions_message(update: Update, futures_positions: dict):
+    """إرسال رسالة صفقات الفيوتشر مع أزرار التحكم"""
+    if not futures_positions:
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("🔄 لا توجد صفقات فيوتشر مفتوحة حالياً")
+        elif update.message is not None:
+            await update.message.reply_text("🔄 لا توجد صفقات فيوتشر مفتوحة حالياً")
+        return
+
+    for position_id, position_info in futures_positions.items():
+        symbol = position_info['symbol']
+        entry_price = position_info['entry_price']
+        current_price = position_info.get('current_price', entry_price)
+        side = position_info['side']
+        leverage = position_info.get('leverage', 1)
+        unrealized_pnl = position_info.get('unrealized_pnl', 0)
+        
+        # إنشاء نص الرسالة
+        message_text = f"""💰 صفقة {symbol}:
+🔄 النوع: {side.upper()}
+💲 سعر الدخول: {entry_price:.6f}
+💲 السعر الحالي: {current_price:.6f}
+⚙️ الرافعة: {leverage}x
+💰 الربح/الخسارة: {unrealized_pnl:+.2f}"""
+
+        # إنشاء أزرار التحكم
+        keyboard = [
+            # أزرار هدف الربح
+            [
+                InlineKeyboardButton("📈 TP 1%", callback_data=f"tp_{position_id}_1"),
+                InlineKeyboardButton("📈 TP 2%", callback_data=f"tp_{position_id}_2"),
+                InlineKeyboardButton("📈 TP 5%", callback_data=f"tp_{position_id}_5")
+            ],
+            # أزرار وقف الخسارة
+            [
+                InlineKeyboardButton("📉 SL 1%", callback_data=f"sl_{position_id}_1"),
+                InlineKeyboardButton("📉 SL 2%", callback_data=f"sl_{position_id}_2"),
+                InlineKeyboardButton("📉 SL 3%", callback_data=f"sl_{position_id}_3")
+            ],
+            # أزرار الإغلاق الجزئي
+            [
+                InlineKeyboardButton("🔄 25%", callback_data=f"close_{position_id}_25"),
+                InlineKeyboardButton("🔄 50%", callback_data=f"close_{position_id}_50"),
+                InlineKeyboardButton("🔄 75%", callback_data=f"close_{position_id}_75")
+            ],
+            # زر الإغلاق الكامل
+            [InlineKeyboardButton("❌ إغلاق كامل", callback_data=f"close_{position_id}_100")]
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        # إرسال الرسالة لكل صفقة
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
+        elif update.message is not None:
+            await update.message.reply_text(message_text, reply_markup=reply_markup)
     """إرسال رسالة صفقات الفيوتشر مع معلومات مفصلة وزر إغلاق وسعر الربح/الخسارة"""
     if not futures_positions:
         message_text = "🔄 لا توجد صفقات فيوتشر مفتوحة حالياً"
