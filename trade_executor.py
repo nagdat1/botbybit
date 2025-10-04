@@ -18,6 +18,27 @@ class TradeExecutor:
     def __init__(self, trading_bot=None):
         self.trading_bot = trading_bot
         self.active_orders = {}  # تتبع الأوامر النشطة
+    
+    def _find_position_in_accounts(self, position_id: str) -> tuple:
+        """البحث عن الصفقة في الحسابات التجريبية"""
+        try:
+            if not self.trading_bot:
+                return None, None
+            
+            # البحث في حساب السبوت
+            if hasattr(self.trading_bot, 'demo_account_spot'):
+                if position_id in self.trading_bot.demo_account_spot.positions:
+                    return self.trading_bot.demo_account_spot, 'spot'
+            
+            # البحث في حساب الفيوتشر
+            if hasattr(self.trading_bot, 'demo_account_futures'):
+                if position_id in self.trading_bot.demo_account_futures.positions:
+                    return self.trading_bot.demo_account_futures, 'futures'
+            
+            return None, None
+        except Exception as e:
+            logger.error(f"خطأ في البحث عن الصفقة: {e}")
+            return None, None
         
     async def set_take_profit(self, position_id: str, percent: float) -> Dict:
         """وضع هدف الربح (Take Profit)"""
@@ -419,45 +440,38 @@ class TradeExecutor:
     async def _execute_demo_close(self, position_info: Dict, current_price: float, total_pnl: float) -> bool:
         """تنفيذ إغلاق تجريبي"""
         try:
-            # تحديد الحساب التجريبي الصحيح
-            market_type = position_info.get('account_type', 'spot')
+            # البحث عن الصفقة في الحسابات مباشرة
+            # استخدام position_id من القائمة العامة
+            position_id = None
+            if hasattr(self.trading_bot, 'open_positions'):
+                for pid, info in self.trading_bot.open_positions.items():
+                    if info == position_info:
+                        position_id = pid
+                        break
             
+            if not position_id:
+                logger.error("لم يتم العثور على position_id")
+                return False
+            
+            # البحث عن الصفقة في الحسابات
+            account, market_type = self._find_position_in_accounts(position_id)
+            
+            if not account:
+                logger.error(f"لم يتم العثور على الصفقة {position_id} في الحسابات")
+                return False
+            
+            # إغلاق الصفقة حسب نوع السوق
             if market_type == 'futures':
-                account = self.trading_bot.demo_account_futures
-                position_id = None
-                for pid, pos in account.positions.items():
-                    if hasattr(pos, 'symbol') and pos.symbol == position_info.get('symbol'):
-                        position_id = pid
-                        break
-                
-                if position_id:
-                    success, result = account.close_futures_position(position_id, current_price)
-                    if success:
-                        # حذف الصفقة من القائمة العامة
-                        if hasattr(self.trading_bot, 'open_positions'):
-                            for pid, info in list(self.trading_bot.open_positions.items()):
-                                if info == position_info:
-                                    del self.trading_bot.open_positions[pid]
-                                    break
-                        return True
+                success, result = account.close_futures_position(position_id, current_price)
             else:
-                account = self.trading_bot.demo_account_spot
-                position_id = None
-                for pid, pos in account.positions.items():
-                    if isinstance(pos, dict) and pos.get('symbol') == position_info.get('symbol'):
-                        position_id = pid
-                        break
-                
-                if position_id:
-                    success, result = account.close_spot_position(position_id, current_price)
-                    if success:
-                        # حذف الصفقة من القائمة العامة
-                        if hasattr(self.trading_bot, 'open_positions'):
-                            for pid, info in list(self.trading_bot.open_positions.items()):
-                                if info == position_info:
-                                    del self.trading_bot.open_positions[pid]
-                                    break
-                        return True
+                success, result = account.close_spot_position(position_id, current_price)
+            
+            if success:
+                # حذف الصفقة من القائمة العامة
+                if hasattr(self.trading_bot, 'open_positions'):
+                    if position_id in self.trading_bot.open_positions:
+                        del self.trading_bot.open_positions[position_id]
+                return True
             
             return False
             

@@ -925,6 +925,7 @@ class TradingBot:
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في القائمة العامة
                         self.open_positions[position_id] = {
+                            'position_id': position_id,
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -959,6 +960,29 @@ class TradingBot:
                         message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
                         
                         await self.send_message_to_admin(message)
+                        
+                        # إرسال رسالة تفاعلية للصفقة
+                        try:
+                            from telegram import Update
+                            from telegram.ext import Application
+                            
+                            # إنشاء رسالة تفاعلية للصفقة
+                            from trade_messages import trade_message_manager
+                            position_data = self.open_positions[position_id]
+                            trade_message, trade_keyboard = trade_message_manager.create_trade_message(
+                                position_data, self.user_settings
+                            )
+                            
+                            # إرسال الرسالة التفاعلية
+                            application = Application.builder().token(TELEGRAM_TOKEN).build()
+                            await application.bot.send_message(
+                                chat_id=ADMIN_USER_ID, 
+                                text=trade_message, 
+                                reply_markup=trade_keyboard
+                            )
+                            logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
+                        except Exception as e:
+                            logger.error(f"خطأ في إرسال الرسالة التفاعلية: {e}")
                     else:
                         await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
                 else:
@@ -979,6 +1003,7 @@ class TradingBot:
                     position_id = result
                     
                     self.open_positions[position_id] = {
+                        'position_id': position_id,
                         'symbol': symbol,
                         'entry_price': price,
                         'side': action,
@@ -998,13 +1023,36 @@ class TradingBot:
                     message += f"💰 المبلغ: {amount}\n"
                     message += f"💲 سعر الدخول: {price:.6f}\n"
                     message += f"🏪 السوق: SPOT\n"
-                    message += f"ident رقم الصفقة: {position_id}\n"
+                    message += f"🆔 رقم الصفقة: {position_id}\n"
                     
                     # إضافة معلومات الحساب
                     account_info = account.get_account_info()
                     message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
                     
                     await self.send_message_to_admin(message)
+                    
+                    # إرسال رسالة تفاعلية للصفقة
+                    try:
+                        from telegram import Update
+                        from telegram.ext import Application
+                        
+                        # إنشاء رسالة تفاعلية للصفقة
+                        from trade_messages import trade_message_manager
+                        position_data = self.open_positions[position_id]
+                        trade_message, trade_keyboard = trade_message_manager.create_trade_message(
+                            position_data, self.user_settings
+                        )
+                        
+                        # إرسال الرسالة التفاعلية
+                        application = Application.builder().token(TELEGRAM_TOKEN).build()
+                        await application.bot.send_message(
+                            chat_id=ADMIN_USER_ID, 
+                            text=trade_message, 
+                            reply_markup=trade_keyboard
+                        )
+                        logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
+                    except Exception as e:
+                        logger.error(f"خطأ في إرسال الرسالة التفاعلية: {e}")
                 else:
                     await self.send_message_to_admin(f"❌ فشل في فتح الصفقة التجريبية: {result}")
                 
@@ -1033,6 +1081,12 @@ user_manager.load_all_users()
 
 # ربط مدير الصفقات بالبوت
 trade_manager.set_trading_bot(trading_bot)
+
+# ربط معالج الأزرار والتنفيذ مع البوت
+from trade_button_handler import trade_button_handler
+from trade_executor import trade_executor
+trade_button_handler.trading_bot = trading_bot
+trade_executor.trading_bot = trading_bot
 
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
@@ -1877,10 +1931,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     data = query.data
     
-    # معالجة أزرار الصفقات التفاعلية أولاً
-    handled = await trade_manager.handle_trade_callback(update, context, data)
-    if handled:
-        return
+    # معالجة أزرار الصفقات التفاعلية أولاً (بما في ذلك close_)
+    trade_actions = ['tp_', 'sl_', 'partial_', 'close_', 'edit_', 'set_', 'custom_', 'confirm_', 'cancel_', 'refresh_', 'back_']
+    if any(data.startswith(action) for action in trade_actions):
+        handled = await trade_manager.handle_trade_callback(update, context, data)
+        if handled:
+            return
     
     # معالجة زر الربط API
     if data == "link_api":
@@ -1939,11 +1995,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data.startswith("close_"):
-        position_id = data.replace("close_", "")
-        await close_position(position_id, update, context)
-    elif data == "refresh_positions":
-        await open_positions(update, context)
     elif data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:

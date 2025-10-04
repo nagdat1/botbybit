@@ -78,10 +78,28 @@ class TradeButtonHandler:
     def _position_exists(self, position_id: str) -> bool:
         """التحقق من وجود الصفقة"""
         try:
-            if self.trading_bot and hasattr(self.trading_bot, 'open_positions'):
-                return position_id in self.trading_bot.open_positions
+            if not self.trading_bot:
+                return False
+            
+            # البحث في القائمة العامة للصفقات المفتوحة
+            if hasattr(self.trading_bot, 'open_positions'):
+                if position_id in self.trading_bot.open_positions:
+                    return True
+            
+            # البحث في الحسابات التجريبية
+            # حساب السبوت
+            if hasattr(self.trading_bot, 'demo_account_spot'):
+                if position_id in self.trading_bot.demo_account_spot.positions:
+                    return True
+            
+            # حساب الفيوتشر
+            if hasattr(self.trading_bot, 'demo_account_futures'):
+                if position_id in self.trading_bot.demo_account_futures.positions:
+                    return True
+            
             return False
-        except:
+        except Exception as e:
+            logger.error(f"خطأ في التحقق من وجود الصفقة: {e}")
             return False
     
     async def _handle_tp_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
