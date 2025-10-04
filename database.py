@@ -75,6 +75,76 @@ class DatabaseManager:
                     )
                 """)
                 
+                # جدول مستويات Take Profit
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS take_profit_levels (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id TEXT NOT NULL,
+                        level_number INTEGER NOT NULL,
+                        price_type TEXT NOT NULL,
+                        value REAL NOT NULL,
+                        close_percentage REAL NOT NULL,
+                        target_price REAL,
+                        executed BOOLEAN DEFAULT 0,
+                        executed_time TIMESTAMP,
+                        executed_price REAL,
+                        pnl REAL,
+                        FOREIGN KEY (order_id) REFERENCES orders (order_id) ON DELETE CASCADE
+                    )
+                """)
+                
+                # جدول Stop Loss
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS stop_losses (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id TEXT NOT NULL,
+                        price_type TEXT NOT NULL,
+                        value REAL NOT NULL,
+                        target_price REAL,
+                        trailing BOOLEAN DEFAULT 0,
+                        trailing_distance REAL,
+                        trailing_activated_price REAL,
+                        executed BOOLEAN DEFAULT 0,
+                        executed_time TIMESTAMP,
+                        executed_price REAL,
+                        pnl REAL,
+                        FOREIGN KEY (order_id) REFERENCES orders (order_id) ON DELETE CASCADE
+                    )
+                """)
+                
+                # جدول الإغلاقات الجزئية
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS partial_closes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id TEXT NOT NULL,
+                        close_type TEXT NOT NULL,
+                        level INTEGER,
+                        price REAL NOT NULL,
+                        quantity REAL NOT NULL,
+                        percentage REAL NOT NULL,
+                        pnl REAL,
+                        close_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (order_id) REFERENCES orders (order_id) ON DELETE CASCADE
+                    )
+                """)
+                
+                # تحديث جدول orders لإضافة حقول جديدة
+                # التحقق من وجود العمود remaining_quantity
+                cursor.execute("PRAGMA table_info(orders)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'remaining_quantity' not in columns:
+                    cursor.execute("ALTER TABLE orders ADD COLUMN remaining_quantity REAL DEFAULT 0")
+                
+                if 'realized_pnl' not in columns:
+                    cursor.execute("ALTER TABLE orders ADD COLUMN realized_pnl REAL DEFAULT 0")
+                
+                if 'unrealized_pnl' not in columns:
+                    cursor.execute("ALTER TABLE orders ADD COLUMN unrealized_pnl REAL DEFAULT 0")
+                
+                if 'current_price' not in columns:
+                    cursor.execute("ALTER TABLE orders ADD COLUMN current_price REAL")
+                
                 conn.commit()
                 logger.info("تم تهيئة قاعدة البيانات بنجاح")
                 
@@ -488,6 +558,218 @@ class DatabaseManager:
                 'open_orders': 0,
                 'closed_orders': 0
             }
+    
+    # إدارة Take Profit و Stop Loss
+    def add_take_profit(self, order_id: str, tp_data: Dict) -> bool:
+        """إضافة مستوى Take Profit"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO take_profit_levels (
+                        order_id, level_number, price_type, value, 
+                        close_percentage, target_price
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    order_id,
+                    tp_data['level_number'],
+                    tp_data['price_type'],
+                    tp_data['value'],
+                    tp_data['close_percentage'],
+                    tp_data.get('target_price')
+                ))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إضافة Take Profit: {e}")
+            return False
+    
+    def add_stop_loss(self, order_id: str, sl_data: Dict) -> bool:
+        """إضافة Stop Loss"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO stop_losses (
+                        order_id, price_type, value, target_price,
+                        trailing, trailing_distance
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    order_id,
+                    sl_data['price_type'],
+                    sl_data['value'],
+                    sl_data.get('target_price'),
+                    sl_data.get('trailing', False),
+                    sl_data.get('trailing_distance')
+                ))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إضافة Stop Loss: {e}")
+            return False
+    
+    def get_order_take_profits(self, order_id: str) -> List[Dict]:
+        """الحصول على مستويات Take Profit للصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM take_profit_levels 
+                    WHERE order_id = ?
+                    ORDER BY level_number
+                """, (order_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على Take Profits: {e}")
+            return []
+    
+    def get_order_stop_loss(self, order_id: str) -> Optional[Dict]:
+        """الحصول على Stop Loss للصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM stop_losses 
+                    WHERE order_id = ?
+                    LIMIT 1
+                """, (order_id,))
+                
+                row = cursor.fetchone()
+                return dict(row) if row else None
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على Stop Loss: {e}")
+            return None
+    
+    def update_take_profit(self, tp_id: int, updates: Dict) -> bool:
+        """تحديث مستوى Take Profit"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                set_clauses = []
+                values = []
+                
+                for key, value in updates.items():
+                    set_clauses.append(f"{key} = ?")
+                    values.append(value)
+                
+                if set_clauses:
+                    values.append(tp_id)
+                    query = f"UPDATE take_profit_levels SET {', '.join(set_clauses)} WHERE id = ?"
+                    
+                    cursor.execute(query, values)
+                    conn.commit()
+                    return cursor.rowcount > 0
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث Take Profit: {e}")
+            return False
+    
+    def update_stop_loss(self, sl_id: int, updates: Dict) -> bool:
+        """تحديث Stop Loss"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                set_clauses = []
+                values = []
+                
+                for key, value in updates.items():
+                    set_clauses.append(f"{key} = ?")
+                    values.append(value)
+                
+                if set_clauses:
+                    values.append(sl_id)
+                    query = f"UPDATE stop_losses SET {', '.join(set_clauses)} WHERE id = ?"
+                    
+                    cursor.execute(query, values)
+                    conn.commit()
+                    return cursor.rowcount > 0
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث Stop Loss: {e}")
+            return False
+    
+    def add_partial_close(self, partial_close_data: Dict) -> bool:
+        """إضافة إغلاق جزئي"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO partial_closes (
+                        order_id, close_type, level, price, 
+                        quantity, percentage, pnl
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    partial_close_data['order_id'],
+                    partial_close_data['close_type'],
+                    partial_close_data.get('level'),
+                    partial_close_data['price'],
+                    partial_close_data['quantity'],
+                    partial_close_data['percentage'],
+                    partial_close_data.get('pnl')
+                ))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إضافة إغلاق جزئي: {e}")
+            return False
+    
+    def get_order_partial_closes(self, order_id: str) -> List[Dict]:
+        """الحصول على الإغلاقات الجزئية للصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM partial_closes 
+                    WHERE order_id = ?
+                    ORDER BY close_time DESC
+                """, (order_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الإغلاقات الجزئية: {e}")
+            return []
+    
+    def get_full_order_details(self, order_id: str) -> Optional[Dict]:
+        """الحصول على تفاصيل الصفقة الكاملة مع TP/SL"""
+        try:
+            order = self.get_order(order_id)
+            if not order:
+                return None
+            
+            # إضافة TP/SL
+            order['take_profits'] = self.get_order_take_profits(order_id)
+            order['stop_loss'] = self.get_order_stop_loss(order_id)
+            order['partial_closes'] = self.get_order_partial_closes(order_id)
+            
+            return order
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على تفاصيل الصفقة: {e}")
+            return None
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

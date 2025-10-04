@@ -94,18 +94,70 @@
     "platform": "Railway",
     "description": "مسؤول عن تشغيل المشروع الكامل، يشغل البوت، الصفقات، والأوامر لجميع المستخدمين"
   },
+  "TP_SL_Strategy": {
+    "definitions": {
+      "StopLoss": {
+        "description": "أمر يغلق الصفقة تلقائيًا لتقليل الخسائر.",
+        "example": "شراء BTC عند 30,000$, SL = 29,000$"
+      },
+      "TakeProfit": {
+        "description": "أمر يغلق الصفقة تلقائيًا لتحقيق الربح.",
+        "example": "شراء BTC عند 30,000$, TP = 32,000$"
+      }
+    },
+    "order_types": {
+      "Spot": {
+        "description": "صفقات فورية، SL و TP باستخدام Limit / OCO.",
+        "tools": ["Limit Order", "OCO"]
+      },
+      "Futures": {
+        "description": "عقود مشتقة، يدعم SL و TP مباشرة، Trailing Stop متاح.",
+        "tools": ["Limit Order", "Stop Order", "OCO", "Trailing Stop", "Break-even"]
+      },
+      "Margin": {
+        "description": "رافعة مالية، نفس Futures لكن مخاطر أعلى، إدارة SL مهمة.",
+        "tools": ["Limit Order", "Stop Order", "OCO", "Trailing Stop", "Break-even"]
+      }
+    },
+    "strategies": [
+      {
+        "name": "Fixed Ratio",
+        "description": "تحديد SL و TP كنسبة من سعر الدخول.",
+        "example": "SL = -2%, TP = +4%, نسبة مخاطرة:ربح = 1:2"
+      },
+      {
+        "name": "Support/Resistance",
+        "description": "SL تحت الدعم مباشرة، TP عند المقاومة التالية.",
+        "example": "شراء ETH عند دعم 1500$, SL = 1450$, TP = 1550$"
+      },
+      {
+        "name": "Technical Indicators",
+        "description": "استخدام Fibonacci / RSI / Moving Average لتحديد مناطق TP و SL.",
+        "example": "شراء عند ارتداد الدعم، وضع TP عند الخط التالي للفايبوناتشي"
+      },
+      {
+        "name": "Partial TP",
+        "description": "تقسيم الصفقة لأخذ جزء من الربح عند TP1، رفع SL على نقطة الدخول، TP2 لأقصى ربح.",
+        "example": "شراء ETH عند 1500$, TP1 = 1550$, TP2 = 1600$, رفع SL بعد TP1"
+      },
+      {
+        "name": "Trailing Stop",
+        "description": "SL يتحرك تلقائيًا مع السعر لحماية الأرباح.",
+        "example": "شراء BTC عند 30,000$, TP = 32,000$, Trailing Stop 100$"
+      }
+    ],
+    "best_practices": [
+      "لا تحرك SL بعيدًا بدون سبب.",
+      "ضع TP واقعيًا لتأمين الأرباح.",
+      "استخدم OCO لتقليل المخاطر والضغط.",
+      "تحديث TP/SL حسب ديناميكية السوق.",
+      "لا تخاطر بأكثر من 1-2% من رأس المال على الصفقة."
+    ]
+  },
   "similar_projects": [
     {
       "project_name": "Binance Futures Trading Bot",
       "description": "بوت تداول العقود الآجلة على Binance، يدعم أوامر buy/sell، TP/SL، وتنبيهات لكل مستخدم.",
-      "structure": {
-        "core_files": ["binance_trading_bot.py", "web_server.py", "config.py", "app.py", "run_server.py"],
-        "deployment_files": ["requirements.txt", "Dockerfile", "deploy.yaml", "env.example"],
-        "data_files": ["futures_pairs.json", "popular_pairs.json"],
-        "test_files": ["test_env.py", "test_bot.py"],
-        "docs": ["README.md"],
-        "helpers": ["trading_bot.log"]
-      },
       "features": [
         "Multi-user مع فصل البيئات لكل مستخدم",
         "API Keys لكل مستخدم",
@@ -116,14 +168,6 @@
     {
       "project_name": "Crypto Signal Telegram Bot",
       "description": "بوت تيليجرام يقدم إشارات تداول للعملات المشفرة، يدعم إشعارات متعددة للمستخدمين، وتخصيص الإشعارات لكل مستخدم.",
-      "structure": {
-        "core_files": ["signal_bot.py", "web_server.py", "config.py", "app.py"],
-        "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml"],
-        "data_files": ["signal_pairs.json", "popular_pairs.json"],
-        "test_files": ["test_signals.py"],
-        "docs": ["README.md"],
-        "helpers": ["bot.log"]
-      },
       "features": [
         "Multi-user environment مع تخصيص إشعارات",
         "إدارة إعدادات كل مستخدم",
@@ -134,14 +178,6 @@
     {
       "project_name": "AI Crypto Trading Agent",
       "description": "مشروع تجريبي لوكيل تداول ذكي يستخدم Machine Learning لتحليل السوق، يدعم صفقات تلقائية لكل مستخدم.",
-      "structure": {
-        "core_files": ["ai_trading_agent.py", "ml_model.py", "config.py", "app.py", "run_with_server.py"],
-        "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml", "env.example"],
-        "data_files": ["market_data.json", "user_profiles.json"],
-        "test_files": ["test_agent.py"],
-        "docs": ["README.md"],
-        "helpers": ["agent.log"]
-      },
       "features": [
         "Multi-user environment لكل user_id",
         "صفقات تلقائية وتحليل بيانات السوق",
@@ -157,5 +193,63 @@
     "التغييرات على الصفقات تؤثر على رصيد المستخدم فقط.",
     "زر تشغيل/إيقاف البوت موجود داخل قسم الإعدادات فقط.",
     "يمكن للـ Agent الاستفادة من المشاريع المشابهة لفهم أنماط البنية والتنظيم."
-  ]
+  ],
+  "new_features": {
+    "tp_sl_system": {
+      "description": "نظام متقدم لإدارة Take Profit و Stop Loss المتعدد مع الإغلاقات الجزئية",
+      "version": "1.0.0",
+      "status": "completed",
+      "date": "2025-10-04",
+      "files": {
+        "core": [
+          "order_manager.py",
+          "trade_interface.py",
+          "bot_integration.py"
+        ],
+        "updated": [
+          "database.py"
+        ],
+        "documentation": [
+          "TP_SL_GUIDE.md",
+          "README_TP_SL.md",
+          "IMPLEMENTATION_SUMMARY.md",
+          "examples_tpsl.py"
+        ]
+      },
+      "features": {
+        "take_profit": {
+          "multiple_levels": true,
+          "price_types": ["percentage", "fixed_price"],
+          "partial_close": true,
+          "auto_execution": true
+        },
+        "stop_loss": {
+          "price_types": ["percentage", "fixed_price"],
+          "trailing_stop": true,
+          "auto_execution": true
+        },
+        "monitoring": {
+          "auto_price_tracking": true,
+          "frequency": "10_seconds",
+          "notifications": true
+        },
+        "database": {
+          "tables": ["take_profit_levels", "stop_losses", "partial_closes"],
+          "full_persistence": true
+        }
+      },
+      "usage": {
+        "how_to_use": "راجع TP_SL_GUIDE.md للتعليمات الكاملة",
+        "examples": "راجع examples_tpsl.py للأمثلة العملية",
+        "integration": "راجع README_TP_SL.md لربط النظام مع البوت"
+      },
+      "statistics": {
+        "lines_of_code": "1200+",
+        "new_files": 6,
+        "database_tables": 3,
+        "main_functions": "20+",
+        "classes": 4
+      }
+    }
+  }
 }
