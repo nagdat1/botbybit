@@ -1617,8 +1617,8 @@ async def send_individual_trade_message(update: Update, trade: dict):
             entry_price = trade['entry_price']
             current_price = trade['current_price']
             pnl = trade['pnl']
-        pnl_percentage = trade['pnl_percentage']
-        remaining_quantity = trade['remaining_quantity']
+            pnl_percentage = trade['pnl_percentage']
+            remaining_quantity = trade['remaining_quantity']
         
         # تحديد الرموز والألوان
         side_emoji = "🟢" if side.upper() == 'BUY' else "🔴"
