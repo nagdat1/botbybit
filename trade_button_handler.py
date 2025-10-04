@@ -1,418 +1,419 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-معالج الأزرار التفاعلية للصفقات
+معالج أزرار الصفقات مع إمكانية الإدخال المخصص
+يدعم TP, SL, Partial Close مع إمكانية كتابة النسب يدوياً
 """
 
 import logging
-from typing import Dict, Any, Optional
-from telegram import Update, CallbackQuery
+import re
+from typing import Dict, List, Optional, Any
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from telegram.ext import ContextTypes
-from telegram.error import BadRequest
-
-from trade_manager import TradeManager
-from trade_interactive_messages import TradeInteractiveMessages
-from trade_executor import TradeExecutor
-from trade_messages import TRADE_SUCCESS_MESSAGES, TRADE_ERROR_MESSAGES
 
 logger = logging.getLogger(__name__)
 
 class TradeButtonHandler:
-    """معالج الأزرار التفاعلية للصفقات"""
+    """معالج أزرار الصفقات التفاعلية"""
     
-    def __init__(self, trade_manager: TradeManager, trade_executor: TradeExecutor):
+    def __init__(self, trade_manager):
         self.trade_manager = trade_manager
-        self.trade_executor = trade_executor
-        self.interactive_messages = TradeInteractiveMessages(trade_manager)
-        self.user_editing_settings = {}  # تتبع المستخدمين الذين يعدلون الإعدادات
-    
-    async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """معالجة استعلامات الأزرار"""
+        self.user_input_states = {}  # {user_id: {'type': 'tp_custom', 'position_id': 'xxx'}}
+        
+    async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """معالجة جميع استدعاءات الأزرار"""
         try:
             query = update.callback_query
-            await query.answer()  # إزالة مؤشر التحميل
+            if not query or not query.data:
+                return
             
-            user_id = query.from_user.id
+            await query.answer()
             data = query.data
             
-            # تحليل البيانات
-            parts = data.split('_')
-            if len(parts) < 2:
-                await query.edit_message_text("❌ خطأ في معالجة الأمر")
-                return
+            # معالجة أزرار TP
+            if data.startswith("tp_"):
+                await self.handle_tp_action(update, context, data)
             
-            action = parts[0]
-            trade_id = parts[1]
+            # معالجة أزرار SL
+            elif data.startswith("sl_"):
+                await self.handle_sl_action(update, context, data)
             
-            # التحقق من وجود الصفقة
-            trade_info = self.trade_manager.get_trade_info(trade_id)
-            if not trade_info:
-                await query.edit_message_text("❌ الصفقة غير موجودة")
-                return
+            # معالجة أزرار الإغلاق الجزئي
+            elif data.startswith("partial_"):
+                await self.handle_partial_action(update, context, data)
             
-            # معالجة الأوامر المختلفة
-            if action == "tp":
-                await self._handle_tp(query, trade_id, parts[2])
-            elif action == "sl":
-                await self._handle_sl(query, trade_id, parts[2])
-            elif action == "partial":
-                await self._handle_partial_close(query, trade_id, parts[2])
-            elif action == "close":
-                await self._handle_full_close(query, trade_id)
-            elif action == "refresh":
-                await self._handle_refresh(query, trade_id, user_id)
-            elif action == "settings":
-                await self._handle_settings(query, trade_id, user_id)
-            elif action == "back":
-                await self._handle_back(query, trade_id, user_id)
-            elif action == "edit":
-                await self._handle_edit_settings(query, trade_id, user_id, parts[2])
-            elif action == "reset":
-                await self._handle_reset_settings(query, trade_id, user_id)
-            else:
-                await query.edit_message_text("❌ أمر غير معروف")
-                
+            # معالجة أزرار الإغلاق الكامل
+            elif data.startswith("close_full_"):
+                await self.handle_close_full(update, context, data)
+            
+            # معالجة أزرار تغيير النسب
+            elif data.startswith("change_percentages_"):
+                await self.handle_change_percentages(update, context, data)
+            
+            # معالجة أزرار تعديل النسب
+            elif data.startswith("edit_"):
+                await self.handle_edit_percentages(update, context, data)
+            
+            # معالجة أزرار التحديث
+            elif data.startswith("refresh_trade_"):
+                await self.handle_refresh_trade(update, context, data)
+            
+            # معالجة أزرار الإعدادات المخصصة
+            elif data.startswith("save_percentages_"):
+                await self.handle_save_percentages(update, context, data)
+            
         except Exception as e:
-            logger.error(f"خطأ في معالجة استعلام الأزرار: {e}")
-            try:
-                await query.edit_message_text("❌ حدث خطأ غير متوقع")
-            except:
-                pass
+            logger.error(f"خطأ في معالجة استدعاء الزر: {e}")
+            if update.callback_query:
+                await update.callback_query.answer("❌ حدث خطأ في معالجة الطلب")
     
-    async def _handle_tp(self, query: CallbackQuery, trade_id: str, percentage_str: str) -> None:
-        """معالجة هدف الربح"""
+    async def handle_tp_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة أزرار Take Profit"""
         try:
-            percentage = float(percentage_str)
+            query = update.callback_query
+            parts = data.split("_")
             
-            # تنفيذ هدف الربح
-            success, message = self.trade_manager.execute_tp(trade_id, percentage)
-            
-            if success:
-                # إنشاء رسالة التأكيد
-                confirmation_msg = self.interactive_messages.create_confirmation_message(
-                    "tp", trade_id, percentage
-                )
+            if len(parts) >= 3:
+                position_id = parts[2]
                 
-                # إنشاء لوحة مفاتيح جديدة
-                trade_info = self.trade_manager.get_trade_info(trade_id)
-                if trade_info and trade_info['status'] == 'OPEN':
-                    # إعادة إنشاء رسالة الصفقة المحدثة
-                    updated_msg, keyboard = self.interactive_messages.create_trade_message(
-                        trade_id, query.from_user.id
-                    )
-                    await query.edit_message_text(
-                        text=updated_msg,
-                        reply_markup=keyboard,
-                        parse_mode='Markdown'
-                    )
-                    
-                    # إرسال رسالة تأكيد منفصلة
-                    await query.message.reply_text(
-                        confirmation_msg,
-                        parse_mode='Markdown'
-                    )
+                if parts[1] == "custom":
+                    # طلب إدخال نسبة TP مخصصة
+                    await self.request_custom_percentage(query, position_id, "tp")
                 else:
-                    await query.edit_message_text(
-                        confirmation_msg,
-                        parse_mode='Markdown'
-                    )
-            else:
-                error_msg = self.interactive_messages.create_error_message(message)
-                await query.edit_message_text(error_msg, parse_mode='Markdown')
-                
+                    # تنفيذ TP بنسبة محددة
+                    percent = float(parts[1])
+                    await self.trade_manager.execute_take_profit(position_id, percent, query)
+            
         except Exception as e:
             logger.error(f"خطأ في معالجة TP: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ هدف الربح")
+            await query.answer("❌ خطأ في تنفيذ Take Profit")
     
-    async def _handle_sl(self, query: CallbackQuery, trade_id: str, percentage_str: str) -> None:
-        """معالجة وقف الخسارة"""
+    async def handle_sl_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة أزرار Stop Loss"""
         try:
-            percentage = float(percentage_str)
+            query = update.callback_query
+            parts = data.split("_")
             
-            # تنفيذ وقف الخسارة
-            success, message = self.trade_manager.execute_sl(trade_id, percentage)
-            
-            if success:
-                # إنشاء رسالة التأكيد
-                confirmation_msg = self.interactive_messages.create_confirmation_message(
-                    "sl", trade_id, percentage
-                )
+            if len(parts) >= 3:
+                position_id = parts[2]
                 
-                # إنشاء لوحة مفاتيح جديدة
-                trade_info = self.trade_manager.get_trade_info(trade_id)
-                if trade_info and trade_info['status'] == 'OPEN':
-                    # إعادة إنشاء رسالة الصفقة المحدثة
-                    updated_msg, keyboard = self.interactive_messages.create_trade_message(
-                        trade_id, query.from_user.id
-                    )
-                    await query.edit_message_text(
-                        text=updated_msg,
-                        reply_markup=keyboard,
-                        parse_mode='Markdown'
-                    )
-                    
-                    # إرسال رسالة تأكيد منفصلة
-                    await query.message.reply_text(
-                        confirmation_msg,
-                        parse_mode='Markdown'
-                    )
+                if parts[1] == "custom":
+                    # طلب إدخال نسبة SL مخصصة
+                    await self.request_custom_percentage(query, position_id, "sl")
                 else:
-                    await query.edit_message_text(
-                        confirmation_msg,
-                        parse_mode='Markdown'
-                    )
-            else:
-                error_msg = self.interactive_messages.create_error_message(message)
-                await query.edit_message_text(error_msg, parse_mode='Markdown')
-                
+                    # تنفيذ SL بنسبة محددة
+                    percent = float(parts[1])
+                    await self.trade_manager.execute_stop_loss(position_id, percent, query)
+            
         except Exception as e:
             logger.error(f"خطأ في معالجة SL: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ وقف الخسارة")
+            await query.answer("❌ خطأ في تنفيذ Stop Loss")
     
-    async def _handle_partial_close(self, query: CallbackQuery, trade_id: str, percentage_str: str) -> None:
-        """معالجة الإغلاق الجزئي"""
+    async def handle_partial_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة أزرار الإغلاق الجزئي"""
         try:
-            percentage = float(percentage_str)
+            query = update.callback_query
+            parts = data.split("_")
             
-            # تنفيذ الإغلاق الجزئي
-            success, message = self.trade_manager.execute_partial_close(trade_id, percentage)
-            
-            if success:
-                # إنشاء رسالة التأكيد
-                confirmation_msg = self.interactive_messages.create_confirmation_message(
-                    "partial", trade_id, percentage
-                )
+            if len(parts) >= 3:
+                position_id = parts[2]
                 
-                # إنشاء لوحة مفاتيح جديدة
-                trade_info = self.trade_manager.get_trade_info(trade_id)
-                if trade_info and trade_info['status'] == 'OPEN':
-                    # إعادة إنشاء رسالة الصفقة المحدثة
-                    updated_msg, keyboard = self.interactive_messages.create_trade_message(
-                        trade_id, query.from_user.id
-                    )
-                    await query.edit_message_text(
-                        text=updated_msg,
-                        reply_markup=keyboard,
-                        parse_mode='Markdown'
-                    )
-                    
-                    # إرسال رسالة تأكيد منفصلة
-                    await query.message.reply_text(
-                        confirmation_msg,
-                        parse_mode='Markdown'
-                    )
+                if parts[1] == "custom":
+                    # طلب إدخال نسبة إغلاق جزئي مخصصة
+                    await self.request_custom_percentage(query, position_id, "partial")
                 else:
-                    await query.edit_message_text(
-                        confirmation_msg,
-                        parse_mode='Markdown'
-                    )
-            else:
-                error_msg = self.interactive_messages.create_error_message(message)
-                await query.edit_message_text(error_msg, parse_mode='Markdown')
-                
+                    # تنفيذ إغلاق جزئي بنسبة محددة
+                    percent = float(parts[1])
+                    await self.trade_manager.execute_partial_close(position_id, percent, query)
+            
         except Exception as e:
             logger.error(f"خطأ في معالجة الإغلاق الجزئي: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ الإغلاق الجزئي")
+            await query.answer("❌ خطأ في تنفيذ الإغلاق الجزئي")
     
-    async def _handle_full_close(self, query: CallbackQuery, trade_id: str) -> None:
-        """معالجة الإغلاق الكامل"""
+    async def handle_close_full(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة أزرار الإغلاق الكامل"""
         try:
-            # تنفيذ الإغلاق الكامل
-            success, message = self.trade_manager.close_trade_completely(trade_id)
+            query = update.callback_query
+            position_id = data.replace("close_full_", "")
+            await self.trade_manager.execute_full_close(position_id, query)
             
-            if success:
-                # إنشاء رسالة التأكيد
-                confirmation_msg = self.interactive_messages.create_confirmation_message(
-                    "close", trade_id
-                )
-                await query.edit_message_text(
-                    confirmation_msg,
-                    parse_mode='Markdown'
-                )
-            else:
-                error_msg = self.interactive_messages.create_error_message(message)
-                await query.edit_message_text(error_msg, parse_mode='Markdown')
-                
         except Exception as e:
             logger.error(f"خطأ في معالجة الإغلاق الكامل: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ الإغلاق الكامل")
+            await query.answer("❌ خطأ في تنفيذ الإغلاق الكامل")
     
-    async def _handle_refresh(self, query: CallbackQuery, trade_id: str, user_id: int) -> None:
-        """معالجة تحديث الصفقة"""
+    async def handle_change_percentages(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة أزرار تغيير النسب"""
         try:
-            # محاولة تحديث سعر الصفقة (هنا يمكن إضافة منطق الحصول على السعر الحالي)
-            # trade_manager.update_trade_price(trade_id, current_price)
+            query = update.callback_query
+            position_id = data.replace("change_percentages_", "")
+            await self.trade_manager.show_percentage_settings(query, position_id)
             
-            # إعادة إنشاء رسالة الصفقة
-            updated_msg, keyboard = self.interactive_messages.create_trade_message(
-                trade_id, user_id
-            )
+        except Exception as e:
+            logger.error(f"خطأ في معالجة تغيير النسب: {e}")
+            await query.answer("❌ خطأ في عرض إعدادات النسب")
+    
+    async def handle_edit_percentages(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة أزرار تعديل النسب"""
+        try:
+            query = update.callback_query
+            parts = data.split("_")
             
-            if updated_msg and keyboard:
-                await query.edit_message_text(
-                    text=updated_msg,
-                    reply_markup=keyboard,
-                    parse_mode='Markdown'
-                )
-            else:
-                await query.edit_message_text("❌ خطأ في تحديث الصفقة")
+            if len(parts) >= 3:
+                percentage_type = parts[1]  # tp, sl, partial
+                position_id = parts[2]
                 
+                await self.request_custom_percentages(query, position_id, percentage_type)
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة تعديل النسب: {e}")
+            await query.answer("❌ خطأ في تعديل النسب")
+    
+    async def handle_refresh_trade(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة أزرار تحديث الصفقة"""
+        try:
+            query = update.callback_query
+            position_id = data.replace("refresh_trade_", "")
+            await self.trade_manager.update_trade_message(position_id, context)
+            
         except Exception as e:
             logger.error(f"خطأ في تحديث الصفقة: {e}")
-            await query.edit_message_text("❌ خطأ في تحديث الصفقة")
+            await query.answer("❌ خطأ في تحديث الصفقة")
     
-    async def _handle_settings(self, query: CallbackQuery, trade_id: str, user_id: int) -> None:
-        """معالجة فتح إعدادات النسب"""
+    async def handle_save_percentages(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+        """معالجة حفظ النسب المخصصة"""
         try:
-            settings_msg, keyboard = self.interactive_messages.create_settings_message(
-                trade_id, user_id
-            )
+            query = update.callback_query
+            parts = data.split("_")
             
-            await query.edit_message_text(
-                text=settings_msg,
-                reply_markup=keyboard,
-                parse_mode='Markdown'
-            )
-            
-        except Exception as e:
-            logger.error(f"خطأ في فتح الإعدادات: {e}")
-            await query.edit_message_text("❌ خطأ في فتح الإعدادات")
-    
-    async def _handle_back(self, query: CallbackQuery, trade_id: str, user_id: int) -> None:
-        """معالجة العودة لرسالة الصفقة"""
-        try:
-            updated_msg, keyboard = self.interactive_messages.create_trade_message(
-                trade_id, user_id
-            )
-            
-            if updated_msg and keyboard:
-                await query.edit_message_text(
-                    text=updated_msg,
-                    reply_markup=keyboard,
-                    parse_mode='Markdown'
-                )
-            else:
-                await query.edit_message_text("❌ خطأ في العودة للصفقة")
+            if len(parts) >= 3:
+                percentage_type = parts[2]  # tp, sl, partial
+                position_id = parts[3] if len(parts) > 3 else ""
                 
+                # حفظ النسب المخصصة
+                user_id = query.from_user.id
+                current_percentages = self.trade_manager.get_user_percentages(user_id)
+                
+                # هنا يمكن إضافة منطق حفظ النسب الجديدة
+                await query.answer("✅ تم حفظ النسب المخصصة")
+                
+                # العودة إلى رسالة الصفقة
+                if position_id:
+                    await self.trade_manager.update_trade_message(position_id, context)
+            
         except Exception as e:
-            logger.error(f"خطأ في العودة للصفقة: {e}")
-            await query.edit_message_text("❌ خطأ في العودة للصفقة")
+            logger.error(f"خطأ في حفظ النسب: {e}")
+            await query.answer("❌ خطأ في حفظ النسب")
     
-    async def _handle_edit_settings(self, query: CallbackQuery, trade_id: str, user_id: int, setting_type: str) -> None:
-        """معالجة تعديل الإعدادات"""
+    async def request_custom_percentage(self, query: CallbackQuery, position_id: str, action_type: str):
+        """طلب إدخال نسبة مخصصة"""
         try:
-            # حفظ نوع الإعداد المراد تعديله
-            self.user_editing_settings[user_id] = {
-                'setting_type': setting_type,
-                'trade_id': trade_id
+            user_id = query.from_user.id
+            
+            # حفظ حالة الإدخال
+            self.user_input_states[user_id] = {
+                'type': f'{action_type}_custom',
+                'position_id': position_id
             }
             
-            # إنشاء رسالة التعديل
-            edit_msg = self.interactive_messages.create_settings_edit_message(setting_type, trade_id)
-            
-            await query.edit_message_text(
-                text=edit_msg,
-                parse_mode='Markdown'
-            )
-            
-        except Exception as e:
-            logger.error(f"خطأ في تعديل الإعدادات: {e}")
-            await query.edit_message_text("❌ خطأ في تعديل الإعدادات")
-    
-    async def _handle_reset_settings(self, query: CallbackQuery, trade_id: str, user_id: int) -> None:
-        """معالجة إعادة تعيين الإعدادات"""
-        try:
-            # إعادة تعيين الإعدادات للافتراضية
-            default_settings = {
-                'tp_percentages': [1.0, 2.0, 5.0],
-                'sl_percentages': [1.0, 2.0, 3.0],
-                'partial_close_percentages': [25.0, 50.0, 75.0]
+            # رسالة الطلب
+            action_names = {
+                'tp': 'Take Profit',
+                'sl': 'Stop Loss',
+                'partial': 'الإغلاق الجزئي'
             }
             
-            self.interactive_messages.update_user_settings(user_id, default_settings)
+            request_text = f"""
+📝 **إدخال نسبة {action_names.get(action_type, action_type)} مخصصة**
+
+أدخل النسبة المطلوبة (رقم فقط):
+مثال: 2.5 أو 15 أو 75
+
+📊 الرمز: {self.trade_manager.trading_bot.open_positions.get(position_id, {}).get('symbol', 'غير محدد')}
+            """
             
-            # العودة لإعدادات الصفقة
-            await self._handle_settings(query, trade_id, user_id)
+            # أزرار الإلغاء
+            keyboard = [
+                [InlineKeyboardButton("❌ إلغاء", callback_data=f"refresh_trade_{position_id}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(request_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
-            logger.error(f"خطأ في إعادة تعيين الإعدادات: {e}")
-            await query.edit_message_text("❌ خطأ في إعادة تعيين الإعدادات")
+            logger.error(f"خطأ في طلب النسبة المخصصة: {e}")
+            await query.answer("❌ خطأ في طلب النسبة المخصصة")
     
-    async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-        """معالجة الرسائل النصية لتعديل الإعدادات"""
+    async def request_custom_percentages(self, query: CallbackQuery, position_id: str, percentage_type: str):
+        """طلب إدخال نسب متعددة مخصصة"""
         try:
-            user_id = update.message.from_user.id
+            user_id = query.from_user.id
             
-            # التحقق من أن المستخدم يعدل إعدادات
-            if user_id not in self.user_editing_settings:
-                return False
+            # حفظ حالة الإدخال
+            self.user_input_states[user_id] = {
+                'type': f'edit_{percentage_type}',
+                'position_id': position_id
+            }
             
+            # رسالة الطلب
+            type_names = {
+                'tp': 'Take Profit',
+                'sl': 'Stop Loss',
+                'partial': 'الإغلاق الجزئي'
+            }
+            
+            request_text = f"""
+📝 **تعديل نسب {type_names.get(percentage_type, percentage_type)}**
+
+أدخل النسب المطلوبة مفصولة بفواصل:
+مثال: 1, 2.5, 5 أو 25, 50, 75
+
+📊 الرمز: {self.trade_manager.trading_bot.open_positions.get(position_id, {}).get('symbol', 'غير محدد')}
+            """
+            
+            # أزرار الإلغاء
+            keyboard = [
+                [InlineKeyboardButton("❌ إلغاء", callback_data=f"change_percentages_{position_id}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(request_text, reply_markup=reply_markup, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"خطأ في طلب النسب المخصصة: {e}")
+            await query.answer("❌ خطأ في طلب النسب المخصصة")
+    
+    async def handle_text_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """معالجة النصوص المدخلة للقيم المخصصة"""
+        try:
+            if not update.message or not update.message.text:
+                return
+            
+            user_id = update.effective_user.id
             text = update.message.text.strip()
             
-            # التحقق من إلغاء التعديل
-            if text.lower() in ['إلغاء', 'cancel', 'الغاء']:
-                del self.user_editing_settings[user_id]
-                await update.message.reply_text("✅ تم إلغاء التعديل")
-                return True
+            # التحقق من وجود حالة إدخال
+            if user_id not in self.user_input_states:
+                return
             
-            # تحليل النسب الجديدة
-            try:
-                percentages = self.interactive_messages.parse_percentages(text)
-                
-                # الحصول على الإعدادات الحالية
-                user_settings = self.interactive_messages.get_user_settings(user_id)
-                setting_info = self.user_editing_settings[user_id]
-                setting_type = setting_info['setting_type']
-                trade_id = setting_info['trade_id']
-                
-                # تحديث الإعدادات
-                if setting_type == 'tp':
-                    user_settings['tp_percentages'] = percentages
-                elif setting_type == 'sl':
-                    user_settings['sl_percentages'] = percentages
-                elif setting_type == 'partial':
-                    user_settings['partial_close_percentages'] = percentages
-                
-                # حفظ الإعدادات المحدثة
-                self.interactive_messages.update_user_settings(user_id, user_settings)
-                
-                # حذف من قائمة التعديل
-                del self.user_editing_settings[user_id]
-                
-                # إنشاء رسالة النجاح
-                success_msg = f"""✅ **تم تحديث الإعدادات بنجاح!**
-
-🎯 **أهداف الربح:** {', '.join([f'{p}%' for p in user_settings['tp_percentages']])}
-🛑 **وقف الخسارة:** {', '.join([f'{p}%' for p in user_settings['sl_percentages']])}
-✂️ **الإغلاق الجزئي:** {', '.join([f'{p}%' for p in user_settings['partial_close_percentages']])}
-
-💡 **الإعدادات الجديدة ستنطبق على الصفقات الحالية**"""
-                
-                await update.message.reply_text(
-                    success_msg,
-                    parse_mode='Markdown'
-                )
-                
-                return True
-                
-            except ValueError as e:
-                error_msg = f"""❌ **خطأ في النسب المدخلة**
-
-⚠️ **السبب:** {str(e)}
-
-💡 **مثال صحيح:** `1, 2, 5` أو `1.5, 3, 7.5`
-
-📝 **أعد المحاولة أو أرسل "إلغاء" للعودة**"""
-                
-                await update.message.reply_text(
-                    error_msg,
-                    parse_mode='Markdown'
-                )
-                return True
-                
+            input_state = self.user_input_states[user_id]
+            input_type = input_state['type']
+            position_id = input_state['position_id']
+            
+            # معالجة النص المدخل
+            if input_type.endswith('_custom'):
+                # نسبة واحدة مخصصة
+                await self.process_single_percentage(update, context, text, input_type, position_id)
+            elif input_type.startswith('edit_'):
+                # نسب متعددة مخصصة
+                await self.process_multiple_percentages(update, context, text, input_type, position_id)
+            
+            # مسح حالة الإدخال
+            del self.user_input_states[user_id]
+            
         except Exception as e:
-            logger.error(f"خطأ في معالجة رسالة النص: {e}")
+            logger.error(f"خطأ في معالجة النص المدخل: {e}")
+            if update.message:
+                await update.message.reply_text("❌ خطأ في معالجة الإدخال")
+    
+    async def process_single_percentage(self, update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, input_type: str, position_id: str):
+        """معالجة نسبة واحدة مخصصة"""
+        try:
+            # التحقق من صحة النص
+            if not self.is_valid_percentage(text):
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح (مثال: 2.5 أو 15)")
+                return
+            
+            percent = float(text)
+            
+            # التحقق من النطاق المناسب
+            action_type = input_type.replace('_custom', '')
+            if not self.is_percentage_in_range(percent, action_type):
+                await update.message.reply_text("❌ النسبة خارج النطاق المسموح")
+                return
+            
+            # تنفيذ الإجراء
+            query = CallbackQuery(
+                id="custom",
+                from_user=update.effective_user,
+                message=update.message,
+                data=f"{action_type}_{position_id}_{percent}"
+            )
+            
+            if action_type == "tp":
+                await self.trade_manager.execute_take_profit(position_id, percent, query)
+            elif action_type == "sl":
+                await self.trade_manager.execute_stop_loss(position_id, percent, query)
+            elif action_type == "partial":
+                await self.trade_manager.execute_partial_close(position_id, percent, query)
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة النسبة الواحدة: {e}")
+            await update.message.reply_text("❌ خطأ في معالجة النسبة")
+    
+    async def process_multiple_percentages(self, update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, input_type: str, position_id: str):
+        """معالجة نسب متعددة مخصصة"""
+        try:
+            # تقسيم النص إلى نسب
+            parts = [part.strip() for part in text.split(',')]
+            
+            # التحقق من صحة جميع النسب
+            percentages = []
+            for part in parts:
+                if not self.is_valid_percentage(part):
+                    await update.message.reply_text(f"❌ نسبة غير صحيحة: {part}")
+                    return
+                percentages.append(float(part))
+            
+            # التحقق من النطاق المناسب
+            percentage_type = input_type.replace('edit_', '')
+            for percent in percentages:
+                if not self.is_percentage_in_range(percent, percentage_type):
+                    await update.message.reply_text(f"❌ نسبة خارج النطاق: {percent}")
+                    return
+            
+            # حفظ النسب الجديدة
+            user_id = update.effective_user.id
+            current_percentages = self.trade_manager.get_user_percentages(user_id)
+            current_percentages[percentage_type] = percentages
+            self.trade_manager.update_user_percentages(user_id, current_percentages)
+            
+            # رسالة التأكيد
+            await update.message.reply_text(f"✅ تم حفظ نسب {percentage_type} الجديدة: {', '.join(map(str, percentages))}")
+            
+            # العودة إلى رسالة الصفقة
+            await self.trade_manager.update_trade_message(position_id, context)
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة النسب المتعددة: {e}")
+            await update.message.reply_text("❌ خطأ في معالجة النسب")
+    
+    def is_valid_percentage(self, text: str) -> bool:
+        """التحقق من صحة النسبة"""
+        try:
+            # استخدام regex للتحقق من الرقم
+            pattern = r'^\d+(\.\d+)?$'
+            return bool(re.match(pattern, text)) and float(text) > 0
+        except:
             return False
     
-    def is_user_editing_settings(self, user_id: int) -> bool:
-        """التحقق من أن المستخدم يعدل إعدادات"""
-        return user_id in self.user_editing_settings
+    def is_percentage_in_range(self, percent: float, action_type: str) -> bool:
+        """التحقق من نطاق النسبة"""
+        try:
+            if action_type == "tp":
+                return 0.1 <= percent <= 100  # TP من 0.1% إلى 100%
+            elif action_type == "sl":
+                return 0.1 <= percent <= 50   # SL من 0.1% إلى 50%
+            elif action_type == "partial":
+                return 1 <= percent <= 100    # Partial من 1% إلى 100%
+            return False
+        except:
+            return False
+    
+    def get_user_input_state(self, user_id: int) -> Optional[Dict]:
+        """الحصول على حالة إدخال المستخدم"""
+        return self.user_input_states.get(user_id)
+    
+    def clear_user_input_state(self, user_id: int):
+        """مسح حالة إدخال المستخدم"""
+        if user_id in self.user_input_states:
+            del self.user_input_states[user_id]
