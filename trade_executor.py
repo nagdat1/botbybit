@@ -48,13 +48,46 @@ class TradeExecutor:
             logger.error(f"خطأ في البحث عن الصفقة: {e}")
             return None, None
         
+    def _get_position_info(self, position_id: str) -> dict:
+        """الحصول على معلومات الصفقة من جميع المصادر"""
+        try:
+            if not self.trading_bot:
+                return None
+            
+            # البحث في القائمة العامة للصفقات المفتوحة
+            if hasattr(self.trading_bot, 'open_positions'):
+                if position_id in self.trading_bot.open_positions:
+                    return self.trading_bot.open_positions[position_id]
+            
+            # البحث في الحسابات التجريبية
+            account, account_type = self._find_position_in_accounts(position_id)
+            if account and account_type:
+                position = account.positions[position_id]
+                return {
+                    'symbol': position.symbol,
+                    'side': position.side,
+                    'entry_price': position.entry_price,
+                    'current_price': position.entry_price,
+                    'amount': getattr(position, 'contracts', getattr(position, 'amount', 0)),
+                    'margin_amount': getattr(position, 'margin_amount', 0),
+                    'leverage': getattr(position, 'leverage', 1),
+                    'position_id': position.position_id,
+                    'account_type': account_type,
+                    'timestamp': getattr(position, 'timestamp', None)
+                }
+            
+            return None
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات الصفقة: {e}")
+            return None
+
     async def set_take_profit(self, position_id: str, percent: float) -> Dict:
         """وضع هدف الربح (Take Profit)"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return {'success': False, 'error': 'البوت غير متاح'}
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 return {'success': False, 'error': 'الصفقة غير موجودة'}
             
@@ -106,10 +139,10 @@ class TradeExecutor:
     async def set_stop_loss(self, position_id: str, percent: float) -> Dict:
         """وضع وقف الخسارة (Stop Loss)"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return {'success': False, 'error': 'البوت غير متاح'}
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 return {'success': False, 'error': 'الصفقة غير موجودة'}
             
@@ -161,10 +194,10 @@ class TradeExecutor:
     async def partial_close(self, position_id: str, percent: float) -> Dict:
         """إغلاق جزئي للصفقة"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return {'success': False, 'error': 'البوت غير متاح'}
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 return {'success': False, 'error': 'الصفقة غير موجودة'}
             
@@ -220,10 +253,10 @@ class TradeExecutor:
     async def close_position(self, position_id: str) -> Dict:
         """إغلاق الصفقة بالكامل"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return {'success': False, 'error': 'البوت غير متاح'}
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 return {'success': False, 'error': 'الصفقة غير موجودة'}
             

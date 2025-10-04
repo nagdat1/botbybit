@@ -99,13 +99,29 @@ class TradeButtonHandler:
             # البحث في الحسابات التجريبية
             # حساب السبوت
             if hasattr(self.trading_bot, 'demo_account_spot'):
-                if position_id in self.trading_bot.demo_account_spot.positions:
-                    return True
+                if hasattr(self.trading_bot.demo_account_spot, 'positions'):
+                    if position_id in self.trading_bot.demo_account_spot.positions:
+                        return True
             
             # حساب الفيوتشر
             if hasattr(self.trading_bot, 'demo_account_futures'):
-                if position_id in self.trading_bot.demo_account_futures.positions:
-                    return True
+                if hasattr(self.trading_bot.demo_account_futures, 'positions'):
+                    if position_id in self.trading_bot.demo_account_futures.positions:
+                        return True
+            
+            # البحث في جميع الحسابات عبر user_manager
+            try:
+                from user_manager import user_manager
+                if user_manager:
+                    # البحث في جميع حسابات المستخدمين
+                    for user_id, user_data in user_manager.users.items():
+                        market_type = user_data.get('market_type', 'spot')
+                        account = user_manager.get_user_account(user_id, market_type)
+                        if account and hasattr(account, 'positions'):
+                            if position_id in account.positions:
+                                return True
+            except Exception as e:
+                logger.debug(f"خطأ في البحث عبر user_manager: {e}")
             
             return False
         except Exception as e:
@@ -429,14 +445,96 @@ class TradeButtonHandler:
             logger.error(f"خطأ في تنفيذ عملة الصفقة: {e}")
             return {'success': False, 'error': str(e)}
     
+    def _get_position_info(self, position_id: str) -> dict:
+        """الحصول على معلومات الصفقة من جميع المصادر"""
+        try:
+            if not self.trading_bot:
+                return None
+            
+            # البحث في القائمة العامة للصفقات المفتوحة
+            if hasattr(self.trading_bot, 'open_positions'):
+                if position_id in self.trading_bot.open_positions:
+                    return self.trading_bot.open_positions[position_id]
+            
+            # البحث في الحسابات التجريبية
+            # حساب السبوت
+            if hasattr(self.trading_bot, 'demo_account_spot'):
+                if hasattr(self.trading_bot.demo_account_spot, 'positions'):
+                    if position_id in self.trading_bot.demo_account_spot.positions:
+                        position = self.trading_bot.demo_account_spot.positions[position_id]
+                        # تحويل Position object إلى dict
+                        return {
+                            'symbol': position.symbol,
+                            'side': position.side,
+                            'entry_price': position.entry_price,
+                            'current_price': position.entry_price,  # سيتم تحديثه لاحقاً
+                            'amount': position.contracts,
+                            'margin_amount': position.margin_amount,
+                            'leverage': position.leverage,
+                            'position_id': position.position_id,
+                            'account_type': 'spot',
+                            'timestamp': getattr(position, 'timestamp', None)
+                        }
+            
+            # حساب الفيوتشر
+            if hasattr(self.trading_bot, 'demo_account_futures'):
+                if hasattr(self.trading_bot.demo_account_futures, 'positions'):
+                    if position_id in self.trading_bot.demo_account_futures.positions:
+                        position = self.trading_bot.demo_account_futures.positions[position_id]
+                        # تحويل Position object إلى dict
+                        return {
+                            'symbol': position.symbol,
+                            'side': position.side,
+                            'entry_price': position.entry_price,
+                            'current_price': position.entry_price,  # سيتم تحديثه لاحقاً
+                            'amount': position.contracts,
+                            'margin_amount': position.margin_amount,
+                            'leverage': position.leverage,
+                            'position_id': position.position_id,
+                            'account_type': 'futures',
+                            'timestamp': getattr(position, 'timestamp', None)
+                        }
+            
+            # البحث في جميع الحسابات عبر user_manager
+            try:
+                from user_manager import user_manager
+                if user_manager:
+                    # البحث في جميع حسابات المستخدمين
+                    for user_id, user_data in user_manager.users.items():
+                        market_type = user_data.get('market_type', 'spot')
+                        account = user_manager.get_user_account(user_id, market_type)
+                        if account and hasattr(account, 'positions'):
+                            if position_id in account.positions:
+                                position = account.positions[position_id]
+                                # تحويل Position object إلى dict
+                                return {
+                                    'symbol': position.symbol,
+                                    'side': position.side,
+                                    'entry_price': position.entry_price,
+                                    'current_price': position.entry_price,  # سيتم تحديثه لاحقاً
+                                    'amount': getattr(position, 'contracts', getattr(position, 'amount', 0)),
+                                    'margin_amount': getattr(position, 'margin_amount', 0),
+                                    'leverage': getattr(position, 'leverage', 1),
+                                    'position_id': position.position_id,
+                                    'account_type': market_type,
+                                    'timestamp': getattr(position, 'timestamp', None)
+                                }
+            except Exception as e:
+                logger.debug(f"خطأ في البحث عبر user_manager: {e}")
+            
+            return None
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات الصفقة: {e}")
+            return None
+
     async def _show_trade_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
         """عرض رسالة الصفقة المحدثة"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 await update.callback_query.edit_message_text("❌ البوت غير متاح")
                 return
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
                 return

@@ -116,14 +116,67 @@ class TradeManager:
         except Exception as e:
             logger.error(f"خطأ في فحص أوامر TP/SL: {e}")
     
+    def _get_position_info(self, position_id: str) -> dict:
+        """الحصول على معلومات الصفقة من جميع المصادر"""
+        try:
+            if not self.trading_bot:
+                return None
+            
+            # البحث في القائمة العامة للصفقات المفتوحة
+            if hasattr(self.trading_bot, 'open_positions'):
+                if position_id in self.trading_bot.open_positions:
+                    return self.trading_bot.open_positions[position_id]
+            
+            # البحث في الحسابات التجريبية
+            # حساب السبوت
+            if hasattr(self.trading_bot, 'demo_account_spot'):
+                if hasattr(self.trading_bot.demo_account_spot, 'positions'):
+                    if position_id in self.trading_bot.demo_account_spot.positions:
+                        position = self.trading_bot.demo_account_spot.positions[position_id]
+                        return {
+                            'symbol': position.symbol,
+                            'side': position.side,
+                            'entry_price': position.entry_price,
+                            'current_price': position.entry_price,
+                            'amount': position.contracts,
+                            'margin_amount': position.margin_amount,
+                            'leverage': position.leverage,
+                            'position_id': position.position_id,
+                            'account_type': 'spot',
+                            'timestamp': getattr(position, 'timestamp', None)
+                        }
+            
+            # حساب الفيوتشر
+            if hasattr(self.trading_bot, 'demo_account_futures'):
+                if hasattr(self.trading_bot.demo_account_futures, 'positions'):
+                    if position_id in self.trading_bot.demo_account_futures.positions:
+                        position = self.trading_bot.demo_account_futures.positions[position_id]
+                        return {
+                            'symbol': position.symbol,
+                            'side': position.side,
+                            'entry_price': position.entry_price,
+                            'current_price': position.entry_price,
+                            'amount': position.contracts,
+                            'margin_amount': position.margin_amount,
+                            'leverage': position.leverage,
+                            'position_id': position.position_id,
+                            'account_type': 'futures',
+                            'timestamp': getattr(position, 'timestamp', None)
+                        }
+            
+            return None
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات الصفقة: {e}")
+            return None
+
     async def send_trade_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
         """إرسال رسالة تفاعلية للصفقة"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 await update.message.reply_text("❌ البوت غير متاح")
                 return
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 await update.message.reply_text("❌ الصفقة غير موجودة")
                 return
@@ -198,14 +251,68 @@ class TradeManager:
         except:
             return {}
     
+    def _get_all_positions(self) -> dict:
+        """الحصول على جميع الصفقات من جميع المصادر"""
+        try:
+            all_positions = {}
+            
+            if not self.trading_bot:
+                return all_positions
+            
+            # إضافة الصفقات من القائمة العامة
+            if hasattr(self.trading_bot, 'open_positions'):
+                all_positions.update(self.trading_bot.open_positions)
+            
+            # إضافة الصفقات من الحسابات التجريبية
+            # حساب السبوت
+            if hasattr(self.trading_bot, 'demo_account_spot'):
+                if hasattr(self.trading_bot.demo_account_spot, 'positions'):
+                    for position_id, position in self.trading_bot.demo_account_spot.positions.items():
+                        if position_id not in all_positions:
+                            all_positions[position_id] = {
+                                'symbol': position.symbol,
+                                'side': position.side,
+                                'entry_price': position.entry_price,
+                                'current_price': position.entry_price,
+                                'amount': position.contracts,
+                                'margin_amount': position.margin_amount,
+                                'leverage': position.leverage,
+                                'position_id': position.position_id,
+                                'account_type': 'spot',
+                                'timestamp': getattr(position, 'timestamp', None)
+                            }
+            
+            # حساب الفيوتشر
+            if hasattr(self.trading_bot, 'demo_account_futures'):
+                if hasattr(self.trading_bot.demo_account_futures, 'positions'):
+                    for position_id, position in self.trading_bot.demo_account_futures.positions.items():
+                        if position_id not in all_positions:
+                            all_positions[position_id] = {
+                                'symbol': position.symbol,
+                                'side': position.side,
+                                'entry_price': position.entry_price,
+                                'current_price': position.entry_price,
+                                'amount': position.contracts,
+                                'margin_amount': position.margin_amount,
+                                'leverage': position.leverage,
+                                'position_id': position.position_id,
+                                'account_type': 'futures',
+                                'timestamp': getattr(position, 'timestamp', None)
+                            }
+            
+            return all_positions
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على جميع الصفقات: {e}")
+            return {}
+
     async def send_all_positions_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """إرسال رسائل لجميع الصفقات المفتوحة"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 await update.message.reply_text("❌ البوت غير متاح")
                 return
             
-            positions = self.trading_bot.open_positions
+            positions = self._get_all_positions()
             if not positions:
                 await update.message.reply_text("🔄 لا توجد صفقات مفتوحة حالياً")
                 return
@@ -235,10 +342,10 @@ class TradeManager:
     async def update_position_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
         """تحديث رسالة صفقة موجودة"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 return
             
@@ -260,10 +367,10 @@ class TradeManager:
     def get_position_summary(self, position_id: str) -> Dict:
         """الحصول على ملخص الصفقة"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return {}
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 return {}
             
@@ -314,10 +421,10 @@ class TradeManager:
     def get_all_positions_summary(self) -> List[Dict]:
         """الحصول على ملخص جميع الصفقات"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return []
             
-            positions = self.trading_bot.open_positions
+            positions = self._get_all_positions()
             summary = []
             
             for position_id, position_info in positions.items():
@@ -337,7 +444,7 @@ class TradeManager:
             if not self.trading_bot:
                 return
             
-            position_info = self.trading_bot.open_positions.get(position_id)
+            position_info = self._get_position_info(position_id)
             if not position_info:
                 return
             
@@ -396,10 +503,10 @@ class TradeManager:
     def get_statistics(self) -> Dict:
         """الحصول على إحصائيات نظام الصفقات"""
         try:
-            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+            if not self.trading_bot:
                 return {}
             
-            positions = self.trading_bot.open_positions
+            positions = self._get_all_positions()
             active_orders = self.executor.get_active_orders()
             
             total_pnl = 0.0
