@@ -2321,15 +2321,6 @@ def main():
     # بدء التحديث الدوري
     start_price_updates()
     
-    # بدء التحديث التلقائي لنظام الصفقات
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(trade_manager.start_auto_updates())
-        loop.close()
-    except Exception as e:
-        logger.error(f"خطأ في بدء التحديث التلقائي للصفقات: {e}")
-    
     # تشغيل البوت
     logger.info("بدء تشغيل البوت...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)

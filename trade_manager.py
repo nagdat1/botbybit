@@ -35,14 +35,33 @@ class TradeManager:
         self.auto_update_task = None
         self.is_running = False
     
-    async def start_auto_updates(self):
-        """بدء التحديث التلقائي للصفقات"""
+    def start_auto_updates_sync(self):
+        """بدء التحديث التلقائي للصفقات (نسخة متزامنة)"""
         try:
             if self.is_running:
                 return
             
             self.is_running = True
-            self.auto_update_task = asyncio.create_task(self._auto_update_loop())
+            
+            def run_auto_updates():
+                """تشغيل التحديث التلقائي في thread منفصل"""
+                import asyncio
+                import threading
+                
+                def update_loop():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(self._auto_update_loop())
+                    except Exception as e:
+                        logger.error(f"خطأ في حلقة التحديث التلقائي: {e}")
+                    finally:
+                        loop.close()
+                
+                thread = threading.Thread(target=update_loop, daemon=True)
+                thread.start()
+            
+            run_auto_updates()
             logger.info("تم بدء التحديث التلقائي للصفقات")
             
         except Exception as e:
