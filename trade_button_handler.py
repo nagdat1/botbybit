@@ -131,12 +131,21 @@ class TradeButtonHandler:
     async def _handle_tp_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار TP"""
         try:
+            # تحليل: tp_{position_id}_{percent}
             parts = callback_data.split('_')
             if len(parts) < 3:
+                logger.error(f"بيانات زر TP غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
-            percent = float(parts[2])
+            # parts[0] = "tp"
+            # parts[-1] = percent
+            # parts[1:-1] = position_id
+            position_id = '_'.join(parts[1:-1])
+            try:
+                percent = float(parts[-1])
+            except ValueError:
+                logger.error(f"فشل تحويل نسبة TP: {parts[-1]}")
+                return
             
             # إنشاء رسالة تأكيد
             message, keyboard = trade_message_manager.create_confirmation_message(
@@ -152,12 +161,21 @@ class TradeButtonHandler:
     async def _handle_sl_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار SL"""
         try:
+            # تحليل: sl_{position_id}_{percent}
             parts = callback_data.split('_')
             if len(parts) < 3:
+                logger.error(f"بيانات زر SL غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
-            percent = float(parts[2])
+            # parts[0] = "sl"
+            # parts[-1] = percent
+            # parts[1:-1] = position_id
+            position_id = '_'.join(parts[1:-1])
+            try:
+                percent = float(parts[-1])
+            except ValueError:
+                logger.error(f"فشل تحويل نسبة SL: {parts[-1]}")
+                return
             
             # إنشاء رسالة تأكيد
             message, keyboard = trade_message_manager.create_confirmation_message(
@@ -173,12 +191,21 @@ class TradeButtonHandler:
     async def _handle_partial_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار الإغلاق الجزئي"""
         try:
+            # تحليل: partial_{position_id}_{percent}
             parts = callback_data.split('_')
             if len(parts) < 3:
+                logger.error(f"بيانات زر الإغلاق الجزئي غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
-            percent = float(parts[2])
+            # parts[0] = "partial"
+            # parts[-1] = percent
+            # parts[1:-1] = position_id
+            position_id = '_'.join(parts[1:-1])
+            try:
+                percent = float(parts[-1])
+            except ValueError:
+                logger.error(f"فشل تحويل نسبة الإغلاق الجزئي: {parts[-1]}")
+                return
             
             # إنشاء رسالة تأكيد
             message, keyboard = trade_message_manager.create_confirmation_message(
@@ -194,11 +221,15 @@ class TradeButtonHandler:
     async def _handle_close_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة زر الإغلاق الكامل"""
         try:
+            # تحليل: close_{position_id}
             parts = callback_data.split('_')
             if len(parts) < 2:
+                logger.error(f"بيانات زر الإغلاق غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
+            # parts[0] = "close"
+            # parts[1:] = position_id
+            position_id = '_'.join(parts[1:])
             
             # إنشاء رسالة تأكيد
             message, keyboard = trade_message_manager.create_confirmation_message(
@@ -214,12 +245,17 @@ class TradeButtonHandler:
     async def _handle_edit_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار التعديل"""
         try:
+            # تحليل: edit_{position_id}_{edit_type}
             parts = callback_data.split('_')
             if len(parts) < 3:
+                logger.error(f"بيانات زر التعديل غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
-            edit_type = parts[2]
+            # parts[0] = "edit"
+            # parts[-1] = edit_type (percents, tp, sl, partial)
+            # parts[1:-1] = position_id
+            edit_type = parts[-1]
+            position_id = '_'.join(parts[1:-1])
             
             if edit_type == "percents":
                 # عرض قائمة تعديل النسب
@@ -272,13 +308,28 @@ class TradeButtonHandler:
     async def _handle_set_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار تعيين النسب"""
         try:
+            # تحليل بيانات التعيين: set_{set_type}_{position_id}_{percent}
+            # مثال: set_tp_BTCUSDT_1696500000000000_2.5
+            
             parts = callback_data.split('_')
             if len(parts) < 4:
+                logger.error(f"بيانات زر التعيين غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
-            set_type = parts[2]
-            percent = float(parts[3])
+            # parts[0] = "set"
+            # parts[1] = set_type (tp, sl, partial)
+            # parts[-1] = percent
+            # parts[2:-1] = position_id
+            
+            set_type = parts[1]
+            percent_str = parts[-1]
+            position_id = '_'.join(parts[2:-1])
+            
+            try:
+                percent = float(percent_str)
+            except ValueError:
+                logger.error(f"فشل تحويل النسبة إلى رقم: {percent_str}")
+                return
             
             if set_type == "tp":
                 # تطبيق نسب TP جديدة
@@ -297,12 +348,17 @@ class TradeButtonHandler:
     async def _handle_custom_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار الإدخال المخصص"""
         try:
+            # تحليل: custom_{custom_type}_{position_id}
             parts = callback_data.split('_')
             if len(parts) < 3:
+                logger.error(f"بيانات زر الإدخال المخصص غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
-            custom_type = parts[2]
+            # parts[0] = "custom"
+            # parts[1] = custom_type (tp, sl, partial)
+            # parts[2:] = position_id
+            custom_type = parts[1]
+            position_id = '_'.join(parts[2:])
             
             # حفظ حالة إدخال المستخدم
             user_id = update.effective_user.id if update.effective_user else None
@@ -336,7 +392,7 @@ class TradeButtonHandler:
             
             # زر العودة
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 العودة", callback_data=f"edit_{custom_type}_{position_id}")
+                InlineKeyboardButton("🔙 العودة", callback_data=f"edit_{position_id}_{custom_type}")
             ]])
             
             await update.callback_query.edit_message_text(message, reply_markup=keyboard)
@@ -348,13 +404,40 @@ class TradeButtonHandler:
     async def _handle_confirm_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار التأكيد"""
         try:
+            # تحليل بيانات التأكيد: confirm_{action}_{position_id}_{percent}
+            # مثال: confirm_tp_BTCUSDT_1696500000000000_2.5 أو confirm_close_BTCUSDT_1696500000000000_
+            
             parts = callback_data.split('_')
             if len(parts) < 3:
+                logger.error(f"بيانات زر التأكيد غير كاملة: {callback_data}")
                 return
             
+            # parts[0] = "confirm"
+            # parts[1] = action (tp, sl, partial, close)
+            # parts[-1] = percent (أو '' إذا كان close)
+            # parts[2:-1] = position_id
+            
             action = parts[1]
-            position_id = parts[2]
-            percent = float(parts[3]) if len(parts) > 3 and parts[3] else None
+            
+            # استخراج النسبة
+            percent_str = parts[-1]
+            if percent_str and percent_str != '':
+                try:
+                    percent = float(percent_str)
+                    # position_id هو من parts[2] إلى parts[-2]
+                    position_id = '_'.join(parts[2:-1])
+                except ValueError:
+                    # النسبة غير صحيحة، تعتبر جزء من position_id
+                    percent = None
+                    position_id = '_'.join(parts[2:])
+            else:
+                # لا توجد نسبة (مثل close)
+                percent = None
+                # position_id هو من parts[2] إلى parts[-2] (نستثني الـ '' الأخير)
+                if len(parts) > 3:
+                    position_id = '_'.join(parts[2:-1])
+                else:
+                    position_id = parts[2]
             
             # تنفيذ العملية
             result = await self._execute_trade_action(action, position_id, percent)
@@ -379,11 +462,15 @@ class TradeButtonHandler:
     async def _handle_cancel_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار الإلغاء"""
         try:
+            # تحليل: cancel_{position_id}
             parts = callback_data.split('_')
             if len(parts) < 2:
+                logger.error(f"بيانات زر الإلغاء غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
+            # parts[0] = "cancel"
+            # parts[1:] = position_id
+            position_id = '_'.join(parts[1:])
             
             # العودة إلى رسالة الصفقة الأصلية
             await self._show_trade_message(update, context, position_id)
@@ -395,11 +482,15 @@ class TradeButtonHandler:
     async def _handle_refresh_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة زر التحديث"""
         try:
+            # تحليل: refresh_{position_id}
             parts = callback_data.split('_')
             if len(parts) < 2:
+                logger.error(f"بيانات زر التحديث غير كاملة: {callback_data}")
                 return
             
-            position_id = parts[1]
+            # parts[0] = "refresh"
+            # parts[1:] = position_id
+            position_id = '_'.join(parts[1:])
             
             # تحديث معلومات الصفقة والعودة إليها
             await self._show_trade_message(update, context, position_id)
@@ -411,11 +502,19 @@ class TradeButtonHandler:
     async def _handle_back_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
         """معالجة أزرار العودة"""
         try:
-            parts = callback_data.split('_')
-            if len(parts) < 4:
-                return
+            # التعامل مع أنواع مختلفة من أزرار العودة
+            # back_to_trade_{position_id} أو back_{action}_{position_id}
             
-            position_id = parts[3]
+            if callback_data.startswith("back_to_trade_"):
+                # استخراج position_id من back_to_trade_{position_id}
+                position_id = callback_data.replace("back_to_trade_", "")
+            else:
+                # التعامل مع الأنماط الأخرى
+                parts = callback_data.split('_', 3)  # فصل إلى 3 أجزاء كحد أقصى
+                if len(parts) < 3:
+                    logger.error(f"بيانات زر العودة غير صحيحة: {callback_data}")
+                    return
+                position_id = parts[2] if len(parts) == 3 else '_'.join(parts[2:])
             
             # العودة إلى رسالة الصفقة الأصلية
             await self._show_trade_message(update, context, position_id)

@@ -162,7 +162,7 @@ class TradeMessageManager:
             
             # أزرار إضافية
             keyboard.append([
-                InlineKeyboardButton("⚙️ تعديل النسب", callback_data=f"edit_percents_{position_id}"),
+                InlineKeyboardButton("⚙️ تعديل النسب", callback_data=f"edit_{position_id}_percents"),
                 InlineKeyboardButton("🔄 تحديث", callback_data=f"refresh_{position_id}")
             ])
             
@@ -180,19 +180,19 @@ class TradeMessageManager:
             # أزرار تعديل نسب TP
             keyboard.append([InlineKeyboardButton(
                 "🎯 تعديل نسب TP", 
-                callback_data=f"edit_tp_{position_id}"
+                callback_data=f"edit_{position_id}_tp"
             )])
             
             # أزرار تعديل نسب SL
             keyboard.append([InlineKeyboardButton(
                 "🛑 تعديل نسب SL", 
-                callback_data=f"edit_sl_{position_id}"
+                callback_data=f"edit_{position_id}_sl"
             )])
             
             # أزرار تعديل نسب الإغلاق الجزئي
             keyboard.append([InlineKeyboardButton(
                 "📊 تعديل نسب الإغلاق الجزئي", 
-                callback_data=f"edit_partial_{position_id}"
+                callback_data=f"edit_{position_id}_partial"
             )])
             
             # زر العودة
@@ -235,7 +235,7 @@ class TradeMessageManager:
             # زر العودة
             keyboard.append([InlineKeyboardButton(
                 "🔙 العودة", 
-                callback_data=f"edit_percents_{position_id}"
+                callback_data=f"edit_{position_id}_percents"
             )])
             
             return InlineKeyboardMarkup(keyboard)
@@ -272,7 +272,7 @@ class TradeMessageManager:
             # زر العودة
             keyboard.append([InlineKeyboardButton(
                 "🔙 العودة", 
-                callback_data=f"edit_percents_{position_id}"
+                callback_data=f"edit_{position_id}_percents"
             )])
             
             return InlineKeyboardMarkup(keyboard)
@@ -309,7 +309,7 @@ class TradeMessageManager:
             # زر العودة
             keyboard.append([InlineKeyboardButton(
                 "🔙 العودة", 
-                callback_data=f"edit_percents_{position_id}"
+                callback_data=f"edit_{position_id}_percents"
             )])
             
             return InlineKeyboardMarkup(keyboard)
@@ -367,7 +367,7 @@ class TradeMessageManager:
             # لوحة أزرار التأكيد
             keyboard = [
                 [
-                    InlineKeyboardButton("✅ تأكيد", callback_data=f"confirm_{action}_{position_id}_{percent or ''}"),
+                    InlineKeyboardButton("✅ تأكيد", callback_data=f"confirm_{action}_{position_id}_{percent if percent is not None else ''}"),
                     InlineKeyboardButton("❌ إلغاء", callback_data=f"cancel_{position_id}")
                 ]
             ]
