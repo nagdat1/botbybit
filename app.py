@@ -87,9 +87,6 @@ def start_bot():
             
             application = Application.builder().token(TELEGRAM_TOKEN).build()
             
-            # ربط البوت مع التطبيق لإرسال الرسائل
-            trading_bot._telegram_app = application
-            
             # إضافة المعالجات
             from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters
             application.add_handler(CommandHandler("start", start))
@@ -125,14 +122,6 @@ def start_bot():
             
             # بدء التحديث الدوري
             start_price_updates()
-            
-            # بدء التحديث التلقائي لنظام الصفقات
-            try:
-                from trade_manager import trade_manager
-                trade_manager.start_auto_updates_sync()
-                print("✅ تم بدء التحديث التلقائي للصفقات")
-            except Exception as e:
-                print(f"❌ خطأ في بدء التحديث التلقائي للصفقات: {e}")
             
             # تشغيل البوت
             print("بدء تشغيل البوت...")

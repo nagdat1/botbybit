@@ -30,9 +30,6 @@ from config import *
 from database import db_manager
 from user_manager import user_manager
 
-# استيراد نظام إدارة الصفقات التفاعلي
-from trade_manager import trade_manager
-
 # إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -43,36 +40,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-def mask_api_credentials(api_key: str, api_secret: str) -> tuple[str, str]:
-    """إخفاء معلومات API جزئياً للعرض الآمن"""
-    if not api_key or not api_secret:
-        return "غير محدد", "غير محدد"
-    
-    # إظهار أول 4 وآخر 4 أحرف فقط
-    masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "****"
-    masked_secret = f"{api_secret[:4]}...{api_secret[-4:]}" if len(api_secret) > 8 else "****"
-    
-    return masked_key, masked_secret
-
-async def verify_api_connection(api_key: str, api_secret: str) -> tuple[bool, str]:
-    """التحقق من صحة اتصال API"""
-    try:
-        # إنشاء كائن API مؤقت للاختبار
-        test_api = BybitAPI(api_key, api_secret)
-        
-        # محاولة جلب معلومات الحساب للتحقق
-        response = test_api.get_account_balance()
-        
-        if response.get("retCode") == 0:
-            return True, "✅ الاتصال ناجح"
-        else:
-            error_msg = response.get("retMsg", "خطأ غير محدد")
-            return False, f"❌ فشل الاتصال: {error_msg}"
-            
-    except Exception as e:
-        logger.error(f"خطأ في التحقق ��ن API: {e}")
-        return False, f"❌ خطأ في الاتصال: {str(e)}"
 
 class FuturesPosition:
     """فئة لإدارة صفقات الفيوتشر"""
@@ -605,22 +572,6 @@ class BybitAPI:
         except Exception as e:
             logger.error(f"خطأ في الحصول على الرصيد: {e}")
             return {"retCode": -1, "retMsg": str(e)}
-            
-    async def verify_api_connection(self) -> tuple[bool, str]:
-        """التحقق من صحة اتصال API"""
-        try:
-            # محاولة جلب معلومات الحساب للتحقق
-            response = self.get_account_balance()
-            
-            if response.get("retCode") == 0:
-                return True, "✅ الاتصال ناجح"
-            else:
-                error_msg = response.get("retMsg", "خطأ غير محدد")
-                return False, f"❌ فشل الاتصال: {error_msg}"
-                
-        except Exception as e:
-            logger.error(f"خطأ في التحقق من API: {e}")
-            return False, f"❌ خطأ في الاتصال: {str(e)}"
 
 class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
@@ -821,18 +772,13 @@ class TradingBot:
             # التحقق من وجود الرمز في الفئة المحددة من قبل المستخدم
             symbol_found = False
             
-            # إذا كانت الأزواج فارغة، تجاهل التحقق
-            if not self.available_pairs.get('spot') and not self.available_pairs.get('futures'):
-                logger.warning("قائمة الأزواج فارغة، تجاهل التحقق من الرمز")
-                symbol_found = True  # تجاهل التحقق والسماح بالتداول
-            else:
-                if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
-                    symbol_found = True
-                elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
-                    symbol_found = True
-                    # تحديد الفئة الصحيحة للفيوتشر
-                    if symbol in self.available_pairs.get('inverse', []):
-                        bybit_category = "inverse"
+            if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
+                symbol_found = True
+            elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
+                symbol_found = True
+                # تحديد الفئة الصحيحة للفيوتشر
+                if symbol in self.available_pairs.get('inverse', []):
+                    bybit_category = "inverse"
             
             if not symbol_found:
                 # جمع الأزواج المتاحة للنوع المحدد
@@ -841,13 +787,9 @@ class TradingBot:
                     # إضافة أزواج inverse أيضاً للفيوتشر
                     available_pairs = self.available_pairs.get('futures', []) + self.available_pairs.get('inverse', [])
                 
-                # عرض أول 20 زوج إذا كانت متاحة
-                if available_pairs:
-                    pairs_list = ", ".join(available_pairs[:20])
-                    error_message = f"❌ الرمز {symbol} غير موجود في نوع السوق المحدد ({user_market_type.upper()})!\n\n📋 الأزواج المتاحة:\n{pairs_list}"
-                else:
-                    error_message = f"❌ الرمز {symbol} غير موجود في نوع السوق المحدد ({user_market_type.upper()})!\n\n⚠️ قائمة الأزواج فارغة، تحقق من اتصال API"
-                
+                # عرض أول 20 زوج
+                pairs_list = ", ".join(available_pairs[:20])
+                error_message = f"❌ الرمز {symbol} غير موجود في نوع السوق المحدد ({user_market_type.upper()})!\n\n📋 الأزواج المتاحة:\n{pairs_list}"
                 await self.send_message_to_admin(error_message)
                 return
             
@@ -934,7 +876,6 @@ class TradingBot:
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في القائمة العامة
                         self.open_positions[position_id] = {
-                            'position_id': position_id,
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -969,27 +910,6 @@ class TradingBot:
                         message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
                         
                         await self.send_message_to_admin(message)
-                        
-                        # إرسال رسالة تفاعلية للصفقة
-                        try:
-                            from trade_messages import trade_message_manager
-                            position_data = self.open_positions[position_id]
-                            trade_message, trade_keyboard = trade_message_manager.create_trade_message(
-                                position_data, self.user_settings
-                            )
-                            
-                            # إرسال الرسالة التفاعلية
-                            if hasattr(self, '_telegram_app') and self._telegram_app:
-                                await self._telegram_app.bot.send_message(
-                                    chat_id=ADMIN_USER_ID, 
-                                    text=trade_message, 
-                                    reply_markup=trade_keyboard
-                                )
-                                logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
-                            else:
-                                logger.warning("تطبيق التلجرام غير متاح لإرسال الرسالة التفاعلية")
-                        except Exception as e:
-                            logger.error(f"خطأ في إرسال الرسالة التفاعلية: {e}")
                     else:
                         await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
                 else:
@@ -1010,7 +930,6 @@ class TradingBot:
                     position_id = result
                     
                     self.open_positions[position_id] = {
-                        'position_id': position_id,
                         'symbol': symbol,
                         'entry_price': price,
                         'side': action,
@@ -1030,34 +949,13 @@ class TradingBot:
                     message += f"💰 المبلغ: {amount}\n"
                     message += f"💲 سعر الدخول: {price:.6f}\n"
                     message += f"🏪 السوق: SPOT\n"
-                    message += f"🆔 رقم الصفقة: {position_id}\n"
+                    message += f"ident رقم الصفقة: {position_id}\n"
                     
                     # إضافة معلومات الحساب
                     account_info = account.get_account_info()
                     message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
                     
                     await self.send_message_to_admin(message)
-                    
-                    # إرسال رسالة تفاعلية للصفقة
-                    try:
-                        from trade_messages import trade_message_manager
-                        position_data = self.open_positions[position_id]
-                        trade_message, trade_keyboard = trade_message_manager.create_trade_message(
-                            position_data, self.user_settings
-                        )
-                        
-                        # إرسال الرسالة التفاعلية
-                        if hasattr(self, '_telegram_app') and self._telegram_app:
-                            await self._telegram_app.bot.send_message(
-                                chat_id=ADMIN_USER_ID, 
-                                text=trade_message, 
-                                reply_markup=trade_keyboard
-                            )
-                            logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
-                        else:
-                            logger.warning("تطبيق التلجرام غير متاح لإرسال الرسالة التفاعلية")
-                    except Exception as e:
-                        logger.error(f"خطأ في إرسال الرسالة التفاعلية: {e}")
                 else:
                     await self.send_message_to_admin(f"❌ فشل في فتح الصفقة التجريبية: {result}")
                 
@@ -1068,18 +966,10 @@ class TradingBot:
     async def send_message_to_admin(self, message: str):
         """إرسال رسالة للمدير"""
         try:
-            # محاولة إرسال الرسالة عبر البوت الموجود
-            if hasattr(self, '_telegram_app') and self._telegram_app:
-                await self._telegram_app.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
-            else:
-                # إنشاء تطبيق مؤقت
-                application = Application.builder().token(TELEGRAM_TOKEN).build()
-                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
-                await application.shutdown()
+            application = Application.builder().token(TELEGRAM_TOKEN).build()
+            await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
-            # طباعة الرسالة في السجل كبديل
-            print(f"رسالة للمدير: {message}")
 
 # إنشاء البوت العام
 trading_bot = TradingBot()
@@ -1091,15 +981,6 @@ user_manager = um_module.user_manager
 
 # تحميل المستخدمين من قاعدة البيانات
 user_manager.load_all_users()
-
-# ربط مدير الصفقات بالبوت
-trade_manager.set_trading_bot(trading_bot)
-
-# ربط معالج الأزرار والتنفيذ مع البوت
-from trade_button_handler import trade_button_handler
-from trade_executor import trade_executor
-trade_button_handler.trading_bot = trading_bot
-trade_executor.trading_bot = trading_bot
 
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
@@ -1149,8 +1030,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-        [KeyboardButton("🎯 الصفقات التفاعلية")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
@@ -1176,35 +1056,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
-    
-    # التحقق من حالة API
-    api_key = user_data.get('api_key')
-    api_secret = user_data.get('api_secret')
-    
-    if api_key and api_secret:
-        # التحقق من صحة الاتصال
-        is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
-        api_status = "🟢 متصل" if is_connected else "🔴 غير متصل"
-        
-        # إخفاء معلومات API جزئياً
-        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
-        api_info = f"""
-🔑 معلومات API:
-• API Key: {masked_key}
-• API Secret: {masked_secret}
-• الحالة: {api_status}
-        """
-    else:
-        api_status = "🔴 غير مرتبط"
-        api_info = "🔗 API غير مرتبط - استخدم زر الإعدادات للربط"
+    api_status = "🟢 مرتبط" if user_data.get('api_key') else "🔴 غير مرتبط"
     
     welcome_message = f"""
 🤖 مرحباً بك {update.effective_user.first_name}
 
 📊 حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
-
-{api_info}
 
 💰 معلومات الحساب:
 • الرصيد الكلي: {account_info.get('balance', 0):.2f} USDT
@@ -1265,28 +1123,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
-    
-    # التحقق من حالة API وإظهار المعلومات
-    api_key = user_data.get('api_key')
-    api_secret = user_data.get('api_secret')
-    
-    if api_key and api_secret:
-        # التحقق من صحة الاتصال
-        is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
-        api_status = "🟢 متصل وفعال" if is_connected else "🔴 غير متصل"
-        
-        # إخفاء معلومات API جزئياً
-        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
-        api_details = f"""
-🔑 تفاصيل API:
-• Key: {masked_key}
-• Secret: {masked_secret}
-• الحالة: {api_status}
-        """
-    else:
-        api_status = "🔴 غير مرتبط"
-        api_details = "⚠️ لم يتم ربط API بعد"
-    
+    api_status = "🟢 مرتبط" if user_data.get('api_key') else "🔴 غير مرتبط"
     account_type = user_data.get('account_type', 'demo')
     trade_amount = user_data.get('trade_amount', 100.0)
     leverage = user_data.get('leverage', 10)
@@ -1296,8 +1133,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📊 حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
-
-{api_details}
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
@@ -1395,7 +1230,7 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع النظام التفاعلي الجديد"""
+    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
     try:
         logger.info(f"عرض الصفقات المفتوحة: {len(trading_bot.open_positions)} صفقة مفتوحة")
         
@@ -1412,8 +1247,36 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(message_text)
             return
         
-        # استخدام النظام الجديد لإرسال رسائل تفاعلية
-        await trade_manager.send_all_positions_messages(update, context)
+        # فصل الصفقات حسب النوع
+        spot_positions = {}
+        futures_positions = {}
+        
+        for position_id, position_info in trading_bot.open_positions.items():
+            market_type = position_info.get('account_type', 'spot')
+            logger.info(f"الصفقة {position_id}: نوع السوق = {market_type}")
+            if market_type == 'spot':
+                spot_positions[position_id] = position_info
+            else:
+                futures_positions[position_id] = position_info
+        
+        logger.info(f"الصفقات السبوت: {len(spot_positions)}, الصفقات الفيوتشر: {len(futures_positions)}")
+        
+        # إرسال رسالة منفصلة لكل نوع
+        if spot_positions:
+            await send_spot_positions_message(update, spot_positions)
+        
+        if futures_positions:
+            await send_futures_positions_message(update, futures_positions)
+        
+        # إذا لم تكن هناك صفقات من أي نوع
+        if not spot_positions and not futures_positions:
+            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
+            if update.callback_query is not None:
+                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+                if update.callback_query.message.text != message_text:
+                    await update.callback_query.edit_message_text(message_text)
+            elif update.message is not None:
+                await update.message.reply_text(message_text)
         
     except Exception as e:
         logger.error(f"خطأ في عرض الصفقات المفتوحة: {e}")
@@ -1944,13 +1807,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     data = query.data
     
-    # معالجة أزرار الصفقات التفاعلية أولاً (بما في ذلك close_)
-    trade_actions = ['tp_', 'sl_', 'partial_', 'close_', 'edit_', 'set_', 'custom_', 'confirm_', 'cancel_', 'refresh_', 'back_']
-    if any(data.startswith(action) for action in trade_actions):
-        handled = await trade_manager.handle_trade_callback(update, context, data)
-        if handled:
-            return
-    
     # معالجة زر الربط API
     if data == "link_api":
         if user_id is not None:
@@ -2008,6 +1864,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+    elif data.startswith("close_"):
+        position_id = data.replace("close_", "")
+        await close_position(position_id, update, context)
+    elif data == "refresh_positions":
+        await open_positions(update, context)
     elif data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
@@ -2088,12 +1949,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     text = update.message.text
     
-    # معالجة الإدخال المخصص لنظام الصفقات أولاً
-    if user_id is not None:
-        handled = await trade_manager.handle_custom_input(update, context, user_id, text)
-        if handled:
-            return
-    
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:
         state = user_input_state[user_id]
@@ -2113,73 +1968,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚠️ ملاحظة: سيتم تشفير المفاتيح وتخزينها بشكل آمن
                 """)
-        elif state == "waiting_for_api_secret":
-            # الحصول على API_KEY المحفوظ مؤقتاً
-            if hasattr(context, 'user_data') and context.user_data and 'temp_api_key' in context.user_data:
-                api_key = context.user_data['temp_api_key']
-                api_secret = text
-                
-                # التحقق من صحة الاتصال أولاً
-                if update.message is not None:
-                    await update.message.reply_text("⏳ جاري التحقق من الاتصال...")
-                
-                is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
-                
-                if is_connected:
-                    # حفظ في قاعدة البيانات
-                    success = user_manager.update_user_api(user_id, api_key, api_secret)
-                    
-                    if success:
-                        # مسح البيانات المؤقتة
-                        del context.user_data['temp_api_key']
-                        del user_input_state[user_id]
-                        
-                        # إخفاء معلومات API للعرض
-                        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
-                        
-                        if update.message is not None:
-                            await update.message.reply_text(f"""
-✅ تم ربط API بنجاح!
-
-🔑 معلومات API:
-• API Key: {masked_key}
-• API Secret: {masked_secret}
-• الحالة: 🟢 متصل وفعال
-
-🔗 الاتصال: https://api.bybit.com (Live)
-📊 يمكنك الآن استخدام جميع ميزات البوت
-
-استخدم /start للعودة إلى القائمة الرئيسية
-                            """)
-                    else:
-                        if update.message is not None:
-                            await update.message.reply_text("❌ فشل في حفظ مفاتيح API. حاول مرة أخرى.")
-                else:
-                    # فشل الاتصال - عدم حفظ المفاتيح
-                    if update.message is not None:
-                        await update.message.reply_text(f"""
-❌ فشل التحقق من الاتصال!
-
-{connection_msg}
-
-⚠️ يرجى التحقق من:
-• صحة API Key و API Secret
-• صلاحيات API على حسابك في Bybit
-• اتصالك بالإنترنت
-
-حاول مرة أخرى باستخدام /start
-                        """)
-                    
-                    # مسح البيانات المؤقتة
-                    if 'temp_api_key' in context.user_data:
-                        del context.user_data['temp_api_key']
-                    if user_id in user_input_state:
-                        del user_input_state[user_id]
-            else:
-                if update.message is not None:
-                    await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
-                if user_id in user_input_state:
-                    del user_input_state[user_id]
         elif state == "waiting_for_api_secret":
             # الحصول على API_KEY المحفوظ مؤقتاً
             if hasattr(context, 'user_data') and context.user_data and 'temp_api_key' in context.user_data:
@@ -2280,8 +2068,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trade_history(update, context)
     elif text == "💰 المحفظة":
         await wallet_overview(update, context)
-    elif text == "🎯 الصفقات التفاعلية":
-        await open_positions(update, context)
     elif text == "▶️ تشغيل البوت":
         trading_bot.is_running = True
         if update.message is not None:
