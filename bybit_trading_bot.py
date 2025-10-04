@@ -30,11 +30,8 @@ from config import *
 from database import db_manager
 from user_manager import user_manager
 
-# استيراد نظام إدارة الصفقات الجديد
-from trade_manager import TradeManager
-from trade_button_handler import TradeButtonHandler
-from trade_executor import TradeExecutor
-from trade_interactive_messages import TradeInteractiveMessages
+# استيراد نظام إدارة الصفقات التفاعلي
+from trade_manager import trade_manager
 
 # إعداد التسجيل
 logging.basicConfig(
@@ -1034,6 +1031,9 @@ user_manager = um_module.user_manager
 # تحميل المستخدمين من قاعدة البيانات
 user_manager.load_all_users()
 
+# ربط مدير الصفقات بالبوت
+trade_manager.set_trading_bot(trading_bot)
+
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
 
@@ -1082,7 +1082,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+        [KeyboardButton("🎯 الصفقات التفاعلية")]
     ]
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
@@ -1327,7 +1328,7 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
+    """عرض الصفقات المفتوحة مع النظام التفاعلي الجديد"""
     try:
         logger.info(f"عرض الصفقات المفتوحة: {len(trading_bot.open_positions)} صفقة مفتوحة")
         
@@ -1344,36 +1345,8 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(message_text)
             return
         
-        # فصل الصفقات حسب النوع
-        spot_positions = {}
-        futures_positions = {}
-        
-        for position_id, position_info in trading_bot.open_positions.items():
-            market_type = position_info.get('account_type', 'spot')
-            logger.info(f"الصفقة {position_id}: نوع السوق = {market_type}")
-            if market_type == 'spot':
-                spot_positions[position_id] = position_info
-            else:
-                futures_positions[position_id] = position_info
-        
-        logger.info(f"الصفقات السبوت: {len(spot_positions)}, الصفقات الفيوتشر: {len(futures_positions)}")
-        
-        # إرسال رسالة منفصلة لكل نوع
-        if spot_positions:
-            await send_spot_positions_message(update, spot_positions)
-        
-        if futures_positions:
-            await send_futures_positions_message(update, futures_positions)
-        
-        # إذا لم تكن هناك صفقات من أي نوع
-        if not spot_positions and not futures_positions:
-            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
-            if update.callback_query is not None:
-                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
-                if update.callback_query.message.text != message_text:
-                    await update.callback_query.edit_message_text(message_text)
-            elif update.message is not None:
-                await update.message.reply_text(message_text)
+        # استخدام النظام الجديد لإرسال رسائل تفاعلية
+        await trade_manager.send_all_positions_messages(update, context)
         
     except Exception as e:
         logger.error(f"خطأ في عرض الصفقات المفتوحة: {e}")
@@ -1904,6 +1877,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     data = query.data
     
+    # معالجة أزرار الصفقات التفاعلية أولاً
+    handled = await trade_manager.handle_trade_callback(update, context, data)
+    if handled:
+        return
+    
     # معالجة زر الربط API
     if data == "link_api":
         if user_id is not None:
@@ -2045,6 +2023,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     user_id = update.effective_user.id if update.effective_user else None
     text = update.message.text
+    
+    # معالجة الإدخال المخصص لنظام الصفقات أولاً
+    if user_id is not None:
+        handled = await trade_manager.handle_custom_input(update, context, user_id, text)
+        if handled:
+            return
     
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:
@@ -2232,6 +2216,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trade_history(update, context)
     elif text == "💰 المحفظة":
         await wallet_overview(update, context)
+    elif text == "🎯 الصفقات التفاعلية":
+        await open_positions(update, context)
     elif text == "▶️ تشغيل البوت":
         trading_bot.is_running = True
         if update.message is not None:
@@ -2334,6 +2320,15 @@ def main():
     
     # بدء التحديث الدوري
     start_price_updates()
+    
+    # بدء التحديث التلقائي لنظام الصفقات
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(trade_manager.start_auto_updates())
+        loop.close()
+    except Exception as e:
+        logger.error(f"خطأ في بدء التحديث التلقائي للصفقات: {e}")
     
     # تشغيل البوت
     logger.info("بدء تشغيل البوت...")

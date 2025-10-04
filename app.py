@@ -123,6 +123,17 @@ def start_bot():
             # بدء التحديث الدوري
             start_price_updates()
             
+            # بدء التحديث التلقائي لنظام الصفقات
+            try:
+                from trade_manager import trade_manager
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(trade_manager.start_auto_updates())
+                loop.close()
+                print("✅ تم بدء التحديث التلقائي للصفقات")
+            except Exception as e:
+                print(f"❌ خطأ في بدء التحديث التلقائي للصفقات: {e}")
+            
             # تشغيل البوت
             print("بدء تشغيل البوت...")
             application.run_polling(allowed_updates=['message', 'callback_query'])

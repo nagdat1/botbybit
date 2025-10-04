@@ -1,520 +1,400 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-نظام إدارة الصفقات مع رسائل منفصلة لكل صفقة
-يدعم أزرار TP, SL, Partial Close, و Full Close
+مدير الصفقات الرئيسي
+يدمج جميع مكونات نظام إدارة الصفقات التفاعلي
 """
 
 import logging
 import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from telegram import Update
 from telegram.ext import ContextTypes
+
+from trade_messages import trade_message_manager
+from trade_button_handler import trade_button_handler
+from trade_executor import trade_executor
 
 logger = logging.getLogger(__name__)
 
 class TradeManager:
-    """مدير الصفقات مع رسائل تفاعلية منفصلة"""
+    """مدير الصفقات الرئيسي"""
     
-    def __init__(self, trading_bot):
+    def __init__(self, trading_bot=None):
         self.trading_bot = trading_bot
-        self.trade_messages = {}  # {position_id: message_info}
-        self.user_percentages = {}  # {user_id: {tp: [1,2,5], sl: [1,2,3], partial: [25,50,75]}}
+        self.trade_messages = trade_message_manager
+        self.button_handler = trade_button_handler
+        self.executor = trade_executor
         
-    def get_user_percentages(self, user_id: int) -> Dict:
-        """الحصول على نسب المستخدم المخصصة"""
-        if user_id not in self.user_percentages:
-            # إعدادات افتراضية
-            self.user_percentages[user_id] = {
-                'tp': [1, 2, 5],
-                'sl': [1, 2, 3],
-                'partial': [25, 50, 75]
-            }
-        return self.user_percentages[user_id]
+        # ربط المكونات
+        self.button_handler.trading_bot = trading_bot
+        self.executor.trading_bot = trading_bot
+        
+        # حالة التحديث التلقائي
+        self.auto_update_task = None
+        self.is_running = False
     
-    def update_user_percentages(self, user_id: int, percentages: Dict):
-        """تحديث نسب المستخدم"""
-        self.user_percentages[user_id] = percentages
-    
-    async def create_trade_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, position_info: Dict):
-        """إنشاء رسالة منفصلة للصفقة"""
+    async def start_auto_updates(self):
+        """بدء التحديث التلقائي للصفقات"""
         try:
-            position_id = position_info.get('position_id', 'unknown')
-            symbol = position_info['symbol']
-            side = position_info['side']
-            entry_price = position_info['entry_price']
-            current_price = position_info.get('current_price', entry_price)
-            market_type = position_info.get('account_type', 'spot')
-            
-            # حساب الربح/الخسارة
-            pnl_percent = position_info.get('pnl_percent', 0.0)
-            pnl_value = 0.0
-            
-            if market_type == 'futures':
-                margin_amount = position_info.get('margin_amount', 0)
-                leverage = position_info.get('leverage', 1)
-                position_size = position_info.get('position_size', 0)
-                liquidation_price = position_info.get('liquidation_price', 0)
-                
-                # حساب PnL للفيوتشر
-                if margin_amount > 0:
-                    pnl_value = (pnl_percent / 100) * margin_amount
-                
-                # رسالة الصفقة
-                pnl_emoji = "🟢💰" if pnl_percent >= 0 else "🔴💸"
-                pnl_status = "رابح" if pnl_percent >= 0 else "خاسر"
-                arrow = "⬆️" if pnl_percent >= 0 else "⬇️"
-                
-                trade_text = f"""
-{pnl_emoji} **صفقة فيوتشر - {symbol}**
-🔄 النوع: {side.upper()}
-💲 سعر الدخول: {entry_price:.6f}
-💲 السعر الحالي: {current_price:.6f}
-💰 الهامش المحجوز: {margin_amount:.2f}
-📈 حجم الصفقة: {position_size:.2f}
-{arrow} الربح/الخسارة: {pnl_value:.2f} ({pnl_percent:.2f}%) - {pnl_status}
-⚡ الرافعة: {leverage}x
-⚠️ سعر التصفية: {liquidation_price:.6f}
-🆔 رقم الصفقة: {position_id}
-                """
-            else:
-                amount = position_info.get('amount', 0)
-                contracts = amount / entry_price if entry_price > 0 else 0
-                
-                # حساب PnL للسبوت
-                if side.lower() == "buy":
-                    pnl_value = (current_price - entry_price) * contracts
-                else:
-                    pnl_value = (entry_price - current_price) * contracts
-                
-                pnl_percent = (pnl_value / amount) * 100 if amount > 0 else 0
-                
-                pnl_emoji = "🟢💰" if pnl_value >= 0 else "🔴💸"
-                pnl_status = "رابح" if pnl_value >= 0 else "خاسر"
-                arrow = "⬆️" if pnl_value >= 0 else "⬇️"
-                
-                trade_text = f"""
-{pnl_emoji} **صفقة سبوت - {symbol}**
-🔄 النوع: {side.upper()}
-💲 سعر الدخول: {entry_price:.6f}
-💲 السعر الحالي: {current_price:.6f}
-💰 المبلغ: {amount:.2f}
-{arrow} الربح/الخسارة: {pnl_value:.2f} ({pnl_percent:.2f}%) - {pnl_status}
-🆔 رقم الصفقة: {position_id}
-                """
-            
-            # إنشاء الأزرار
-            keyboard = await self.create_trade_buttons(position_id, update.effective_user.id if update.effective_user else None)
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            # إرسال الرسالة
-            if update.message:
-                message = await update.message.reply_text(trade_text, reply_markup=reply_markup, parse_mode='Markdown')
-            else:
-                message = await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text=trade_text,
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
-                )
-            
-            # حفظ معلومات الرسالة
-            self.trade_messages[position_id] = {
-                'message_id': message.message_id,
-                'chat_id': message.chat_id,
-                'position_info': position_info,
-                'last_update': datetime.now()
-            }
-            
-            return message
-            
-        except Exception as e:
-            logger.error(f"خطأ في إنشاء رسالة الصفقة: {e}")
-            return None
-    
-    async def create_trade_buttons(self, position_id: str, user_id: Optional[int] = None) -> List[List[InlineKeyboardButton]]:
-        """إنشاء أزرار الصفقة التفاعلية"""
-        try:
-            keyboard = []
-            
-            if user_id:
-                percentages = self.get_user_percentages(user_id)
-            else:
-                percentages = {'tp': [1, 2, 5], 'sl': [1, 2, 3], 'partial': [25, 50, 75]}
-            
-            # أزرار Take Profit (TP)
-            tp_buttons = []
-            for percent in percentages['tp']:
-                tp_buttons.append(InlineKeyboardButton(
-                    f"TP {percent}%",
-                    callback_data=f"tp_{position_id}_{percent}"
-                ))
-            
-            # إضافة زر TP مخصص
-            tp_buttons.append(InlineKeyboardButton(
-                "TP مخصص",
-                callback_data=f"tp_custom_{position_id}"
-            ))
-            
-            keyboard.append(tp_buttons)
-            
-            # أزرار Stop Loss (SL)
-            sl_buttons = []
-            for percent in percentages['sl']:
-                sl_buttons.append(InlineKeyboardButton(
-                    f"SL {percent}%",
-                    callback_data=f"sl_{position_id}_{percent}"
-                ))
-            
-            # إضافة زر SL مخصص
-            sl_buttons.append(InlineKeyboardButton(
-                "SL مخصص",
-                callback_data=f"sl_custom_{position_id}"
-            ))
-            
-            keyboard.append(sl_buttons)
-            
-            # أزرار الإغلاق الجزئي
-            partial_buttons = []
-            for percent in percentages['partial']:
-                partial_buttons.append(InlineKeyboardButton(
-                    f"إغلاق {percent}%",
-                    callback_data=f"partial_{position_id}_{percent}"
-                ))
-            
-            # إضافة زر إغلاق جزئي مخصص
-            partial_buttons.append(InlineKeyboardButton(
-                "إغلاق مخصص",
-                callback_data=f"partial_custom_{position_id}"
-            ))
-            
-            keyboard.append(partial_buttons)
-            
-            # أزرار الإغلاق الكامل والإعدادات
-            control_buttons = [
-                InlineKeyboardButton(
-                    "❌ إغلاق كامل",
-                    callback_data=f"close_full_{position_id}"
-                ),
-                InlineKeyboardButton(
-                    "⚙️ تغيير النسب",
-                    callback_data=f"change_percentages_{position_id}"
-                )
-            ]
-            keyboard.append(control_buttons)
-            
-            # زر التحديث
-            keyboard.append([InlineKeyboardButton(
-                "🔄 تحديث",
-                callback_data=f"refresh_trade_{position_id}"
-            )])
-            
-            return keyboard
-            
-        except Exception as e:
-            logger.error(f"خطأ في إنشاء أزرار الصفقة: {e}")
-            return []
-    
-    async def update_trade_message(self, position_id: str, context: ContextTypes.DEFAULT_TYPE):
-        """تحديث رسالة الصفقة"""
-        try:
-            if position_id not in self.trade_messages:
+            if self.is_running:
                 return
             
-            message_info = self.trade_messages[position_id]
-            position_info = message_info['position_info']
+            self.is_running = True
+            self.auto_update_task = asyncio.create_task(self._auto_update_loop())
+            logger.info("تم بدء التحديث التلقائي للصفقات")
             
-            # تحديث معلومات الصفقة
-            if position_id in self.trading_bot.open_positions:
-                updated_info = self.trading_bot.open_positions[position_id]
-                position_info.update(updated_info)
+        except Exception as e:
+            logger.error(f"خطأ في بدء التحديث التلقائي: {e}")
+    
+    async def stop_auto_updates(self):
+        """إيقاف التحديث التلقائي للصفقات"""
+        try:
+            self.is_running = False
+            if self.auto_update_task:
+                self.auto_update_task.cancel()
+                try:
+                    await self.auto_update_task
+                except asyncio.CancelledError:
+                    pass
+            logger.info("تم إيقاف التحديث التلقائي للصفقات")
             
-            # إعادة إنشاء النص والأزرار
-            symbol = position_info['symbol']
-            side = position_info['side']
-            entry_price = position_info['entry_price']
-            current_price = position_info.get('current_price', entry_price)
-            market_type = position_info.get('account_type', 'spot')
+        except Exception as e:
+            logger.error(f"خطأ في إيقاف التحديث التلقائي: {e}")
+    
+    async def _auto_update_loop(self):
+        """حلقة التحديث التلقائي"""
+        try:
+            while self.is_running:
+                # تحديث أسعار الصفقات
+                await self._update_positions_prices()
+                
+                # فحص أوامر TP/SL
+                await self._check_tp_sl_triggers()
+                
+                # انتظار 30 ثانية قبل التحديث التالي
+                await asyncio.sleep(30)
+                
+        except asyncio.CancelledError:
+            logger.info("تم إلغاء حلقة التحديث التلقائي")
+        except Exception as e:
+            logger.error(f"خطأ في حلقة التحديث التلقائي: {e}")
+    
+    async def _update_positions_prices(self):
+        """تحديث أسعار الصفقات المفتوحة"""
+        try:
+            if self.trading_bot and hasattr(self.trading_bot, 'update_open_positions_prices'):
+                await self.trading_bot.update_open_positions_prices()
+        except Exception as e:
+            logger.error(f"خطأ في تحديث أسعار الصفقات: {e}")
+    
+    async def _check_tp_sl_triggers(self):
+        """فحص وتحقق من أوامر TP/SL"""
+        try:
+            if self.executor:
+                await self.executor.check_tp_sl_triggers()
+        except Exception as e:
+            logger.error(f"خطأ في فحص أوامر TP/SL: {e}")
+    
+    async def send_trade_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+        """إرسال رسالة تفاعلية للصفقة"""
+        try:
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                await update.message.reply_text("❌ البوت غير متاح")
+                return
             
-            # حساب الربح/الخسارة المحدث
-            pnl_percent = position_info.get('pnl_percent', 0.0)
-            pnl_value = 0.0
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                await update.message.reply_text("❌ الصفقة غير موجودة")
+                return
             
-            if market_type == 'futures':
-                margin_amount = position_info.get('margin_amount', 0)
-                leverage = position_info.get('leverage', 1)
-                position_size = position_info.get('position_size', 0)
-                liquidation_price = position_info.get('liquidation_price', 0)
-                
-                if margin_amount > 0:
-                    pnl_value = (pnl_percent / 100) * margin_amount
-                
-                pnl_emoji = "🟢💰" if pnl_percent >= 0 else "🔴💸"
-                pnl_status = "رابح" if pnl_percent >= 0 else "خاسر"
-                arrow = "⬆️" if pnl_percent >= 0 else "⬇️"
-                
-                trade_text = f"""
-{pnl_emoji} **صفقة فيوتشر - {symbol}**
-🔄 النوع: {side.upper()}
-💲 سعر الدخول: {entry_price:.6f}
-💲 السعر الحالي: {current_price:.6f}
-💰 الهامش المحجوز: {margin_amount:.2f}
-📈 حجم الصفقة: {position_size:.2f}
-{arrow} الربح/الخسارة: {pnl_value:.2f} ({pnl_percent:.2f}%) - {pnl_status}
-⚡ الرافعة: {leverage}x
-⚠️ سعر التصفية: {liquidation_price:.6f}
-🆔 رقم الصفقة: {position_id}
-                """
-            else:
-                amount = position_info.get('amount', 0)
-                contracts = amount / entry_price if entry_price > 0 else 0
-                
-                if side.lower() == "buy":
-                    pnl_value = (current_price - entry_price) * contracts
-                else:
-                    pnl_value = (entry_price - current_price) * contracts
-                
-                pnl_percent = (pnl_value / amount) * 100 if amount > 0 else 0
-                
-                pnl_emoji = "🟢💰" if pnl_value >= 0 else "🔴💸"
-                pnl_status = "رابح" if pnl_value >= 0 else "خاسر"
-                arrow = "⬆️" if pnl_value >= 0 else "⬇️"
-                
-                trade_text = f"""
-{pnl_emoji} **صفقة سبوت - {symbol}**
-🔄 النوع: {side.upper()}
-💲 سعر الدخول: {entry_price:.6f}
-💲 السعر الحالي: {current_price:.6f}
-💰 المبلغ: {amount:.2f}
-{arrow} الربح/الخسارة: {pnl_value:.2f} ({pnl_percent:.2f}%) - {pnl_status}
-🆔 رقم الصفقة: {position_id}
-                """
+            # الحصول على إعدادات المستخدم
+            user_settings = self._get_user_settings(update)
             
-            # إنشاء الأزرار المحدثة
-            keyboard = await self.create_trade_buttons(position_id)
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            # تحديث الرسالة
-            await context.bot.edit_message_text(
-                chat_id=message_info['chat_id'],
-                message_id=message_info['message_id'],
-                text=trade_text,
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
+            # إنشاء رسالة الصفقة
+            message, keyboard = self.trade_messages.create_trade_message(
+                position_info, user_settings
             )
             
-            # تحديث معلومات الرسالة
-            message_info['last_update'] = datetime.now()
-            message_info['position_info'] = position_info
+            await update.message.reply_text(message, reply_markup=keyboard)
             
         except Exception as e:
-            logger.error(f"خطأ في تحديث رسالة الصفقة {position_id}: {e}")
+            logger.error(f"خطأ في إرسال رسالة الصفقة: {e}")
+            await update.message.reply_text(f"❌ خطأ في إرسال رسالة الصفقة: {e}")
     
-    async def handle_trade_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE, action: str, position_id: str, value: Optional[float] = None):
-        """معالجة إجراءات الصفقة"""
+    async def handle_trade_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str):
+        """معالجة استدعاءات أزرار الصفقات"""
         try:
-            query = update.callback_query
-            await query.answer()
+            # التحقق من أن البيانات تخص نظام الصفقات
+            if not self._is_trade_callback(callback_data):
+                return False
             
-            if position_id not in self.trading_bot.open_positions:
-                await query.edit_message_text("❌ الصفقة غير موجودة أو تم إغلاقها")
+            # توجيه المعالجة لمعالج الأزرار
+            await self.button_handler.handle_trade_callback(update, context, callback_data)
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة استدعاء الصفقة: {e}")
+            return False
+    
+    async def handle_custom_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, text: str):
+        """معالجة الإدخال المخصص للمستخدم"""
+        try:
+            # توجيه المعالجة لمعالج الأزرار
+            return await self.button_handler.handle_custom_input(update, context, user_id, text)
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة الإدخال المخصص: {e}")
+            return False
+    
+    def _is_trade_callback(self, callback_data: str) -> bool:
+        """التحقق من أن الاستدعاء يخص نظام الصفقات"""
+        try:
+            trade_actions = ['tp_', 'sl_', 'partial_', 'close_', 'edit_', 'set_', 'custom_', 'confirm_', 'cancel_', 'refresh_', 'back_']
+            return any(callback_data.startswith(action) for action in trade_actions)
+        except:
+            return False
+    
+    def _get_user_settings(self, update: Update) -> Dict:
+        """الحصول على إعدادات المستخدم"""
+        try:
+            if self.trading_bot and hasattr(self.trading_bot, 'user_settings'):
+                return self.trading_bot.user_settings
+            return {}
+        except:
+            return {}
+    
+    async def send_all_positions_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """إرسال رسائل لجميع الصفقات المفتوحة"""
+        try:
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                await update.message.reply_text("❌ البوت غير متاح")
                 return
             
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
+            positions = self.trading_bot.open_positions
+            if not positions:
+                await update.message.reply_text("🔄 لا توجد صفقات مفتوحة حالياً")
+                return
             
-            if action == "tp":
-                # تنفيذ Take Profit
-                await self.execute_take_profit(position_id, value, query)
-            elif action == "sl":
-                # تنفيذ Stop Loss
-                await self.execute_stop_loss(position_id, value, query)
-            elif action == "partial":
-                # تنفيذ الإغلاق الجزئي
-                await self.execute_partial_close(position_id, value, query)
-            elif action == "close_full":
-                # تنفيذ الإغلاق الكامل
-                await self.execute_full_close(position_id, query)
-            elif action == "change_percentages":
-                # تغيير النسب
-                await self.show_percentage_settings(query, position_id)
-            elif action == "refresh_trade":
-                # تحديث الصفقة
-                await self.update_trade_message(position_id, context)
+            # الحصول على إعدادات المستخدم
+            user_settings = self._get_user_settings(update)
+            
+            # إرسال رسالة منفصلة لكل صفقة
+            for position_id, position_info in positions.items():
+                try:
+                    message, keyboard = self.trade_messages.create_trade_message(
+                        position_info, user_settings
+                    )
+                    await update.message.reply_text(message, reply_markup=keyboard)
+                    
+                    # تأخير قصير بين الرسائل لتجنب حد الخصم
+                    await asyncio.sleep(0.5)
+                    
+                except Exception as e:
+                    logger.error(f"خطأ في إرسال رسالة الصفقة {position_id}: {e}")
+                    continue
             
         except Exception as e:
-            logger.error(f"خطأ في معالجة إجراء الصفقة: {e}")
-            if update.callback_query:
-                await update.callback_query.answer("❌ حدث خطأ في تنفيذ الإجراء")
+            logger.error(f"خطأ في إرسال رسائل الصفقات: {e}")
+            await update.message.reply_text(f"❌ خطأ في إرسال رسائل الصفقات: {e}")
     
-    async def execute_take_profit(self, position_id: str, percent: float, query: CallbackQuery):
-        """تنفيذ Take Profit"""
+    async def update_position_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+        """تحديث رسالة صفقة موجودة"""
         try:
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            entry_price = position_info['entry_price']
-            side = position_info['side']
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return
             
-            # حساب سعر TP
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                return
+            
+            # الحصول على إعدادات المستخدم
+            user_settings = self._get_user_settings(update)
+            
+            # إنشاء رسالة الصفقة المحدثة
+            message, keyboard = self.trade_messages.create_trade_message(
+                position_info, user_settings
+            )
+            
+            # تحديث الرسالة إذا كانت موجودة
+            if update.callback_query and update.callback_query.message:
+                await update.callback_query.edit_message_text(message, reply_markup=keyboard)
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحديث رسالة الصفقة: {e}")
+    
+    def get_position_summary(self, position_id: str) -> Dict:
+        """الحصول على ملخص الصفقة"""
+        try:
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return {}
+            
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                return {}
+            
+            # حساب الربح/الخسارة
+            pnl_value, pnl_percent = self._calculate_position_pnl(position_info)
+            
+            # الحصول على الأوامر النشطة
+            active_orders = self.executor.get_active_orders(position_id)
+            
+            return {
+                'position_info': position_info,
+                'pnl_value': pnl_value,
+                'pnl_percent': pnl_percent,
+                'active_orders': active_orders,
+                'status': 'ACTIVE'
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على ملخص الصفقة: {e}")
+            return {}
+    
+    def _calculate_position_pnl(self, position_info: Dict) -> tuple[float, float]:
+        """حساب الربح/الخسارة للصفقة"""
+        try:
+            entry_price = position_info.get('entry_price', 0)
+            current_price = position_info.get('current_price', entry_price)
+            side = position_info.get('side', 'buy')
+            
+            if entry_price == 0:
+                return 0.0, 0.0
+            
+            # حساب النسبة المئوية
             if side.lower() == "buy":
-                tp_price = entry_price * (1 + percent / 100)
+                pnl_percent = ((current_price - entry_price) / entry_price) * 100
             else:
-                tp_price = entry_price * (1 - percent / 100)
+                pnl_percent = ((entry_price - current_price) / entry_price) * 100
             
-            # إرسال رسالة تأكيد
-            confirmation_text = f"""
-✅ **تم تنفيذ Take Profit**
-📊 الرمز: {symbol}
-💲 سعر الدخول: {entry_price:.6f}
-🎯 سعر TP: {tp_price:.6f}
-📈 النسبة: {percent}%
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-🔄 سيتم إغلاق الصفقة عند الوصول للسعر المحدد
-            """
+            # حساب القيمة المالية
+            margin_amount = position_info.get('margin_amount', position_info.get('amount', 100))
+            pnl_value = (pnl_percent / 100) * margin_amount
             
-            await query.edit_message_text(confirmation_text, parse_mode='Markdown')
-            
-            # هنا يمكن إضافة منطق تنفيذ TP الفعلي
-            logger.info(f"تم تنفيذ TP للصفقة {position_id} بنسبة {percent}%")
+            return pnl_value, pnl_percent
             
         except Exception as e:
-            logger.error(f"خطأ في تنفيذ TP: {e}")
-            await query.answer("❌ خطأ في تنفيذ Take Profit")
+            logger.error(f"خطأ في حساب PnL للصفقة: {e}")
+            return 0.0, 0.0
     
-    async def execute_stop_loss(self, position_id: str, percent: float, query: CallbackQuery):
-        """تنفيذ Stop Loss"""
+    def get_all_positions_summary(self) -> List[Dict]:
+        """الحصول على ملخص جميع الصفقات"""
         try:
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            entry_price = position_info['entry_price']
-            side = position_info['side']
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return []
             
-            # حساب سعر SL
-            if side.lower() == "buy":
-                sl_price = entry_price * (1 - percent / 100)
+            positions = self.trading_bot.open_positions
+            summary = []
+            
+            for position_id, position_info in positions.items():
+                position_summary = self.get_position_summary(position_id)
+                if position_summary:
+                    summary.append(position_summary)
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على ملخص الصفقات: {e}")
+            return []
+    
+    async def notify_position_update(self, position_id: str, update_type: str, data: Dict = None):
+        """إرسال إشعار بتحديث الصفقة"""
+        try:
+            if not self.trading_bot:
+                return
+            
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                return
+            
+            symbol = position_info.get('symbol', 'N/A')
+            
+            if update_type == "tp_triggered":
+                message = f"""
+🔔 **إشعار: تم تفعيل TP**
+🎯 الرمز: {symbol}
+📊 النسبة: {data.get('percent', 0)}%
+💰 السعر المستهدف: {data.get('target_price', 0):.6f}
+⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
+                """
+            elif update_type == "sl_triggered":
+                message = f"""
+🔔 **إشعار: تم تفعيل SL**
+🛑 الرمز: {symbol}
+📊 النسبة: {data.get('percent', 0)}%
+💰 السعر المستهدف: {data.get('target_price', 0):.6f}
+⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
+                """
+            elif update_type == "partial_closed":
+                message = f"""
+🔔 **إشعار: تم الإغلاق الجزئي**
+📊 الرمز: {symbol}
+📊 النسبة: {data.get('percent', 0)}%
+💰 الربح/الخسارة: {data.get('pnl', 0):.2f}
+⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
+                """
+            elif update_type == "position_closed":
+                message = f"""
+🔔 **إشعار: تم إغلاق الصفقة**
+❌ الرمز: {symbol}
+💰 الربح/الخسارة النهائي: {data.get('pnl', 0):.2f}
+⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
+                """
             else:
-                sl_price = entry_price * (1 + percent / 100)
+                return
             
-            # إرسال رسالة تأكيد
-            confirmation_text = f"""
-⚠️ **تم تنفيذ Stop Loss**
-📊 الرمز: {symbol}
-💲 سعر الدخول: {entry_price:.6f}
-🛑 سعر SL: {sl_price:.6f}
-📉 النسبة: {percent}%
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-🔄 سيتم إغلاق الصفقة عند الوصول للسعر المحدد
-            """
-            
-            await query.edit_message_text(confirmation_text, parse_mode='Markdown')
-            
-            # هنا يمكن إضافة منطق تنفيذ SL الفعلي
-            logger.info(f"تم تنفيذ SL للصفقة {position_id} بنسبة {percent}%")
+            # إرسال الإشعار (يمكن تخصيص هذا حسب الحاجة)
+            logger.info(f"إشعار الصفقة: {message}")
             
         except Exception as e:
-            logger.error(f"خطأ في تنفيذ SL: {e}")
-            await query.answer("❌ خطأ في تنفيذ Stop Loss")
+            logger.error(f"خطأ في إرسال إشعار الصفقة: {e}")
     
-    async def execute_partial_close(self, position_id: str, percent: float, query: CallbackQuery):
-        """تنفيذ الإغلاق الجزئي"""
+    def set_trading_bot(self, trading_bot):
+        """تعيين البوت التجاري"""
         try:
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            current_price = position_info.get('current_price', position_info['entry_price'])
-            
-            # إرسال رسالة تأكيد
-            confirmation_text = f"""
-🔄 **تم تنفيذ الإغلاق الجزئي**
-📊 الرمز: {symbol}
-💲 سعر الإغلاق: {current_price:.6f}
-📊 النسبة المغلقة: {percent}%
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-✅ تم إغلاق {percent}% من الصفقة بنجاح
-            """
-            
-            await query.edit_message_text(confirmation_text, parse_mode='Markdown')
-            
-            # هنا يمكن إضافة منطق تنفيذ الإغلاق الجزئي الفعلي
-            logger.info(f"تم تنفيذ الإغلاق الجزئي للصفقة {position_id} بنسبة {percent}%")
-            
+            self.trading_bot = trading_bot
+            self.button_handler.trading_bot = trading_bot
+            self.executor.trading_bot = trading_bot
+            logger.info("تم ربط مدير الصفقات بالبوت التجاري")
         except Exception as e:
-            logger.error(f"خطأ في تنفيذ الإغلاق الجزئي: {e}")
-            await query.answer("❌ خطأ في تنفيذ الإغلاق الجزئي")
+            logger.error(f"خطأ في ربط مدير الصفقات: {e}")
     
-    async def execute_full_close(self, position_id: str, query: CallbackQuery):
-        """تنفيذ الإغلاق الكامل"""
+    def get_statistics(self) -> Dict:
+        """الحصول على إحصائيات نظام الصفقات"""
         try:
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            current_price = position_info.get('current_price', position_info['entry_price'])
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return {}
             
-            # إرسال رسالة تأكيد
-            confirmation_text = f"""
-❌ **تم تنفيذ الإغلاق الكامل**
-📊 الرمز: {symbol}
-💲 سعر الإغلاق: {current_price:.6f}
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-✅ تم إغلاق الصفقة بالكامل بنجاح
-            """
+            positions = self.trading_bot.open_positions
+            active_orders = self.executor.get_active_orders()
             
-            await query.edit_message_text(confirmation_text, parse_mode='Markdown')
+            total_pnl = 0.0
+            winning_positions = 0
+            losing_positions = 0
             
-            # إغلاق الصفقة فعلياً
-            # هنا يمكن استدعاء دالة إغلاق الصفقة من البوت الرئيسي
-            logger.info(f"تم تنفيذ الإغلاق الكامل للصفقة {position_id}")
-            
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الإغلاق الكامل: {e}")
-            await query.answer("❌ خطأ في تنفيذ الإغلاق الكامل")
-    
-    async def show_percentage_settings(self, query: CallbackQuery, position_id: str):
-        """عرض إعدادات تغيير النسب"""
-        try:
-            user_id = query.from_user.id
-            percentages = self.get_user_percentages(user_id)
-            
-            settings_text = f"""
-⚙️ **إعدادات النسب المخصصة**
-
-📈 نسب Take Profit: {', '.join(map(str, percentages['tp']))}%
-📉 نسب Stop Loss: {', '.join(map(str, percentages['sl']))}%
-🔄 نسب الإغلاق الجزئي: {', '.join(map(str, percentages['partial']))}%
-
-اختر النوع لتغييره:
-            """
-            
-            keyboard = [
-                [InlineKeyboardButton("📈 تغيير TP", callback_data=f"edit_tp_{position_id}")],
-                [InlineKeyboardButton("📉 تغيير SL", callback_data=f"edit_sl_{position_id}")],
-                [InlineKeyboardButton("🔄 تغيير الإغلاق الجزئي", callback_data=f"edit_partial_{position_id}")],
-                [InlineKeyboardButton("🔙 العودة", callback_data=f"refresh_trade_{position_id}")]
-            ]
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(settings_text, reply_markup=reply_markup, parse_mode='Markdown')
-            
-        except Exception as e:
-            logger.error(f"خطأ في عرض إعدادات النسب: {e}")
-            await query.answer("❌ خطأ في عرض الإعدادات")
-    
-    def cleanup_closed_trades(self):
-        """تنظيف رسائل الصفقات المغلقة"""
-        try:
-            closed_trades = []
-            for position_id in list(self.trade_messages.keys()):
-                if position_id not in self.trading_bot.open_positions:
-                    closed_trades.append(position_id)
-            
-            for position_id in closed_trades:
-                del self.trade_messages[position_id]
+            for position_id, position_info in positions.items():
+                pnl_value, _ = self._calculate_position_pnl(position_info)
+                total_pnl += pnl_value
                 
-            if closed_trades:
-                logger.info(f"تم تنظيف {len(closed_trades)} صفقة مغلقة")
-                
+                if pnl_value > 0:
+                    winning_positions += 1
+                elif pnl_value < 0:
+                    losing_positions += 1
+            
+            return {
+                'total_positions': len(positions),
+                'active_orders': len(active_orders),
+                'total_pnl': total_pnl,
+                'winning_positions': winning_positions,
+                'losing_positions': losing_positions,
+                'win_rate': (winning_positions / max(len(positions), 1)) * 100,
+                'is_auto_update_running': self.is_running
+            }
+            
         except Exception as e:
-            logger.error(f"خطأ في تنظيف الصفقات المغلقة: {e}")
+            logger.error(f"خطأ في الحصول على إحصائيات النظام: {e}")
+            return {}
+
+# إنشاء مثيل عام لمدير الصفقات
+trade_manager = TradeManager()

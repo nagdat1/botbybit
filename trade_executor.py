@@ -1,521 +1,567 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-منفذ الصفقات مع تنفيذ فوري وتأكيدات
-يدعم TP, SL, Partial Close, و Full Close
+نظام تنفيذ أوامر الصفقات
+يدعم تنفيذ TP, SL, الإغلاق الجزئي والكامل
 """
 
 import logging
-import asyncio
 from datetime import datetime
-from typing import Dict, List, Optional, Any
-from telegram import Update, CallbackQuery
-from telegram.ext import ContextTypes
+from typing import Dict, List, Optional, Any, Tuple
+from decimal import Decimal, ROUND_DOWN
 
 logger = logging.getLogger(__name__)
 
 class TradeExecutor:
-    """منفذ الصفقات مع التنفيذ الفوري"""
+    """منفذ أوامر الصفقات"""
     
-    def __init__(self, trading_bot, trade_manager):
+    def __init__(self, trading_bot=None):
         self.trading_bot = trading_bot
-        self.trade_manager = trade_manager
-        self.pending_orders = {}  # {order_id: order_info}
+        self.active_orders = {}  # تتبع الأوامر النشطة
         
-    async def execute_take_profit(self, position_id: str, percent: float, query: CallbackQuery) -> bool:
-        """تنفيذ Take Profit مع التأكيد الفوري"""
+    async def set_take_profit(self, position_id: str, percent: float) -> Dict:
+        """وضع هدف الربح (Take Profit)"""
         try:
-            if position_id not in self.trading_bot.open_positions:
-                await query.edit_message_text("❌ الصفقة غير موجودة")
-                return False
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return {'success': False, 'error': 'البوت غير متاح'}
             
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            entry_price = position_info['entry_price']
-            side = position_info['side']
-            current_price = position_info.get('current_price', entry_price)
-            market_type = position_info.get('account_type', 'spot')
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                return {'success': False, 'error': 'الصفقة غير موجودة'}
             
             # حساب سعر TP
+            entry_price = position_info.get('entry_price', 0)
+            side = position_info.get('side', 'buy')
+            
+            if entry_price == 0:
+                return {'success': False, 'error': 'سعر الدخول غير صحيح'}
+            
+            # حساب سعر TP بناءً على اتجاه الصفقة
             if side.lower() == "buy":
                 tp_price = entry_price * (1 + percent / 100)
             else:
                 tp_price = entry_price * (1 - percent / 100)
             
-            # التحقق من صحة سعر TP
-            if not self.validate_tp_price(tp_price, current_price, side):
-                await query.edit_message_text(
-                    f"❌ سعر TP غير صحيح\n"
-                    f"سعر TP: {tp_price:.6f}\n"
-                    f"السعر الحالي: {current_price:.6f}\n"
-                    f"يجب أن يكون TP أعلى من السعر الحالي للشراء وأقل للبيع"
-                )
-                return False
+            # حفظ أمر TP
+            tp_order = {
+                'type': 'TP',
+                'position_id': position_id,
+                'percent': percent,
+                'target_price': tp_price,
+                'created_at': datetime.now(),
+                'status': 'ACTIVE'
+            }
             
-            # تنفيذ TP
-            success = await self.execute_tp_order(position_id, tp_price, percent)
+            self.active_orders[f"tp_{position_id}_{percent}"] = tp_order
             
-            if success:
-                # رسالة تأكيد النجاح
-                confirmation_text = f"""
-✅ **تم تنفيذ Take Profit بنجاح**
-📊 الرمز: {symbol}
-💲 سعر الدخول: {entry_price:.6f}
-🎯 سعر TP: {tp_price:.6f}
-📈 النسبة: {percent}%
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-🔄 سيتم إغلاق الصفقة عند الوصول للسعر المحدد
-📱 ستتلقى إشعاراً عند التنفيذ
-                """
-                
-                await query.edit_message_text(confirmation_text, parse_mode='Markdown')
-                
-                # إضافة إلى قائمة الأوامر المعلقة
-                order_id = f"tp_{position_id}_{int(datetime.now().timestamp())}"
-                self.pending_orders[order_id] = {
-                    'type': 'tp',
-                    'position_id': position_id,
+            # إذا كان التداول حقيقي، وضع الأمر في المنصة
+            if self.trading_bot.user_settings.get('account_type') == 'real':
+                success = await self._place_real_tp_order(position_info, tp_price)
+                if not success:
+                    return {'success': False, 'error': 'فشل في وضع أمر TP في المنصة'}
+            
+            return {
+                'success': True,
+                'data': {
+                    'order_id': f"tp_{position_id}_{percent}",
                     'target_price': tp_price,
                     'percent': percent,
-                    'created_at': datetime.now(),
-                    'status': 'pending'
+                    'created_at': tp_order['created_at']
                 }
-                
-                logger.info(f"تم تنفيذ TP للصفقة {position_id} بسعر {tp_price}")
-                return True
-            else:
-                await query.edit_message_text("❌ فشل في تنفيذ Take Profit")
-                return False
-                
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ TP: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ Take Profit")
-            return False
-    
-    async def execute_stop_loss(self, position_id: str, percent: float, query: CallbackQuery) -> bool:
-        """تنفيذ Stop Loss مع التأكيد الفوري"""
-        try:
-            if position_id not in self.trading_bot.open_positions:
-                await query.edit_message_text("❌ الصفقة غير موجودة")
-                return False
+            }
             
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            entry_price = position_info['entry_price']
-            side = position_info['side']
-            current_price = position_info.get('current_price', entry_price)
-            market_type = position_info.get('account_type', 'spot')
+        except Exception as e:
+            logger.error(f"خطأ في وضع TP: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def set_stop_loss(self, position_id: str, percent: float) -> Dict:
+        """وضع وقف الخسارة (Stop Loss)"""
+        try:
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return {'success': False, 'error': 'البوت غير متاح'}
+            
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                return {'success': False, 'error': 'الصفقة غير موجودة'}
             
             # حساب سعر SL
+            entry_price = position_info.get('entry_price', 0)
+            side = position_info.get('side', 'buy')
+            
+            if entry_price == 0:
+                return {'success': False, 'error': 'سعر الدخول غير صحيح'}
+            
+            # حساب سعر SL بناءً على اتجاه الصفقة
             if side.lower() == "buy":
                 sl_price = entry_price * (1 - percent / 100)
             else:
                 sl_price = entry_price * (1 + percent / 100)
             
-            # التحقق من صحة سعر SL
-            if not self.validate_sl_price(sl_price, current_price, side):
-                await query.edit_message_text(
-                    f"❌ سعر SL غير صحيح\n"
-                    f"سعر SL: {sl_price:.6f}\n"
-                    f"السعر الحالي: {current_price:.6f}\n"
-                    f"يجب أن يكون SL أقل من السعر الحالي للشراء وأعلى للبيع"
-                )
-                return False
+            # حفظ أمر SL
+            sl_order = {
+                'type': 'SL',
+                'position_id': position_id,
+                'percent': percent,
+                'target_price': sl_price,
+                'created_at': datetime.now(),
+                'status': 'ACTIVE'
+            }
             
-            # تنفيذ SL
-            success = await self.execute_sl_order(position_id, sl_price, percent)
+            self.active_orders[f"sl_{position_id}_{percent}"] = sl_order
             
-            if success:
-                # رسالة تأكيد النجاح
-                confirmation_text = f"""
-⚠️ **تم تنفيذ Stop Loss بنجاح**
-📊 الرمز: {symbol}
-💲 سعر الدخول: {entry_price:.6f}
-🛑 سعر SL: {sl_price:.6f}
-📉 النسبة: {percent}%
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-🔄 سيتم إغلاق الصفقة عند الوصول للسعر المحدد
-📱 ستتلقى إشعاراً عند التنفيذ
-                """
-                
-                await query.edit_message_text(confirmation_text, parse_mode='Markdown')
-                
-                # إضافة إلى قائمة الأوامر المعلقة
-                order_id = f"sl_{position_id}_{int(datetime.now().timestamp())}"
-                self.pending_orders[order_id] = {
-                    'type': 'sl',
-                    'position_id': position_id,
+            # إذا كان التداول حقيقي، وضع الأمر في المنصة
+            if self.trading_bot.user_settings.get('account_type') == 'real':
+                success = await self._place_real_sl_order(position_info, sl_price)
+                if not success:
+                    return {'success': False, 'error': 'فشل في وضع أمر SL في المنصة'}
+            
+            return {
+                'success': True,
+                'data': {
+                    'order_id': f"sl_{position_id}_{percent}",
                     'target_price': sl_price,
                     'percent': percent,
-                    'created_at': datetime.now(),
-                    'status': 'pending'
+                    'created_at': sl_order['created_at']
                 }
-                
-                logger.info(f"تم تنفيذ SL للصفقة {position_id} بسعر {sl_price}")
-                return True
-            else:
-                await query.edit_message_text("❌ فشل في تنفيذ Stop Loss")
-                return False
-                
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ SL: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ Stop Loss")
-            return False
-    
-    async def execute_partial_close(self, position_id: str, percent: float, query: CallbackQuery) -> bool:
-        """تنفيذ الإغلاق الجزئي مع التأكيد الفوري"""
-        try:
-            if position_id not in self.trading_bot.open_positions:
-                await query.edit_message_text("❌ الصفقة غير موجودة")
-                return False
+            }
             
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            current_price = position_info.get('current_price', position_info['entry_price'])
-            market_type = position_info.get('account_type', 'spot')
+        except Exception as e:
+            logger.error(f"خطأ في وضع SL: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def partial_close(self, position_id: str, percent: float) -> Dict:
+        """إغلاق جزئي للصفقة"""
+        try:
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return {'success': False, 'error': 'البوت غير متاح'}
+            
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                return {'success': False, 'error': 'الصفقة غير موجودة'}
+            
+            # التحقق من صحة النسبة
+            if percent <= 0 or percent >= 100:
+                return {'success': False, 'error': 'النسبة يجب أن تكون بين 0 و 100'}
+            
+            # الحصول على السعر الحالي
+            current_price = position_info.get('current_price', position_info.get('entry_price'))
+            if not current_price:
+                return {'success': False, 'error': 'السعر الحالي غير متاح'}
+            
+            # حساب الربح/الخسارة الجزئي
+            entry_price = position_info.get('entry_price', 0)
+            side = position_info.get('side', 'buy')
+            margin_amount = position_info.get('margin_amount', position_info.get('amount', 100))
+            
+            # حساب PnL الجزئي
+            partial_amount = margin_amount * (percent / 100)
+            
+            if side.lower() == "buy":
+                partial_pnl = (current_price - entry_price) / entry_price * partial_amount
+            else:
+                partial_pnl = (entry_price - current_price) / entry_price * partial_amount
             
             # تنفيذ الإغلاق الجزئي
-            success = await self.execute_partial_close_order(position_id, percent, current_price)
+            if self.trading_bot.user_settings.get('account_type') == 'real':
+                # تنفيذ حقيقي
+                success = await self._execute_real_partial_close(position_info, percent, current_price)
+                if not success:
+                    return {'success': False, 'error': 'فشل في تنفيذ الإغلاق الجزئي في المنصة'}
+            else:
+                # تنفيذ تجريبي
+                success = await self._execute_demo_partial_close(position_info, percent, current_price, partial_pnl)
+                if not success:
+                    return {'success': False, 'error': 'فشل في تنفيذ الإغلاق الجزئي التجريبي'}
             
-            if success:
-                # حساب الربح/الخسارة الجزئية
-                pnl_info = await self.calculate_partial_pnl(position_id, percent, current_price)
-                
-                # رسالة تأكيد النجاح
-                confirmation_text = f"""
-🔄 **تم تنفيذ الإغلاق الجزئي بنجاح**
-📊 الرمز: {symbol}
-💲 سعر الإغلاق: {current_price:.6f}
-📊 النسبة المغلقة: {percent}%
-💰 الربح/الخسارة: {pnl_info['pnl']:.2f} ({pnl_info['pnl_percent']:.2f}%)
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-✅ تم إغلاق {percent}% من الصفقة بنجاح
-🔄 باقي الصفقة: {100-percent}%
-                """
-                
-                await query.edit_message_text(confirmation_text, parse_mode='Markdown')
-                
+            return {
+                'success': True,
+                'data': {
+                    'partial_percent': percent,
+                    'partial_amount': partial_amount,
+                    'partial_pnl': partial_pnl,
+                    'current_price': current_price,
+                    'executed_at': datetime.now()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في الإغلاق الجزئي: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def close_position(self, position_id: str) -> Dict:
+        """إغلاق الصفقة بالكامل"""
+        try:
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return {'success': False, 'error': 'البوت غير متاح'}
+            
+            position_info = self.trading_bot.open_positions.get(position_id)
+            if not position_info:
+                return {'success': False, 'error': 'الصفقة غير موجودة'}
+            
+            # الحصول على السعر الحالي
+            current_price = position_info.get('current_price', position_info.get('entry_price'))
+            if not current_price:
+                return {'success': False, 'error': 'السعر الحالي غير متاح'}
+            
+            # حساب الربح/الخسارة النهائي
+            entry_price = position_info.get('entry_price', 0)
+            side = position_info.get('side', 'buy')
+            margin_amount = position_info.get('margin_amount', position_info.get('amount', 100))
+            
+            # حساب PnL الكامل
+            if side.lower() == "buy":
+                total_pnl = (current_price - entry_price) / entry_price * margin_amount
+            else:
+                total_pnl = (entry_price - current_price) / entry_price * margin_amount
+            
+            # تنفيذ الإغلاق الكامل
+            if self.trading_bot.user_settings.get('account_type') == 'real':
+                # تنفيذ حقيقي
+                success = await self._execute_real_close(position_info, current_price)
+                if not success:
+                    return {'success': False, 'error': 'فشل في إغلاق الصفقة في المنصة'}
+            else:
+                # تنفيذ تجريبي
+                success = await self._execute_demo_close(position_info, current_price, total_pnl)
+                if not success:
+                    return {'success': False, 'error': 'فشل في إغلاق الصفقة التجريبية'}
+            
+            # حذف الأوامر النشطة للصفقة
+            self._cleanup_position_orders(position_id)
+            
+            return {
+                'success': True,
+                'data': {
+                    'total_pnl': total_pnl,
+                    'closing_price': current_price,
+                    'closed_at': datetime.now()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق الصفقة: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def _place_real_tp_order(self, position_info: Dict, tp_price: float) -> bool:
+        """وضع أمر TP حقيقي في المنصة"""
+        try:
+            if not self.trading_bot.bybit_api:
+                return False
+            
+            symbol = position_info.get('symbol')
+            side = position_info.get('side')
+            quantity = str(position_info.get('margin_amount', 100))
+            category = position_info.get('category', 'spot')
+            
+            # تحويل الاتجاه للعكس (لإغلاق الصفقة)
+            opposite_side = "Sell" if side.lower() == "buy" else "Buy"
+            
+            # وضع أمر Limit للـ TP
+            response = self.trading_bot.bybit_api.place_order(
+                symbol=symbol,
+                side=opposite_side,
+                order_type="Limit",
+                qty=quantity,
+                price=str(tp_price),
+                category=category
+            )
+            
+            return response.get("retCode") == 0
+            
+        except Exception as e:
+            logger.error(f"خطأ في وضع أمر TP حقيقي: {e}")
+            return False
+    
+    async def _place_real_sl_order(self, position_info: Dict, sl_price: float) -> bool:
+        """وضع أمر SL حقيقي في المنصة"""
+        try:
+            if not self.trading_bot.bybit_api:
+                return False
+            
+            symbol = position_info.get('symbol')
+            side = position_info.get('side')
+            quantity = str(position_info.get('margin_amount', 100))
+            category = position_info.get('category', 'spot')
+            
+            # تحويل الاتجاه للعكس (لإغلاق الصفقة)
+            opposite_side = "Sell" if side.lower() == "buy" else "Buy"
+            
+            # وضع أمر Stop للـ SL
+            response = self.trading_bot.bybit_api.place_order(
+                symbol=symbol,
+                side=opposite_side,
+                order_type="Stop",
+                qty=quantity,
+                price=str(sl_price),
+                category=category
+            )
+            
+            return response.get("retCode") == 0
+            
+        except Exception as e:
+            logger.error(f"خطأ في وضع أمر SL حقيقي: {e}")
+            return False
+    
+    async def _execute_real_partial_close(self, position_info: Dict, percent: float, current_price: float) -> bool:
+        """تنفيذ إغلاق جزئي حقيقي"""
+        try:
+            if not self.trading_bot.bybit_api:
+                return False
+            
+            symbol = position_info.get('symbol')
+            side = position_info.get('side')
+            total_quantity = position_info.get('margin_amount', 100)
+            partial_quantity = total_quantity * (percent / 100)
+            category = position_info.get('category', 'spot')
+            
+            # تحويل الاتجاه للعكس (لإغلاق الصفقة)
+            opposite_side = "Sell" if side.lower() == "buy" else "Buy"
+            
+            # وضع أمر Market للإغلاق الجزئي
+            response = self.trading_bot.bybit_api.place_order(
+                symbol=symbol,
+                side=opposite_side,
+                order_type="Market",
+                qty=str(partial_quantity),
+                category=category
+            )
+            
+            if response.get("retCode") == 0:
                 # تحديث معلومات الصفقة
-                await self.update_position_after_partial_close(position_id, percent, pnl_info)
+                remaining_percent = 100 - percent
+                position_info['margin_amount'] = total_quantity * (remaining_percent / 100)
+                position_info['amount'] = position_info['margin_amount']  # للسبوت
                 
-                logger.info(f"تم تنفيذ الإغلاق الجزئي للصفقة {position_id} بنسبة {percent}%")
                 return True
-            else:
-                await query.edit_message_text("❌ فشل في تنفيذ الإغلاق الجزئي")
-                return False
-                
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الإغلاق الجزئي: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ الإغلاق الجزئي")
-            return False
-    
-    async def execute_full_close(self, position_id: str, query: CallbackQuery) -> bool:
-        """تنفيذ الإغلاق الكامل مع التأكيد الفوري"""
-        try:
-            if position_id not in self.trading_bot.open_positions:
-                await query.edit_message_text("❌ الصفقة غير موجودة")
-                return False
-            
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            current_price = position_info.get('current_price', position_info['entry_price'])
-            market_type = position_info.get('account_type', 'spot')
-            
-            # تنفيذ الإغلاق الكامل
-            success = await self.execute_full_close_order(position_id, current_price)
-            
-            if success:
-                # حساب الربح/الخسارة النهائية
-                pnl_info = await self.calculate_final_pnl(position_id, current_price)
-                
-                # رسالة تأكيد النجاح
-                pnl_emoji = "🟢💰" if pnl_info['pnl'] >= 0 else "🔴💸"
-                pnl_status = "رابحة" if pnl_info['pnl'] >= 0 else "خاسرة"
-                
-                confirmation_text = f"""
-❌ **تم تنفيذ الإغلاق الكامل بنجاح**
-{pnl_emoji} {symbol}
-💲 سعر الإغلاق: {current_price:.6f}
-💰 الربح/الخسارة النهائية: {pnl_info['pnl']:.2f} ({pnl_info['pnl_percent']:.2f}%) - {pnl_status}
-⏰ الوقت: {datetime.now().strftime('%H:%M:%S')}
-
-✅ تم إغلاق الصفقة بالكامل بنجاح
-                """
-                
-                await query.edit_message_text(confirmation_text, parse_mode='Markdown')
-                
-                # حذف الصفقة من القائمة المفتوحة
-                if position_id in self.trading_bot.open_positions:
-                    del self.trading_bot.open_positions[position_id]
-                
-                # حذف رسالة الصفقة
-                if position_id in self.trade_manager.trade_messages:
-                    del self.trade_manager.trade_messages[position_id]
-                
-                logger.info(f"تم تنفيذ الإغلاق الكامل للصفقة {position_id}")
-                return True
-            else:
-                await query.edit_message_text("❌ فشل في تنفيذ الإغلاق الكامل")
-                return False
-                
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الإغلاق الكامل: {e}")
-            await query.edit_message_text("❌ خطأ في تنفيذ الإغلاق الكامل")
-            return False
-    
-    async def execute_tp_order(self, position_id: str, tp_price: float, percent: float) -> bool:
-        """تنفيذ أمر TP فعلي"""
-        try:
-            # هنا يمكن إضافة منطق تنفيذ TP الفعلي على المنصة
-            # حالياً نعيد True للمحاكاة
-            await asyncio.sleep(0.5)  # محاكاة التنفيذ
-            return True
-            
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ أمر TP: {e}")
-            return False
-    
-    async def execute_sl_order(self, position_id: str, sl_price: float, percent: float) -> bool:
-        """تنفيذ أمر SL فعلي"""
-        try:
-            # هنا يمكن إضافة منطق تنفيذ SL الفعلي على المنصة
-            # حالياً نعيد True للمحاكاة
-            await asyncio.sleep(0.5)  # محاكاة التنفيذ
-            return True
-            
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ أمر SL: {e}")
-            return False
-    
-    async def execute_partial_close_order(self, position_id: str, percent: float, close_price: float) -> bool:
-        """تنفيذ أمر الإغلاق الجزئي فعلي"""
-        try:
-            # هنا يمكن إضافة منطق تنفيذ الإغلاق الجزئي الفعلي على المنصة
-            # حالياً نعيد True للمحاكاة
-            await asyncio.sleep(0.5)  # محاكاة التنفيذ
-            return True
-            
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ أمر الإغلاق الجزئي: {e}")
-            return False
-    
-    async def execute_full_close_order(self, position_id: str, close_price: float) -> bool:
-        """تنفيذ أمر الإغلاق الكامل فعلي"""
-        try:
-            # استخدام دالة إغلاق الصفقة الموجودة في البوت الرئيسي
-            if position_id in self.trading_bot.open_positions:
-                position_info = self.trading_bot.open_positions[position_id]
-                market_type = position_info.get('account_type', 'spot')
-                
-                if market_type == 'spot':
-                    account = self.trading_bot.demo_account_spot
-                    success, result = account.close_spot_position(position_id, close_price)
-                else:
-                    account = self.trading_bot.demo_account_futures
-                    success, result = account.close_futures_position(position_id, close_price)
-                
-                return success
             
             return False
             
         except Exception as e:
-            logger.error(f"خطأ في تنفيذ أمر الإغلاق الكامل: {e}")
+            logger.error(f"خطأ في تنفيذ الإغلاق الجزئي الحقيقي: {e}")
             return False
     
-    async def calculate_partial_pnl(self, position_id: str, percent: float, close_price: float) -> Dict:
-        """حساب الربح/الخسارة الجزئية"""
+    async def _execute_demo_partial_close(self, position_info: Dict, percent: float, current_price: float, partial_pnl: float) -> bool:
+        """تنفيذ إغلاق جزئي تجريبي"""
         try:
-            position_info = self.trading_bot.open_positions[position_id]
-            entry_price = position_info['entry_price']
-            side = position_info['side']
+            # تحديد الحساب التجريبي الصحيح
             market_type = position_info.get('account_type', 'spot')
             
             if market_type == 'futures':
-                margin_amount = position_info.get('margin_amount', 0)
-                position_size = position_info.get('position_size', 0)
-                partial_size = position_size * (percent / 100)
-                partial_contracts = partial_size / entry_price
-                
-                if side.lower() == "buy":
-                    pnl = (close_price - entry_price) * partial_contracts
-                else:
-                    pnl = (entry_price - close_price) * partial_contracts
-                
-                pnl_percent = (pnl / margin_amount) * 100 if margin_amount > 0 else 0
+                account = self.trading_bot.demo_account_futures
             else:
-                amount = position_info.get('amount', 0)
-                partial_amount = amount * (percent / 100)
-                partial_contracts = partial_amount / entry_price
-                
-                if side.lower() == "buy":
-                    pnl = (close_price - entry_price) * partial_contracts
-                else:
-                    pnl = (entry_price - close_price) * partial_contracts
-                
-                pnl_percent = (pnl / partial_amount) * 100 if partial_amount > 0 else 0
+                account = self.trading_bot.demo_account_spot
             
-            return {
-                'pnl': pnl,
-                'pnl_percent': pnl_percent
-            }
+            # حساب المبلغ الجزئي
+            total_amount = position_info.get('margin_amount', position_info.get('amount', 100))
+            partial_amount = total_amount * (percent / 100)
+            
+            # تحديث الرصيد
+            account.balance += partial_pnl
+            
+            # تحديث معلومات الصفقة
+            remaining_percent = 100 - percent
+            position_info['margin_amount'] = total_amount * (remaining_percent / 100)
+            position_info['amount'] = position_info['margin_amount']
+            
+            # تحديث الهامش المحجوز للفيوتشر
+            if market_type == 'futures':
+                account.margin_locked -= partial_amount
+            
+            return True
             
         except Exception as e:
-            logger.error(f"خطأ في حساب PnL الجزئي: {e}")
-            return {'pnl': 0, 'pnl_percent': 0}
+            logger.error(f"خطأ في تنفيذ الإغلاق الجزئي التجريبي: {e}")
+            return False
     
-    async def calculate_final_pnl(self, position_id: str, close_price: float) -> Dict:
-        """حساب الربح/الخسارة النهائية"""
+    async def _execute_real_close(self, position_info: Dict, current_price: float) -> bool:
+        """تنفيذ إغلاق حقيقي"""
         try:
-            position_info = self.trading_bot.open_positions[position_id]
-            entry_price = position_info['entry_price']
-            side = position_info['side']
+            if not self.trading_bot.bybit_api:
+                return False
+            
+            symbol = position_info.get('symbol')
+            side = position_info.get('side')
+            quantity = str(position_info.get('margin_amount', 100))
+            category = position_info.get('category', 'spot')
+            
+            # تحويل الاتجاه للعكس (لإغلاق الصفقة)
+            opposite_side = "Sell" if side.lower() == "buy" else "Buy"
+            
+            # وضع أمر Market للإغلاق الكامل
+            response = self.trading_bot.bybit_api.place_order(
+                symbol=symbol,
+                side=opposite_side,
+                order_type="Market",
+                qty=quantity,
+                category=category
+            )
+            
+            if response.get("retCode") == 0:
+                # حذف الصفقة من القائمة
+                if hasattr(self.trading_bot, 'open_positions'):
+                    position_id = None
+                    for pid, info in self.trading_bot.open_positions.items():
+                        if info == position_info:
+                            position_id = pid
+                            break
+                    
+                    if position_id:
+                        del self.trading_bot.open_positions[position_id]
+                
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ الإغلاق الحقيقي: {e}")
+            return False
+    
+    async def _execute_demo_close(self, position_info: Dict, current_price: float, total_pnl: float) -> bool:
+        """تنفيذ إغلاق تجريبي"""
+        try:
+            # تحديد الحساب التجريبي الصحيح
             market_type = position_info.get('account_type', 'spot')
             
             if market_type == 'futures':
-                margin_amount = position_info.get('margin_amount', 0)
-                position_size = position_info.get('position_size', 0)
-                contracts = position_size / entry_price
+                account = self.trading_bot.demo_account_futures
+                position_id = None
+                for pid, pos in account.positions.items():
+                    if hasattr(pos, 'symbol') and pos.symbol == position_info.get('symbol'):
+                        position_id = pid
+                        break
                 
-                if side.lower() == "buy":
-                    pnl = (close_price - entry_price) * contracts
-                else:
-                    pnl = (entry_price - close_price) * contracts
-                
-                pnl_percent = (pnl / margin_amount) * 100 if margin_amount > 0 else 0
+                if position_id:
+                    success, result = account.close_futures_position(position_id, current_price)
+                    if success:
+                        # حذف الصفقة من القائمة العامة
+                        if hasattr(self.trading_bot, 'open_positions'):
+                            for pid, info in list(self.trading_bot.open_positions.items()):
+                                if info == position_info:
+                                    del self.trading_bot.open_positions[pid]
+                                    break
+                        return True
             else:
-                amount = position_info.get('amount', 0)
-                contracts = amount / entry_price
+                account = self.trading_bot.demo_account_spot
+                position_id = None
+                for pid, pos in account.positions.items():
+                    if isinstance(pos, dict) and pos.get('symbol') == position_info.get('symbol'):
+                        position_id = pid
+                        break
                 
-                if side.lower() == "buy":
-                    pnl = (close_price - entry_price) * contracts
-                else:
-                    pnl = (entry_price - close_price) * contracts
-                
-                pnl_percent = (pnl / amount) * 100 if amount > 0 else 0
+                if position_id:
+                    success, result = account.close_spot_position(position_id, current_price)
+                    if success:
+                        # حذف الصفقة من القائمة العامة
+                        if hasattr(self.trading_bot, 'open_positions'):
+                            for pid, info in list(self.trading_bot.open_positions.items()):
+                                if info == position_info:
+                                    del self.trading_bot.open_positions[pid]
+                                    break
+                        return True
             
-            return {
-                'pnl': pnl,
-                'pnl_percent': pnl_percent
-            }
+            return False
             
         except Exception as e:
-            logger.error(f"خطأ في حساب PnL النهائي: {e}")
-            return {'pnl': 0, 'pnl_percent': 0}
+            logger.error(f"خطأ في تنفيذ الإغلاق التجريبي: {e}")
+            return False
     
-    async def update_position_after_partial_close(self, position_id: str, closed_percent: float, pnl_info: Dict):
-        """تحديث معلومات الصفقة بعد الإغلاق الجزئي"""
+    def _cleanup_position_orders(self, position_id: str):
+        """تنظيف الأوامر النشطة للصفقة"""
         try:
-            if position_id in self.trading_bot.open_positions:
-                position_info = self.trading_bot.open_positions[position_id]
-                
-                # تحديث حجم الصفقة
-                if 'position_size' in position_info:
-                    position_info['position_size'] *= (1 - closed_percent / 100)
-                
-                if 'amount' in position_info:
-                    position_info['amount'] *= (1 - closed_percent / 100)
-                
-                # تحديث عدد العقود
-                if 'contracts' in position_info:
-                    position_info['contracts'] *= (1 - closed_percent / 100)
-                
-                # إضافة الربح/الخسارة المحققة
-                if 'realized_pnl' not in position_info:
-                    position_info['realized_pnl'] = 0
-                position_info['realized_pnl'] += pnl_info['pnl']
-                
-                logger.info(f"تم تحديث الصفقة {position_id} بعد الإغلاق الجزئي")
+            orders_to_remove = []
+            for order_id, order in self.active_orders.items():
+                if order.get('position_id') == position_id:
+                    orders_to_remove.append(order_id)
+            
+            for order_id in orders_to_remove:
+                del self.active_orders[order_id]
                 
         except Exception as e:
-            logger.error(f"خطأ في تحديث الصفقة بعد الإغلاق الجزئي: {e}")
+            logger.error(f"خطأ في تنظيف أوامر الصفقة: {e}")
     
-    def validate_tp_price(self, tp_price: float, current_price: float, side: str) -> bool:
-        """التحقق من صحة سعر TP"""
+    def get_active_orders(self, position_id: str = None) -> Dict:
+        """الحصول على الأوامر النشطة"""
         try:
-            if side.lower() == "buy":
-                return tp_price > current_price  # TP يجب أن يكون أعلى من السعر الحالي للشراء
-            else:
-                return tp_price < current_price  # TP يجب أن يكون أقل من السعر الحالي للبيع
-        except:
-            return False
+            if position_id:
+                return {k: v for k, v in self.active_orders.items() 
+                       if v.get('position_id') == position_id}
+            return self.active_orders
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الأوامر النشطة: {e}")
+            return {}
     
-    def validate_sl_price(self, sl_price: float, current_price: float, side: str) -> bool:
-        """التحقق من صحة سعر SL"""
+    async def check_tp_sl_triggers(self):
+        """فحص وتحقق من أوامر TP و SL"""
         try:
-            if side.lower() == "buy":
-                return sl_price < current_price  # SL يجب أن يكون أقل من السعر الحالي للشراء
-            else:
-                return sl_price > current_price  # SL يجب أن يكون أعلى من السعر الحالي للبيع
-        except:
-            return False
-    
-    async def monitor_pending_orders(self):
-        """مراقبة الأوامر المعلقة وتنفيذها عند الوصول للسعر المطلوب"""
-        try:
-            while True:
-                await asyncio.sleep(5)  # فحص كل 5 ثوان
+            if not self.trading_bot or not hasattr(self.trading_bot, 'open_positions'):
+                return
+            
+            # تحديث أسعار الصفقات المفتوحة أولاً
+            await self.trading_bot.update_open_positions_prices()
+            
+            triggered_orders = []
+            
+            for order_id, order in self.active_orders.items():
+                if order.get('status') != 'ACTIVE':
+                    continue
                 
-                for order_id, order_info in list(self.pending_orders.items()):
-                    if order_info['status'] == 'pending':
-                        position_id = order_info['position_id']
+                position_id = order.get('position_id')
+                position_info = self.trading_bot.open_positions.get(position_id)
+                
+                if not position_info:
+                    continue
+                
+                current_price = position_info.get('current_price', 0)
+                target_price = order.get('target_price', 0)
+                order_type = order.get('type')
+                
+                if not current_price or not target_price:
+                    continue
+                
+                # فحص TP
+                if order_type == 'TP':
+                    position_side = position_info.get('side', 'buy')
+                    
+                    if position_side.lower() == 'buy' and current_price >= target_price:
+                        # TP للصفقة الشرائية تم تفعيله
+                        triggered_orders.append(order_id)
+                    elif position_side.lower() == 'sell' and current_price <= target_price:
+                        # TP للصفقة البيعية تم تفعيله
+                        triggered_orders.append(order_id)
+                
+                # فحص SL
+                elif order_type == 'SL':
+                    position_side = position_info.get('side', 'buy')
+                    
+                    if position_side.lower() == 'buy' and current_price <= target_price:
+                        # SL للصفقة الشرائية تم تفعيله
+                        triggered_orders.append(order_id)
+                    elif position_side.lower() == 'sell' and current_price >= target_price:
+                        # SL للصفقة البيعية تم تفعيله
+                        triggered_orders.append(order_id)
+            
+            # تنفيذ الأوامر المفعلة
+            for order_id in triggered_orders:
+                order = self.active_orders[order_id]
+                position_id = order.get('position_id')
+                order_type = order.get('type')
+                
+                if order_type == 'TP':
+                    # تنفيذ TP
+                    result = await self.set_take_profit(position_id, order.get('percent'))
+                    if result['success']:
+                        logger.info(f"تم تنفيذ TP للصفقة {position_id}")
+                        order['status'] = 'EXECUTED'
+                
+                elif order_type == 'SL':
+                    # تنفيذ SL (إغلاق كامل)
+                    result = await self.close_position(position_id)
+                    if result['success']:
+                        logger.info(f"تم تنفيذ SL للصفقة {position_id}")
+                        order['status'] = 'EXECUTED'
                         
-                        if position_id in self.trading_bot.open_positions:
-                            position_info = self.trading_bot.open_positions[position_id]
-                            current_price = position_info.get('current_price', 0)
-                            target_price = order_info['target_price']
-                            
-                            # التحقق من الوصول للسعر المطلوب
-                            if self.should_execute_order(current_price, target_price, order_info['type']):
-                                await self.execute_pending_order(order_id, order_info, current_price)
-                
         except Exception as e:
-            logger.error(f"خطأ في مراقبة الأوامر المعلقة: {e}")
-    
-    def should_execute_order(self, current_price: float, target_price: float, order_type: str) -> bool:
-        """التحقق من وجوب تنفيذ الأمر"""
-        try:
-            if order_type == 'tp':
-                return abs(current_price - target_price) <= target_price * 0.001  # تحمل 0.1%
-            elif order_type == 'sl':
-                return abs(current_price - target_price) <= target_price * 0.001  # تحمل 0.1%
-            return False
-        except:
-            return False
-    
-    async def execute_pending_order(self, order_id: str, order_info: Dict, current_price: float):
-        """تنفيذ الأمر المعلق"""
-        try:
-            position_id = order_info['position_id']
-            order_type = order_info['type']
-            
-            # تحديث حالة الأمر
-            self.pending_orders[order_id]['status'] = 'executing'
-            
-            # تنفيذ الإغلاق الكامل
-            if position_id in self.trading_bot.open_positions:
-                position_info = self.trading_bot.open_positions[position_id]
-                symbol = position_info['symbol']
-                
-                # تنفيذ الإغلاق
-                success = await self.execute_full_close_order(position_id, current_price)
-                
-                if success:
-                    # تحديث حالة الأمر
-                    self.pending_orders[order_id]['status'] = 'executed'
-                    self.pending_orders[order_id]['executed_at'] = datetime.now()
-                    self.pending_orders[order_id]['executed_price'] = current_price
-                    
-                    logger.info(f"تم تنفيذ الأمر المعلق {order_id} للصفقة {position_id}")
-                    
-                    # إرسال إشعار للمستخدم (يمكن إضافته لاحقاً)
-                    
-                else:
-                    self.pending_orders[order_id]['status'] = 'failed'
-                    
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الأمر المعلق {order_id}: {e}")
-            if order_id in self.pending_orders:
-                self.pending_orders[order_id]['status'] = 'failed'
+            logger.error(f"خطأ في فحص أوامر TP/SL: {e}")
+
+# إنشاء مثيل عام لمنفذ الأوامر
+trade_executor = TradeExecutor()
