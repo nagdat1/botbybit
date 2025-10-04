@@ -23,18 +23,26 @@ class TradeExecutor:
         """البحث عن الصفقة في الحسابات التجريبية"""
         try:
             if not self.trading_bot:
+                logger.warning("البوت غير متاح للبحث عن الصفقة")
                 return None, None
             
+            logger.info(f"البحث عن الصفقة في الحسابات: {position_id}")
+            
             # البحث في حساب السبوت
-            if hasattr(self.trading_bot, 'demo_account_spot'):
-                if position_id in self.trading_bot.demo_account_spot.positions:
-                    return self.trading_bot.demo_account_spot, 'spot'
+            if hasattr(self.trading_bot, 'demo_account_spot') and self.trading_bot.demo_account_spot:
+                if hasattr(self.trading_bot.demo_account_spot, 'positions'):
+                    if position_id in self.trading_bot.demo_account_spot.positions:
+                        logger.info(f"تم العثور على الصفقة في حساب السبوت: {position_id}")
+                        return self.trading_bot.demo_account_spot, 'spot'
             
             # البحث في حساب الفيوتشر
-            if hasattr(self.trading_bot, 'demo_account_futures'):
-                if position_id in self.trading_bot.demo_account_futures.positions:
-                    return self.trading_bot.demo_account_futures, 'futures'
+            if hasattr(self.trading_bot, 'demo_account_futures') and self.trading_bot.demo_account_futures:
+                if hasattr(self.trading_bot.demo_account_futures, 'positions'):
+                    if position_id in self.trading_bot.demo_account_futures.positions:
+                        logger.info(f"تم العثور على الصفقة في حساب الفيوتشر: {position_id}")
+                        return self.trading_bot.demo_account_futures, 'futures'
             
+            logger.warning(f"لم يتم العثور على الصفقة في أي حساب: {position_id}")
             return None, None
         except Exception as e:
             logger.error(f"خطأ في البحث عن الصفقة: {e}")
@@ -440,18 +448,13 @@ class TradeExecutor:
     async def _execute_demo_close(self, position_info: Dict, current_price: float, total_pnl: float) -> bool:
         """تنفيذ إغلاق تجريبي"""
         try:
-            # البحث عن الصفقة في الحسابات مباشرة
-            # استخدام position_id من القائمة العامة
-            position_id = None
-            if hasattr(self.trading_bot, 'open_positions'):
-                for pid, info in self.trading_bot.open_positions.items():
-                    if info == position_info:
-                        position_id = pid
-                        break
-            
+            # الحصول على position_id من البيانات
+            position_id = position_info.get('position_id')
             if not position_id:
-                logger.error("لم يتم العثور على position_id")
+                logger.error("position_id غير متاح في بيانات الصفقة")
                 return False
+            
+            logger.info(f"تنفيذ إغلاق تجريبي للصفقة: {position_id}")
             
             # البحث عن الصفقة في الحسابات
             account, market_type = self._find_position_in_accounts(position_id)
@@ -460,6 +463,8 @@ class TradeExecutor:
                 logger.error(f"لم يتم العثور على الصفقة {position_id} في الحسابات")
                 return False
             
+            logger.info(f"تم العثور على الصفقة في حساب {market_type}")
+            
             # إغلاق الصفقة حسب نوع السوق
             if market_type == 'futures':
                 success, result = account.close_futures_position(position_id, current_price)
@@ -467,13 +472,18 @@ class TradeExecutor:
                 success, result = account.close_spot_position(position_id, current_price)
             
             if success:
+                logger.info(f"تم إغلاق الصفقة {position_id} بنجاح")
+                
                 # حذف الصفقة من القائمة العامة
                 if hasattr(self.trading_bot, 'open_positions'):
                     if position_id in self.trading_bot.open_positions:
                         del self.trading_bot.open_positions[position_id]
+                        logger.info(f"تم حذف الصفقة {position_id} من القائمة العامة")
+                
                 return True
-            
-            return False
+            else:
+                logger.error(f"فشل في إغلاق الصفقة {position_id}: {result}")
+                return False
             
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الإغلاق التجريبي: {e}")

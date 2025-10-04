@@ -149,13 +149,27 @@ class TradeManager:
             if not self._is_trade_callback(callback_data):
                 return False
             
+            logger.info(f"معالجة استدعاء الصفقة: {callback_data}")
+            
+            # التحقق من وجود معالج الأزرار
+            if not self.button_handler:
+                logger.error("معالج الأزرار غير متاح")
+                if update.callback_query:
+                    await update.callback_query.edit_message_text("❌ معالج الأزرار غير متاح")
+                return True
+            
             # توجيه المعالجة لمعالج الأزرار
             await self.button_handler.handle_trade_callback(update, context, callback_data)
             return True
             
         except Exception as e:
             logger.error(f"خطأ في معالجة استدعاء الصفقة: {e}")
-            return False
+            if update.callback_query:
+                try:
+                    await update.callback_query.edit_message_text(f"❌ خطأ في معالجة الزر: {e}")
+                except:
+                    pass
+            return True  # إرجاع True لتجنب معالجة مزدوجة
     
     async def handle_custom_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, text: str):
         """معالجة الإدخال المخصص للمستخدم"""

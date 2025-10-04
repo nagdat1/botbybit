@@ -87,6 +87,9 @@ def start_bot():
             
             application = Application.builder().token(TELEGRAM_TOKEN).build()
             
+            # ربط البوت مع التطبيق لإرسال الرسائل
+            trading_bot._telegram_app = application
+            
             # إضافة المعالجات
             from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters
             application.add_handler(CommandHandler("start", start))

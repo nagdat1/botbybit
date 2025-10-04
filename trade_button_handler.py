@@ -31,16 +31,22 @@ class TradeButtonHandler:
             
             await update.callback_query.answer()
             
+            logger.info(f"معالجة زر الصفقة: {callback_data}")
+            
             # تحليل بيانات الاستدعاء
             parts = callback_data.split('_')
             if len(parts) < 2:
+                await update.callback_query.edit_message_text("❌ بيانات الزر غير صحيحة")
                 return
             
             action = parts[0]
             position_id = parts[1]
             
+            logger.info(f"العملية: {action}, معرف الصفقة: {position_id}")
+            
             # التحقق من وجود الصفقة
             if not self._position_exists(position_id):
+                logger.warning(f"الصفقة غير موجودة: {position_id}")
                 await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
                 return
             
@@ -68,12 +74,16 @@ class TradeButtonHandler:
             elif action == "back":
                 await self._handle_back_button(update, context, callback_data)
             else:
+                logger.warning(f"زر غير مدعوم: {action}")
                 await update.callback_query.edit_message_text("❌ زر غير مدعوم")
                 
         except Exception as e:
             logger.error(f"خطأ في معالجة زر الصفقة: {e}")
             if update.callback_query:
-                await update.callback_query.edit_message_text(f"❌ خطأ في معالجة الزر: {e}")
+                try:
+                    await update.callback_query.edit_message_text(f"❌ خطأ في معالجة الزر: {e}")
+                except:
+                    logger.error("فشل في تحديث رسالة الخطأ")
     
     def _position_exists(self, position_id: str) -> bool:
         """التحقق من وجود الصفقة"""

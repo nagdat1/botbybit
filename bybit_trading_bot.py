@@ -821,13 +821,18 @@ class TradingBot:
             # التحقق من وجود الرمز في الفئة المحددة من قبل المستخدم
             symbol_found = False
             
-            if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
-                symbol_found = True
-            elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
-                symbol_found = True
-                # تحديد الفئة الصحيحة للفيوتشر
-                if symbol in self.available_pairs.get('inverse', []):
-                    bybit_category = "inverse"
+            # إذا كانت الأزواج فارغة، تجاهل التحقق
+            if not self.available_pairs.get('spot') and not self.available_pairs.get('futures'):
+                logger.warning("قائمة الأزواج فارغة، تجاهل التحقق من الرمز")
+                symbol_found = True  # تجاهل التحقق والسماح بالتداول
+            else:
+                if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
+                    symbol_found = True
+                elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
+                    symbol_found = True
+                    # تحديد الفئة الصحيحة للفيوتشر
+                    if symbol in self.available_pairs.get('inverse', []):
+                        bybit_category = "inverse"
             
             if not symbol_found:
                 # جمع الأزواج المتاحة للنوع المحدد
@@ -836,9 +841,13 @@ class TradingBot:
                     # إضافة أزواج inverse أيضاً للفيوتشر
                     available_pairs = self.available_pairs.get('futures', []) + self.available_pairs.get('inverse', [])
                 
-                # عرض أول 20 زوج
-                pairs_list = ", ".join(available_pairs[:20])
-                error_message = f"❌ الرمز {symbol} غير موجود في نوع السوق المحدد ({user_market_type.upper()})!\n\n📋 الأزواج المتاحة:\n{pairs_list}"
+                # عرض أول 20 زوج إذا كانت متاحة
+                if available_pairs:
+                    pairs_list = ", ".join(available_pairs[:20])
+                    error_message = f"❌ الرمز {symbol} غير موجود في نوع السوق المحدد ({user_market_type.upper()})!\n\n📋 الأزواج المتاحة:\n{pairs_list}"
+                else:
+                    error_message = f"❌ الرمز {symbol} غير موجود في نوع السوق المحدد ({user_market_type.upper()})!\n\n⚠️ قائمة الأزواج فارغة، تحقق من اتصال API"
+                
                 await self.send_message_to_admin(error_message)
                 return
             
@@ -963,10 +972,6 @@ class TradingBot:
                         
                         # إرسال رسالة تفاعلية للصفقة
                         try:
-                            from telegram import Update
-                            from telegram.ext import Application
-                            
-                            # إنشاء رسالة تفاعلية للصفقة
                             from trade_messages import trade_message_manager
                             position_data = self.open_positions[position_id]
                             trade_message, trade_keyboard = trade_message_manager.create_trade_message(
@@ -974,13 +979,15 @@ class TradingBot:
                             )
                             
                             # إرسال الرسالة التفاعلية
-                            application = Application.builder().token(TELEGRAM_TOKEN).build()
-                            await application.bot.send_message(
-                                chat_id=ADMIN_USER_ID, 
-                                text=trade_message, 
-                                reply_markup=trade_keyboard
-                            )
-                            logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
+                            if hasattr(self, '_telegram_app') and self._telegram_app:
+                                await self._telegram_app.bot.send_message(
+                                    chat_id=ADMIN_USER_ID, 
+                                    text=trade_message, 
+                                    reply_markup=trade_keyboard
+                                )
+                                logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
+                            else:
+                                logger.warning("تطبيق التلجرام غير متاح لإرسال الرسالة التفاعلية")
                         except Exception as e:
                             logger.error(f"خطأ في إرسال الرسالة التفاعلية: {e}")
                     else:
@@ -1033,10 +1040,6 @@ class TradingBot:
                     
                     # إرسال رسالة تفاعلية للصفقة
                     try:
-                        from telegram import Update
-                        from telegram.ext import Application
-                        
-                        # إنشاء رسالة تفاعلية للصفقة
                         from trade_messages import trade_message_manager
                         position_data = self.open_positions[position_id]
                         trade_message, trade_keyboard = trade_message_manager.create_trade_message(
@@ -1044,13 +1047,15 @@ class TradingBot:
                         )
                         
                         # إرسال الرسالة التفاعلية
-                        application = Application.builder().token(TELEGRAM_TOKEN).build()
-                        await application.bot.send_message(
-                            chat_id=ADMIN_USER_ID, 
-                            text=trade_message, 
-                            reply_markup=trade_keyboard
-                        )
-                        logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
+                        if hasattr(self, '_telegram_app') and self._telegram_app:
+                            await self._telegram_app.bot.send_message(
+                                chat_id=ADMIN_USER_ID, 
+                                text=trade_message, 
+                                reply_markup=trade_keyboard
+                            )
+                            logger.info(f"تم إرسال رسالة تفاعلية للصفقة {position_id}")
+                        else:
+                            logger.warning("تطبيق التلجرام غير متاح لإرسال الرسالة التفاعلية")
                     except Exception as e:
                         logger.error(f"خطأ في إرسال الرسالة التفاعلية: {e}")
                 else:
@@ -1063,10 +1068,18 @@ class TradingBot:
     async def send_message_to_admin(self, message: str):
         """إرسال رسالة للمدير"""
         try:
-            application = Application.builder().token(TELEGRAM_TOKEN).build()
-            await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
+            # محاولة إرسال الرسالة عبر البوت الموجود
+            if hasattr(self, '_telegram_app') and self._telegram_app:
+                await self._telegram_app.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
+            else:
+                # إنشاء تطبيق مؤقت
+                application = Application.builder().token(TELEGRAM_TOKEN).build()
+                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
+                await application.shutdown()
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
+            # طباعة الرسالة في السجل كبديل
+            print(f"رسالة للمدير: {message}")
 
 # إنشاء البوت العام
 trading_bot = TradingBot()
