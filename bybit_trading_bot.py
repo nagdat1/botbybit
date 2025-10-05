@@ -2308,13 +2308,31 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_error_handler(error_handler)
     
-    # تحديث الأزواج عند البدء
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(trading_bot.update_available_pairs())
-    except Exception as e:
-        logger.error(f"خطأ في تحديث الأزواج: {e}")
+    # تحديث الأزواج عند البدء (في thread منفصل)
+    def init_bot():
+        """تهيئة البوت في thread منفصل"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # تحديث الأزواج
+            loop.run_until_complete(trading_bot.update_available_pairs())
+            
+            # تحميل الصفقات المُدارة من قاعدة البيانات
+            loop.run_until_complete(bot_integration.load_managed_orders_from_db())
+            
+            # بدء مراقبة الأسعار لتفعيل TP/SL
+            loop.run_until_complete(bot_integration.start_price_monitoring(trading_bot.bybit_api))
+            
+            loop.close()
+            logger.info("✅ تم تهيئة البوت بنجاح")
+            
+        except Exception as e:
+            logger.error(f"خطأ في تهيئة البوت: {e}")
+    
+    # تشغيل التهيئة في thread منفصل
+    init_thread = threading.Thread(target=init_bot, daemon=True)
+    init_thread.start()
     
     # بدء التحديث الدوري للأسعار
     def start_price_updates():
@@ -2336,23 +2354,8 @@ def main():
     # بدء التحديث الدوري
     start_price_updates()
     
-    # تحميل الصفقات المُدارة من قاعدة البيانات
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(bot_integration.load_managed_orders_from_db())
-        loop.close()
-    except Exception as e:
-        logger.error(f"خطأ في تحميل الصفقات المُدارة: {e}")
-    
-    # بدء مراقبة الأسعار لتفعيل TP/SL
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(bot_integration.start_price_monitoring(trading_bot.bybit_api))
-        loop.close()
-    except Exception as e:
-        logger.error(f"خطأ في بدء مراقبة TP/SL: {e}")
+    # انتظار قليل للتهيئة
+    time.sleep(2)
     
     # تشغيل البوت
     logger.info("بدء تشغيل البوت...")
