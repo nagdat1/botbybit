@@ -370,6 +370,140 @@ class TradingAccount:
             logger.error(f"خطأ في إغلاق صفقة السبوت: {e}")
             return False, {"error": str(e)}
     
+    def partial_close_spot_position(self, position_id: str, percentage: float, closing_price: float) -> tuple[bool, dict]:
+        """إغلاق جزئي لصفقة سبوت"""
+        try:
+            if position_id not in self.positions:
+                return False, {"error": "الصفقة غير موجودة"}
+            
+            position = self.positions[position_id]
+            
+            if isinstance(position, FuturesPosition):
+                return False, {"error": "الصفقة ليست صفقة سبوت"}
+            
+            if percentage <= 0 or percentage > 100:
+                return False, {"error": "نسبة غير صالحة"}
+            
+            entry_price = position['price']
+            current_amount = position.get('amount', 0)
+            side = position['side']
+            
+            # حساب المبلغ المراد إغلاقه
+            close_amount = (current_amount * percentage) / 100
+            close_contracts = close_amount / entry_price
+            
+            # حساب الربح/الخسارة
+            if side.lower() == "buy":
+                self.balance += close_contracts * closing_price
+                pnl = close_contracts * closing_price - close_amount
+            else:
+                pnl = (entry_price - closing_price) * close_contracts
+                self.balance += close_amount + pnl
+            
+            # تحديث الصفقة
+            remaining_amount = current_amount - close_amount
+            position['amount'] = remaining_amount
+            
+            if remaining_amount <= 0:
+                # إغلاق كامل
+                del self.positions[position_id]
+                status = 'CLOSED'
+            else:
+                status = 'PARTIAL_CLOSED'
+            
+            # سجل الإغلاق الجزئي
+            partial_record = {
+                'position_id': position_id,
+                'symbol': position['symbol'],
+                'side': side,
+                'entry_price': entry_price,
+                'closing_price': closing_price,
+                'close_amount': close_amount,
+                'close_contracts': close_contracts,
+                'percentage': percentage,
+                'remaining_amount': remaining_amount,
+                'pnl': pnl,
+                'status': status,
+                'market_type': 'spot',
+                'timestamp': datetime.now()
+            }
+            
+            logger.info(f"إغلاق جزئي {percentage}% من صفقة سبوت {position['symbol']}: PnL={pnl:.2f}")
+            return True, partial_record
+            
+        except Exception as e:
+            logger.error(f"خطأ في الإغلاق الجزئي للسبوت: {e}")
+            return False, {"error": str(e)}
+    
+    def partial_close_futures_position(self, position_id: str, percentage: float, closing_price: float) -> tuple[bool, dict]:
+        """إغلاق جزئي لصفقة فيوتشر"""
+        try:
+            if position_id not in self.positions:
+                return False, {"error": "الصفقة غير موجودة"}
+            
+            position = self.positions[position_id]
+            
+            if not isinstance(position, FuturesPosition):
+                return False, {"error": "الصفقة ليست صفقة فيوتشر"}
+            
+            if percentage <= 0 or percentage > 100:
+                return False, {"error": "نسبة غير صالحة"}
+            
+            # حساب الكمية المراد إغلاقها
+            close_contracts = (position.contracts * percentage) / 100
+            close_margin = (position.margin_amount * percentage) / 100
+            
+            # حساب الربح/الخسارة للجزء المُغلق
+            if position.side == "buy":
+                pnl = (closing_price - position.entry_price) * close_contracts
+            else:
+                pnl = (position.entry_price - closing_price) * close_contracts
+            
+            # تحديث الرصيد: إرجاع الهامش + الربح/الخسارة
+            self.margin_locked -= close_margin
+            self.balance += close_margin + pnl
+            
+            # تحديث الصفقة
+            position.contracts -= close_contracts
+            position.margin_amount -= close_margin
+            position.position_size = position.margin_amount * position.leverage
+            
+            # إعادة حساب سعر التصفية للمتبقي
+            position.liquidation_price = position.calculate_liquidation_price()
+            
+            if position.contracts <= 0 or position.margin_amount <= 0:
+                # إغلاق كامل
+                del self.positions[position_id]
+                status = 'CLOSED'
+            else:
+                status = 'PARTIAL_CLOSED'
+            
+            # سجل الإغلاق الجزئي
+            partial_record = {
+                'position_id': position_id,
+                'symbol': position.symbol,
+                'side': position.side,
+                'entry_price': position.entry_price,
+                'closing_price': closing_price,
+                'close_margin': close_margin,
+                'close_contracts': close_contracts,
+                'percentage': percentage,
+                'remaining_contracts': position.contracts if status == 'PARTIAL_CLOSED' else 0,
+                'remaining_margin': position.margin_amount if status == 'PARTIAL_CLOSED' else 0,
+                'pnl': pnl,
+                'leverage': position.leverage,
+                'status': status,
+                'market_type': 'futures',
+                'timestamp': datetime.now()
+            }
+            
+            logger.info(f"إغلاق جزئي {percentage}% من صفقة فيوتشر {position.symbol}: PnL={pnl:.2f}")
+            return True, partial_record
+            
+        except Exception as e:
+            logger.error(f"خطأ في الإغلاق الجزئي للفيوتشر: {e}")
+            return False, {"error": str(e)}
+    
     def update_positions_pnl(self, prices: Dict[str, float]):
         """تحديث الربح/الخسارة غير المحققة لجميع الصفقات"""
         try:
@@ -1644,7 +1778,16 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
             if success:
                 trade_record = result
                 
+                # تحديث قاعدة البيانات
                 if isinstance(trade_record, dict) and 'pnl' in trade_record:
+                    db_success = db_manager.close_order(
+                        order_id=position_id,
+                        closing_price=current_price,
+                        realized_pnl=trade_record['pnl']
+                    )
+                    if not db_success:
+                        logger.warning(f"فشل تحديث قاعدة البيانات لإغلاق الصفقة {position_id}")
+                    
                     pnl = float(trade_record['pnl'])
                     
                     # مؤشرات بصرية واضحة للربح والخسارة
@@ -2025,7 +2168,7 @@ async def manage_partial_close(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def execute_partial_close_percentage(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                                           position_id: str, percentage: float):
-    """تنفيذ إغلاق جزئي بنسبة محددة"""
+    """تنفيذ إغلاق جزئي بنسبة محددة - مع تحديث المحفظة"""
     try:
         if position_id not in trading_bot.open_positions:
             if update.callback_query:
@@ -2035,6 +2178,7 @@ async def execute_partial_close_percentage(update: Update, context: ContextTypes
         position_info = trading_bot.open_positions[position_id]
         symbol = position_info['symbol']
         market_type = position_info.get('account_type', 'spot')
+        entry_price = position_info.get('entry_price', 0)
         
         # الحصول على السعر الحالي
         current_price = position_info.get('current_price')
@@ -2053,20 +2197,104 @@ async def execute_partial_close_percentage(update: Update, context: ContextTypes
         else:
             account = trading_bot.demo_account_spot
         
-        # تنفيذ الإغلاق الجزئي
-        # هنا يمكنك إضافة المنطق لتنفيذ الإغلاق الجزئي الفعلي
+        # تنفيذ الإغلاق الجزئي الفعلي
+        if market_type == 'futures':
+            success, result = account.partial_close_futures_position(position_id, percentage, current_price)
+        else:
+            success, result = account.partial_close_spot_position(position_id, percentage, current_price)
         
-        message = f"""
+        if not success:
+            if update.callback_query:
+                await update.callback_query.edit_message_text(f"❌ فشل الإغلاق الجزئي: {result.get('error', 'خطأ غير معروف')}")
+            return
+        
+        # حساب الكمية المتبقية حسب نوع السوق
+        if market_type == 'futures':
+            remaining_quantity = result.get('remaining_margin', 0)
+        else:
+            remaining_quantity = result.get('remaining_amount', 0)
+        
+        # تحديث قاعدة البيانات
+        db_success = db_manager.record_partial_close(
+            order_id=position_id,
+            percentage=percentage,
+            closing_price=current_price,
+            pnl=result.get('pnl', 0),
+            remaining_quantity=remaining_quantity
+        )
+        
+        if not db_success:
+            logger.warning(f"فشل تحديث قاعدة البيانات للإغلاق الجزئي {position_id}")
+        
+        # تحديث معلومات الصفقة في القائمة العامة
+        if result['status'] == 'CLOSED':
+            # تم إغلاق الصفقة بالكامل
+            if position_id in trading_bot.open_positions:
+                del trading_bot.open_positions[position_id]
+            status_text = "تم إغلاق الصفقة بالكامل"
+        else:
+            # تحديث المعلومات
+            if market_type == 'futures':
+                position_info['margin_amount'] = result['remaining_margin']
+                position_info['position_size'] = result['remaining_margin'] * position_info.get('leverage', 1)
+            else:
+                position_info['amount'] = result['remaining_amount']
+            status_text = f"متبقي من الصفقة: {100 - percentage:.1f}%"
+        
+        # حساب معلومات الربح/الخسارة
+        pnl = result.get('pnl', 0)
+        pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
+        pnl_status = "ربح" if pnl >= 0 else "خسارة"
+        arrow = "⬆️" if pnl >= 0 else "⬇️"
+        
+        # الحصول على معلومات الحساب المحدثة
+        account_info = account.get_account_info()
+        
+        # رسالة النجاح
+        if market_type == 'futures':
+            message = f"""
 ✅ تم الإغلاق الجزئي بنجاح
-📊 الصفقة: {symbol}
+
+{pnl_emoji} {symbol} - FUTURES
 📊 النسبة المغلقة: {percentage}%
+💲 سعر الدخول: {entry_price:.6f}
 💲 سعر الإغلاق: {current_price:.6f}
+💰 الهامش المُغلق: {result.get('close_margin', 0):.2f}
+{arrow} الربح/الخسارة: {pnl:.2f} - {pnl_status}
+
+📊 {status_text}
+
+💰 معلومات الحساب المحدثة:
+• الرصيد الكلي: {account_info['balance']:.2f}
+• الرصيد المتاح: {account_info['available_balance']:.2f}
+• الهامش المحجوز: {account_info['margin_locked']:.2f}
 
 استخدم /start للعودة إلى القائمة الرئيسية
-        """
+            """
+        else:
+            message = f"""
+✅ تم الإغلاق الجزئي بنجاح
+
+{pnl_emoji} {symbol} - SPOT
+📊 النسبة المغلقة: {percentage}%
+💲 سعر الدخول: {entry_price:.6f}
+💲 سعر الإغلاق: {current_price:.6f}
+💰 المبلغ المُغلق: {result.get('close_amount', 0):.2f}
+{arrow} الربح/الخسارة: {pnl:.2f} - {pnl_status}
+
+📊 {status_text}
+
+💰 معلومات الحساب المحدثة:
+• الرصيد: {account_info['balance']:.2f}
+
+استخدم /start للعودة إلى القائمة الرئيسية
+            """
         
         if update.callback_query:
             await update.callback_query.edit_message_text(message)
+        
+        # تسجيل في السجل
+        logger.info(f"إغلاق جزئي ناجح: {symbol} {percentage}% PnL={pnl:.2f}")
             
     except Exception as e:
         logger.error(f"خطأ في تنفيذ الإغلاق الجزئي: {e}")

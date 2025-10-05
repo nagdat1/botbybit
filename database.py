@@ -414,6 +414,93 @@ class DatabaseManager:
             logger.error(f"خطأ في الحصول على الصفقة {order_id}: {e}")
             return None
     
+    def close_order(self, order_id: str, closing_price: float, realized_pnl: float) -> bool:
+        """إغلاق صفقة وتحديث حالتها في قاعدة البيانات"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE orders 
+                    SET status = 'CLOSED', 
+                        realized_pnl = ?, 
+                        close_time = CURRENT_TIMESTAMP,
+                        notes = COALESCE(notes, '') || ' | إغلاق كامل بسعر ' || ? || ' بتاريخ ' || datetime('now')
+                    WHERE order_id = ?
+                """, (realized_pnl, closing_price, order_id))
+                
+                conn.commit()
+                logger.info(f"تم إغلاق الصفقة {order_id} بربح/خسارة {realized_pnl}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق الصفقة: {e}")
+            return False
+    
+    def record_partial_close(self, order_id: str, percentage: float, closing_price: float, 
+                            pnl: float, remaining_quantity: float) -> bool:
+        """تسجيل إغلاق جزئي لصفقة في قاعدة البيانات"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # الحصول على الصفقة الحالية
+                cursor.execute("SELECT partial_closes, current_quantity FROM orders WHERE order_id = ?", (order_id,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    return False
+                
+                # تحديث سجل الإغلاقات الجزئية
+                partial_closes_json = row['partial_closes']
+                try:
+                    partial_closes = json.loads(partial_closes_json) if partial_closes_json else []
+                except:
+                    partial_closes = []
+                
+                # إضافة سجل جديد
+                partial_closes.append({
+                    'percentage': percentage,
+                    'closing_price': closing_price,
+                    'pnl': pnl,
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+                # حساب إذا كانت الصفقة مغلقة بالكامل
+                total_closed_percentage = sum([pc.get('percentage', 0) for pc in partial_closes])
+                status = 'CLOSED' if total_closed_percentage >= 100 or remaining_quantity <= 0 else 'PARTIAL_CLOSED'
+                
+                # إذا أغلقت بالكامل، حدّث وقت الإغلاق
+                close_time_update = ", close_time = CURRENT_TIMESTAMP" if status == 'CLOSED' else ""
+                
+                # تحديث قاعدة البيانات
+                cursor.execute(f"""
+                    UPDATE orders 
+                    SET current_quantity = ?,
+                        partial_closes = ?,
+                        realized_pnl = realized_pnl + ?,
+                        status = ?
+                        {close_time_update},
+                        notes = COALESCE(notes, '') || ' | إغلاق جزئي ' || ? || '% بسعر ' || ? || ' بتاريخ ' || datetime('now')
+                    WHERE order_id = ?
+                """, (
+                    remaining_quantity,
+                    json.dumps(partial_closes),
+                    pnl,
+                    status,
+                    percentage,
+                    closing_price,
+                    order_id
+                ))
+                
+                conn.commit()
+                logger.info(f"تم تسجيل إغلاق جزئي للصفقة {order_id}: {percentage}% PnL={pnl}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في تسجيل الإغلاق الجزئي: {e}")
+            return False
+    
     def update_order(self, order_id: str, updates: Dict) -> bool:
         """تحديث صفقة"""
         try:
