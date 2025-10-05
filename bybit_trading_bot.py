@@ -1071,6 +1071,30 @@ class TradingBot:
                             'pnl_percent': 0.0
                         }
                         
+                        # ✅ حفظ في قاعدة البيانات
+                        order_data = {
+                            'order_id': position_id,
+                            'user_id': ADMIN_USER_ID,  # استخدام ADMIN_USER_ID للبوت القديم
+                            'symbol': symbol,
+                            'side': action,
+                            'entry_price': price,
+                            'quantity': margin_amount,
+                            'initial_quantity': margin_amount,
+                            'current_quantity': margin_amount,
+                            'take_profits': [],
+                            'stop_loss': None,
+                            'partial_closes': [],
+                            'status': 'OPEN',
+                            'market_type': 'futures',
+                            'leverage': leverage,
+                            'unrealized_pnl': 0.0,
+                            'realized_pnl': 0.0,
+                            'notes': f'صفقة فيوتشر - حجم:{position.position_size:.2f} - تصفية:{position.liquidation_price:.6f}'
+                        }
+                        db_success = db_manager.create_order(order_data)
+                        if not db_success:
+                            logger.warning(f"فشل حفظ الصفقة {position_id} في قاعدة البيانات")
+                        
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}")
                         
                         message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
@@ -1122,6 +1146,30 @@ class TradingBot:
                         'pnl_percent': 0.0
                     }
                     
+                    # ✅ حفظ في قاعدة البيانات
+                    order_data = {
+                        'order_id': position_id,
+                        'user_id': ADMIN_USER_ID,  # استخدام ADMIN_USER_ID للبوت القديم
+                        'symbol': symbol,
+                        'side': action,
+                        'entry_price': price,
+                        'quantity': amount,
+                        'initial_quantity': amount,
+                        'current_quantity': amount,
+                        'take_profits': [],
+                        'stop_loss': None,
+                        'partial_closes': [],
+                        'status': 'OPEN',
+                        'market_type': 'spot',
+                        'leverage': 1,
+                        'unrealized_pnl': 0.0,
+                        'realized_pnl': 0.0,
+                        'notes': f'صفقة سبوت'
+                    }
+                    db_success = db_manager.create_order(order_data)
+                    if not db_success:
+                        logger.warning(f"فشل حفظ الصفقة {position_id} في قاعدة البيانات")
+                    
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}")
                     
                     message = f"📈 تم فتح صفقة سبوت تجريبية\n"
@@ -1162,6 +1210,69 @@ user_manager = um_module.user_manager
 
 # تحميل المستخدمين من قاعدة البيانات
 user_manager.load_all_users()
+
+# ✅ تحميل الصفقات المفتوحة من قاعدة البيانات
+def load_open_positions_from_db():
+    """تحميل الصفقات المفتوحة من قاعدة البيانات عند بدء البوت"""
+    try:
+        # جلب جميع الصفقات المفتوحة
+        open_orders = db_manager.get_user_orders(ADMIN_USER_ID, status='OPEN')
+        if not open_orders:
+            open_orders = db_manager.get_user_orders(ADMIN_USER_ID, status='PARTIAL_CLOSED')
+        
+        if open_orders:
+            logger.info(f"تحميل {len(open_orders)} صفقة مفتوحة من قاعدة البيانات")
+            
+            for order in open_orders:
+                position_id = order['order_id']
+                market_type = order.get('market_type', 'spot')
+                
+                # إضافة للذاكرة
+                trading_bot.open_positions[position_id] = {
+                    'symbol': order['symbol'],
+                    'entry_price': order['entry_price'],
+                    'side': order['side'],
+                    'account_type': market_type,
+                    'leverage': order.get('leverage', 1),
+                    'category': 'linear' if market_type == 'futures' else 'spot',
+                    'amount': order.get('current_quantity', order['quantity']),
+                    'current_price': order['entry_price'],
+                    'pnl_percent': 0.0
+                }
+                
+                if market_type == 'futures':
+                    trading_bot.open_positions[position_id].update({
+                        'margin_amount': order.get('current_quantity', order['quantity']),
+                        'position_size': order.get('current_quantity', order['quantity']) * order.get('leverage', 1),
+                        'contracts': 0  # سيتم تحديثه
+                    })
+                
+                logger.info(f"تم تحميل صفقة: {position_id} - {order['symbol']} - {market_type}")
+        else:
+            logger.info("لا توجد صفقات مفتوحة في قاعدة البيانات")
+            
+    except Exception as e:
+        logger.error(f"خطأ في تحميل الصفقات المفتوحة: {e}")
+
+# تحميل الصفقات
+load_open_positions_from_db()
+
+# ✅ تحديث رصيد المحفظة من آخر رصيد محفوظ
+def update_balance_from_db():
+    """تحديث رصيد المحفظة من قاعدة البيانات"""
+    try:
+        user_data = db_manager.get_user(ADMIN_USER_ID)
+        if user_data and 'balance' in user_data:
+            saved_balance = user_data['balance']
+            # تحديث الرصيد في الحسابات
+            trading_bot.demo_account_spot.balance = saved_balance
+            trading_bot.demo_account_futures.balance = saved_balance
+            logger.info(f"تم تحديث رصيد المحفظة من قاعدة البيانات: {saved_balance}")
+    except Exception as e:
+        logger.error(f"خطأ في تحديث الرصيد: {e}")
+
+# تحديث الرصيد
+update_balance_from_db()
 
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
@@ -1788,6 +1899,9 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                     if not db_success:
                         logger.warning(f"فشل تحديث قاعدة البيانات لإغلاق الصفقة {position_id}")
                     
+                    # ✅ تحديث رصيد المستخدم في قاعدة البيانات
+                    db_manager.update_user_balance(ADMIN_USER_ID, account.balance)
+                    
                     pnl = float(trade_record['pnl'])
                     
                     # مؤشرات بصرية واضحة للربح والخسارة
@@ -2225,6 +2339,9 @@ async def execute_partial_close_percentage(update: Update, context: ContextTypes
         
         if not db_success:
             logger.warning(f"فشل تحديث قاعدة البيانات للإغلاق الجزئي {position_id}")
+        
+        # ✅ تحديث رصيد المستخدم في قاعدة البيانات
+        db_manager.update_user_balance(ADMIN_USER_ID, account.balance)
         
         # تحديث معلومات الصفقة في القائمة العامة
         if result['status'] == 'CLOSED':

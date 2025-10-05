@@ -278,7 +278,7 @@ class UserManager:
             if success:
                 position_id = result
                 
-                # حفظ الصفقة في قاعدة البيانات
+                # حفظ الصفقة في قاعدة البيانات مع جميع الحقول المطلوبة
                 order_data = {
                     'order_id': position_id,
                     'user_id': user_id,
@@ -286,10 +286,22 @@ class UserManager:
                     'side': action,
                     'entry_price': price,
                     'quantity': amount,
-                    'status': 'OPEN'
+                    'initial_quantity': amount,
+                    'current_quantity': amount,
+                    'take_profits': [],
+                    'stop_loss': None,
+                    'partial_closes': [],
+                    'status': 'OPEN',
+                    'market_type': market_type,
+                    'leverage': self.users[user_id].get('leverage', 1) if market_type == 'futures' else 1,
+                    'unrealized_pnl': 0.0,
+                    'realized_pnl': 0.0,
+                    'notes': f'تم فتح صفقة {market_type}'
                 }
                 
-                db_manager.create_order(order_data)
+                db_success = db_manager.create_order(order_data)
+                if not db_success:
+                    logger.warning(f"فشل حفظ الصفقة {position_id} في قاعدة البيانات")
                 
                 # حفظ في الذاكرة
                 self.user_positions[user_id][position_id] = {
