@@ -881,8 +881,102 @@ class TradingBot:
                         
                         position_info['pnl_percent'] = pnl_percent
                         
+                        # ✅ مراقبة TP/SL تلقائياً
+                        await self.check_tp_sl_triggers(position_id, current_price, side)
+                        
         except Exception as e:
             logger.error(f"خطأ في تحديث أسعار الصفقات: {e}")
+    
+    async def check_tp_sl_triggers(self, position_id: str, current_price: float, side: str):
+        """فحص وتحقق من TP/SL تلقائياً"""
+        try:
+            # الحصول على بيانات الصفقة من قاعدة البيانات
+            order_data = db_manager.get_order(position_id)
+            if not order_data:
+                return
+            
+            # فحص Take Profits
+            take_profits = order_data.get('take_profits', [])
+            for tp in take_profits:
+                tp_price = tp.get('price', 0)
+                
+                # التحقق من تحقق TP
+                if side.lower() == "buy" and current_price >= tp_price:
+                    await self.execute_take_profit(position_id, tp_price, tp.get('percentage', 0))
+                    break
+                elif side.lower() == "sell" and current_price <= tp_price:
+                    await self.execute_take_profit(position_id, tp_price, tp.get('percentage', 0))
+                    break
+            
+            # فحص Stop Loss
+            stop_loss = order_data.get('stop_loss')
+            if stop_loss:
+                sl_price = stop_loss.get('price', 0)
+                
+                # التحقق من تحقق SL
+                if side.lower() == "buy" and current_price <= sl_price:
+                    await self.execute_stop_loss(position_id, sl_price)
+                elif side.lower() == "sell" and current_price >= sl_price:
+                    await self.execute_stop_loss(position_id, sl_price)
+                    
+        except Exception as e:
+            logger.error(f"خطأ في مراقبة TP/SL للصفقة {position_id}: {e}")
+    
+    async def execute_take_profit(self, position_id: str, tp_price: float, percentage: float):
+        """تنفيذ Take Profit تلقائياً"""
+        try:
+            logger.info(f"🎯 تحقق TP للصفقة {position_id} بسعر {tp_price}")
+            
+            # تنفيذ الإغلاق الجزئي بناءً على النسبة
+            if percentage > 0:
+                # إنشاء update وهمي للدالة
+                class MockUpdate:
+                    def __init__(self):
+                        self.callback_query = None
+                        self.message = None
+                
+                await execute_partial_close_percentage(MockUpdate(), None, position_id, percentage)
+            
+            # إرسال إشعار
+            message = f"""
+🎯 تم تحقق Take Profit تلقائياً
+📊 الصفقة: {position_id}
+💰 السعر: {tp_price:.6f}
+📈 النسبة: {percentage}%
+            """
+            
+            # إرسال للمدير
+            await self.send_message_to_admin(message)
+            
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ TP: {e}")
+    
+    async def execute_stop_loss(self, position_id: str, sl_price: float):
+        """تنفيذ Stop Loss تلقائياً"""
+        try:
+            logger.info(f"🛑 تحقق SL للصفقة {position_id} بسعر {sl_price}")
+            
+            # إنشاء update وهمي للدالة
+            class MockUpdate:
+                def __init__(self):
+                    self.callback_query = None
+                    self.message = None
+            
+            # تنفيذ الإغلاق الكامل
+            await close_position(position_id, MockUpdate(), None)
+            
+            # إرسال إشعار
+            message = f"""
+🛑 تم تحقق Stop Loss تلقائياً
+📊 الصفقة: {position_id}
+💰 السعر: {sl_price:.6f}
+            """
+            
+            # إرسال للمدير
+            await self.send_message_to_admin(message)
+            
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ SL: {e}")
     
     def get_available_pairs_message(self, category=None, brief=False, limit=50):
         """الحصول على رسالة الأزواج المتاحة"""
@@ -1702,10 +1796,15 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         # إضافة أزرار إدارة الصفقة
         pnl_display = f"({pnl_value:+.2f})" if current_price else ""
         
-        # صف واحد بأزرار مختصرة
+        # عرض TP/SL الحالية
+        order_data = db_manager.get_order(position_id)
+        tp_count = len(order_data.get('take_profits', [])) if order_data else 0
+        has_sl = bool(order_data.get('stop_loss')) if order_data else False
+        
+        # صف واحد بأزرار مختصرة مع مؤشرات
         spot_keyboard.append([
-            InlineKeyboardButton(f"🎯 TP", callback_data=f"manage_tp_{position_id}"),
-            InlineKeyboardButton(f"🛑 SL", callback_data=f"manage_sl_{position_id}"),
+            InlineKeyboardButton(f"🎯 TP ({tp_count})", callback_data=f"manage_tp_{position_id}"),
+            InlineKeyboardButton(f"🛑 SL {'✅' if has_sl else '❌'}", callback_data=f"manage_sl_{position_id}"),
             InlineKeyboardButton(f"📊 إغلاق جزئي", callback_data=f"partial_{position_id}")
         ])
         
@@ -3010,11 +3109,19 @@ async def add_take_profit_by_percentage(update: Update, context: ContextTypes.DE
         entry_price = position_info['entry_price']
         side = position_info['side']
         
-        # حساب سعر TP
+        # حساب سعر TP مع التحقق من الصحة
         if side.lower() == "buy":
             tp_price = entry_price * (1 + percentage / 100)
+            if tp_price <= entry_price:
+                if update.message:
+                    await update.message.reply_text("❌ سعر TP يجب أن يكون أعلى من سعر الدخول للصفقة الشرائية")
+                return
         else:
             tp_price = entry_price * (1 - percentage / 100)
+            if tp_price >= entry_price:
+                if update.message:
+                    await update.message.reply_text("❌ سعر TP يجب أن يكون أقل من سعر الدخول للصفقة البيعية")
+                return
         
         # حفظ TP في قاعدة البيانات
         order_data = db_manager.get_order(position_id)
@@ -3061,10 +3168,18 @@ async def add_take_profit_by_price(update: Update, context: ContextTypes.DEFAULT
         entry_price = position_info['entry_price']
         side = position_info['side']
         
-        # حساب النسبة المئوية
+        # التحقق من صحة السعر وحساب النسبة المئوية
         if side.lower() == "buy":
+            if price <= entry_price:
+                if update.message:
+                    await update.message.reply_text("❌ سعر TP يجب أن يكون أعلى من سعر الدخول للصفقة الشرائية")
+                return
             percentage = ((price - entry_price) / entry_price) * 100
         else:
+            if price >= entry_price:
+                if update.message:
+                    await update.message.reply_text("❌ سعر TP يجب أن يكون أقل من سعر الدخول للصفقة البيعية")
+                return
             percentage = ((entry_price - price) / entry_price) * 100
         
         # حفظ TP في قاعدة البيانات
