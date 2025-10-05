@@ -1,161 +1,169 @@
 {
-  "project": {
-    "name": "Bybit Telegram Multi-User Bot",
-    "run_file": "run_with_server.py",
-    "deployment": "Railway",
-    "description": "بوت تيليجرام متعدد المستخدمين لإدارة التداول على Bybit، يدعم TP/SL/Partial Close، وإدارة الرصيد لكل مستخدم بشكل مستقل.",
-    "structure": {
-      "core_files": ["bybit_trading_bot.py", "web_server.py", "config.py", "app.py", "health.py", "run_with_server.py", "test_railway.py"],
-      "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml", "railway.yaml", "render.yaml", "env.example", "railway_start.sh", "RAILWAY_DEPLOYMENT_CHECKLIST.md"],
-      "data_files": ["spot_pairs.json", "futures_pairs.json", "popular_pairs.json"],
-      "test_files": ["test_railway_env.py", "test_railway.py"],
-      "docs": ["README.md", "RAILWAY_DEPLOYMENT_CHECKLIST.md"],
-      "helpers": ["trading_bot.log", "run_with_server.py", "health.py"],
-      "hidden_folders": [".qodo/", ".railway/"]
-    }
-  },
-  "users": [
-    {
-      "user_id": 123456789,
-      "api_key": "API_KEY_EXAMPLE",
-      "api_secret": "API_SECRET_EXAMPLE",
-      "settings": {
-        "balance": 1000.0,
-        "partial_percents": [25, 50, 25],
-        "tps_percents": [1.5, 3.0, 5.0],
-        "is_active": true,
-        "preferences": {
-          "notifications": true,
-          "preferred_symbols": ["BTCUSDT", "ETHUSDT"]
-        }
-      },
-      "orders": [
+  "context_extension": "multi_user_wallet_and_trade_management",
+  "description": "نظام إدارة شامل لعزل حسابات المستخدمين وربط الصفقات بمحافظهم الشخصية داخل البوت، مشابه تمامًا لتصميم 3Commas.",
+  
+  "1_user_accounts": {
+    "description": "كل مستخدم يملك حساب مستقل تمامًا داخل النظام.",
+    "data_model": {
+      "user_id": "معرّف المستخدم داخل تيليجرام أو النظام",
+      "exchange": "اسم المنصة المرتبطة (Bybit, Binance, OKX, ...)",
+      "api_key": "المفتاح العام لحساب المستخدم في المنصة",
+      "api_secret": "المفتاح السري لحساب المستخدم",
+      "connected_wallets": [
         {
-          "order_id": "ORD123",
-          "symbol": "BTCUSDT",
-          "side": "BUY",
-          "entry_price": 30000.0,
-          "quantity": 0.1,
-          "open_time": "2025-10-01T10:00:00",
-          "close_time": null,
-          "tps": [30100.0, 30200.0, 30500.0],
-          "sl": 29500.0,
-          "partial_close": [25, 50, 25],
-          "status": "OPEN",
-          "notes": "الصفقة مفتوحة، تتغير حسب TP وSL"
+          "wallet_id": "UUID مميز لكل محفظة",
+          "wallet_type": "spot أو futures أو margin",
+          "base_currency": "USDT أو BTC أو ETH",
+          "balance": 1530.75,
+          "leverage": 10,
+          "is_active": true
         }
-      ]
-    }
-  ],
-  "commands": {
-    "/start": {
-      "description": "بدء البوت وعرض زر 🔗 الربط لكل مستخدم",
-      "effects": "حفظ API_KEY و API_SECRET في جدول users"
+      ],
+      "settings": {
+        "risk_limit_percent": 2,
+        "max_concurrent_trades": 5,
+        "default_sl_percent": 1.5,
+        "default_tp_percent": [1.5, 3.0, 5.0],
+        "auto_trailing": true,
+        "auto_break_even": true
+      },
+      "permissions": {
+        "can_trade": true,
+        "can_withdraw": false,
+        "can_link_other_wallets": true
+      }
     },
-    "/balance": {
-      "description": "عرض رصيد المستخدم الحالي",
-      "effects": "يعرض فقط للمستخدم الذي طلبه ويتحقق من is_active"
-    },
-    "/buy": {
-      "description": "فتح صفقة شراء",
-      "effects": "يتم تنفيذها على حساب المستخدم فقط، يتحقق من is_active، يضيف الصفقة إلى orders"
-    },
-    "/sell": {
-      "description": "فتح صفقة بيع",
-      "effects": "يتم تنفيذها على حساب المستخدم فقط، يتحقق من is_active، يضيف الصفقة إلى orders"
-    },
-    "/settings": {
-      "description": "قسم ⚙️ الإعدادات لكل مستخدم",
-      "effects": "يحتوي على زر تشغيل/إيقاف البوت، تحديث API، وتفضيلات الإشعارات"
-    }
-  },
-  "settings_section": {
-    "description": "قسم الإعدادات لكل مستخدم",
-    "buttons": ["toggle_active", "update_api", "notification_preferences"]
-  },
-  "orders_section": {
-    "description": "إدارة الصفقات لكل مستخدم",
-    "buttons": ["تاريخ الصفقة", "إغلاق جزئي", "TP1", "TP2", "TP3", "Stop Loss", "إلغاء الصفقة"],
-    "effects": "تغييرات TP/SL/Partial Close تؤثر فقط على رصيد المستخدم المعني"
-  },
-  "user_isolation": {
-    "description": "فصل المستخدمين في البوت",
-    "principles": [
-      "كل مستخدم له بيئة مستقلة بالكامل (API, صفقات, إعدادات, رصيد)",
-      "لا يمكن لأي مستخدم الوصول إلى بيانات مستخدم آخر",
-      "جميع الأوامر والتغييرات مرتبطة بـ user_id فقط",
-      "الصفقات والتعديلات على TP/SL/Partial Close تؤثر فقط على رصيد المستخدم المعني",
-      "قسم الإعدادات وإدارة الأوامر مخصص لكل مستخدم بشكل منفصل",
-      "JSON Context لكل مستخدم يحتوي على جميع المعلومات الخاصة به"
+    "rules": [
+      "كل مستخدم يُخزن في JSON أو قاعدة بيانات SQLite مستقلة.",
+      "لا يمكن لأي مستخدم رؤية أو التفاعل مع بيانات مستخدم آخر.",
+      "كل أوامر التداول تُنسب لحساب user_id + wallet_id فقط.",
+      "الإيجنت يجب أن يعالج كل عملية داخل سياق المستخدم النشط فقط."
     ]
   },
-  "run_environment": {
-    "file": "run_with_server.py",
-    "platform": "Railway",
-    "description": "مسؤول عن تشغيل المشروع الكامل، يشغل البوت، الصفقات، والأوامر لجميع المستخدمين"
+  
+  "2_wallet_trade_linkage": {
+    "description": "ربط الصفقات مباشرة بالمحفظة الخاصة بكل مستخدم مع تتبع الرصيد الفعلي.",
+    "mechanism": {
+      "trade_execution_flow": [
+        "استقبال الإشارة أو أمر المستخدم",
+        "تحديد wallet_id المناسب بناءً على نوع التداول (spot/futures)",
+        "التحقق من الرصيد المتاح",
+        "تحديد حجم الصفقة بناءً على نسبة المخاطرة أو المبلغ الثابت",
+        "فتح الصفقة وتخزينها في سجل المحفظة"
+      ],
+      "wallet_update_flow": [
+        "عند فتح صفقة: خصم المبلغ المحجوز من balance.available",
+        "عند تحقق TP أو SL: إعادة تحديث balance.total",
+        "عند الإغلاق الجزئي: إعادة النسبة المنفذة إلى الرصيد الحر"
+      ]
+    },
+    "data_example": {
+      "trade_id": "TRD-2025-1001",
+      "user_id": 123456789,
+      "wallet_id": "WLT-001-BTCUSDT-SPOT",
+      "symbol": "BTCUSDT",
+      "type": "spot",
+      "side": "buy",
+      "entry_price": 30000.0,
+      "amount": 100.0,
+      "tps": [30450.0, 30900.0, 31500.0],
+      "sl": 29400.0,
+      "status": "open",
+      "allocated_balance": 100.0,
+      "linked_wallet": {
+        "balance_before": 1530.75,
+        "balance_after": 1430.75
+      }
+    }
   },
-  "similar_projects": [
-    {
-      "project_name": "Binance Futures Trading Bot",
-      "description": "بوت تداول العقود الآجلة على Binance، يدعم أوامر buy/sell، TP/SL، وتنبيهات لكل مستخدم.",
-      "structure": {
-        "core_files": ["binance_trading_bot.py", "web_server.py", "config.py", "app.py", "run_server.py"],
-        "deployment_files": ["requirements.txt", "Dockerfile", "deploy.yaml", "env.example"],
-        "data_files": ["futures_pairs.json", "popular_pairs.json"],
-        "test_files": ["test_env.py", "test_bot.py"],
-        "docs": ["README.md"],
-        "helpers": ["trading_bot.log"]
-      },
-      "features": [
-        "Multi-user مع فصل البيئات لكل مستخدم",
-        "API Keys لكل مستخدم",
-        "صفقات منفصلة لكل مستخدم",
-        "تشغيل على Docker وRailway"
-      ]
+  
+  "3_multi_exchange_support": {
+    "description": "إدارة حسابات متعددة لكل مستخدم عبر منصات مختلفة.",
+    "capabilities": {
+      "supported_exchanges": ["Bybit", "Binance", "MEXC", "OKX", "KuCoin"],
+      "per_user_exchange_limit": 3,
+      "exchange_connection_model": {
+        "exchange_id": "EXG-UUID",
+        "user_id": "مرتبط بالمستخدم",
+        "api_credentials": {
+          "key": "API_KEY",
+          "secret": "API_SECRET"
+        },
+        "connected_wallets": ["WLT-001", "WLT-002"],
+        "status": "connected"
+      }
     },
-    {
-      "project_name": "Crypto Signal Telegram Bot",
-      "description": "بوت تيليجرام يقدم إشارات تداول للعملات المشفرة، يدعم إشعارات متعددة للمستخدمين، وتخصيص الإشعارات لكل مستخدم.",
-      "structure": {
-        "core_files": ["signal_bot.py", "web_server.py", "config.py", "app.py"],
-        "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml"],
-        "data_files": ["signal_pairs.json", "popular_pairs.json"],
-        "test_files": ["test_signals.py"],
-        "docs": ["README.md"],
-        "helpers": ["bot.log"]
-      },
-      "features": [
-        "Multi-user environment مع تخصيص إشعارات",
-        "إدارة إعدادات كل مستخدم",
-        "تخزين البيانات لكل مستخدم بشكل منفصل",
-        "تشغيل على Railway"
-      ]
+    "auto_selection_logic": "النظام يختار المنصة الأنسب للصفقة حسب السيولة أو الفوليوم أو التوصية."
+  },
+  
+  "4_trade_routing_system": {
+    "description": "آلية توزيع وتنفيذ الصفقات بين محافظ المستخدمين ومنصاتهم.",
+    "process": [
+      "تحديد الإشارة (Buy/Sell)",
+      "فلترة المستخدمين النشطين (is_active = true)",
+      "لكل مستخدم، اختيار المنصة والمحفظة الأنسب",
+      "تنفيذ الصفقة عبر واجهة API الخاصة بالمنصة",
+      "تحديث سجل الصفقات والمحفظة في JSON"
+    ],
+    "routing_modes": [
+      "manual": "ينفذ فقط عند أمر المستخدم.",
+      "auto": "ينفذ تلقائيًا بناءً على الإشارات.",
+      "copy": "ينسخ صفقة مستخدم رئيسي إلى المحافظ المرتبطة."
+    ]
+  },
+  
+  "5_trade_wallet_linked_reporting": {
+    "description": "كل صفقة تكون مرتبطة بمحفظة معينة لتتبع الأداء والرصيد بدقة.",
+    "report_data": {
+      "wallet_id": "المحفظة المنفذة عليها الصفقة",
+      "total_open_trades": 3,
+      "total_profit_usd": 120.5,
+      "total_loss_usd": -45.3,
+      "net_balance": 1605.95,
+      "active_orders": ["TRD-2025-1001", "TRD-2025-1002"],
+      "closed_orders": ["TRD-2025-0999"]
     },
-    {
-      "project_name": "AI Crypto Trading Agent",
-      "description": "مشروع تجريبي لوكيل تداول ذكي يستخدم Machine Learning لتحليل السوق، يدعم صفقات تلقائية لكل مستخدم.",
-      "structure": {
-        "core_files": ["ai_trading_agent.py", "ml_model.py", "config.py", "app.py", "run_with_server.py"],
-        "deployment_files": ["requirements.txt", "Dockerfile", "railway.toml", "env.example"],
-        "data_files": ["market_data.json", "user_profiles.json"],
-        "test_files": ["test_agent.py"],
-        "docs": ["README.md"],
-        "helpers": ["agent.log"]
-      },
-      "features": [
-        "Multi-user environment لكل user_id",
-        "صفقات تلقائية وتحليل بيانات السوق",
-        "تخزين بيانات المستخدمين في JSON وSQLite",
-        "تشغيل كامل عبر run_with_server.py على Railway"
+    "analysis_logic": "يتم حساب الأداء اليومي والأسبوعي لكل محفظة على حدة، وليس للمستخدم ككل."
+  },
+  
+  "6_isolation_security_layer": {
+    "description": "طبقة الأمان والعزل الكامل بين المستخدمين والمحافظ.",
+    "rules": [
+      "تشفير مفاتيح API باستخدام AES256 أو RSA.",
+      "تخزين المفاتيح في بيئة آمنة (Environment Variables).",
+      "التحقق من هوية المستخدم قبل كل عملية.",
+      "منع أي عمليات متزامنة على نفس المحفظة.",
+      "كل العمليات تتم داخل Thread أو Session مستقل."
+    ],
+    "session_management": {
+      "user_sessions": "جلسة لكل مستخدم.",
+      "wallet_contexts": "سياق عمليات مستقل لكل محفظة داخل الجلسة."
+    }
+  },
+  
+  "7_inter_wallet_relations": {
+    "description": "التحكم في العلاقات بين المحافظ داخل نفس الحساب.",
+    "relations": [
+      "main_wallet": "المحفظة الرئيسية التي يتم تحويل الأرباح إليها.",
+      "trading_wallet": "المحفظة المستخدمة فعليًا في الصفقات.",
+      "reserve_wallet": "محفظة احتياطية تستخدم في DCA أو تعزيز الصفقات.",
+      "linking_rules": "يجب أن تكون جميع المحافظ بنفس العملة الأساسية (Base Currency)."
+    ],
+    "sync_behavior": "يتم تحديث جميع المحافظ التابعة تلقائيًا بعد كل صفقة."
+  },
+  
+  "8_copy_trading_logic": {
+    "description": "نظام نسخ الصفقات بين محافظ المستخدمين المتصلين.",
+    "structure": {
+      "leader_user_id": 111111,
+      "followers": [222222, 333333],
+      "copy_ratio": 0.5,
+      "delay_seconds": 2,
+      "rules": [
+        "الصفقات تُنسخ فقط إذا توافرت السيولة في محفظة المتابع.",
+        "النسخ يشمل TP/SL/Partial بنفس النسب المئوية.",
+        "يتم تجاهل أوامر Futures إذا كانت المحفظة Spot والعكس."
       ]
     }
-  ],
-  "context_notes": [
-    "المشروع الحالي يجب أن يبقى كما هو، لا تحذف أي ملفات.",
-    "تعدد المستخدمين يجب أن يكون معزول بالكامل، بدون أي تداخل.",
-    "run_with_server.py مسؤول عن تشغيل المشروع الكامل على Railway.",
-    "التغييرات على الصفقات تؤثر على رصيد المستخدم فقط.",
-    "زر تشغيل/إيقاف البوت موجود داخل قسم الإعدادات فقط.",
-    "يمكن للـ Agent الاستفادة من المشاريع المشابهة لفهم أنماط البنية والتنظيم."
-  ]
+  }
 }

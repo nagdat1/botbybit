@@ -2350,12 +2350,22 @@ async def execute_partial_close_percentage(update: Update, context: ContextTypes
                 del trading_bot.open_positions[position_id]
             status_text = "تم إغلاق الصفقة بالكامل"
         else:
-            # تحديث المعلومات
+            # ✅ تحديث المعلومات في open_positions بناءً على الصفقة الفعلية في الحساب
             if market_type == 'futures':
-                position_info['margin_amount'] = result['remaining_margin']
-                position_info['position_size'] = result['remaining_margin'] * position_info.get('leverage', 1)
+                # الحصول على الصفقة المحدثة من الحساب
+                actual_position = account.positions.get(position_id)
+                if actual_position:
+                    position_info['margin_amount'] = actual_position.margin_amount
+                    position_info['position_size'] = actual_position.position_size
+                    position_info['contracts'] = actual_position.contracts
+                    position_info['liquidation_price'] = actual_position.liquidation_price
+                    logger.info(f"تم تحديث صفقة فيوتشر: margin={actual_position.margin_amount}, size={actual_position.position_size}")
             else:
-                position_info['amount'] = result['remaining_amount']
+                # للسبوت - الحصول على المبلغ المحدث من الحساب
+                actual_position = account.positions.get(position_id)
+                if actual_position:
+                    position_info['amount'] = actual_position.get('amount', 0)
+                    logger.info(f"تم تحديث صفقة سبوت: amount={actual_position.get('amount', 0)}")
             status_text = f"متبقي من الصفقة: {100 - percentage:.1f}%"
         
         # حساب معلومات الربح/الخسارة
@@ -2499,9 +2509,42 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("manage_tp_"):
         position_id = data.replace("manage_tp_", "")
         await manage_take_profit(update, context, position_id)
+    elif data.startswith("add_tp_"):
+        position_id = data.replace("add_tp_", "")
+        await add_take_profit(update, context, position_id)
+    elif data.startswith("add_tp_pct_"):
+        position_id = data.replace("add_tp_pct_", "")
+        if user_id is not None:
+            user_input_state[user_id] = f"waiting_for_tp_percentage_{position_id}"
+        if update.callback_query:
+            await update.callback_query.edit_message_text("📝 أدخل النسبة المئوية للـ TP (مثل: 5.5):")
+    elif data.startswith("add_tp_price_"):
+        position_id = data.replace("add_tp_price_", "")
+        if user_id is not None:
+            user_input_state[user_id] = f"waiting_for_tp_price_{position_id}"
+        if update.callback_query:
+            await update.callback_query.edit_message_text("💲 أدخل سعر الـ TP (مثل: 30100.5):")
+    elif data.startswith("view_tps_"):
+        position_id = data.replace("view_tps_", "")
+        await view_take_profits(update, context, position_id)
     elif data.startswith("manage_sl_"):
         position_id = data.replace("manage_sl_", "")
         await manage_stop_loss(update, context, position_id)
+    elif data.startswith("set_sl_pct_"):
+        position_id = data.replace("set_sl_pct_", "")
+        if user_id is not None:
+            user_input_state[user_id] = f"waiting_for_sl_percentage_{position_id}"
+        if update.callback_query:
+            await update.callback_query.edit_message_text("📝 أدخل النسبة المئوية للـ SL (مثل: 2.0):")
+    elif data.startswith("set_sl_price_"):
+        position_id = data.replace("set_sl_price_", "")
+        if user_id is not None:
+            user_input_state[user_id] = f"waiting_for_sl_price_{position_id}"
+        if update.callback_query:
+            await update.callback_query.edit_message_text("💲 أدخل سعر الـ SL (مثل: 29500.0):")
+    elif data.startswith("remove_sl_"):
+        position_id = data.replace("remove_sl_", "")
+        await remove_stop_loss(update, context, position_id)
     elif data.startswith("partial_") and not data.startswith("partial_close_"):
         position_id = data.replace("partial_", "")
         await manage_partial_close(update, context, position_id)
@@ -2788,6 +2831,58 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 if update.message is not None:
                     await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        elif state.startswith("waiting_for_tp_percentage_"):
+            position_id = state.replace("waiting_for_tp_percentage_", "")
+            try:
+                percentage = float(text)
+                if percentage > 0:
+                    await add_take_profit_by_percentage(update, context, position_id, percentage)
+                    del user_input_state[user_id]
+                else:
+                    if update.message:
+                        await update.message.reply_text("❌ يرجى إدخال نسبة موجبة")
+            except ValueError:
+                if update.message:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        elif state.startswith("waiting_for_tp_price_"):
+            position_id = state.replace("waiting_for_tp_price_", "")
+            try:
+                price = float(text)
+                if price > 0:
+                    await add_take_profit_by_price(update, context, position_id, price)
+                    del user_input_state[user_id]
+                else:
+                    if update.message:
+                        await update.message.reply_text("❌ يرجى إدخال سعر موجب")
+            except ValueError:
+                if update.message:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        elif state.startswith("waiting_for_sl_percentage_"):
+            position_id = state.replace("waiting_for_sl_percentage_", "")
+            try:
+                percentage = float(text)
+                if percentage > 0:
+                    await set_stop_loss_by_percentage(update, context, position_id, percentage)
+                    del user_input_state[user_id]
+                else:
+                    if update.message:
+                        await update.message.reply_text("❌ يرجى إدخال نسبة موجبة")
+            except ValueError:
+                if update.message:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        elif state.startswith("waiting_for_sl_price_"):
+            position_id = state.replace("waiting_for_sl_price_", "")
+            try:
+                price = float(text)
+                if price > 0:
+                    await set_stop_loss_by_price(update, context, position_id, price)
+                    del user_input_state[user_id]
+                else:
+                    if update.message:
+                        await update.message.reply_text("❌ يرجى إدخال سعر موجب")
+            except ValueError:
+                if update.message:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
         else:
             # إعادة تعيين حالة إدخال المستخدم للحالات غير المتوقعة
             if user_id is not None and user_id in user_input_state:
@@ -2866,6 +2961,307 @@ async def process_external_signal(symbol: str, action: str):
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """معالج الأخطاء"""
     logger.error(f"Update {update} caused error {context.error}")
+
+# ✅ دوال إدارة TP/SL المفقودة
+async def add_take_profit(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+    """إضافة Take Profit للصفقة"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        
+        message = f"""
+🎯 إضافة Take Profit
+📊 الصفقة: {symbol}
+💲 سعر الدخول: {position_info['entry_price']:.6f}
+
+اختر نوع TP:
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("📝 TP بنسبة مئوية", callback_data=f"add_tp_pct_{position_id}")],
+            [InlineKeyboardButton("💲 TP بسعر محدد", callback_data=f"add_tp_price_{position_id}")],
+            [InlineKeyboardButton("🔙 العودة", callback_data=f"manage_tp_{position_id}")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+            
+    except Exception as e:
+        logger.error(f"خطأ في إضافة TP: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def add_take_profit_by_percentage(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str, percentage: float):
+    """إضافة TP بنسبة مئوية"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.message:
+                await update.message.reply_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        entry_price = position_info['entry_price']
+        side = position_info['side']
+        
+        # حساب سعر TP
+        if side.lower() == "buy":
+            tp_price = entry_price * (1 + percentage / 100)
+        else:
+            tp_price = entry_price * (1 - percentage / 100)
+        
+        # حفظ TP في قاعدة البيانات
+        order_data = db_manager.get_order(position_id)
+        if order_data:
+            take_profits = order_data.get('take_profits', [])
+            take_profits.append({
+                'price': tp_price,
+                'percentage': percentage,
+                'is_percentage_based': True,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            # تحديث قاعدة البيانات
+            db_manager.update_order(position_id, {'take_profits': take_profits})
+            
+            message = f"""
+✅ تم إضافة Take Profit بنجاح
+📊 الصفقة: {symbol}
+🎯 TP: {percentage}% = {tp_price:.6f}
+💲 سعر الدخول: {entry_price:.6f}
+            """
+            
+            if update.message:
+                await update.message.reply_text(message)
+        else:
+            if update.message:
+                await update.message.reply_text("❌ فشل في العثور على الصفقة في قاعدة البيانات")
+            
+    except Exception as e:
+        logger.error(f"خطأ في إضافة TP بنسبة: {e}")
+        if update.message:
+            await update.message.reply_text(f"❌ خطأ: {e}")
+
+async def add_take_profit_by_price(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str, price: float):
+    """إضافة TP بسعر محدد"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.message:
+                await update.message.reply_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        entry_price = position_info['entry_price']
+        side = position_info['side']
+        
+        # حساب النسبة المئوية
+        if side.lower() == "buy":
+            percentage = ((price - entry_price) / entry_price) * 100
+        else:
+            percentage = ((entry_price - price) / entry_price) * 100
+        
+        # حفظ TP في قاعدة البيانات
+        order_data = db_manager.get_order(position_id)
+        if order_data:
+            take_profits = order_data.get('take_profits', [])
+            take_profits.append({
+                'price': price,
+                'percentage': percentage,
+                'is_percentage_based': False,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            # تحديث قاعدة البيانات
+            db_manager.update_order(position_id, {'take_profits': take_profits})
+            
+            message = f"""
+✅ تم إضافة Take Profit بنجاح
+📊 الصفقة: {symbol}
+🎯 TP: {price:.6f} ({percentage:+.2f}%)
+💲 سعر الدخول: {entry_price:.6f}
+            """
+            
+            if update.message:
+                await update.message.reply_text(message)
+        else:
+            if update.message:
+                await update.message.reply_text("❌ فشل في العثور على الصفقة في قاعدة البيانات")
+            
+    except Exception as e:
+        logger.error(f"خطأ في إضافة TP بسعر: {e}")
+        if update.message:
+            await update.message.reply_text(f"❌ خطأ: {e}")
+
+async def view_take_profits(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+    """عرض TPs الحالية"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        
+        # الحصول على TPs من قاعدة البيانات
+        order_data = db_manager.get_order(position_id)
+        if order_data:
+            take_profits = order_data.get('take_profits', [])
+            
+            if take_profits:
+                message = f"📋 Take Profits الحالية\n📊 الصفقة: {symbol}\n\n"
+                
+                for i, tp in enumerate(take_profits, 1):
+                    price = tp.get('price', 0)
+                    percentage = tp.get('percentage', 0)
+                    is_percentage_based = tp.get('is_percentage_based', False)
+                    
+                    if is_percentage_based:
+                        message += f"{i}. 🎯 TP: {percentage}% = {price:.6f}\n"
+                    else:
+                        message += f"{i}. 💲 TP: {price:.6f} ({percentage:+.2f}%)\n"
+            else:
+                message = f"📋 لا توجد Take Profits\n📊 الصفقة: {symbol}"
+        else:
+            message = "❌ فشل في العثور على الصفقة"
+        
+        keyboard = [[InlineKeyboardButton("🔙 العودة", callback_data=f"manage_tp_{position_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+            
+    except Exception as e:
+        logger.error(f"خطأ في عرض TPs: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_stop_loss_by_percentage(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str, percentage: float):
+    """تعيين SL بنسبة مئوية"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.message:
+                await update.message.reply_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        entry_price = position_info['entry_price']
+        side = position_info['side']
+        
+        # حساب سعر SL
+        if side.lower() == "buy":
+            sl_price = entry_price * (1 - percentage / 100)
+        else:
+            sl_price = entry_price * (1 + percentage / 100)
+        
+        # حفظ SL في قاعدة البيانات
+        stop_loss = {
+            'price': sl_price,
+            'percentage': percentage,
+            'is_percentage_based': True,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        db_manager.update_order(position_id, {'stop_loss': stop_loss})
+        
+        message = f"""
+✅ تم تعيين Stop Loss بنجاح
+📊 الصفقة: {symbol}
+🛑 SL: {percentage}% = {sl_price:.6f}
+💲 سعر الدخول: {entry_price:.6f}
+        """
+        
+        if update.message:
+            await update.message.reply_text(message)
+            
+    except Exception as e:
+        logger.error(f"خطأ في تعيين SL بنسبة: {e}")
+        if update.message:
+            await update.message.reply_text(f"❌ خطأ: {e}")
+
+async def set_stop_loss_by_price(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str, price: float):
+    """تعيين SL بسعر محدد"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.message:
+                await update.message.reply_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        entry_price = position_info['entry_price']
+        side = position_info['side']
+        
+        # حساب النسبة المئوية
+        if side.lower() == "buy":
+            percentage = ((entry_price - price) / entry_price) * 100
+        else:
+            percentage = ((price - entry_price) / entry_price) * 100
+        
+        # حفظ SL في قاعدة البيانات
+        stop_loss = {
+            'price': price,
+            'percentage': percentage,
+            'is_percentage_based': False,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        db_manager.update_order(position_id, {'stop_loss': stop_loss})
+        
+        message = f"""
+✅ تم تعيين Stop Loss بنجاح
+📊 الصفقة: {symbol}
+🛑 SL: {price:.6f} ({percentage:+.2f}%)
+💲 سعر الدخول: {entry_price:.6f}
+        """
+        
+        if update.message:
+            await update.message.reply_text(message)
+            
+    except Exception as e:
+        logger.error(f"خطأ في تعيين SL بسعر: {e}")
+        if update.message:
+            await update.message.reply_text(f"❌ خطأ: {e}")
+
+async def remove_stop_loss(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+    """حذف Stop Loss"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        
+        # حذف SL من قاعدة البيانات
+        db_manager.update_order(position_id, {'stop_loss': None})
+        
+        message = f"""
+✅ تم حذف Stop Loss بنجاح
+📊 الصفقة: {symbol}
+🛑 لا يوجد SL محدد حالياً
+        """
+        
+        keyboard = [[InlineKeyboardButton("🔙 العودة", callback_data=f"manage_sl_{position_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+            
+    except Exception as e:
+        logger.error(f"خطأ في حذف SL: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
 def main():
     """الدالة الرئيسية"""
