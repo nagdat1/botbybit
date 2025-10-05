@@ -8,7 +8,6 @@ import sys
 import os
 import threading
 import asyncio
-import time
 from datetime import datetime
 
 # إضافة المسار الحالي إلى مسارات Python
@@ -119,32 +118,16 @@ def main():
         
         print("🤖 بدء تشغيل بوت التلجرام...")
         
-        # تشغيل البوت في thread منفصل لتجنب تضارب event loops
-        def run_bot_thread():
-            """تشغيل البوت في thread منفصل"""
-            try:
-                # إنشاء event loop جديد للبوت
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                # تشغيل البوت
-                bot_main()
-                
-            except Exception as e:
-                print(f"❌ خطأ في تشغيل البوت: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        # تشغيل البوت في thread منفصل
-        bot_thread = threading.Thread(target=run_bot_thread, daemon=True)
-        bot_thread.start()
-        
-        # انتظار إلى ما لا نهاية (السيرفر سيعمل في thread منفصل)
+        # تشغيل البوت الرئيسي
+        # إنشاء event loop جديد للبوت
         try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("\n⏹️ تم إيقاف البوت والسيرفر بواسطة المستخدم")
+            # For Windows compatibility
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except:
+            pass
+            
+        # تشغيل البوت في الـ event loop الرئيسي
+        bot_main()
         
     except KeyboardInterrupt:
         print("\n⏹️ تم إيقاف البوت والسيرفر بواسطة المستخدم")

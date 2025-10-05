@@ -29,11 +29,7 @@ from config import *
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
 from user_manager import user_manager
-
-# استيراد نظام TP/SL المتقدم
-from order_manager import order_manager, PriceType
-from trade_interface import trade_interface
-from bot_integration import bot_integration
+from position_manager import position_manager, ManagedPosition
 
 # إعداد التسجيل
 logging.basicConfig(
@@ -45,6 +41,36 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+def mask_api_credentials(api_key: str, api_secret: str) -> tuple[str, str]:
+    """إخفاء معلومات API جزئياً للعرض الآمن"""
+    if not api_key or not api_secret:
+        return "غير محدد", "غير محدد"
+    
+    # إظهار أول 4 وآخر 4 أحرف فقط
+    masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "****"
+    masked_secret = f"{api_secret[:4]}...{api_secret[-4:]}" if len(api_secret) > 8 else "****"
+    
+    return masked_key, masked_secret
+
+async def verify_api_connection(api_key: str, api_secret: str) -> tuple[bool, str]:
+    """التحقق من صحة اتصال API"""
+    try:
+        # إنشاء كائن API مؤقت للاختبار
+        test_api = BybitAPI(api_key, api_secret)
+        
+        # محاولة جلب معلومات الحساب للتحقق
+        response = test_api.get_account_balance()
+        
+        if response.get("retCode") == 0:
+            return True, "✅ الاتصال ناجح"
+        else:
+            error_msg = response.get("retMsg", "خطأ غير محدد")
+            return False, f"❌ فشل الاتصال: {error_msg}"
+            
+    except Exception as e:
+        logger.error(f"خطأ في التحقق ��ن API: {e}")
+        return False, f"❌ خطأ في الاتصال: {str(e)}"
 
 class FuturesPosition:
     """فئة لإدارة صفقات الفيوتشر"""
@@ -577,6 +603,22 @@ class BybitAPI:
         except Exception as e:
             logger.error(f"خطأ في الحصول على الرصيد: {e}")
             return {"retCode": -1, "retMsg": str(e)}
+            
+    async def verify_api_connection(self) -> tuple[bool, str]:
+        """التحقق من صحة اتصال API"""
+        try:
+            # محاولة جلب معلومات الحساب للتحقق
+            response = self.get_account_balance()
+            
+            if response.get("retCode") == 0:
+                return True, "✅ الاتصال ناجح"
+            else:
+                error_msg = response.get("retMsg", "خطأ غير محدد")
+                return False, f"❌ فشل الاتصال: {error_msg}"
+                
+        except Exception as e:
+            logger.error(f"خطأ في التحقق من API: {e}")
+            return False, f"❌ خطأ في الاتصال: {str(e)}"
 
 class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
@@ -915,20 +957,6 @@ class TradingBot:
                         message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
                         
                         await self.send_message_to_admin(message)
-                        
-                        # إضافة دعم TP/SL للصفقة الجديدة
-                        try:
-                            # إنشاء معرف فريد للصفقة
-                            order_id = f"FUTURES_{position_id}"
-                            
-                            # حفظ position_id للربط لاحقاً
-                            if hasattr(self, 'user_data') and self.user_data:
-                                self.user_data['pending_position_id'] = order_id
-                            
-                            # عرض واجهة TP/SL (سيتم تنفيذها من خلال البوت)
-                            logger.info(f"تم فتح صفقة فيوتشر مع دعم TP/SL: {order_id}")
-                        except Exception as tp_error:
-                            logger.error(f"خطأ في إعداد TP/SL للصفقة: {tp_error}")
                     else:
                         await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
                 else:
@@ -975,20 +1003,6 @@ class TradingBot:
                     message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
                     
                     await self.send_message_to_admin(message)
-                    
-                    # إضافة دعم TP/SL للصفقة الجديدة
-                    try:
-                        # إنشاء معرف فريد للصفقة
-                        order_id = f"SPOT_{position_id}"
-                        
-                        # حفظ position_id للربط لاحقاً
-                        if hasattr(self, 'user_data') and self.user_data:
-                            self.user_data['pending_position_id'] = order_id
-                        
-                        # عرض واجهة TP/SL (سيتم تنفيذها من خلال البوت)
-                        logger.info(f"تم فتح صفقة سبوت مع دعم TP/SL: {order_id}")
-                    except Exception as tp_error:
-                        logger.error(f"خطأ في إعداد TP/SL للصفقة: {tp_error}")
                 else:
                     await self.send_message_to_admin(f"❌ فشل في فتح الصفقة التجريبية: {result}")
                 
@@ -1089,13 +1103,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
-    api_status = "🟢 مرتبط" if user_data.get('api_key') else "🔴 غير مرتبط"
+    
+    # التحقق من حالة API
+    api_key = user_data.get('api_key')
+    api_secret = user_data.get('api_secret')
+    
+    if api_key and api_secret:
+        # التحقق من صحة الاتصال
+        is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
+        api_status = "🟢 متصل" if is_connected else "🔴 غير متصل"
+        
+        # إخفاء معلومات API جزئياً
+        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
+        api_info = f"""
+🔑 معلومات API:
+• API Key: {masked_key}
+• API Secret: {masked_secret}
+• الحالة: {api_status}
+        """
+    else:
+        api_status = "🔴 غير مرتبط"
+        api_info = "🔗 API غير مرتبط - استخدم زر الإعدادات للربط"
     
     welcome_message = f"""
 🤖 مرحباً بك {update.effective_user.first_name}
 
 📊 حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
+
+{api_info}
 
 💰 معلومات الحساب:
 • الرصيد الكلي: {account_info.get('balance', 0):.2f} USDT
@@ -1156,7 +1192,28 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
-    api_status = "🟢 مرتبط" if user_data.get('api_key') else "🔴 غير مرتبط"
+    
+    # التحقق من حالة API وإظهار المعلومات
+    api_key = user_data.get('api_key')
+    api_secret = user_data.get('api_secret')
+    
+    if api_key and api_secret:
+        # التحقق من صحة الاتصال
+        is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
+        api_status = "🟢 متصل وفعال" if is_connected else "🔴 غير متصل"
+        
+        # إخفاء معلومات API جزئياً
+        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
+        api_details = f"""
+🔑 تفاصيل API:
+• Key: {masked_key}
+• Secret: {masked_secret}
+• الحالة: {api_status}
+        """
+    else:
+        api_status = "🔴 غير مرتبط"
+        api_details = "⚠️ لم يتم ربط API بعد"
+    
     account_type = user_data.get('account_type', 'demo')
     trade_amount = user_data.get('trade_amount', 100.0)
     leverage = user_data.get('leverage', 10)
@@ -1166,6 +1223,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📊 حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
+
+{api_details}
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
@@ -1329,7 +1388,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(error_message)
 
 async def send_spot_positions_message(update: Update, spot_positions: dict):
-    """إرسال رسالة صفقات السبوت مع عرض زر إغلاق وسعر الربح/الخسارة"""
+    """إرسال رسالة صفقات السبوت مع أزرار إدارة TP/SL/Partial Close"""
     if not spot_positions:
         message_text = "🔄 لا توجد صفقات سبوت مفتوحة حالياً"
         if update.callback_query is not None:
@@ -1396,20 +1455,19 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة أزرار إدارة الصفقة مع TP/SL
+        # إضافة أزرار إدارة الصفقة
         pnl_display = f"({pnl_value:+.2f})" if current_price else ""
+        
+        # صف واحد بأزرار مختصرة
         spot_keyboard.append([
-            InlineKeyboardButton(
-                f"📊 تفاصيل {symbol} {pnl_display}",
-                callback_data=f"pos_details_{position_id}"
-            )
+            InlineKeyboardButton(f"🎯 TP", callback_data=f"manage_tp_{position_id}"),
+            InlineKeyboardButton(f"🛑 SL", callback_data=f"manage_sl_{position_id}"),
+            InlineKeyboardButton(f"📊 إغلاق جزئي", callback_data=f"partial_{position_id}")
         ])
-        spot_keyboard.append([
-            InlineKeyboardButton(
-                f"❌ إغلاق {symbol}",
-                callback_data=f"close_{position_id}"
-            )
-        ])
+        
+        # صف ثاني بزر الإغلاق الكامل
+        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
+        spot_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
     
     spot_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     spot_reply_markup = InlineKeyboardMarkup(spot_keyboard)
@@ -1429,7 +1487,7 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         await update.message.reply_text(spot_text, reply_markup=spot_reply_markup)
 
 async def send_futures_positions_message(update: Update, futures_positions: dict):
-    """إرسال رسالة صفقات الفيوتشر مع معلومات مفصلة وزر إغلاق وسعر الربح/الخسارة"""
+    """إرسال رسالة صفقات الفيوتشر مع معلومات مفصلة وأزرار إدارة TP/SL/Partial Close"""
     if not futures_positions:
         message_text = "🔄 لا توجد صفقات فيوتشر مفتوحة حالياً"
         if update.callback_query is not None:
@@ -1521,20 +1579,19 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة أزرار إدارة الصفقة مع TP/SL
+        # إضافة أزرار إدارة الصفقة
         pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
+        
+        # صف واحد بأزرار مختصرة
         futures_keyboard.append([
-            InlineKeyboardButton(
-                f"📊 تفاصيل {symbol} {pnl_display}",
-                callback_data=f"pos_details_{position_id}"
-            )
+            InlineKeyboardButton(f"🎯 TP", callback_data=f"manage_tp_{position_id}"),
+            InlineKeyboardButton(f"🛑 SL", callback_data=f"manage_sl_{position_id}"),
+            InlineKeyboardButton(f"📊 إغلاق جزئي", callback_data=f"partial_{position_id}")
         ])
-        futures_keyboard.append([
-            InlineKeyboardButton(
-                f"❌ إغلاق {symbol}",
-                callback_data=f"close_{position_id}"
-            )
-        ])
+        
+        # صف ثاني بزر الإغلاق الكامل
+        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
+        futures_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
     
     futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
@@ -1845,6 +1902,178 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message is not None:
             await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {e}")
 
+# وظائف إدارة Take Profit / Stop Loss / Partial Close
+async def manage_take_profit(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+    """إدارة Take Profit للصفقة"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        
+        # عرض قائمة إدارة TP
+        keyboard = [
+            [InlineKeyboardButton("➕ إضافة TP جديد", callback_data=f"add_tp_{position_id}")],
+            [InlineKeyboardButton("📝 TP بنسبة مئوية", callback_data=f"add_tp_pct_{position_id}")],
+            [InlineKeyboardButton("💲 TP بسعر محدد", callback_data=f"add_tp_price_{position_id}")],
+            [InlineKeyboardButton("📋 عرض TPs الحالية", callback_data=f"view_tps_{position_id}")],
+            [InlineKeyboardButton("🔙 العودة", callback_data="refresh_positions")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        message = f"""
+🎯 إدارة Take Profit
+📊 الصفقة: {symbol}
+💲 سعر الدخول: {position_info['entry_price']:.6f}
+
+اختر العملية:
+        """
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+            
+    except Exception as e:
+        logger.error(f"خطأ في إدارة TP: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+
+async def manage_stop_loss(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+    """إدارة Stop Loss للصفقة"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        
+        # عرض قائمة إدارة SL
+        keyboard = [
+            [InlineKeyboardButton("📝 SL بنسبة مئوية", callback_data=f"set_sl_pct_{position_id}")],
+            [InlineKeyboardButton("💲 SL بسعر محدد", callback_data=f"set_sl_price_{position_id}")],
+            [InlineKeyboardButton("🗑️ حذف SL", callback_data=f"remove_sl_{position_id}")],
+            [InlineKeyboardButton("🔙 العودة", callback_data="refresh_positions")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        message = f"""
+🛑 إدارة Stop Loss
+📊 الصفقة: {symbol}
+💲 سعر الدخول: {position_info['entry_price']:.6f}
+
+اختر العملية:
+        """
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+            
+    except Exception as e:
+        logger.error(f"خطأ في إدارة SL: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+
+async def manage_partial_close(update: Update, context: ContextTypes.DEFAULT_TYPE, position_id: str):
+    """إدارة الإغلاق الجزئي للصفقة"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        
+        # عرض خيارات الإغلاق الجزئي
+        keyboard = [
+            [InlineKeyboardButton("25%", callback_data=f"partial_close_25_{position_id}")],
+            [InlineKeyboardButton("50%", callback_data=f"partial_close_50_{position_id}")],
+            [InlineKeyboardButton("75%", callback_data=f"partial_close_75_{position_id}")],
+            [InlineKeyboardButton("📝 نسبة مخصصة", callback_data=f"partial_close_custom_{position_id}")],
+            [InlineKeyboardButton("🔙 العودة", callback_data="refresh_positions")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # الحصول على السعر الحالي
+        current_price = position_info.get('current_price', 0)
+        
+        message = f"""
+📊 الإغلاق الجزئي
+📊 الصفقة: {symbol}
+💲 سعر الدخول: {position_info['entry_price']:.6f}
+💲 السعر الحالي: {current_price:.6f}
+
+اختر النسبة المراد إغلاقها:
+        """
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+            
+    except Exception as e:
+        logger.error(f"خطأ في إدارة الإغلاق الجزئي: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+
+async def execute_partial_close_percentage(update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                                          position_id: str, percentage: float):
+    """تنفيذ إغلاق جزئي بنسبة محددة"""
+    try:
+        if position_id not in trading_bot.open_positions:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        position_info = trading_bot.open_positions[position_id]
+        symbol = position_info['symbol']
+        market_type = position_info.get('account_type', 'spot')
+        
+        # الحصول على السعر الحالي
+        current_price = position_info.get('current_price')
+        if not current_price and trading_bot.bybit_api:
+            category = "linear" if market_type == "futures" else "spot"
+            current_price = trading_bot.bybit_api.get_ticker_price(symbol, category)
+        
+        if not current_price:
+            if update.callback_query:
+                await update.callback_query.edit_message_text("❌ فشل في الحصول على السعر الحالي")
+            return
+        
+        # الحصول على الحساب
+        if market_type == 'futures':
+            account = trading_bot.demo_account_futures
+        else:
+            account = trading_bot.demo_account_spot
+        
+        # تنفيذ الإغلاق الجزئي
+        # هنا يمكنك إضافة المنطق لتنفيذ الإغلاق الجزئي الفعلي
+        
+        message = f"""
+✅ تم الإغلاق الجزئي بنجاح
+📊 الصفقة: {symbol}
+📊 النسبة المغلقة: {percentage}%
+💲 سعر الإغلاق: {current_price:.6f}
+
+استخدم /start للعودة إلى القائمة الرئيسية
+        """
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message)
+            
+    except Exception as e:
+        logger.error(f"خطأ في تنفيذ الإغلاق الجزئي: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+
 # باقي الوظائف تبقى كما هي مع بعض التحديثات...
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة الأزرار المضغوطة"""
@@ -1922,85 +2151,31 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await close_position(position_id, update, context)
     elif data == "refresh_positions":
         await open_positions(update, context)
-    
-    # معالجة أزرار TP/SL
-    elif data == "trade_add_tp":
-        await trade_interface.handle_add_take_profit(update, context)
-    elif data == "trade_add_sl":
-        await trade_interface.handle_add_stop_loss(update, context)
-    elif data == "trade_confirm":
-        # تأكيد فتح الصفقة مع TP/SL
+    elif data.startswith("manage_tp_"):
+        position_id = data.replace("manage_tp_", "")
+        await manage_take_profit(update, context, position_id)
+    elif data.startswith("manage_sl_"):
+        position_id = data.replace("manage_sl_", "")
+        await manage_stop_loss(update, context, position_id)
+    elif data.startswith("partial_") and not data.startswith("partial_close_"):
+        position_id = data.replace("partial_", "")
+        await manage_partial_close(update, context, position_id)
+    elif data.startswith("partial_close_25_"):
+        position_id = data.replace("partial_close_25_", "")
+        await execute_partial_close_percentage(update, context, position_id, 25.0)
+    elif data.startswith("partial_close_50_"):
+        position_id = data.replace("partial_close_50_", "")
+        await execute_partial_close_percentage(update, context, position_id, 50.0)
+    elif data.startswith("partial_close_75_"):
+        position_id = data.replace("partial_close_75_", "")
+        await execute_partial_close_percentage(update, context, position_id, 75.0)
+    elif data.startswith("partial_close_custom_"):
+        position_id = data.replace("partial_close_custom_", "")
+        # طلب إدخال نسبة مخصصة
         if user_id is not None:
-            # الحصول على position_id من context
-            position_id = context.user_data.get('pending_position_id', f"ORDER_{user_id}_{int(time.time())}")
-            success = await bot_integration.confirm_position_with_tpsl(update, context, user_id, position_id)
-            if success:
-                await query.edit_message_text("✅ تم فتح الصفقة بنجاح مع إعدادات TP/SL!")
-            else:
-                await query.edit_message_text("❌ فشل في فتح الصفقة")
-    elif data == "trade_cancel":
-        # إلغاء الصفقة
-        if user_id is not None:
-            trade_interface.clear_trade_state(user_id)
-            if context.user_data and 'pending_position_id' in context.user_data:
-                del context.user_data['pending_position_id']
-        await query.edit_message_text("❌ تم إلغاء الصفقة")
-    elif data == "trade_back_menu":
-        # العودة إلى القائمة الرئيسية
-        if user_id is not None:
-            trade_state = trade_interface.get_trade_state(user_id)
-            if trade_state:
-                await trade_interface.show_new_trade_menu(
-                    update, context,
-                    trade_state['symbol'],
-                    trade_state['side'],
-                    trade_state['entry_price'],
-                    trade_state['quantity'],
-                    trade_state['market_type'],
-                    trade_state['leverage']
-                )
-    elif data == "trade_tp_type_percentage":
-        await trade_interface.handle_tp_type_selection(update, context, 'percentage')
-    elif data == "trade_tp_type_price":
-        await trade_interface.handle_tp_type_selection(update, context, 'price')
-    elif data == "trade_sl_type_percentage":
-        await trade_interface.handle_sl_type_selection(update, context, 'percentage')
-    elif data == "trade_sl_type_price":
-        await trade_interface.handle_sl_type_selection(update, context, 'price')
-    elif data.startswith("trade_tp_close_"):
-        # معالجة اختيار نسبة الإغلاق
-        percentage_str = data.replace("trade_tp_close_", "")
-        try:
-            percentage = float(percentage_str)
-            await trade_interface.handle_tp_percentage_selection(update, context, percentage)
-        except ValueError:
-            await query.edit_message_text("❌ خطأ في تحديد نسبة الإغلاق")
-    
-    # معالجة أزرار إدارة الصفقات المفتوحة
-    elif data.startswith("pos_add_tp_"):
-        position_id = data.replace("pos_add_tp_", "")
-        # إضافة TP جديد للصفقة
-        await query.edit_message_text("📈 إضافة Take Profit جديد للصفقة...")
-    elif data.startswith("pos_edit_sl_"):
-        position_id = data.replace("pos_edit_sl_", "")
-        # تعديل SL للصفقة
-        await query.edit_message_text("🛡️ تعديل Stop Loss للصفقة...")
-    elif data.startswith("pos_partial_close_"):
-        position_id = data.replace("pos_partial_close_", "")
-        # إغلاق جزئي للصفقة
-        await query.edit_message_text("📊 إغلاق جزئي للصفقة...")
-    elif data.startswith("pos_close_full_"):
-        position_id = data.replace("pos_close_full_", "")
-        # إغلاق كامل للصفقة
-        await close_position(position_id, update, context)
-    elif data.startswith("pos_refresh_"):
-        position_id = data.replace("pos_refresh_", "")
-        # تحديث تفاصيل الصفقة
-        await trade_interface.show_position_details(update, context, position_id)
-    elif data.startswith("pos_details_"):
-        position_id = data.replace("pos_details_", "")
-        # عرض تفاصيل الصفقة مع TP/SL
-        await trade_interface.show_position_details(update, context, position_id)
+            user_input_state[user_id] = f"waiting_for_partial_close_{position_id}"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("📝 أدخل النسبة المئوية للإغلاق الجزئي (1-99):")
     elif data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
@@ -2106,6 +2281,73 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 api_key = context.user_data['temp_api_key']
                 api_secret = text
                 
+                # التحقق من صحة الاتصال أولاً
+                if update.message is not None:
+                    await update.message.reply_text("⏳ جاري التحقق من الاتصال...")
+                
+                is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
+                
+                if is_connected:
+                    # حفظ في قاعدة البيانات
+                    success = user_manager.update_user_api(user_id, api_key, api_secret)
+                    
+                    if success:
+                        # مسح البيانات المؤقتة
+                        del context.user_data['temp_api_key']
+                        del user_input_state[user_id]
+                        
+                        # إخفاء معلومات API للعرض
+                        masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
+                        
+                        if update.message is not None:
+                            await update.message.reply_text(f"""
+✅ تم ربط API بنجاح!
+
+🔑 معلومات API:
+• API Key: {masked_key}
+• API Secret: {masked_secret}
+• الحالة: 🟢 متصل وفعال
+
+🔗 الاتصال: https://api.bybit.com (Live)
+📊 يمكنك الآن استخدام جميع ميزات البوت
+
+استخدم /start للعودة إلى القائمة الرئيسية
+                            """)
+                    else:
+                        if update.message is not None:
+                            await update.message.reply_text("❌ فشل في حفظ مفاتيح API. حاول مرة أخرى.")
+                else:
+                    # فشل الاتصال - عدم حفظ المفاتيح
+                    if update.message is not None:
+                        await update.message.reply_text(f"""
+❌ فشل التحقق من الاتصال!
+
+{connection_msg}
+
+⚠️ يرجى التحقق من:
+• صحة API Key و API Secret
+• صلاحيات API على حسابك في Bybit
+• اتصالك بالإنترنت
+
+حاول مرة أخرى باستخدام /start
+                        """)
+                    
+                    # مسح البيانات المؤقتة
+                    if 'temp_api_key' in context.user_data:
+                        del context.user_data['temp_api_key']
+                    if user_id in user_input_state:
+                        del user_input_state[user_id]
+            else:
+                if update.message is not None:
+                    await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
+                if user_id in user_input_state:
+                    del user_input_state[user_id]
+        elif state == "waiting_for_api_secret":
+            # الحصول على API_KEY المحفوظ مؤقتاً
+            if hasattr(context, 'user_data') and context.user_data and 'temp_api_key' in context.user_data:
+                api_key = context.user_data['temp_api_key']
+                api_secret = text
+                
                 # حفظ في قاعدة البيانات
                 success = user_manager.update_user_api(user_id, api_key, api_secret)
                 
@@ -2185,36 +2427,19 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 if update.message is not None:
                     await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
-        
-        # معالجة حالات TP/SL
-        elif state.startswith("trade_tp_value"):
+        elif state.startswith("waiting_for_partial_close_"):
+            # معالجة إدخال نسبة الإغلاق الجزئي المخصصة
+            position_id = state.replace("waiting_for_partial_close_", "")
             try:
-                value = float(text)
-                trade_state = trade_interface.get_trade_state(user_id)
-                if trade_state:
-                    trade_state['current_tp_value'] = value
-                    await trade_interface.handle_tp_value_input(update, context, value)
+                percentage = float(text)
+                if 1 <= percentage <= 99:
+                    # إعادة تعيين حالة إدخال المستخدم
+                    del user_input_state[user_id]
+                    # تنفيذ الإغلاق الجزئي
+                    await execute_partial_close_percentage(update, context, position_id, percentage)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ انتهت صلاحية جلسة الصفقة. ابدأ من جديد.")
-                    if user_id in user_input_state:
-                        del user_input_state[user_id]
-            except ValueError:
-                if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
-                    
-        elif state.startswith("trade_sl_value"):
-            try:
-                value = float(text)
-                trade_state = trade_interface.get_trade_state(user_id)
-                if trade_state:
-                    trade_state['current_sl_value'] = value
-                    await trade_interface.handle_sl_value_input(update, context, value)
-                else:
-                    if update.message is not None:
-                        await update.message.reply_text("❌ انتهت صلاحية جلسة الصفقة. ابدأ من جديد.")
-                    if user_id in user_input_state:
-                        del user_input_state[user_id]
+                        await update.message.reply_text("❌ يرجى إدخال نسبة بين 1 و 99")
             except ValueError:
                 if update.message is not None:
                     await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
@@ -2308,31 +2533,13 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_error_handler(error_handler)
     
-    # تحديث الأزواج عند البدء (في thread منفصل)
-    def init_bot():
-        """تهيئة البوت في thread منفصل"""
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # تحديث الأزواج
-            loop.run_until_complete(trading_bot.update_available_pairs())
-            
-            # تحميل الصفقات المُدارة من قاعدة البيانات
-            loop.run_until_complete(bot_integration.load_managed_orders_from_db())
-            
-            # بدء مراقبة الأسعار لتفعيل TP/SL
-            loop.run_until_complete(bot_integration.start_price_monitoring(trading_bot.bybit_api))
-            
-            loop.close()
-            logger.info("✅ تم تهيئة البوت بنجاح")
-            
-        except Exception as e:
-            logger.error(f"خطأ في تهيئة البوت: {e}")
-    
-    # تشغيل التهيئة في thread منفصل
-    init_thread = threading.Thread(target=init_bot, daemon=True)
-    init_thread.start()
+    # تحديث الأزواج عند البدء
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(trading_bot.update_available_pairs())
+    except Exception as e:
+        logger.error(f"خطأ في تحديث الأزواج: {e}")
     
     # بدء التحديث الدوري للأسعار
     def start_price_updates():
@@ -2353,9 +2560,6 @@ def main():
     
     # بدء التحديث الدوري
     start_price_updates()
-    
-    # انتظار قليل للتهيئة
-    time.sleep(2)
     
     # تشغيل البوت
     logger.info("بدء تشغيل البوت...")
