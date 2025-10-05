@@ -31,3 +31,5 @@
 2025-09-27 02:21:26,338 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:36,368 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:46,407 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-10-05 05:50:12,464 - user_manager - INFO - تم تحميل 0 مستخدم
+2025-10-05 05:50:12,466 - bybit_trading_bot - INFO - لا توجد صفقات مفتوحة في قاعدة البيانات

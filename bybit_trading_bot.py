@@ -29,7 +29,6 @@ from config import *
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
 from user_manager import user_manager
-from position_manager import position_manager, ManagedPosition
 
 # إعداد التسجيل
 logging.basicConfig(
