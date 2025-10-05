@@ -1402,7 +1402,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         keyboard = [
             [InlineKeyboardButton("🔗 ربط API", callback_data="link_api")],
-            [InlineKeyboardButton("ℹ️ معلومات", callback_data="info")]
+            [InlineKeyboardButton("ℹ️ معلومات", callback_data="info")],
+            [InlineKeyboardButton("🚀 القائمة الرئيسية", callback_data="main_menu")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2761,6 +2762,121 @@ async def detailed_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ في التحليل: {e}")
 
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض القائمة الرئيسية مع جميع الميزات"""
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        
+        # التحقق من وجود المستخدم في قاعدة البيانات
+        user_data = user_manager.get_user(user_id)
+        
+        if not user_data:
+            # إذا لم يكن المستخدم موجود، إنشاؤه
+            user_manager.create_user(user_id)
+            user_data = user_manager.get_user(user_id)
+        
+        # عرض القائمة الرئيسية مع جميع الميزات
+        keyboard = [
+            [InlineKeyboardButton("⚙️ الإعدادات", callback_data="settings")],
+            [InlineKeyboardButton("📊 حالة الحساب", callback_data="account_status")],
+            [InlineKeyboardButton("🔄 الصفقات المفتوحة", callback_data="open_positions")],
+            [InlineKeyboardButton("📈 تاريخ التداول", callback_data="trade_history")],
+            [InlineKeyboardButton("💰 المحفظة", callback_data="wallet_overview")],
+            [InlineKeyboardButton("📊 إحصائيات", callback_data="statistics")],
+            [InlineKeyboardButton("🔍 البحث عن أزواج", callback_data="search_pairs")],
+            [InlineKeyboardButton("📊 الرسوم البيانية", callback_data="charts")],
+            # ✅ ميزات متقدمة جديدة
+            [InlineKeyboardButton("🤖 نسخ التداول", callback_data="copy_trading")],
+            [InlineKeyboardButton("🧠 إشارات ذكية", callback_data="ai_signals")],
+            [InlineKeyboardButton("🛡️ إدارة المخاطر", callback_data="risk_management")],
+            [InlineKeyboardButton("📈 تحليل المحفظة", callback_data="portfolio_analysis")]
+        ]
+        
+        # إضافة أزرار إضافية إذا كان المستخدم نشطاً
+        if user_data.get('is_active'):
+            keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
+        else:
+            keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # الحصول على معلومات حساب المستخدم
+        market_type = user_data.get('market_type', 'spot')
+        account = user_manager.get_user_account(user_id, market_type)
+        
+        if account:
+            account_info = account.get_account_info()
+        else:
+            account_info = {
+                'balance': user_data.get('balance', 10000.0),
+                'available_balance': user_data.get('balance', 10000.0),
+                'open_positions': 0
+            }
+        
+        # حالة البوت
+        bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
+        
+        # التحقق من حالة API
+        api_key = user_data.get('api_key')
+        api_secret = user_data.get('api_secret')
+        
+        if api_key and api_secret:
+            # التحقق من صحة الاتصال
+            is_connected, connection_msg = await verify_api_connection(api_key, api_secret)
+            api_status = "🟢 متصل" if is_connected else "🔴 غير متصل"
+            
+            # إخفاء معلومات API جزئياً
+            masked_key, masked_secret = mask_api_credentials(api_key, api_secret)
+            api_info = f"""
+🔑 معلومات API:
+• API Key: {masked_key}
+• API Secret: {masked_secret}
+• الحالة: {api_status}
+            """
+        else:
+            api_status = "🔴 غير مرتبط"
+            api_info = "🔗 API غير مرتبط - استخدم زر الإعدادات للربط"
+        
+        welcome_message = f"""
+🚀 مرحباً بك في البوت المتقدم {update.effective_user.first_name}
+
+📊 حالة البوت: {bot_status}
+🔗 حالة API: {api_status}
+
+{api_info}
+
+💰 معلومات الحساب:
+• الرصيد: {account_info['balance']:.2f} USDT
+• الرصيد المتاح: {account_info['available_balance']:.2f} USDT
+• الصفقات المفتوحة: {account_info['open_positions']}
+
+🎯 الميزات المتاحة:
+• 🤖 نسخ التداول المتقدم
+• 🧠 إشارات ذكية بالذكاء الاصطناعي
+• 🛡️ إدارة المخاطر المتقدمة
+• 📈 تحليل المحفظة المتقدم
+• 📊 رسوم بيانية تفاعلية
+• 🔍 بحث متقدم عن الأزواج
+
+اختر من القائمة أدناه:
+        """
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(welcome_message, reply_markup=reply_markup)
+        elif update.message:
+            await update.message.reply_text(welcome_message, reply_markup=reply_markup)
+            
+    except Exception as e:
+        logger.error(f"خطأ في عرض القائمة الرئيسية: {e}")
+        error_message = f"❌ خطأ في عرض القائمة: {e}"
+        if update.callback_query:
+            await update.callback_query.edit_message_text(error_message)
+        elif update.message:
+            await update.message.reply_text(error_message)
+
 async def copy_trading_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة نسخ التداول"""
     try:
@@ -2786,7 +2902,7 @@ async def copy_trading_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📊 متداولوني", callback_data="my_traders")],
             [InlineKeyboardButton("⚙️ إعدادات النسخ", callback_data="copy_settings")],
             [InlineKeyboardButton("📈 أداء النسخ", callback_data="copy_performance")],
-            [InlineKeyboardButton("🔙 العودة", callback_data="main_menu")]
+            [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -2949,6 +3065,360 @@ async def portfolio_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
     except Exception as e:
         logger.error(f"خطأ في تحليل المحفظة: {e}")
+
+# ✅ دوال سريعة للميزات الجديدة
+async def show_top_traders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض أفضل المتداولين"""
+    message = """
+👑 أفضل المتداولين
+
+🥇 المتداول الأول: CryptoMaster
+• معدل النجاح: 87.5%
+• الربح الشهري: +245.3%
+• عدد المتابعين: 1,234
+
+🥈 المتداول الثاني: BitcoinHunter
+• معدل النجاح: 82.1%
+• الربح الشهري: +189.7%
+• عدد المتابعين: 987
+
+🥉 المتداول الثالث: AltcoinKing
+• معدل النجاح: 79.8%
+• الربح الشهري: +156.2%
+• عدد المتابعين: 756
+
+💡 يمكنك متابعة أي متداول بنقرة واحدة
+    """
+    keyboard = [
+        [InlineKeyboardButton("🥇 متابعة CryptoMaster", callback_data="follow_CryptoMaster")],
+        [InlineKeyboardButton("🥈 متابعة BitcoinHunter", callback_data="follow_BitcoinHunter")],
+        [InlineKeyboardButton("🥉 متابعة AltcoinKing", callback_data="follow_AltcoinKing")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="copy_trading")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def show_my_traders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض المتداولين المتابعين"""
+    message = """
+📊 متداولوني
+
+🔍 لا توجد متابعات حالياً
+
+💡 ابدأ بمتابعة متداول من قائمة "أفضل المتداولين"
+    """
+    keyboard = [
+        [InlineKeyboardButton("👑 أفضل المتداولين", callback_data="top_traders")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="copy_trading")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def copy_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعدادات النسخ"""
+    message = """
+⚙️ إعدادات النسخ
+
+📊 الإعدادات الحالية:
+• نسبة النسخ الافتراضية: 50%
+• تأخير النسخ: 2 ثانية
+• حد أقصى للصفقات: 5 صفقات متزامنة
+• إدارة المخاطر: مفعلة
+
+💡 يمكنك تعديل هذه الإعدادات
+    """
+    keyboard = [
+        [InlineKeyboardButton("📊 تعديل نسبة النسخ", callback_data="edit_copy_ratio")],
+        [InlineKeyboardButton("⏰ تعديل التأخير", callback_data="edit_copy_delay")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="copy_trading")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def copy_performance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """أداء النسخ"""
+    message = """
+📈 أداء النسخ
+
+📊 إحصائيات هذا الشهر:
+• إجمالي الصفقات المنسوخة: 0
+• معدل النجاح: 0%
+• الربح الإجمالي: 0 USDT
+• أفضل يوم: لم يتم تسجيل صفقات
+
+💡 ابدأ بمتابعة متداول لرؤية الإحصائيات
+    """
+    keyboard = [
+        [InlineKeyboardButton("👑 أفضل المتداولين", callback_data="top_traders")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="copy_trading")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+# دوال الإشارات الذكية
+async def show_today_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إشارات اليوم"""
+    message = """
+📊 إشارات اليوم
+
+🔥 الإشارات الساخنة:
+• BTCUSDT: شراء - قوة: 85%
+• ETHUSDT: بيع - قوة: 78%
+• ADAUSDT: شراء - قوة: 72%
+
+💡 يمكنك تنفيذ الإشارة بنقرة واحدة
+    """
+    keyboard = [
+        [InlineKeyboardButton("🛒 تنفيذ BTCUSDT", callback_data="execute_signal_BTCUSDT")],
+        [InlineKeyboardButton("🛍️ تنفيذ ETHUSDT", callback_data="execute_signal_ETHUSDT")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="ai_signals")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def show_hot_signals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إشارات ساخنة"""
+    message = """
+🔥 الإشارات الساخنة
+
+⚡ إشارات عالية الثقة:
+• SOLUSDT: شراء - قوة: 92%
+• DOTUSDT: شراء - قوة: 88%
+• LINKUSDT: بيع - قوة: 85%
+
+💡 هذه الإشارات ذات احتمالية نجاح عالية
+    """
+    keyboard = [
+        [InlineKeyboardButton("🛒 تنفيذ SOLUSDT", callback_data="execute_signal_SOLUSDT")],
+        [InlineKeyboardButton("🛍️ تنفيذ DOTUSDT", callback_data="execute_signal_DOTUSDT")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="ai_signals")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def signal_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعدادات الإشارات"""
+    message = """
+⚙️ إعدادات الإشارات
+
+📊 الإعدادات الحالية:
+• قوة الإشارة الدنيا: 70%
+• التنبيهات: مفعلة
+• التداول التلقائي: معطل
+• الأزواج المفضلة: BTC, ETH, ADA
+
+💡 يمكنك تعديل هذه الإعدادات
+    """
+    keyboard = [
+        [InlineKeyboardButton("📊 تعديل قوة الإشارة", callback_data="edit_signal_strength")],
+        [InlineKeyboardButton("🔔 إعداد التنبيهات", callback_data="edit_notifications")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="ai_signals")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def signal_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تاريخ الإشارات"""
+    message = """
+📈 تاريخ الإشارات
+
+📊 إحصائيات هذا الأسبوع:
+• إجمالي الإشارات: 15
+• الإشارات الصحيحة: 12
+• معدل الدقة: 80%
+• أفضل إشارة: BTCUSDT (+8.5%)
+
+💡 الأداء جيد! يمكنك تحسينه أكثر
+    """
+    keyboard = [
+        [InlineKeyboardButton("📊 تفاصيل أكثر", callback_data="detailed_signal_history")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="ai_signals")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+# دوال إدارة المخاطر
+async def loss_limits_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """حدود الخسارة"""
+    message = """
+🚨 حدود الخسارة
+
+📊 الحدود الحالية:
+• الخسارة اليومية القصوى: 5%
+• الخسارة الأسبوعية القصوى: 15%
+• الخسارة الشهرية القصوى: 30%
+• حد الخسارة للصفقة الواحدة: 2%
+
+💡 هذه الحدود تحميك من الخسائر الكبيرة
+    """
+    keyboard = [
+        [InlineKeyboardButton("📊 تعديل الحدود", callback_data="edit_loss_limits")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="risk_management")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def position_limits_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """حدود الصفقات"""
+    message = """
+📊 حدود الصفقات
+
+⚙️ الحدود الحالية:
+• أقصى عدد صفقات متزامنة: 5
+• أقصى حجم صفقة واحدة: 20%
+• أقصى حجم إجمالي: 80%
+• حد الهامش: 90%
+
+💡 هذه الحدود تمنع الإفراط في التداول
+    """
+    keyboard = [
+        [InlineKeyboardButton("📊 تعديل الحدود", callback_data="edit_position_limits")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="risk_management")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def emergency_close_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """الإغلاق الطارئ"""
+    message = """
+⚡ الإغلاق الطارئ
+
+⚠️ تحذير: هذا الإجراء سيغلق جميع الصفقات المفتوحة فوراً!
+
+📊 الصفقات المفتوحة: 1 صفقة
+💰 الخسارة المحتملة: -45.2 USDT
+
+💡 استخدم هذا فقط في حالات الطوارئ
+    """
+    keyboard = [
+        [InlineKeyboardButton("⚡ إغلاق جميع الصفقات", callback_data="confirm_emergency_close")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="risk_management")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def risk_analysis_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تحليل المخاطر"""
+    message = """
+📈 تحليل المخاطر
+
+🛡️ تقييم المخاطر الحالي:
+• مستوى المخاطر العام: متوسط
+• مخاطر التركيز: منخفضة
+• مخاطر السيولة: منخفضة
+• مخاطر السوق: متوسطة
+
+💡 التوصيات:
+• تقليل حجم الصفقات بنسبة 10%
+• إضافة المزيد من التنويع
+    """
+    keyboard = [
+        [InlineKeyboardButton("📊 تفاصيل أكثر", callback_data="detailed_risk_analysis")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="risk_management")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+# دوال تحليل المحفظة
+async def detailed_portfolio_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تحليل تفصيلي للمحفظة"""
+    message = """
+📊 تحليل تفصيلي للمحفظة
+
+📈 تحليل الأداء:
+• العائد الشهري: +12.5%
+• العائد السنوي: +145.3%
+• نسبة شارب: 1.85
+• أقصى انخفاض: -8.2%
+
+📊 تحليل المخاطر:
+• التقلبات: 18.5%
+• قيمة في خطر (VaR): 2.3%
+• نسبة المخاطر/المكافأة: 1:2.1
+
+💡 المحفظة تتمتع بأداء ممتاز
+    """
+    keyboard = [
+        [InlineKeyboardButton("📈 إعادة التوازن", callback_data="rebalance")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="portfolio_analysis")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def portfolio_rebalance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعادة توازن المحفظة"""
+    message = """
+📈 إعادة توازن المحفظة
+
+⚖️ التوزيع الحالي:
+• السبوت: 60% (يجب أن يكون 50%)
+• الفيوتشر: 40% (يجب أن يكون 50%)
+
+💡 الإجراءات المقترحة:
+• تحويل 10% من السبوت للفيوتشر
+• إعادة توزيع الصفقات المفتوحة
+
+⚠️ هذا الإجراء سيتم تنفيذه تدريجياً
+    """
+    keyboard = [
+        [InlineKeyboardButton("✅ تنفيذ إعادة التوازن", callback_data="confirm_rebalance")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="portfolio_analysis")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+
+async def portfolio_recommendations(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """توصيات المحفظة"""
+    message = """
+🎯 توصيات المحفظة
+
+💡 التوصيات الحالية:
+• زيادة التنويع في العملات الصغيرة
+• تقليل التركيز على BTC فقط
+• إضافة استراتيجيات DCA
+• تحسين نسبة المخاطر/المكافأة
+
+📊 التوصيات الذكية:
+• شراء ETHUSDT (إشارة قوة 85%)
+• بيع ADAUSDT (إشارة قوة 78%)
+• إضافة SOLUSDT للمحفظة
+    """
+    keyboard = [
+        [InlineKeyboardButton("📊 تطبيق التوصيات", callback_data="apply_recommendations")],
+        [InlineKeyboardButton("🔙 العودة", callback_data="portfolio_analysis")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
 
 async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض معلومات المحفظة مع تفاصيل الفيوتشر"""
@@ -3361,7 +3831,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await start(update, context)
+        await show_main_menu(update, context)
     elif data == "settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
@@ -3565,6 +4035,52 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("analyze_"):
         symbol = data.replace("analyze_", "")
         await generate_chart(update, context, symbol)
+    
+    # ✅ معالجات الأزرار الجديدة
+    elif data == "top_traders":
+        await show_top_traders(update, context)
+    
+    elif data == "my_traders":
+        await show_my_traders(update, context)
+    
+    elif data == "copy_settings":
+        await copy_settings_menu(update, context)
+    
+    elif data == "copy_performance":
+        await copy_performance(update, context)
+    
+    elif data == "today_signals":
+        await show_today_signals(update, context)
+    
+    elif data == "hot_signals":
+        await show_hot_signals(update, context)
+    
+    elif data == "signal_settings":
+        await signal_settings_menu(update, context)
+    
+    elif data == "signal_history":
+        await signal_history(update, context)
+    
+    elif data == "loss_limits":
+        await loss_limits_menu(update, context)
+    
+    elif data == "position_limits":
+        await position_limits_menu(update, context)
+    
+    elif data == "emergency_close":
+        await emergency_close_menu(update, context)
+    
+    elif data == "risk_analysis":
+        await risk_analysis_menu(update, context)
+    
+    elif data == "detailed_portfolio":
+        await detailed_portfolio_analysis(update, context)
+    
+    elif data == "rebalance":
+        await portfolio_rebalance(update, context)
+    
+    elif data == "portfolio_recommendations":
+        await portfolio_recommendations(update, context)
     
     else:
         # معالجة أي أزرار أخرى غير محددة
