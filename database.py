@@ -75,6 +75,45 @@ class DatabaseManager:
                     )
                 """)
                 
+                # جدول المطورين
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS developers (
+                        developer_id INTEGER PRIMARY KEY,
+                        developer_name TEXT NOT NULL,
+                        developer_key TEXT UNIQUE,
+                        webhook_url TEXT,
+                        is_active BOOLEAN DEFAULT 1,
+                        can_broadcast BOOLEAN DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # جدول متابعي المطورين
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS developer_followers (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        developer_id INTEGER NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        followed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (developer_id) REFERENCES developers (developer_id),
+                        FOREIGN KEY (user_id) REFERENCES users (user_id),
+                        UNIQUE(developer_id, user_id)
+                    )
+                """)
+                
+                # جدول إشارات المطورين
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS developer_signals (
+                        signal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        developer_id INTEGER NOT NULL,
+                        signal_data TEXT NOT NULL,
+                        target_followers TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (developer_id) REFERENCES developers (developer_id)
+                    )
+                """)
+                
                 conn.commit()
                 logger.info("تم تهيئة قاعدة البيانات بنجاح")
                 
@@ -488,6 +527,213 @@ class DatabaseManager:
                 'open_orders': 0,
                 'closed_orders': 0
             }
+    
+    # إدارة المطورين
+    def create_developer(self, developer_id: int, developer_name: str, 
+                        developer_key: str = None, webhook_url: str = None) -> bool:
+        """إنشاء مطور جديد"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # التحقق من وجود المطور
+                cursor.execute("SELECT developer_id FROM developers WHERE developer_id = ?", (developer_id,))
+                if cursor.fetchone():
+                    return False  # المطور موجود بالفعل
+                
+                # إنشاء المطور الجديد
+                cursor.execute("""
+                    INSERT INTO developers (developer_id, developer_name, developer_key, webhook_url)
+                    VALUES (?, ?, ?, ?)
+                """, (developer_id, developer_name, developer_key, webhook_url))
+                
+                conn.commit()
+                logger.info(f"تم إنشاء مطور جديد: {developer_id} - {developer_name}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء المطور {developer_id}: {e}")
+            return False
+    
+    def get_developer(self, developer_id: int) -> Optional[Dict]:
+        """الحصول على بيانات المطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT * FROM developers WHERE developer_id = ?", (developer_id,))
+                row = cursor.fetchone()
+                
+                if row:
+                    return dict(row)
+                return None
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على المطور {developer_id}: {e}")
+            return None
+    
+    def get_all_developers(self) -> List[Dict]:
+        """الحصول على جميع المطورين"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT * FROM developers")
+                rows = cursor.fetchall()
+                
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على المطورين: {e}")
+            return []
+    
+    def update_developer(self, developer_id: int, updates: Dict) -> bool:
+        """تحديث معلومات المطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # بناء استعلام التحديث
+                set_clauses = []
+                values = []
+                
+                for key, value in updates.items():
+                    if key in ['developer_name', 'developer_key', 'webhook_url', 'is_active', 'can_broadcast']:
+                        set_clauses.append(f"{key} = ?")
+                        values.append(value)
+                
+                if set_clauses:
+                    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+                    values.append(developer_id)
+                    query = f"UPDATE developers SET {', '.join(set_clauses)} WHERE developer_id = ?"
+                    
+                    cursor.execute(query, values)
+                    conn.commit()
+                    return cursor.rowcount > 0
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث المطور {developer_id}: {e}")
+            return False
+    
+    def toggle_developer_active(self, developer_id: int) -> bool:
+        """تبديل حالة تشغيل/إيقاف المطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT is_active FROM developers WHERE developer_id = ?", (developer_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                
+                current_status = row['is_active']
+                new_status = not bool(current_status)
+                
+                cursor.execute("""
+                    UPDATE developers 
+                    SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE developer_id = ?
+                """, (new_status, developer_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تبديل حالة المطور {developer_id}: {e}")
+            return False
+    
+    def add_developer_follower(self, developer_id: int, user_id: int) -> bool:
+        """إضافة متابع للمطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT OR IGNORE INTO developer_followers (developer_id, user_id)
+                    VALUES (?, ?)
+                """, (developer_id, user_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في إضافة متابع للمطور {developer_id}: {e}")
+            return False
+    
+    def remove_developer_follower(self, developer_id: int, user_id: int) -> bool:
+        """إزالة متابع من المطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    DELETE FROM developer_followers 
+                    WHERE developer_id = ? AND user_id = ?
+                """, (developer_id, user_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في إزالة متابع من المطور {developer_id}: {e}")
+            return False
+    
+    def get_developer_followers(self, developer_id: int) -> List[int]:
+        """الحصول على قائمة متابعي المطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT user_id FROM developer_followers 
+                    WHERE developer_id = ?
+                """, (developer_id,))
+                
+                rows = cursor.fetchall()
+                return [row['user_id'] for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على متابعي المطور {developer_id}: {e}")
+            return []
+    
+    def create_developer_signal(self, developer_id: int, signal_data: Dict, 
+                               target_followers: List[int]) -> Optional[int]:
+        """حفظ إشارة من المطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO developer_signals (developer_id, signal_data, target_followers)
+                    VALUES (?, ?, ?)
+                """, (developer_id, json.dumps(signal_data), json.dumps(target_followers)))
+                
+                conn.commit()
+                return cursor.lastrowid
+                
+        except Exception as e:
+            logger.error(f"خطأ في حفظ إشارة المطور {developer_id}: {e}")
+            return None
+    
+    def get_developer_signal_count(self, developer_id: int) -> int:
+        """الحصول على عدد إشارات المطور"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT COUNT(*) as signal_count FROM developer_signals 
+                    WHERE developer_id = ?
+                """, (developer_id,))
+                
+                row = cursor.fetchone()
+                return row['signal_count'] if row else 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على عدد إشارات المطور {developer_id}: {e}")
+            return 0
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()
