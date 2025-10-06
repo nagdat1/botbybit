@@ -84,10 +84,17 @@ class DatabaseManager:
                         webhook_url TEXT,
                         is_active BOOLEAN DEFAULT 1,
                         can_broadcast BOOLEAN DEFAULT 1,
+                        auto_broadcast BOOLEAN DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+                
+                # إضافة حقل auto_broadcast إذا لم يكن موجوداً
+                try:
+                    cursor.execute("ALTER TABLE developers ADD COLUMN auto_broadcast BOOLEAN DEFAULT 0")
+                except sqlite3.OperationalError:
+                    pass  # الحقل موجود بالفعل
                 
                 # جدول متابعي المطورين
                 cursor.execute("""
@@ -642,6 +649,51 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"خطأ في تبديل حالة المطور {developer_id}: {e}")
+            return False
+    
+    def toggle_auto_broadcast(self, developer_id: int) -> bool:
+        """تبديل حالة التوزيع التلقائي للإشارات"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT auto_broadcast FROM developers WHERE developer_id = ?", (developer_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                
+                current_status = row['auto_broadcast']
+                new_status = not bool(current_status)
+                
+                cursor.execute("""
+                    UPDATE developers 
+                    SET auto_broadcast = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE developer_id = ?
+                """, (new_status, developer_id))
+                
+                conn.commit()
+                logger.info(f"✅ تم تبديل التوزيع التلقائي للمطور {developer_id} إلى: {new_status}")
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تبديل التوزيع التلقائي للمطور {developer_id}: {e}")
+            return False
+    
+    def get_auto_broadcast_status(self, developer_id: int) -> bool:
+        """الحصول على حالة التوزيع التلقائي للإشارات"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT auto_broadcast FROM developers WHERE developer_id = ?", (developer_id,))
+                row = cursor.fetchone()
+                
+                if row:
+                    return bool(row['auto_broadcast'])
+                return False
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على حالة التوزيع التلقائي للمطور {developer_id}: {e}")
             return False
     
     def add_developer_follower(self, developer_id: int, user_id: int) -> bool:

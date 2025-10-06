@@ -749,6 +749,88 @@ class TradingBot:
             logger.error(f"خطأ في الحصول على الأزواج: {e}")
             return "❌ خطأ في الحصول على الأزواج"
     
+    async def broadcast_signal_to_followers(self, signal_data: dict, developer_id: int):
+        """إرسال إشارة المطور لجميع المتابعين"""
+        try:
+            # الحصول على قائمة المتابعين
+            followers = developer_manager.get_followers(developer_id)
+            
+            if not followers:
+                logger.info("لا يوجد متابعين لإرسال الإشارة")
+                return
+            
+            logger.info(f"📡 إرسال إشارة المطور إلى {len(followers)} متابع")
+            
+            # إرسال الإشارة لكل متابع
+            success_count = 0
+            for follower_id in followers:
+                try:
+                    # التحقق من وجود المتابع في UserManager
+                    if not user_manager.get_user(follower_id):
+                        logger.warning(f"⚠️ المتابع {follower_id} غير موجود")
+                        continue
+                    
+                    # إنشاء TradingBot مؤقت للمتابع
+                    follower_bot = TradingBot()
+                    follower_bot.user_id = follower_id
+                    
+                    # الحصول على إعدادات المتابع
+                    follower_settings = user_manager.get_user_settings(follower_id)
+                    if follower_settings:
+                        follower_bot.user_settings = follower_settings
+                    
+                    # تنفيذ الإشارة على حساب المتابع
+                    await follower_bot.process_signal(signal_data.copy())
+                    success_count += 1
+                    logger.info(f"✅ تم إرسال الإشارة للمتابع {follower_id}")
+                    
+                    # إرسال إشعار للمتابع
+                    try:
+                        from telegram import Bot
+                        bot = Bot(token=TELEGRAM_TOKEN)
+                        notification_message = f"""
+📡 إشارة جديدة من Nagdat!
+
+📊 الرمز: {signal_data.get('symbol', 'N/A')}
+🔄 الإجراء: {signal_data.get('action', 'N/A').upper()}
+💲 السعر: {signal_data.get('price', 'N/A')}
+
+⚡ تم تنفيذ الصفقة تلقائياً على حسابك!
+                        """
+                        await bot.send_message(
+                            chat_id=follower_id,
+                            text=notification_message
+                        )
+                    except Exception as notify_error:
+                        logger.error(f"خطأ في إرسال الإشعار للمتابع {follower_id}: {notify_error}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ خطأ في إرسال الإشارة للمتابع {follower_id}: {e}")
+            
+            # إرسال تقرير للمطور
+            message = f"""
+📡 تم توزيع الإشارة
+
+✅ تم الإرسال: {success_count} من {len(followers)}
+📊 التفاصيل:
+• الرمز: {signal_data.get('symbol', 'N/A')}
+• الإجراء: {signal_data.get('action', 'N/A').upper()}
+            """
+            await self.send_message_to_admin(message)
+            
+            return {
+                'success': True,
+                'sent_to': success_count,
+                'total_followers': len(followers)
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في broadcast_signal_to_followers: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
     async def process_signal(self, signal_data: dict):
         """معالجة إشارة التداول مع دعم محسن للفيوتشر"""
         try:
@@ -764,6 +846,33 @@ class TradingBot:
             if not symbol or not action:
                 logger.error("بيانات الإشارة غير مكتملة")
                 return
+            
+            # 🔥 ميزة جديدة: إذا كان المستخدم هو مطور وفعّل التوزيع التلقائي
+            # سيتم إرسال الإشارة لجميع المتابعين
+            if developer_manager.is_developer(self.user_id):
+                # التحقق من تفعيل التوزيع التلقائي من قاعدة البيانات
+                auto_broadcast_enabled = db_manager.get_auto_broadcast_status(self.user_id)
+                
+                if auto_broadcast_enabled:
+                    try:
+                        logger.info(f"📡 التوزيع التلقائي مفعّل للمطور {self.user_id}")
+                        
+                        # حفظ الإشارة في قاعدة البيانات أولاً
+                        signal_saved = db_manager.create_developer_signal(
+                            developer_id=self.user_id,
+                            signal_data=signal_data
+                        )
+                        
+                        if signal_saved:
+                            # إرسال للمتابعين
+                            await self.broadcast_signal_to_followers(signal_data, self.user_id)
+                        else:
+                            logger.error("فشل في حفظ إشارة المطور")
+                            
+                    except Exception as e:
+                        logger.error(f"خطأ في معالجة إشارة المطور: {e}")
+                else:
+                    logger.info(f"التوزيع التلقائي غير مفعّل للمطور {self.user_id}")
             
             # تحديث الأزواج إذا لزم الأمر
             await self.update_available_pairs()
@@ -1096,6 +1205,9 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     all_users = user_manager.get_all_active_users()
     total_users = len(all_users)
     
+    # الحصول على حالة التوزيع التلقائي
+    auto_broadcast = db_manager.get_auto_broadcast_status(developer_id)
+    
     # بناء رسالة الإحصائيات
     message = f"""
 👨‍💻 لوحة تحكم المطور - {dev_info['developer_name']}
@@ -1106,6 +1218,7 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
 • 📡 الإشارات المرسلة: {stats['total_signals']}
 • 🟢 الحالة: {'نشط' if stats['is_active'] else '🔴 غير نشط'}
 • ✅ صلاحية البث: {'مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+• 📡 التوزيع التلقائي: {'✅ مُفعّل' if auto_broadcast else '❌ مُعطّل'}
 
 استخدم الأزرار أدناه للتحكم الكامل في البوت:
     """
@@ -2306,6 +2419,43 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.answer("❌ فشل في الإزالة")
         except ValueError:
             await update.callback_query.answer("❌ خطأ في ID المتابع")
+    elif data == "dev_toggle_auto_broadcast":
+        # تبديل حالة التوزيع التلقائي
+        if user_id:
+            # تبديل الحالة في قاعدة البيانات
+            success = db_manager.toggle_auto_broadcast(user_id)
+            
+            if success:
+                # الحصول على الحالة الجديدة
+                new_state = db_manager.get_auto_broadcast_status(user_id)
+                stats = developer_manager.get_developer_statistics(user_id)
+                
+                message = f"""
+⚙️ إعدادات المطور
+
+🔧 الإعدادات الحالية:
+• حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
+• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+• 📡 التوزيع التلقائي للإشارات: {'✅ مُفعّل' if new_state else '❌ مُعطّل'}
+
+💡 التوزيع التلقائي:
+عند التفعيل، أي صفقة تفتحها على حسابك ستُرسل تلقائياً لجميع متابعيك!
+                """
+                
+                keyboard = [
+                    [InlineKeyboardButton("تبديل الحالة", callback_data="dev_toggle_active")],
+                    [InlineKeyboardButton(
+                        f"{'❌ تعطيل' if new_state else '✅ تفعيل'} التوزيع التلقائي", 
+                        callback_data="dev_toggle_auto_broadcast"
+                    )],
+                    [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
+                await update.callback_query.answer(f"✅ التوزيع التلقائي: {'مُفعّل' if new_state else 'مُعطّل'}")
+            else:
+                await update.callback_query.answer("❌ فشل في تبديل الحالة")
     elif data == "dev_refresh_users":
         # تحديث قائمة المستخدمين
         if user_id:
@@ -2411,16 +2561,27 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         elif text == "⚙️ إعدادات المطور":
             stats = developer_manager.get_developer_statistics(user_id)
+            
+            # الحصول على حالة التوزيع التلقائي من قاعدة البيانات
+            auto_broadcast = db_manager.get_auto_broadcast_status(user_id)
+            
             message = f"""
 ⚙️ إعدادات المطور
 
-حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
-صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+🔧 الإعدادات الحالية:
+• حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
+• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+• 📡 التوزيع التلقائي للإشارات: {'✅ مُفعّل' if auto_broadcast else '❌ مُعطّل'}
 
-استخدم الأزرار للتعديل
+💡 التوزيع التلقائي:
+عند التفعيل، أي صفقة تفتحها على حسابك ستُرسل تلقائياً لجميع متابعيك!
             """
             keyboard = [
                 [InlineKeyboardButton("تبديل الحالة", callback_data="dev_toggle_active")],
+                [InlineKeyboardButton(
+                    f"{'❌ تعطيل' if auto_broadcast else '✅ تفعيل'} التوزيع التلقائي", 
+                    callback_data="dev_toggle_auto_broadcast"
+                )],
                 [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
