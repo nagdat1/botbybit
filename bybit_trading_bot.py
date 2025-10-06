@@ -1015,17 +1015,22 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("❌ خطأ: لم يتم العثور على معلومات المطور")
         return
     
+    # الحصول على عدد المستخدمين
+    all_users = user_manager.get_all_active_users()
+    total_users = len(all_users)
+    
     # بناء رسالة الإحصائيات
     message = f"""
 👨‍💻 لوحة تحكم المطور - {dev_info['developer_name']}
 
-📊 الإحصائيات:
-• عدد المتابعين: {stats['follower_count']} 👥
-• الإشارات المرسلة: {stats['total_signals']} 📡
-• الحالة: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
-• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+📊 إحصائيات سريعة:
+• 👥 إجمالي المستخدمين: {total_users}
+• ⚡ متابعي Nagdat: {stats['follower_count']}
+• 📡 الإشارات المرسلة: {stats['total_signals']}
+• 🟢 الحالة: {'نشط' if stats['is_active'] else '🔴 غير نشط'}
+• ✅ صلاحية البث: {'مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
 
-استخدم الأزرار أدناه للتنقل في لوحة التحكم
+استخدم الأزرار أدناه للتحكم الكامل في البوت:
     """
     
     # إنشاء الأزرار
@@ -1097,26 +1102,34 @@ async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TY
     
     message = f"👥 قائمة المتابعين ({len(followers)} متابع)\n\n"
     
-    for i, follower_id in enumerate(followers[:50], 1):
+    # إنشاء أزرار لكل متابع مع خيار الإزالة
+    keyboard = []
+    
+    for i, follower_id in enumerate(followers[:20], 1):  # عرض أول 20 متابع
         user = user_manager.get_user(follower_id)
         if user:
             status = "🟢" if user.get('is_active') else "🔴"
             message += f"{i}. {status} User ID: {follower_id}\n"
+            # إضافة زر لإزالة هذا المتابع
+            keyboard.append([InlineKeyboardButton(
+                f"❌ إزالة {follower_id}", 
+                callback_data=f"dev_remove_follower_{follower_id}"
+            )])
         else:
             message += f"{i}. ⚪ User ID: {follower_id}\n"
     
-    if len(followers) > 50:
-        message += f"\n... و {len(followers) - 50} متابع آخرين"
+    if len(followers) > 20:
+        message += f"\n... و {len(followers) - 20} متابع آخرين"
     
-    keyboard = [
-        [InlineKeyboardButton("🔄 تحديث", callback_data="dev_show_followers")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
-    ]
+    keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="dev_show_followers")])
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.message:
         await update.message.reply_text(message, reply_markup=reply_markup)
+    elif update.callback_query:
+        await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
 
 async def handle_developer_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض إحصائيات المطور المفصلة"""
@@ -1219,6 +1232,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
         [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
+    
+    # إضافة زر متابعة Nagdat
+    is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
+    if is_following:
+        keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
+    else:
+        keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
     if user_data.get('is_active'):
@@ -2190,6 +2210,58 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
             else:
                 await update.callback_query.answer("❌ فشل التبديل")
+    elif data.startswith("dev_remove_follower_"):
+        # معالجة إزالة متابع
+        follower_id_str = data.replace("dev_remove_follower_", "")
+        try:
+            follower_id = int(follower_id_str)
+            if user_id:
+                success = developer_manager.remove_follower(user_id, follower_id)
+                if success:
+                    await update.callback_query.answer(f"✅ تم إزالة المتابع {follower_id}")
+                    # تحديث قائمة المتابعين
+                    await handle_show_followers(update, context)
+                else:
+                    await update.callback_query.answer("❌ فشل في الإزالة")
+        except ValueError:
+            await update.callback_query.answer("❌ خطأ في ID المتابع")
+    elif data == "dev_refresh_users":
+        # تحديث قائمة المستخدمين
+        if user_id:
+            all_users_data = db_manager.get_all_developers() + user_manager.get_all_active_users()
+            active_users = user_manager.get_all_active_users()
+            followers = developer_manager.get_followers(user_id)
+            
+            message = f"""
+👥 إحصائيات المستخدمين
+
+📊 الأعداد:
+• إجمالي المستخدمين: {len(all_users_data)}
+• المستخدمين النشطين: {len(active_users)}
+• متابعي Nagdat: {len(followers)} 👥
+
+📋 قائمة المستخدمين النشطين:
+            """
+            
+            for i, uid in enumerate(active_users[:15], 1):
+                is_follower = uid in followers
+                follower_icon = "⚡" if is_follower else "⚪"
+                message += f"{i}. {follower_icon} User ID: {uid}\n"
+            
+            if len(active_users) > 15:
+                message += f"\n... و {len(active_users) - 15} مستخدم آخرين"
+            
+            message += "\n\n⚡ = يتابع Nagdat"
+            
+            keyboard = [
+                [InlineKeyboardButton("👥 عرض المتابعين", callback_data="dev_show_followers")],
+                [InlineKeyboardButton("🔄 تحديث", callback_data="dev_refresh_users")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
+            await update.callback_query.answer("✅ تم التحديث")
     
     else:
         # معالجة أي أزرار أخرى غير محددة
@@ -2217,11 +2289,39 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         elif text == "👥 إدارة المستخدمين":
             # عرض قائمة المستخدمين
-            all_users = user_manager.get_all_active_users()
-            message = f"👥 إجمالي المستخدمين: {len(all_users)}\n\n"
-            for i, uid in enumerate(all_users[:20], 1):
-                message += f"{i}. User ID: {uid}\n"
-            await update.message.reply_text(message)
+            all_users_data = db_manager.get_all_developers() + user_manager.get_all_active_users()
+            active_users = user_manager.get_all_active_users()
+            followers = developer_manager.get_followers(user_id)
+            
+            message = f"""
+👥 إحصائيات المستخدمين
+
+📊 الأعداد:
+• إجمالي المستخدمين: {len(all_users_data)}
+• المستخدمين النشطين: {len(active_users)}
+• متابعي Nagdat: {len(followers)} 👥
+
+📋 قائمة المستخدمين النشطين:
+            """
+            
+            for i, uid in enumerate(active_users[:15], 1):
+                is_follower = uid in followers
+                follower_icon = "⚡" if is_follower else "⚪"
+                message += f"{i}. {follower_icon} User ID: {uid}\n"
+            
+            if len(active_users) > 15:
+                message += f"\n... و {len(active_users) - 15} مستخدم آخرين"
+            
+            message += "\n\n⚡ = يتابع Nagdat"
+            
+            keyboard = [
+                [InlineKeyboardButton("👥 عرض المتابعين", callback_data="dev_show_followers")],
+                [InlineKeyboardButton("🔄 تحديث", callback_data="dev_refresh_users")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(message, reply_markup=reply_markup)
             return
         elif text == "📱 إشعار جماعي":
             await update.message.reply_text("📱 أرسل الإشعار الذي تريد إرساله لجميع المستخدمين:")
@@ -2264,6 +2364,47 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
+            return
+    
+    # معالجة أزرار المستخدمين العاديين
+    if user_id and not developer_manager.is_developer(user_id):
+        if text == "⚡ متابعة Nagdat" or text == "⚡ متابع لـ Nagdat ✅":
+            # تبديل حالة المتابعة
+            is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
+            
+            if is_following:
+                # إلغاء المتابعة
+                success = developer_manager.remove_follower(ADMIN_USER_ID, user_id)
+                if success:
+                    message = """
+❌ تم إلغاء متابعة Nagdat
+
+لن تستقبل إشاراته بعد الآن.
+للمتابعة مرة أخرى، اضغط على الزر في القائمة الرئيسية.
+                    """
+                    await update.message.reply_text(message)
+                    # تحديث القائمة
+                    await start(update, context)
+                else:
+                    await update.message.reply_text("❌ فشل في إلغاء المتابعة")
+            else:
+                # إضافة متابعة
+                success = developer_manager.add_follower(ADMIN_USER_ID, user_id)
+                if success:
+                    message = """
+✅ تم متابعة Nagdat بنجاح!
+
+الآن ستستقبل جميع إشارات التداول التي يرسلها Nagdat تلقائياً!
+
+📡 ستصلك الإشارات فور إرسالها
+🔔 تأكد من تفعيل الإشعارات
+⚙️ يمكنك إلغاء المتابعة في أي وقت
+                    """
+                    await update.message.reply_text(message)
+                    # تحديث القائمة
+                    await start(update, context)
+                else:
+                    await update.message.reply_text("❌ فشل في المتابعة")
             return
     
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
