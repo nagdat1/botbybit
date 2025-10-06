@@ -108,7 +108,7 @@ def format_wallet_info(user_data: Dict, trades: List[Dict] = None) -> str:
 # ==================== معلومات الصفقة ====================
 
 def format_trade_info(trade: Dict, current_price: float = None) -> str:
-    """تنسيق معلومات صفقة واحدة"""
+    """تنسيق معلومات صفقة واحدة - محسّن"""
     symbol = trade['symbol']
     trade_type = trade['trade_type']
     side = trade['side']
@@ -127,42 +127,48 @@ def format_trade_info(trade: Dict, current_price: float = None) -> str:
     # الرموز
     side_emoji = COLORS['green'] if side == 'buy' else COLORS['red']
     type_emoji = "📊" if trade_type == 'spot' else "🚀"
+    pnl_emoji = COLORS['green'] if pnl >= 0 else COLORS['red']
+    
+    # حساب التغير في السعر
+    price_change = ((current_price - entry_price) / entry_price) * 100
+    if side == 'sell':
+        price_change = -price_change
     
     msg = f"""
-{type_emoji} ━━━━━ معلومات الصفقة ━━━━━
-
-{side_emoji} الاتجاه: {side.upper()}
-💱 الزوج: {symbol}
-⚙️ النوع: {trade_type.upper()}
-"""
+╔══════════════════════════════════╗
+║  {type_emoji} {symbol} - {side.upper()}
+╠══════════════════════════════════╣
+║ {side_emoji} الاتجاه: {side.upper()}
+║ ⚙️ النوع: {trade_type.upper()}"""
     
     if leverage > 1:
-        msg += f"📊 الرافعة: {leverage}x\n"
+        msg += f"\n║ 📊 الرافعة: {leverage}x"
     
     msg += f"""
-━━━━━━━━━━━━━━━━━━
-💰 سعر الدخول: {format_price(entry_price, 4)}
-💹 السعر الحالي: {format_price(current_price, 4)}
-📦 الكمية: {quantity:.6f}
-
-━━━━━━━━━━━━━━━━━━
-{format_profit_loss(pnl, pnl_percent)}
-━━━━━━━━━━━━━━━━━━
-"""
+║ 
+║ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+║ 💰 دخول: {format_price(entry_price, 4)}
+║ 💹 حالي: {format_price(current_price, 4)}
+║ 📊 تغير: {price_change:+.2f}%
+║ 📦 كمية: {quantity:.6f}
+║ 
+║ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+║ {pnl_emoji} الربح/الخسارة
+║ {pnl:+.2f}$ ({pnl_percent:+.2f}%)"""
     
     # Stop Loss & Take Profit
     if trade.get('stop_loss'):
-        msg += f"\n{EMOJIS['shield']} Stop Loss: {format_price(trade['stop_loss'], 4)}"
+        msg += f"\n║ \n║ {EMOJIS['shield']} SL: {format_price(trade['stop_loss'], 4)}"
     
     if trade.get('take_profit'):
-        msg += f"\n{EMOJIS['target']} Take Profit: {format_price(trade['take_profit'], 4)}"
+        msg += f"\n║ {EMOJIS['target']} TP: {format_price(trade['take_profit'], 4)}"
     
     if trade.get('trailing_stop_percent'):
-        msg += f"\n📉 Trailing Stop: {trade['trailing_stop_percent']}%"
+        msg += f"\n║ 📉 Trailing: {trade['trailing_stop_percent']}%"
     
     # الوقت
     opened_at = format_timestamp(trade['opened_at'])
-    msg += f"\n\n🕐 الوقت: {opened_at}"
+    msg += f"\n║ \n║ 🕐 {opened_at}\n╚══════════════════════════════════╝"
     
     return msg
 

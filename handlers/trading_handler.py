@@ -388,47 +388,58 @@ class TradingHandler:
     
     @staticmethod
     async def menu_my_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """عرض صفقاتي"""
+        """عرض صفقاتي - محسّن بتحديث متوازي"""
         query = update.callback_query
-        await query.answer()
+        await query.answer("جاري التحميل...")
         
-        user_id = query.from_user.id
-        trades = db.get_open_trades(user_id)
-        
-        # تحديث الأسعار
-        if trades:
-            for trade in trades:
-                ticker = await public_api.get_ticker(trade['symbol'])
-                if ticker:
-                    # حساب الربح/الخسارة
-                    from bybit_api import BybitAPI
-                    pnl, pnl_percent = BybitAPI().calculate_profit_loss(
-                        trade['entry_price'],
-                        ticker['price'],
-                        trade['quantity'],
-                        trade['side'],
-                        trade.get('leverage', 1)
-                    )
-                    
-                    # تحديث في قاعدة البيانات
-                    db.update_trade_price(
-                        trade['trade_id'],
-                        ticker['price'],
-                        pnl,
-                        pnl_percent
-                    )
-                    
-                    # تحديث في القائمة
-                    trade['current_price'] = ticker['price']
-                    trade['profit_loss'] = pnl
-                    trade['profit_loss_percent'] = pnl_percent
-        
-        trades_msg = format_trades_list(trades)
-        
-        await query.edit_message_text(
-            trades_msg,
-            reply_markup=open_trades_keyboard(trades) if trades else back_button()
-        )
+        try:
+            user_id = query.from_user.id
+            trades = db.get_open_trades(user_id)
+            
+            # تحديث الأسعار بشكل متوازي (أسرع)
+            if trades:
+                # جلب جميع الأسعار دفعة واحدة
+                symbols = list(set(trade['symbol'] for trade in trades))
+                tickers_dict = await public_api.get_multiple_tickers(symbols)
+                
+                for trade in trades:
+                    ticker = tickers_dict.get(trade['symbol'])
+                    if ticker:
+                        # حساب الربح/الخسارة
+                        from bybit_api import BybitAPI
+                        pnl, pnl_percent = BybitAPI().calculate_profit_loss(
+                            trade['entry_price'],
+                            ticker['price'],
+                            trade['quantity'],
+                            trade['side'],
+                            trade.get('leverage', 1)
+                        )
+                        
+                        # تحديث في قاعدة البيانات
+                        db.update_trade_price(
+                            trade['trade_id'],
+                            ticker['price'],
+                            pnl,
+                            pnl_percent
+                        )
+                        
+                        # تحديث في القائمة
+                        trade['current_price'] = ticker['price']
+                        trade['profit_loss'] = pnl
+                        trade['profit_loss_percent'] = pnl_percent
+            
+            trades_msg = format_trades_list(trades)
+            
+            await query.edit_message_text(
+                trades_msg,
+                reply_markup=open_trades_keyboard(trades) if trades else back_button()
+            )
+        except Exception as e:
+            logger.error(f"Error in menu_my_trades: {e}")
+            await query.edit_message_text(
+                format_error_message("حدث خطأ في تحميل الصفقات"),
+                reply_markup=back_button()
+            )
     
     @staticmethod
     async def view_trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -592,6 +603,15 @@ class TradingHandler:
     @staticmethod
     async def refresh_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """تحديث الصفقات"""
+        await TradingHandler.menu_my_trades(update, context)
+    
+    @staticmethod
+    async def manage_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """إدارة الصفقات"""
+        query = update.callback_query
+        await query.answer()
+        
+        # عرض الصفقات المفتوحة مباشرة
         await TradingHandler.menu_my_trades(update, context)
     
     # ==================== إشارات Nagdat ====================

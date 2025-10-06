@@ -87,14 +87,47 @@ class BybitAPI:
         return ticker['price'] if ticker else None
     
     async def get_multiple_tickers(self, symbols: List[str]) -> Dict[str, Dict]:
-        """الحصول على أسعار عدة أزواج"""
-        results = {}
-        tasks = [self.get_ticker(symbol) for symbol in symbols]
-        tickers = await asyncio.gather(*tasks, return_exceptions=True)
+        """الحصول على أسعار عدة أزواج - محسّن"""
+        if not symbols:
+            return {}
         
-        for symbol, ticker in zip(symbols, tickers):
-            if not isinstance(ticker, Exception) and ticker:
-                results[symbol] = ticker
+        results = {}
+        
+        try:
+            # محاولة جلب جميع الأسعار دفعة واحدة
+            exchange = ccxt.bybit({'enableRateLimit': True})
+            
+            # جلب متوازي
+            tasks = [
+                asyncio.to_thread(exchange.fetch_ticker, symbol)
+                for symbol in symbols
+            ]
+            tickers = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for symbol, ticker in zip(symbols, tickers):
+                if not isinstance(ticker, Exception) and ticker:
+                    results[symbol] = {
+                        'price': ticker['last'],
+                        'bid': ticker.get('bid'),
+                        'ask': ticker.get('ask'),
+                        'high': ticker.get('high'),
+                        'low': ticker.get('low'),
+                        'volume': ticker.get('quoteVolume'),
+                        'change': ticker.get('percentage', 0),
+                        'timestamp': datetime.now()
+                    }
+                    # تحديث cache
+                    self.price_cache[symbol] = results[symbol]
+        except Exception as e:
+            logger.error(f"❌ Error fetching multiple tickers: {e}")
+            # fallback: جلب واحد واحد
+            for symbol in symbols:
+                try:
+                    ticker = await self.get_ticker(symbol)
+                    if ticker:
+                        results[symbol] = ticker
+                except:
+                    continue
         
         return results
     

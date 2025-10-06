@@ -88,6 +88,7 @@ class BybitTradingBot:
         app.add_handler(CallbackQueryHandler(TradingHandler.select_symbol, pattern="^select_symbol_"))
         app.add_handler(CallbackQueryHandler(TradingHandler.show_all_symbols, pattern="^show_all_symbols$"))
         app.add_handler(CallbackQueryHandler(TradingHandler.execute_trade, pattern="^confirm_execute_trade"))
+        app.add_handler(CallbackQueryHandler(TradingHandler.manage_trades, pattern="^manage_trades$"))
         
         # ==================== الصفقات ====================
         app.add_handler(CallbackQueryHandler(TradingHandler.menu_my_trades, pattern="^menu_my_trades$"))
@@ -127,28 +128,34 @@ class BybitTradingBot:
         logger.info("✅ Handlers setup completed")
     
     async def handle_text_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """معالج الرسائل النصية"""
-        user_id = update.effective_user.id
-        
-        # معالجة مدخلات الأدمن
-        if user_id == ADMIN_USER_ID and context.user_data.get('admin_action'):
-            if context.user_data['admin_action'] == 'send_signal':
-                await AdminHandler.process_signal_input(update, context)
+        """معالج الرسائل النصية - محسّن للأداء"""
+        try:
+            user_id = update.effective_user.id
+            
+            # معالجة مدخلات الأدمن
+            if user_id == ADMIN_USER_ID and context.user_data.get('admin_action'):
+                if context.user_data['admin_action'] == 'send_signal':
+                    await AdminHandler.process_signal_input(update, context)
+                    return
+                elif context.user_data['admin_action'] == 'broadcast':
+                    await AdminHandler.process_broadcast(update, context)
+                    return
+            
+            # معالجة مدخلات التداول
+            if context.user_data.get('trade_action') in ['buy', 'sell']:
+                await TradingHandler.process_trade_amount(update, context)
                 return
-            elif context.user_data['admin_action'] == 'broadcast':
-                await AdminHandler.process_broadcast(update, context)
-                return
-        
-        # معالجة مدخلات التداول
-        if context.user_data.get('trade_action') in ['buy', 'sell']:
-            await TradingHandler.process_trade_amount(update, context)
-            return
-        
-        # رسالة افتراضية
-        await update.message.reply_text(
-            f"{EMOJIS['info']} استخدم الأزرار للتنقل في البوت\n"
-            f"أو اكتب /help للمساعدة"
-        )
+            
+            # رسالة افتراضية
+            await update.message.reply_text(
+                f"{EMOJIS['info']} استخدم الأزرار للتنقل في البوت\n"
+                f"أو اكتب /help للمساعدة"
+            )
+        except Exception as e:
+            logger.error(f"Error in handle_text_messages: {e}")
+            await update.message.reply_text(
+                f"{EMOJIS['error']} حدث خطأ. الرجاء المحاولة مرة أخرى."
+            )
     
     async def post_init(self, application: Application):
         """تهيئة ما بعد الإنشاء"""
