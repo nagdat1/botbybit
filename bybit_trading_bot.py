@@ -1025,14 +1025,31 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     developer_id = user_id
     
-    # الحصول على إحصائيات المطور
-    stats = developer_manager.get_developer_statistics(developer_id)
+    # التأكد من وجود المطور في قاعدة البيانات
     dev_info = developer_manager.get_developer(developer_id)
     
     if not dev_info:
-        if update.message:
-            await update.message.reply_text("❌ خطأ: لم يتم العثور على معلومات المطور")
-        return
+        # إضافة المطور تلقائياً
+        logger.info(f"إضافة المطور {developer_id} تلقائياً في show_developer_panel...")
+        success = developer_manager.create_developer(
+            developer_id=developer_id,
+            developer_name=update.effective_user.first_name or "Nagdat",
+            developer_key=f"DEV-KEY-{developer_id}",
+            webhook_url=None
+        )
+        
+        if success:
+            # إعادة تحميل معلومات المطور
+            developer_manager.load_all_developers()
+            dev_info = developer_manager.get_developer(developer_id)
+            logger.info(f"✅ تم إضافة المطور {developer_id} بنجاح")
+        else:
+            if update.message:
+                await update.message.reply_text("❌ خطأ في إنشاء حساب المطور. يرجى المحاولة مرة أخرى.")
+            return
+    
+    # الحصول على إحصائيات المطور
+    stats = developer_manager.get_developer_statistics(developer_id)
     
     # الحصول على عدد المستخدمين
     all_users = user_manager.get_all_active_users()
