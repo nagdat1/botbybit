@@ -1,0 +1,17 @@
+# Nixpacks Configuration for Railway
+
+[phases.setup]
+nixPkgs = ["python39", "gcc"]
+
+[phases.install]
+cmds = [
+    "pip install --upgrade pip",
+    "pip install -r requirements.txt"
+]
+
+[phases.build]
+cmds = ["python -c 'import sqlite3; print(sqlite3.sqlite_version)'"]
+
+[start]
+cmd = "python main.py"
+

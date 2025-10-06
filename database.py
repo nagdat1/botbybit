@@ -1,635 +1,470 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-قاعدة بيانات SQLite لإدارة المستخدمين والصفقات في البوت متعدد المستخدمين
+💾 قاعدة البيانات - Database Management
+إدارة بيانات المستخدمين والصفقات والإشارات
 """
-
 import sqlite3
 import json
-import logging
+import uuid
 from datetime import datetime
-from typing import Dict, List, Optional, Any
-from contextlib import contextmanager
+from typing import Optional, Dict, List, Any
+from config import DATABASE_PATH, DEMO_INITIAL_BALANCE, DEMO_CURRENCY
 
-logger = logging.getLogger(__name__)
 
-class DatabaseManager:
-    """مدير قاعدة البيانات للمستخدمين والصفقات"""
+class Database:
+    """إدارة قاعدة البيانات"""
     
-    def __init__(self, db_path: str = "trading_bot.db"):
-        self.db_path = db_path
+    def __init__(self):
+        self.db_path = DATABASE_PATH
         self.init_database()
     
-    def init_database(self):
-        """تهيئة قاعدة البيانات وإنشاء الجداول"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # جدول المستخدمين
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        user_id INTEGER PRIMARY KEY,
-                        api_key TEXT,
-                        api_secret TEXT,
-                        balance REAL DEFAULT 10000.0,
-                        partial_percents TEXT DEFAULT '[25, 50, 25]',
-                        tps_percents TEXT DEFAULT '[1.5, 3.0, 5.0]',
-                        is_active BOOLEAN DEFAULT 1,
-                        notifications BOOLEAN DEFAULT 1,
-                        preferred_symbols TEXT DEFAULT '["BTCUSDT", "ETHUSDT"]',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-                
-                # جدول الصفقات
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS orders (
-                        order_id TEXT PRIMARY KEY,
-                        user_id INTEGER NOT NULL,
-                        symbol TEXT NOT NULL,
-                        side TEXT NOT NULL,
-                        entry_price REAL NOT NULL,
-                        quantity REAL NOT NULL,
-                        initial_quantity REAL NOT NULL,
-                        current_quantity REAL NOT NULL,
-                        open_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        close_time TIMESTAMP,
-                        take_profits TEXT DEFAULT '[]',
-                        stop_loss TEXT DEFAULT NULL,
-                        partial_closes TEXT DEFAULT '[]',
-                        status TEXT DEFAULT 'OPEN',
-                        market_type TEXT DEFAULT 'spot',
-                        leverage INTEGER DEFAULT 1,
-                        unrealized_pnl REAL DEFAULT 0.0,
-                        realized_pnl REAL DEFAULT 0.0,
-                        notes TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users (user_id)
-                    )
-                """)
-                
-                # جدول إعدادات المستخدم
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS user_settings (
-                        user_id INTEGER PRIMARY KEY,
-                        market_type TEXT DEFAULT 'spot',
-                        trade_amount REAL DEFAULT 100.0,
-                        leverage INTEGER DEFAULT 10,
-                        account_type TEXT DEFAULT 'demo',
-                        FOREIGN KEY (user_id) REFERENCES users (user_id)
-                    )
-                """)
-                
-                conn.commit()
-                logger.info("تم تهيئة قاعدة البيانات بنجاح")
-                
-        except Exception as e:
-            logger.error(f"خطأ في تهيئة قاعدة البيانات: {e}")
-            raise
-    
-    @contextmanager
     def get_connection(self):
-        """الحصول على اتصال قاعدة البيانات"""
+        """إنشاء اتصال بقاعدة البيانات"""
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row  # للحصول على نتائج كـ dict
-        try:
-            yield conn
-        finally:
-            conn.close()
+        conn.row_factory = sqlite3.Row
+        return conn
     
-    # إدارة المستخدمين
-    def create_user(self, user_id: int, api_key: str = None, api_secret: str = None) -> bool:
-        """إنشاء مستخدم جديد"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # التحقق من وجود المستخدم
-                cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-                if cursor.fetchone():
-                    return False  # المستخدم موجود بالفعل
-                
-                # إنشاء المستخدم الجديد
-                cursor.execute("""
-                    INSERT INTO users (user_id, api_key, api_secret)
-                    VALUES (?, ?, ?)
-                """, (user_id, api_key, api_secret))
-                
-                # إنشاء إعدادات افتراضية للمستخدم
-                cursor.execute("""
-                    INSERT INTO user_settings (user_id)
-                    VALUES (?)
-                """, (user_id,))
-                
-                conn.commit()
-                logger.info(f"تم إنشاء مستخدم جديد: {user_id}")
-                return True
-                
-        except Exception as e:
-            logger.error(f"خطأ في إنشاء المستخدم {user_id}: {e}")
-            return False
+    def init_database(self):
+        """إنشاء جداول قاعدة البيانات"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # جدول المستخدمين
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                mode TEXT DEFAULT 'demo',
+                demo_balance REAL DEFAULT {DEMO_INITIAL_BALANCE},
+                activated_nagdat INTEGER DEFAULT 0,
+                webhook_url TEXT UNIQUE,
+                webhook_token TEXT UNIQUE,
+                api_key TEXT,
+                api_secret TEXT,
+                api_passphrase TEXT,
+                leverage INTEGER DEFAULT 10,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # جدول الصفقات
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trades (
+                trade_id TEXT PRIMARY KEY,
+                user_id INTEGER,
+                symbol TEXT NOT NULL,
+                trade_type TEXT NOT NULL,
+                side TEXT NOT NULL,
+                leverage INTEGER DEFAULT 1,
+                entry_price REAL NOT NULL,
+                current_price REAL,
+                quantity REAL NOT NULL,
+                stop_loss REAL,
+                take_profit REAL,
+                trailing_stop REAL,
+                trailing_stop_percent REAL,
+                status TEXT DEFAULT 'open',
+                profit_loss REAL DEFAULT 0,
+                profit_loss_percent REAL DEFAULT 0,
+                mode TEXT DEFAULT 'demo',
+                opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                closed_at TIMESTAMP,
+                bybit_order_id TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        # جدول الإشارات
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS signals (
+                signal_id TEXT PRIMARY KEY,
+                sender_id INTEGER,
+                symbol TEXT NOT NULL,
+                action TEXT NOT NULL,
+                leverage INTEGER DEFAULT 1,
+                stop_loss REAL,
+                take_profit REAL,
+                message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                executed_count INTEGER DEFAULT 0
+            )
+        """)
+        
+        # جدول المشتركين في إشارات Nagdat
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS nagdat_subscribers (
+                user_id INTEGER PRIMARY KEY,
+                subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                signals_received INTEGER DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        # جدول الإحصائيات
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS statistics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                total_trades INTEGER DEFAULT 0,
+                winning_trades INTEGER DEFAULT 0,
+                losing_trades INTEGER DEFAULT 0,
+                total_profit REAL DEFAULT 0,
+                total_loss REAL DEFAULT 0,
+                best_trade REAL DEFAULT 0,
+                worst_trade REAL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
+    
+    # ==================== المستخدمين ====================
     
     def get_user(self, user_id: int) -> Optional[Dict]:
         """الحصول على بيانات المستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT u.*, s.* FROM users u
-                    LEFT JOIN user_settings s ON u.user_id = s.user_id
-                    WHERE u.user_id = ?
-                """, (user_id,))
-                
-                row = cursor.fetchone()
-                if row:
-                    user_data = dict(row)
-                    
-                    # تحويل النصوص JSON إلى قوائم
-                    try:
-                        user_data['partial_percents'] = json.loads(user_data['partial_percents'])
-                        user_data['tps_percents'] = json.loads(user_data['tps_percents'])
-                        user_data['preferred_symbols'] = json.loads(user_data['preferred_symbols'])
-                    except (json.JSONDecodeError, TypeError):
-                        user_data['partial_percents'] = [25, 50, 25]
-                        user_data['tps_percents'] = [1.5, 3.0, 5.0]
-                        user_data['preferred_symbols'] = ["BTCUSDT", "ETHUSDT"]
-                    
-                    return user_data
-                return None
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على المستخدم {user_id}: {e}")
-            return None
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = cursor.fetchone()
+        conn.close()
+        return dict(user) if user else None
     
-    def update_user_api(self, user_id: int, api_key: str, api_secret: str) -> bool:
-        """تحديث API keys للمستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    UPDATE users 
-                    SET api_key = ?, api_secret = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ?
-                """, (api_key, api_secret, user_id))
-                
-                conn.commit()
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            logger.error(f"خطأ في تحديث API للمستخدم {user_id}: {e}")
-            return False
+    def create_user(self, user_id: int, username: str = None, 
+                   first_name: str = None, last_name: str = None) -> Dict:
+        """إنشاء مستخدم جديد"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # إنشاء webhook فريد
+        webhook_token = str(uuid.uuid4())
+        webhook_url = f"/webhook/user/{webhook_token}"
+        
+        cursor.execute("""
+            INSERT INTO users (user_id, username, first_name, last_name, 
+                             webhook_url, webhook_token)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, username, first_name, last_name, webhook_url, webhook_token))
+        
+        # إنشاء إحصائيات المستخدم
+        cursor.execute("""
+            INSERT INTO statistics (user_id) VALUES (?)
+        """, (user_id,))
+        
+        conn.commit()
+        conn.close()
+        return self.get_user(user_id)
     
-    def update_user_balance(self, user_id: int, balance: float) -> bool:
-        """تحديث رصيد المستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    UPDATE users 
-                    SET balance = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ?
-                """, (balance, user_id))
-                
-                conn.commit()
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            logger.error(f"خطأ في تحديث الرصيد للمستخدم {user_id}: {e}")
-            return False
+    def update_user_mode(self, user_id: int, mode: str):
+        """تحديث نوع الحساب"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users SET mode = ?, last_active = CURRENT_TIMESTAMP 
+            WHERE user_id = ?
+        """, (mode, user_id))
+        conn.commit()
+        conn.close()
     
-    def toggle_user_active(self, user_id: int) -> bool:
-        """تبديل حالة تشغيل/إيقاف المستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # الحصول على الحالة الحالية
-                cursor.execute("SELECT is_active FROM users WHERE user_id = ?", (user_id,))
-                row = cursor.fetchone()
-                if not row:
-                    return False
-                
-                current_status = row['is_active']
-                new_status = not bool(current_status)
-                
-                cursor.execute("""
-                    UPDATE users 
-                    SET is_active = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ?
-                """, (new_status, user_id))
-                
-                conn.commit()
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            logger.error(f"خطأ في تبديل حالة المستخدم {user_id}: {e}")
-            return False
+    def update_user_api(self, user_id: int, api_key: str, 
+                       api_secret: str, api_passphrase: str = None):
+        """تحديث بيانات API"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users SET api_key = ?, api_secret = ?, api_passphrase = ?,
+                           last_active = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+        """, (api_key, api_secret, api_passphrase, user_id))
+        conn.commit()
+        conn.close()
     
-    def update_user_settings(self, user_id: int, settings: Dict) -> bool:
-        """تحديث إعدادات المستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # تحديث إعدادات التداول
-                cursor.execute("""
-                    UPDATE user_settings 
-                    SET market_type = ?, trade_amount = ?, leverage = ?, account_type = ?
-                    WHERE user_id = ?
-                """, (
-                    settings.get('market_type', 'spot'),
-                    settings.get('trade_amount', 100.0),
-                    settings.get('leverage', 10),
-                    settings.get('account_type', 'demo'),
-                    user_id
-                ))
-                
-                # تحديث إعدادات المستخدم
-                cursor.execute("""
-                    UPDATE users 
-                    SET partial_percents = ?, tps_percents = ?, notifications = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ?
-                """, (
-                    json.dumps(settings.get('partial_percents', [25, 50, 25])),
-                    json.dumps(settings.get('tps_percents', [1.5, 3.0, 5.0])),
-                    settings.get('notifications', True),
-                    user_id
-                ))
-                
-                conn.commit()
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            logger.error(f"خطأ في تحديث إعدادات المستخدم {user_id}: {e}")
-            return False
+    def update_demo_balance(self, user_id: int, balance: float):
+        """تحديث رصيد الحساب التجريبي"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users SET demo_balance = ?, last_active = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+        """, (balance, user_id))
+        conn.commit()
+        conn.close()
     
-    # إدارة الصفقات
-    def create_order(self, order_data: Dict) -> bool:
+    def set_leverage(self, user_id: int, leverage: int):
+        """تعيين الرافعة المالية"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users SET leverage = ?, last_active = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+        """, (leverage, user_id))
+        conn.commit()
+        conn.close()
+    
+    # ==================== الصفقات ====================
+    
+    def create_trade(self, user_id: int, symbol: str, trade_type: str,
+                    side: str, entry_price: float, quantity: float,
+                    leverage: int = 1, stop_loss: float = None,
+                    take_profit: float = None, trailing_stop_percent: float = None,
+                    mode: str = 'demo', bybit_order_id: str = None) -> str:
         """إنشاء صفقة جديدة"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                quantity = order_data['quantity']
-                
-                cursor.execute("""
-                    INSERT INTO orders (
-                        order_id, user_id, symbol, side, entry_price, quantity,
-                        initial_quantity, current_quantity, take_profits, stop_loss, 
-                        partial_closes, status, market_type, leverage, 
-                        unrealized_pnl, realized_pnl, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    order_data['order_id'],
-                    order_data['user_id'],
-                    order_data['symbol'],
-                    order_data['side'],
-                    order_data['entry_price'],
-                    quantity,
-                    order_data.get('initial_quantity', quantity),
-                    order_data.get('current_quantity', quantity),
-                    json.dumps(order_data.get('take_profits', [])),
-                    json.dumps(order_data.get('stop_loss')) if order_data.get('stop_loss') else None,
-                    json.dumps(order_data.get('partial_closes', [])),
-                    order_data.get('status', 'OPEN'),
-                    order_data.get('market_type', 'spot'),
-                    order_data.get('leverage', 1),
-                    order_data.get('unrealized_pnl', 0.0),
-                    order_data.get('realized_pnl', 0.0),
-                    order_data.get('notes', '')
-                ))
-                
-                conn.commit()
-                return True
-                
-        except Exception as e:
-            logger.error(f"خطأ في إنشاء الصفقة: {e}")
-            return False
+        trade_id = str(uuid.uuid4())
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO trades (trade_id, user_id, symbol, trade_type, side,
+                              leverage, entry_price, current_price, quantity,
+                              stop_loss, take_profit, trailing_stop_percent,
+                              mode, bybit_order_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (trade_id, user_id, symbol, trade_type, side, leverage,
+              entry_price, entry_price, quantity, stop_loss, take_profit,
+              trailing_stop_percent, mode, bybit_order_id))
+        
+        conn.commit()
+        conn.close()
+        return trade_id
     
-    def get_user_orders(self, user_id: int, status: str = None) -> List[Dict]:
-        """الحصول على صفقات المستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                if status:
-                    cursor.execute("""
-                        SELECT * FROM orders 
-                        WHERE user_id = ? AND status = ?
-                        ORDER BY open_time DESC
-                    """, (user_id, status))
-                else:
-                    cursor.execute("""
-                        SELECT * FROM orders 
-                        WHERE user_id = ?
-                        ORDER BY open_time DESC
-                    """, (user_id,))
-                
-                rows = cursor.fetchall()
-                orders = []
-                
-                for row in rows:
-                    order = dict(row)
-                    
-                    # تحويل النصوص JSON إلى قوائم/قواميس
-                    try:
-                        order['take_profits'] = json.loads(order['take_profits']) if order.get('take_profits') else []
-                        order['stop_loss'] = json.loads(order['stop_loss']) if order.get('stop_loss') else None
-                        order['partial_closes'] = json.loads(order['partial_closes']) if order.get('partial_closes') else []
-                    except (json.JSONDecodeError, TypeError):
-                        order['take_profits'] = []
-                        order['stop_loss'] = None
-                        order['partial_closes'] = []
-                    
-                    # دعم الحقول القديمة للتوافق
-                    if 'tps' in order and not order.get('take_profits'):
-                        try:
-                            order['take_profits'] = json.loads(order['tps']) if order.get('tps') else []
-                        except:
-                            pass
-                    
-                    if 'sl' in order and not order.get('stop_loss') and order.get('sl'):
-                        order['stop_loss'] = {'value': order['sl'], 'is_percentage_based': False}
-                    
-                    if 'partial_close' in order and not order.get('partial_closes'):
-                        try:
-                            order['partial_closes'] = json.loads(order['partial_close']) if order.get('partial_close') else []
-                        except:
-                            pass
-                    
-                    orders.append(order)
-                
-                return orders
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على صفقات المستخدم {user_id}: {e}")
-            return []
+    def get_open_trades(self, user_id: int) -> List[Dict]:
+        """الحصول على الصفقات المفتوحة"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM trades 
+            WHERE user_id = ? AND status = 'open'
+            ORDER BY opened_at DESC
+        """, (user_id,))
+        trades = cursor.fetchall()
+        conn.close()
+        return [dict(trade) for trade in trades]
     
-    def get_order(self, order_id: str) -> Optional[Dict]:
+    def get_trade(self, trade_id: str) -> Optional[Dict]:
         """الحصول على صفقة محددة"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("SELECT * FROM orders WHERE order_id = ?", (order_id,))
-                row = cursor.fetchone()
-                
-                if row:
-                    order = dict(row)
-                    
-                    # تحويل النصوص JSON إلى قوائم/قواميس
-                    try:
-                        order['take_profits'] = json.loads(order['take_profits']) if order.get('take_profits') else []
-                        order['stop_loss'] = json.loads(order['stop_loss']) if order.get('stop_loss') else None
-                        order['partial_closes'] = json.loads(order['partial_closes']) if order.get('partial_closes') else []
-                    except (json.JSONDecodeError, TypeError):
-                        order['take_profits'] = []
-                        order['stop_loss'] = None
-                        order['partial_closes'] = []
-                    
-                    # دعم الحقول القديمة للتوافق
-                    if 'tps' in order and not order.get('take_profits'):
-                        try:
-                            order['take_profits'] = json.loads(order['tps']) if order.get('tps') else []
-                        except:
-                            pass
-                    
-                    if 'sl' in order and not order.get('stop_loss') and order.get('sl'):
-                        order['stop_loss'] = {'value': order['sl'], 'is_percentage_based': False}
-                    
-                    if 'partial_close' in order and not order.get('partial_closes'):
-                        try:
-                            order['partial_closes'] = json.loads(order['partial_close']) if order.get('partial_close') else []
-                        except:
-                            pass
-                    
-                    return order
-                return None
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على الصفقة {order_id}: {e}")
-            return None
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trades WHERE trade_id = ?", (trade_id,))
+        trade = cursor.fetchone()
+        conn.close()
+        return dict(trade) if trade else None
     
-    def close_order(self, order_id: str, closing_price: float, realized_pnl: float) -> bool:
-        """إغلاق صفقة وتحديث حالتها في قاعدة البيانات"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    UPDATE orders 
-                    SET status = 'CLOSED', 
-                        realized_pnl = ?, 
-                        close_time = CURRENT_TIMESTAMP,
-                        notes = COALESCE(notes, '') || ' | إغلاق كامل بسعر ' || ? || ' بتاريخ ' || datetime('now')
-                    WHERE order_id = ?
-                """, (realized_pnl, closing_price, order_id))
-                
-                conn.commit()
-                logger.info(f"تم إغلاق الصفقة {order_id} بربح/خسارة {realized_pnl}")
-                return True
-                
-        except Exception as e:
-            logger.error(f"خطأ في إغلاق الصفقة: {e}")
-            return False
+    def update_trade_price(self, trade_id: str, current_price: float, 
+                          profit_loss: float, profit_loss_percent: float):
+        """تحديث سعر وربح/خسارة الصفقة"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE trades 
+            SET current_price = ?, profit_loss = ?, profit_loss_percent = ?
+            WHERE trade_id = ?
+        """, (current_price, profit_loss, profit_loss_percent, trade_id))
+        conn.commit()
+        conn.close()
     
-    def record_partial_close(self, order_id: str, percentage: float, closing_price: float, 
-                            pnl: float, remaining_quantity: float) -> bool:
-        """تسجيل إغلاق جزئي لصفقة في قاعدة البيانات"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # الحصول على الصفقة الحالية
-                cursor.execute("SELECT partial_closes, current_quantity FROM orders WHERE order_id = ?", (order_id,))
-                row = cursor.fetchone()
-                
-                if not row:
-                    return False
-                
-                # تحديث سجل الإغلاقات الجزئية
-                partial_closes_json = row['partial_closes']
-                try:
-                    partial_closes = json.loads(partial_closes_json) if partial_closes_json else []
-                except:
-                    partial_closes = []
-                
-                # إضافة سجل جديد
-                partial_closes.append({
-                    'percentage': percentage,
-                    'closing_price': closing_price,
-                    'pnl': pnl,
-                    'timestamp': datetime.now().isoformat()
-                })
-                
-                # حساب إذا كانت الصفقة مغلقة بالكامل
-                total_closed_percentage = sum([pc.get('percentage', 0) for pc in partial_closes])
-                status = 'CLOSED' if total_closed_percentage >= 100 or remaining_quantity <= 0 else 'PARTIAL_CLOSED'
-                
-                # إذا أغلقت بالكامل، حدّث وقت الإغلاق
-                close_time_update = ", close_time = CURRENT_TIMESTAMP" if status == 'CLOSED' else ""
-                
-                # تحديث قاعدة البيانات
-                cursor.execute(f"""
-                    UPDATE orders 
-                    SET current_quantity = ?,
-                        partial_closes = ?,
-                        realized_pnl = realized_pnl + ?,
-                        status = ?
-                        {close_time_update},
-                        notes = COALESCE(notes, '') || ' | إغلاق جزئي ' || ? || '% بسعر ' || ? || ' بتاريخ ' || datetime('now')
-                    WHERE order_id = ?
-                """, (
-                    remaining_quantity,
-                    json.dumps(partial_closes),
-                    pnl,
-                    status,
-                    percentage,
-                    closing_price,
-                    order_id
-                ))
-                
-                conn.commit()
-                logger.info(f"تم تسجيل إغلاق جزئي للصفقة {order_id}: {percentage}% PnL={pnl}")
-                return True
-                
-        except Exception as e:
-            logger.error(f"خطأ في تسجيل الإغلاق الجزئي: {e}")
-            return False
+    def close_trade(self, trade_id: str, close_price: float, 
+                   profit_loss: float, profit_loss_percent: float,
+                   partial_percent: float = 100):
+        """إغلاق صفقة (كلي أو جزئي)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        if partial_percent >= 100:
+            # إغلاق كامل
+            cursor.execute("""
+                UPDATE trades 
+                SET status = 'closed', current_price = ?, profit_loss = ?,
+                    profit_loss_percent = ?, closed_at = CURRENT_TIMESTAMP
+                WHERE trade_id = ?
+            """, (close_price, profit_loss, profit_loss_percent, trade_id))
+        else:
+            # إغلاق جزئي - تحديث الكمية
+            trade = self.get_trade(trade_id)
+            new_quantity = trade['quantity'] * (1 - partial_percent / 100)
+            cursor.execute("""
+                UPDATE trades 
+                SET quantity = ?, profit_loss = profit_loss + ?
+                WHERE trade_id = ?
+            """, (new_quantity, profit_loss, trade_id))
+        
+        conn.commit()
+        conn.close()
     
-    def update_order(self, order_id: str, updates: Dict) -> bool:
-        """تحديث صفقة"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # بناء استعلام التحديث
-                set_clauses = []
-                values = []
-                
-                for key, value in updates.items():
-                    if key in ['take_profits', 'partial_closes', 'tps', 'partial_close']:
-                        set_clauses.append(f"{key} = ?")
-                        values.append(json.dumps(value))
-                    elif key == 'stop_loss':
-                        set_clauses.append(f"{key} = ?")
-                        values.append(json.dumps(value) if value is not None else None)
-                    else:
-                        set_clauses.append(f"{key} = ?")
-                        values.append(value)
-                
-                if set_clauses:
-                    values.append(order_id)
-                    query = f"UPDATE orders SET {', '.join(set_clauses)} WHERE order_id = ?"
-                    
-                    cursor.execute(query, values)
-                    conn.commit()
-                    return cursor.rowcount > 0
-                
-                return False
-                
-        except Exception as e:
-            logger.error(f"خطأ في تحديث الصفقة {order_id}: {e}")
-            return False
+    def update_trailing_stop(self, trade_id: str, new_trailing_stop: float):
+        """تحديث الإيقاف المتحرك"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE trades SET trailing_stop = ? WHERE trade_id = ?
+        """, (new_trailing_stop, trade_id))
+        conn.commit()
+        conn.close()
     
-    def close_order(self, order_id: str, close_price: float, pnl: float) -> bool:
-        """إغلاق صفقة"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    UPDATE orders 
-                    SET status = 'CLOSED', close_time = CURRENT_TIMESTAMP
-                    WHERE order_id = ?
-                """, (order_id,))
-                
-                conn.commit()
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            logger.error(f"خطأ في إغلاق الصفقة {order_id}: {e}")
-            return False
+    # ==================== الإشارات ====================
     
-    def get_all_active_users(self) -> List[Dict]:
-        """الحصول على جميع المستخدمين النشطين"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT u.*, s.* FROM users u
-                    LEFT JOIN user_settings s ON u.user_id = s.user_id
-                    WHERE u.is_active = 1
-                """)
-                
-                rows = cursor.fetchall()
-                users = []
-                
-                for row in rows:
-                    user_data = dict(row)
-                    
-                    # تحويل النصوص JSON إلى قوائم
-                    try:
-                        user_data['partial_percents'] = json.loads(user_data['partial_percents'])
-                        user_data['tps_percents'] = json.loads(user_data['tps_percents'])
-                        user_data['preferred_symbols'] = json.loads(user_data['preferred_symbols'])
-                    except (json.JSONDecodeError, TypeError):
-                        user_data['partial_percents'] = [25, 50, 25]
-                        user_data['tps_percents'] = [1.5, 3.0, 5.0]
-                        user_data['preferred_symbols'] = ["BTCUSDT", "ETHUSDT"]
-                    
-                    users.append(user_data)
-                
-                return users
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على المستخدمين النشطين: {e}")
-            return []
+    def create_signal(self, sender_id: int, symbol: str, action: str,
+                     leverage: int = 1, stop_loss: float = None,
+                     take_profit: float = None, message: str = None) -> str:
+        """إنشاء إشارة جديدة"""
+        signal_id = str(uuid.uuid4())
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO signals (signal_id, sender_id, symbol, action,
+                               leverage, stop_loss, take_profit, message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (signal_id, sender_id, symbol, action, leverage,
+              stop_loss, take_profit, message))
+        
+        conn.commit()
+        conn.close()
+        return signal_id
     
-    def get_user_statistics(self, user_id: int) -> Dict:
+    def increment_signal_execution(self, signal_id: str):
+        """زيادة عداد تنفيذ الإشارة"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE signals 
+            SET executed_count = executed_count + 1 
+            WHERE signal_id = ?
+        """, (signal_id,))
+        conn.commit()
+        conn.close()
+    
+    # ==================== مشتركي Nagdat ====================
+    
+    def subscribe_to_nagdat(self, user_id: int):
+        """الاشتراك في إشارات Nagdat"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # تحديث جدول المستخدمين
+        cursor.execute("""
+            UPDATE users SET activated_nagdat = 1 WHERE user_id = ?
+        """, (user_id,))
+        
+        # إضافة للمشتركين
+        cursor.execute("""
+            INSERT OR IGNORE INTO nagdat_subscribers (user_id) VALUES (?)
+        """, (user_id,))
+        
+        conn.commit()
+        conn.close()
+    
+    def unsubscribe_from_nagdat(self, user_id: int):
+        """إلغاء الاشتراك من إشارات Nagdat"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE users SET activated_nagdat = 0 WHERE user_id = ?
+        """, (user_id,))
+        
+        cursor.execute("""
+            DELETE FROM nagdat_subscribers WHERE user_id = ?
+        """, (user_id,))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_nagdat_subscribers(self) -> List[int]:
+        """الحصول على قائمة المشتركين في إشارات Nagdat"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM nagdat_subscribers")
+        subscribers = cursor.fetchall()
+        conn.close()
+        return [sub['user_id'] for sub in subscribers]
+    
+    def increment_subscriber_signals(self, user_id: int):
+        """زيادة عداد الإشارات المستلمة"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE nagdat_subscribers 
+            SET signals_received = signals_received + 1 
+            WHERE user_id = ?
+        """, (user_id,))
+        conn.commit()
+        conn.close()
+    
+    # ==================== الإحصائيات ====================
+    
+    def update_statistics(self, user_id: int, trade_profit: float):
+        """تحديث إحصائيات المستخدم"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        if trade_profit > 0:
+            cursor.execute("""
+                UPDATE statistics 
+                SET total_trades = total_trades + 1,
+                    winning_trades = winning_trades + 1,
+                    total_profit = total_profit + ?,
+                    best_trade = MAX(best_trade, ?),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """, (trade_profit, trade_profit, user_id))
+        else:
+            cursor.execute("""
+                UPDATE statistics 
+                SET total_trades = total_trades + 1,
+                    losing_trades = losing_trades + 1,
+                    total_loss = total_loss + ?,
+                    worst_trade = MIN(worst_trade, ?),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """, (abs(trade_profit), trade_profit, user_id))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_statistics(self, user_id: int) -> Optional[Dict]:
         """الحصول على إحصائيات المستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # إجمالي الصفقات
-                cursor.execute("""
-                    SELECT COUNT(*) as total_orders FROM orders WHERE user_id = ?
-                """, (user_id,))
-                total_orders = cursor.fetchone()['total_orders']
-                
-                # الصفقات المفتوحة
-                cursor.execute("""
-                    SELECT COUNT(*) as open_orders FROM orders 
-                    WHERE user_id = ? AND status = 'OPEN'
-                """, (user_id,))
-                open_orders = cursor.fetchone()['open_orders']
-                
-                # الصفقات المغلقة
-                cursor.execute("""
-                    SELECT COUNT(*) as closed_orders FROM orders 
-                    WHERE user_id = ? AND status = 'CLOSED'
-                """, (user_id,))
-                closed_orders = cursor.fetchone()['closed_orders']
-                
-                return {
-                    'total_orders': total_orders,
-                    'open_orders': open_orders,
-                    'closed_orders': closed_orders
-                }
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على إحصائيات المستخدم {user_id}: {e}")
-            return {
-                'total_orders': 0,
-                'open_orders': 0,
-                'closed_orders': 0
-            }
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM statistics WHERE user_id = ?", (user_id,))
+        stats = cursor.fetchone()
+        conn.close()
+        return dict(stats) if stats else None
+    
+    # ==================== المطور ====================
+    
+    def get_all_users_count(self) -> int:
+        """عدد المستخدمين الكلي"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) as count FROM users")
+        count = cursor.fetchone()['count']
+        conn.close()
+        return count
+    
+    def get_active_users_count(self) -> int:
+        """عدد المستخدمين النشطين"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM users 
+            WHERE last_active >= datetime('now', '-7 days')
+        """)
+        count = cursor.fetchone()['count']
+        conn.close()
+        return count
+    
+    def get_total_signals_sent(self) -> int:
+        """عدد الإشارات المرسلة"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) as count FROM signals")
+        count = cursor.fetchone()['count']
+        conn.close()
+        return count
 
-# إنشاء مثيل عام لقاعدة البيانات
-db_manager = DatabaseManager()
+
+# إنشاء instance عام
+db = Database()

@@ -1,0 +1,28 @@
+# ============================================
+# Bybit Trading Bot - Environment Variables
+# انسخ هذا الملف إلى .env وأضف بياناتك
+# ============================================
+
+# Telegram Bot Configuration
+TELEGRAM_TOKEN=your_telegram_bot_token_here
+ADMIN_USER_ID=8169000394
+
+# Developer Configuration
+DEVELOPER_SECRET_KEY=your_secret_key_here
+DEVELOPER_WEBHOOK=https://your-app.railway.app/webhook/nagdat
+
+# Webhook Server Configuration
+WEBHOOK_HOST=0.0.0.0
+WEBHOOK_PORT=5000
+BASE_WEBHOOK_URL=https://your-app.railway.app
+
+# Database (optional, defaults to botbybit.db)
+# DATABASE_PATH=botbybit.db
+
+# Bybit API (optional, for testing)
+# BYBIT_API_KEY=your_api_key
+# BYBIT_API_SECRET=your_api_secret
+
+# Logging Level (DEBUG, INFO, WARNING, ERROR)
+LOG_LEVEL=INFO
+

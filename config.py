@@ -1,110 +1,128 @@
-# -*- coding: utf-8 -*-
 """
-ملف إعدادات بوت التداول على Bybit
-قم بتحديث المعلومات التالية حسب حسابك
+⚙️ إعدادات البوت - Bybit Trading Bot Configuration
 """
-
 import os
 from dotenv import load_dotenv
 
-# تحميل متغيرات البيئة
 load_dotenv()
 
-# إعدادات تلغرام
+# 🔐 معلومات Telegram
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw")
 ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
 
-# إعدادات Bybit API
-BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "osH14PNXCGzrxQLT0T")
-BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "kpP2LHqNOc8Z2P1QjKB5Iw874x7Q2QXGfBHX")
-BYBIT_BASE_URL = "https://api.bybit.com"
-
-# إعدادات Webhook
-# Use Railway's provided URL if available, otherwise use ngrok or localhost
-RAILWAY_URL = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
-RENDER_URL = os.getenv('RENDER_EXTERNAL_URL')
-
-# Railway will set the PORT environment variable
-PORT = int(os.getenv('PORT', '5000'))
-
-# Webhook URL configuration for Railway
-if RAILWAY_URL:
-    # Ensure the URL has the correct protocol
-    if not RAILWAY_URL.startswith('http'):
-        RAILWAY_URL = f"https://{RAILWAY_URL}"
-    WEBHOOK_URL = f"{RAILWAY_URL}/webhook"
-elif RENDER_URL:
-    WEBHOOK_URL = f"{RENDER_URL}/webhook"
-else:
-    WEBHOOK_URL = os.getenv('WEBHOOK_URL', f"http://localhost:{PORT}/webhook")
-
-WEBHOOK_PORT = PORT  # Use Railway's PORT
-
-# إعدادات افتراضية للبوت
-DEFAULT_SETTINGS = {
-    'account_type': 'demo',          # demo أو real
-    'market_type': 'spot',           # spot أو futures
-    'trade_amount': 100.0,           # مبلغ التداول الافتراضي
-    'leverage': 10,                  # الرافعة المالية للفيوتشر
-    'profit_plan': 'trailing',       # trailing أو multi_tp
-    'trailing_stop_percent': 0.5,    # نسبة التوقف المتحرك
-    'tp1_percent': 1.5,              # هدف الربح الأول
-    'tp2_percent': 3.0,              # هدف الربح الثاني
-    'tp3_percent': 6.0,              # هدف الربح الثالث
-    'stop_loss_percent': 2.0,        # نسبة وقف الخسارة
-    'language': 'ar'                 # اللغة
+# 👨‍💻 معلومات المطور Nagdat
+DEVELOPER_INFO = {
+    "developer_name": "Nagdat",
+    "developer_id": ADMIN_USER_ID,
+    "developer_secret_key": os.getenv('DEVELOPER_SECRET_KEY', "NAGDAT-KEY-2024"),
+    "developer_signal_webhook": os.getenv('DEVELOPER_WEBHOOK', "https://railway.app/nagdat/signal"),
+    "enable_broadcast_signals": True
 }
 
-# إعدادات الحساب التجريبي الداخلي
-DEMO_ACCOUNT_SETTINGS = {
-    'initial_balance_spot': 10000.0,     # الرصيد الأولي للسبوت
-    'initial_balance_futures': 10000.0,  # الرصيد الأولي للفيوتشر
+# 🌐 إعدادات Webhook Server
+WEBHOOK_HOST = os.getenv('WEBHOOK_HOST', '0.0.0.0')
+WEBHOOK_PORT = int(os.getenv('PORT', os.getenv('WEBHOOK_PORT', '5000')))  # Railway uses PORT
+BASE_WEBHOOK_URL = os.getenv('BASE_WEBHOOK_URL', os.getenv('RAILWAY_STATIC_URL', 'https://your-railway-app.railway.app'))
+
+# 💰 إعدادات الحساب التجريبي
+DEMO_INITIAL_BALANCE = 10000  # رصيد ابتدائي
+DEMO_CURRENCY = "USDT"
+
+# 📊 إعدادات التداول
+TRADING_CONFIG = {
+    "min_leverage": 1,
+    "max_leverage": 20,
+    "default_leverage": 10,
+    "min_order_size": 10,  # الحد الأدنى للصفقة بالدولار
+    "max_order_size": 100000,
+    "default_stop_loss_percent": 2,  # 2%
+    "default_take_profit_percent": 5,  # 5%
+    "trailing_stop_percent": 1,  # 1%
+    "partial_close_options": [25, 50, 75],  # نسب الإغلاق الجزئي
 }
 
-# إعدادات الأمان
-SECURITY_SETTINGS = {
-    'max_retries': 3,                    # عدد المحاولات القصوى
-    'request_timeout': 10,               # مهلة الطلب بالثواني
-    'rate_limit_delay': 0.1,            # تأخير بين الطلبات
+# 🔄 إعدادات تحديث الأسعار
+PRICE_UPDATE_INTERVAL = 3  # ثواني
+CACHE_DURATION = 60  # ثانية للـ Cache
+
+# 🎨 الألوان والرموز
+COLORS = {
+    "green": "🟢",
+    "red": "🔴",
+    "yellow": "🟡",
+    "blue": "🔵",
+    "white": "⚪"
 }
 
-# إعدادات التسجيل
-LOGGING_SETTINGS = {
-    'log_file': 'trading_bot.log',
-    'log_level': 'INFO',
-    'max_log_size': 10 * 1024 * 1024,   # 10 MB
-    'backup_count': 5
+EMOJIS = {
+    "rocket": "🚀",
+    "chart_up": "📈",
+    "chart_down": "📉",
+    "money": "💰",
+    "wallet": "👛",
+    "signal": "⚡",
+    "warning": "⚠️",
+    "success": "✅",
+    "error": "❌",
+    "info": "ℹ️",
+    "settings": "⚙️",
+    "star": "⭐",
+    "fire": "🔥",
+    "lock": "🔒",
+    "unlock": "🔓",
+    "bell": "🔔",
+    "muted": "🔕",
+    "target": "🎯",
+    "shield": "🛡️"
 }
 
-# رسائل البوت
+# 📁 قاعدة البيانات
+DATABASE_PATH = "botbybit.db"
+
+# 🔐 Bybit API Configuration
+BYBIT_TESTNET = {
+    "base_url": "https://api-testnet.bybit.com",
+    "websocket": "wss://stream-testnet.bybit.com"
+}
+
+BYBIT_MAINNET = {
+    "base_url": "https://api.bybit.com",
+    "websocket": "wss://stream.bybit.com"
+}
+
+# 📝 الرسائل
 MESSAGES = {
-    'welcome': """
-🤖 مرحباً بك في بوت التداول على Bybit
+    "welcome": """
+{rocket} مرحباً بك في بوت Bybit Trading Bot {rocket}
 
-🔧 الميزات المتاحة:
-• التداول الحقيقي والتجريبي الداخلي
-• دعم أسواق Spot و Futures
-• استقبال إشارات من TradingView
-• خطط جني الأرباح المتقدمة
-• إدارة المخاطر
+{star} منصة تداول احترافية متكاملة
+{chart_up} دعم Spot & Futures
+{shield} أدوات إدارة المخاطر المتقدمة
+{signal} إشارات احترافية من Nagdat
 
-استخدم الأزرار أدناه للتنقل في البوت
+اختر نوع الحساب للبدء:
     """,
     
-    'bot_started': "✅ تم تشغيل البوت، سيتم معالجة الإشارات الواردة",
-    'bot_stopped': "⏹️ تم إيقاف البوت، لن يتم معالجة الإشارات الجديدة",
-    'symbol_not_found': "❌ الرمز {} غير موجود في منصة Bybit",
-    'insufficient_balance': "❌ الرصيد غير كافي لفتح الصفقة",
-    'trade_success': "✅ تم تنفيذ الصفقة بنجاح",
-    'trade_failed': "❌ فشل في تنفيذ الصفقة: {}",
-    'no_open_positions': "📭 لا توجد صفقات مفتوحة حالياً",
-    'position_closed': "✅ تم إغلاق الصفقة بنجاح",
-    'unauthorized': "غير مصرح لك باستخدام هذا البوت"
-}
+    "help": """
+📖 دليل الاستخدام:
 
-# إعدادات قاعدة البيانات (إذا كنت تريد حفظ البيانات)
-DATABASE_SETTINGS = {
-    'enabled': False,
-    'type': 'sqlite',  # sqlite, mysql, postgresql
-    'filename': 'trading_bot.db'
+1️⃣ اختر نوع الحساب (تجريبي/حقيقي)
+2️⃣ ابدأ التداول مع أدوات احترافية
+3️⃣ اشترك في إشارات Nagdat للحصول على توصيات
+4️⃣ راقب صفقاتك المفتوحة
+5️⃣ استخدم أدوات إدارة المخاطر
+
+{warning} الحساب التجريبي: محاكاة كاملة للسوق
+{fire} الحساب الحقيقي: تداول فعلي عبر Bybit API
+    """,
+    
+    "developer_panel": """
+{star} لوحة المطور - Nagdat Panel {star}
+
+{info} عدد المشتركين: {subscribers}
+{chart_up} إشارات مرسلة: {signals_sent}
+{fire} البوت نشط
+
+اختر العملية:
+    """
 }
