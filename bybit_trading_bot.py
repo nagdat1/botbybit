@@ -988,19 +988,27 @@ user_manager.load_all_users()
 
 # تهيئة نظام المطورين
 try:
+    # تشغيل init_developers
     init_developers.init_developers()
     logger.info("✅ تم تهيئة نظام المطورين بنجاح")
     
+    # إعادة تحميل المطورين
+    developer_manager.load_all_developers()
+    
     # التأكد من إضافة المطور الرئيسي (ADMIN_USER_ID)
-    if not developer_manager.is_developer(ADMIN_USER_ID):
+    dev_exists = db_manager.get_developer(ADMIN_USER_ID)
+    
+    if not dev_exists:
         logger.warning(f"⚠️ المطور الرئيسي غير موجود، سيتم إضافته الآن...")
-        success = developer_manager.create_developer(
+        success = db_manager.create_developer(
             developer_id=ADMIN_USER_ID,
             developer_name="Nagdat",
             developer_key="NAGDAT-KEY-2024",
             webhook_url=None
         )
         if success:
+            # إعادة تحميل المطورين
+            developer_manager.load_all_developers()
             logger.info(f"✅ تم إضافة المطور الرئيسي: {ADMIN_USER_ID}")
         else:
             logger.error(f"❌ فشل في إضافة المطور الرئيسي")
@@ -1011,6 +1019,20 @@ except Exception as e:
     logger.error(f"❌ خطأ في تهيئة نظام المطورين: {e}")
     import traceback
     traceback.print_exc()
+    
+    # محاولة إنشاء المطور مباشرة إذا فشل كل شيء
+    try:
+        logger.info("محاولة إنشاء المطور مباشرة...")
+        db_manager.create_developer(
+            developer_id=ADMIN_USER_ID,
+            developer_name="Nagdat",
+            developer_key="NAGDAT-KEY-2024",
+            webhook_url=None
+        )
+        developer_manager.load_all_developers()
+        logger.info("✅ تم إنشاء المطور بنجاح (المحاولة الثانية)")
+    except Exception as e2:
+        logger.error(f"❌ فشلت المحاولة الثانية: {e2}")
 
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
@@ -1025,31 +1047,50 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     developer_id = user_id
     
-    # التأكد من وجود المطور في قاعدة البيانات
-    dev_info = developer_manager.get_developer(developer_id)
-    
-    if not dev_info:
-        # إضافة المطور تلقائياً
-        logger.info(f"إضافة المطور {developer_id} تلقائياً في show_developer_panel...")
-        success = developer_manager.create_developer(
-            developer_id=developer_id,
-            developer_name=update.effective_user.first_name or "Nagdat",
-            developer_key=f"DEV-KEY-{developer_id}",
-            webhook_url=None
-        )
+    # محاولة الحصول على معلومات المطور
+    try:
+        dev_info = developer_manager.get_developer(developer_id)
         
-        if success:
-            # إعادة تحميل معلومات المطور
-            developer_manager.load_all_developers()
-            dev_info = developer_manager.get_developer(developer_id)
-            logger.info(f"✅ تم إضافة المطور {developer_id} بنجاح")
-        else:
-            if update.message:
-                await update.message.reply_text("❌ خطأ في إنشاء حساب المطور. يرجى المحاولة مرة أخرى.")
-            return
-    
-    # الحصول على إحصائيات المطور
-    stats = developer_manager.get_developer_statistics(developer_id)
+        if not dev_info:
+            # إضافة المطور تلقائياً
+            logger.info(f"إضافة المطور {developer_id} تلقائياً...")
+            try:
+                success = db_manager.create_developer(
+                    developer_id=developer_id,
+                    developer_name=update.effective_user.first_name or "Nagdat",
+                    developer_key=f"DEV-KEY-{developer_id}",
+                    webhook_url=None
+                )
+                
+                if success:
+                    # إعادة تحميل معلومات المطور
+                    developer_manager.load_all_developers()
+                    dev_info = developer_manager.get_developer(developer_id)
+                    logger.info(f"✅ تم إضافة المطور {developer_id} بنجاح")
+            except Exception as e:
+                logger.error(f"خطأ في إنشاء المطور: {e}")
+        
+        # الحصول على إحصائيات المطور (مع قيم افتراضية)
+        try:
+            stats = developer_manager.get_developer_statistics(developer_id)
+        except:
+            stats = {
+                'follower_count': 0,
+                'total_signals': 0,
+                'is_active': True,
+                'can_broadcast': True
+            }
+        
+    except Exception as e:
+        logger.error(f"خطأ في show_developer_panel: {e}")
+        # استخدام قيم افتراضية
+        dev_info = {'developer_name': 'Nagdat'}
+        stats = {
+            'follower_count': 0,
+            'total_signals': 0,
+            'is_active': True,
+            'can_broadcast': True
+        }
     
     # الحصول على عدد المستخدمين
     all_users = user_manager.get_all_active_users()
@@ -1223,26 +1264,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_id = update.effective_user.id
     
-    # التحقق من أن المستخدم هو المطور (بطريقتين للتأكد)
-    # الطريقة 1: التحقق من ID مباشرة
+    # التحقق من أن المستخدم هو المطور
+    # استخدام ADMIN_USER_ID مباشرة من config.py
     is_admin = (user_id == ADMIN_USER_ID)
     
-    # الطريقة 2: التحقق من قاعدة البيانات
-    is_dev_in_db = developer_manager.is_developer(user_id)
-    
-    # إذا كان المستخدم هو ADMIN لكن غير موجود في قاعدة البيانات، أضفه
-    if is_admin and not is_dev_in_db:
-        logger.info(f"إضافة المطور {user_id} تلقائياً...")
-        developer_manager.create_developer(
-            developer_id=user_id,
-            developer_name="Nagdat",
-            developer_key="NAGDAT-KEY-2024",
-            webhook_url=None
-        )
-        is_dev_in_db = True
-    
-    # إذا كان مطور، عرض لوحة التحكم
-    if is_admin or is_dev_in_db:
+    # إذا كان المستخدم هو ADMIN، عرض لوحة التحكم مباشرة
+    if is_admin:
         # عرض لوحة تحكم المطور
         await show_developer_panel(update, context)
         return
