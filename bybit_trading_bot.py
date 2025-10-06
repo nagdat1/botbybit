@@ -30,6 +30,10 @@ from config import *
 from database import db_manager
 from user_manager import user_manager
 
+# استيراد نظام المطورين
+from developer_manager import developer_manager
+import init_developers
+
 # إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -982,8 +986,185 @@ user_manager = um_module.user_manager
 # تحميل المستخدمين من قاعدة البيانات
 user_manager.load_all_users()
 
+# تهيئة نظام المطورين
+try:
+    init_developers.init_developers()
+    logger.info("✅ تم تهيئة نظام المطورين بنجاح")
+except Exception as e:
+    logger.error(f"❌ خطأ في تهيئة نظام المطورين: {e}")
+
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
+
+# ==================== وظائف المطورين ====================
+
+async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض لوحة تحكم المطور"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    developer_id = user_id
+    
+    # الحصول على إحصائيات المطور
+    stats = developer_manager.get_developer_statistics(developer_id)
+    dev_info = developer_manager.get_developer(developer_id)
+    
+    if not dev_info:
+        if update.message:
+            await update.message.reply_text("❌ خطأ: لم يتم العثور على معلومات المطور")
+        return
+    
+    # بناء رسالة الإحصائيات
+    message = f"""
+👨‍💻 لوحة تحكم المطور - {dev_info['developer_name']}
+
+📊 الإحصائيات:
+• عدد المتابعين: {stats['follower_count']} 👥
+• الإشارات المرسلة: {stats['total_signals']} 📡
+• الحالة: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
+• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+
+استخدم الأزرار أدناه للتنقل في لوحة التحكم
+    """
+    
+    # إنشاء الأزرار
+    keyboard = [
+        [KeyboardButton("📡 إرسال إشارة"), KeyboardButton("👥 المتابعين")],
+        [KeyboardButton("📊 إحصائيات المطور"), KeyboardButton("👥 إدارة المستخدمين")],
+        [KeyboardButton("📱 إشعار جماعي"), KeyboardButton("⚙️ إعدادات المطور")],
+        [KeyboardButton("🔄 تحديث"), KeyboardButton("👤 الوضع العادي")]
+    ]
+    
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    if update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup)
+    elif update.callback_query:
+        await update.callback_query.message.edit_text(message)
+
+async def handle_send_signal_developer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالجة إرسال إشارة من المطور"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    
+    if not developer_manager.can_broadcast_signals(user_id):
+        if update.message:
+            await update.message.reply_text("❌ ليس لديك صلاحية لإرسال إشارات")
+        return
+    
+    # عرض نموذج إرسال الإشارة
+    message = """
+📡 إرسال إشارة للمتابعين
+
+أرسل الإشارة بالصيغة التالية:
+
+<code>SYMBOL:ACTION:PRICE</code>
+
+مثال:
+<code>BTCUSDT:BUY:50000</code>
+
+أو استخدم الأزرار أدناه:
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("📈 BUY Bitcoin", callback_data="dev_signal_BTCUSDT_BUY")],
+        [InlineKeyboardButton("📉 SELL Bitcoin", callback_data="dev_signal_BTCUSDT_SELL")],
+        [InlineKeyboardButton("📈 BUY Ethereum", callback_data="dev_signal_ETHUSDT_BUY")],
+        [InlineKeyboardButton("📉 SELL Ethereum", callback_data="dev_signal_ETHUSDT_SELL")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
+
+async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض قائمة المتابعين"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    followers = developer_manager.get_followers(user_id)
+    
+    if not followers:
+        if update.message:
+            await update.message.reply_text("📭 لا يوجد متابعين حالياً")
+        return
+    
+    message = f"👥 قائمة المتابعين ({len(followers)} متابع)\n\n"
+    
+    for i, follower_id in enumerate(followers[:50], 1):
+        user = user_manager.get_user(follower_id)
+        if user:
+            status = "🟢" if user.get('is_active') else "🔴"
+            message += f"{i}. {status} User ID: {follower_id}\n"
+        else:
+            message += f"{i}. ⚪ User ID: {follower_id}\n"
+    
+    if len(followers) > 50:
+        message += f"\n... و {len(followers) - 50} متابع آخرين"
+    
+    keyboard = [
+        [InlineKeyboardButton("🔄 تحديث", callback_data="dev_show_followers")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup)
+
+async def handle_developer_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض إحصائيات المطور المفصلة"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    stats = developer_manager.get_developer_statistics(user_id)
+    dev_info = developer_manager.get_developer(user_id)
+    
+    # إحصائيات المستخدمين
+    all_users = user_manager.get_all_active_users()
+    total_users = len(db_manager.get_all_developers()) + len(all_users)
+    active_users = len(all_users)
+    
+    message = f"""
+📊 إحصائيات مفصلة - {dev_info['developer_name']}
+
+👥 إحصائيات المتابعة:
+• إجمالي المتابعين: {stats['follower_count']}
+• المتابعين النشطين: {len([u for u in all_users if u['user_id'] in developer_manager.get_followers(user_id)])}
+
+📡 إحصائيات الإشارات:
+• إجمالي الإشارات المرسلة: {stats['total_signals']}
+• متوسط الإشارات اليومية: {stats['total_signals'] / 30:.1f}
+
+👤 إحصائيات المستخدمين:
+• إجمالي المستخدمين: {total_users}
+• المستخدمين النشطين: {active_users}
+• معدل التفاعل: {(stats['follower_count'] / max(total_users, 1)) * 100:.1f}%
+
+⚙️ حالة النظام:
+• حالة المطور: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
+• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+• آخر تحديث: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔄 تحديث", callback_data="dev_stats")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup)
+
+# ==================== نهاية وظائف المطورين ====================
 
 # وظائف البوت (نفس الوظائف السابقة مع تحديثات طفيفة)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -992,6 +1173,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     user_id = update.effective_user.id
+    
+    # التحقق من أن المستخدم هو المطور
+    if developer_manager.is_developer(user_id):
+        # عرض لوحة تحكم المطور
+        await show_developer_panel(update, context)
+        return
     
     # التحقق من وجود المستخدم في قاعدة البيانات
     user_data = user_manager.get_user(user_id)
@@ -1936,6 +2123,74 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+    # معالجة أزرار المطور
+    elif data == "developer_panel":
+        await show_developer_panel(update, context)
+    elif data == "dev_show_followers":
+        await handle_show_followers(update, context)
+    elif data == "dev_stats":
+        await handle_developer_stats(update, context)
+    elif data.startswith("dev_signal_"):
+        # معالجة إرسال إشارة سريعة
+        parts = data.replace("dev_signal_", "").split("_")
+        if len(parts) == 2 and user_id:
+            symbol, action = parts
+            # الحصول على السعر الحالي
+            try:
+                price_data = trading_bot.get_current_price(symbol)
+                price = price_data.get('price', 0)
+                
+                # إرسال الإشارة
+                signal_data = {
+                    'symbol': symbol,
+                    'action': action,
+                    'price': price,
+                    'amount': 100
+                }
+                
+                result = developer_manager.broadcast_signal_to_followers(
+                    developer_id=user_id,
+                    signal_data=signal_data
+                )
+                
+                if result['success']:
+                    message = f"""
+✅ تم إرسال الإشارة بنجاح!
+
+📊 التفاصيل:
+• الرمز: {symbol}
+• الإجراء: {action}
+• السعر: {price}
+• عدد المستلمين: {result['follower_count']}
+                    """
+                    await update.callback_query.answer("✅ تم الإرسال!")
+                    await update.callback_query.message.reply_text(message)
+                else:
+                    await update.callback_query.answer(f"❌ {result['message']}")
+            except Exception as e:
+                logger.error(f"خطأ في إرسال الإشارة: {e}")
+                await update.callback_query.answer("❌ خطأ في الإرسال")
+    elif data == "dev_toggle_active":
+        if user_id:
+            success = developer_manager.toggle_developer_active(user_id)
+            if success:
+                await update.callback_query.answer("✅ تم التبديل")
+                stats = developer_manager.get_developer_statistics(user_id)
+                message = f"""
+⚙️ إعدادات المطور
+
+حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
+صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+                """
+                keyboard = [
+                    [InlineKeyboardButton("تبديل الحالة", callback_data="dev_toggle_active")],
+                    [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
+            else:
+                await update.callback_query.answer("❌ فشل التبديل")
+    
     else:
         # معالجة أي أزرار أخرى غير محددة
         if update.callback_query is not None:
@@ -1949,9 +2204,99 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     text = update.message.text
     
+    # معالجة أزرار المطور
+    if user_id and developer_manager.is_developer(user_id):
+        if text == "📡 إرسال إشارة":
+            await handle_send_signal_developer(update, context)
+            return
+        elif text == "👥 المتابعين":
+            await handle_show_followers(update, context)
+            return
+        elif text == "📊 إحصائيات المطور":
+            await handle_developer_stats(update, context)
+            return
+        elif text == "👥 إدارة المستخدمين":
+            # عرض قائمة المستخدمين
+            all_users = user_manager.get_all_active_users()
+            message = f"👥 إجمالي المستخدمين: {len(all_users)}\n\n"
+            for i, uid in enumerate(all_users[:20], 1):
+                message += f"{i}. User ID: {uid}\n"
+            await update.message.reply_text(message)
+            return
+        elif text == "📱 إشعار جماعي":
+            await update.message.reply_text("📱 أرسل الإشعار الذي تريد إرساله لجميع المستخدمين:")
+            if user_id:
+                user_input_state[user_id] = "waiting_for_broadcast_message"
+            return
+        elif text == "⚙️ إعدادات المطور":
+            stats = developer_manager.get_developer_statistics(user_id)
+            message = f"""
+⚙️ إعدادات المطور
+
+حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
+صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+
+استخدم الأزرار للتعديل
+            """
+            keyboard = [
+                [InlineKeyboardButton("تبديل الحالة", callback_data="dev_toggle_active")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(message, reply_markup=reply_markup)
+            return
+        elif text == "🔄 تحديث":
+            await show_developer_panel(update, context)
+            return
+        elif text == "👤 الوضع العادي":
+            # إزالة مؤقتاً حالة المطور للاطلاع على واجهة المستخدم العادي
+            await update.message.reply_text("🔄 العودة للوضع العادي...\nاستخدم /start للعودة لوضع المطور")
+            # لا نغير أي شيء، فقط نعرض القائمة العادية
+            user_data = user_manager.get_user(user_id)
+            if not user_data:
+                user_manager.create_user(user_id)
+            
+            # عرض القائمة العادية
+            keyboard = [
+                [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
+                [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
+                [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+            ]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+            await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
+            return
+    
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:
         state = user_input_state[user_id]
+        
+        # معالجة إرسال الإشعار الجماعي من المطور
+        if state == "waiting_for_broadcast_message":
+            if developer_manager.is_developer(user_id):
+                broadcast_message = f"""
+📢 إشعار من المطور
+
+{text}
+                """
+                # إرسال لجميع المستخدمين النشطين
+                all_users = user_manager.get_all_active_users()
+                success_count = 0
+                
+                for uid in all_users:
+                    try:
+                        application = Application.builder().token(TELEGRAM_TOKEN).build()
+                        await application.bot.send_message(chat_id=uid, text=broadcast_message)
+                        success_count += 1
+                    except Exception as e:
+                        logger.error(f"خطأ في إرسال الإشعار للمستخدم {uid}: {e}")
+                
+                del user_input_state[user_id]
+                await update.message.reply_text(f"✅ تم إرسال الإشعار إلى {success_count} مستخدم من أصل {len(all_users)}")
+                return
+            else:
+                del user_input_state[user_id]
+                await update.message.reply_text("❌ ليس لديك صلاحية")
+                return
         
         if state == "waiting_for_api_key":
             # حفظ API_KEY مؤقتاً
