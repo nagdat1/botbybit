@@ -414,7 +414,6 @@ class UserManager:
                 
         except Exception as e:
             logger.error(f"خطأ في إعادة تحميل بيانات المستخدم {user_id}: {e}")
-    
 
 # سيتم إنشاء مثيل UserManager بعد تهيئة الفئات في bybit_trading_bot.py
 user_manager = None

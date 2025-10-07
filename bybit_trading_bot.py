@@ -926,74 +926,6 @@ class TradingBot:
             logger.error(f"خطأ في معالجة الإشارة: {e}")
             await self.send_message_to_admin(f"❌ خطأ في معالجة الإشارة: {e}")
     
-    async def process_personal_signal(self, signal_data: dict):
-        """معالجة إشارة شخصية لمستخدم محدد - تعمل بنفس طريقة الإشارة الحقيقية"""
-        try:
-            user_id = signal_data.get('user_id')
-            if not user_id:
-                logger.error("معرف المستخدم غير موجود في الإشارة الشخصية")
-                return
-            
-            # حفظ معرف المستخدم الأصلي
-            original_user_id = self.user_id
-            
-            # تعيين المستخدم الحالي للمستخدم المحدد
-            self.user_id = user_id
-            
-            # تحديث إعدادات المستخدم الحالي
-            user_data = user_manager.get_user(user_id)
-            if not user_data:
-                logger.error(f"المستخدم {user_id} غير موجود")
-                self.user_id = original_user_id
-                return
-            
-            # التحقق من حالة المستخدم
-            if not user_manager.is_user_active(user_id):
-                logger.info(f"المستخدم {user_id} غير نشط، تم تجاهل الإشارة")
-                self.user_id = original_user_id
-                return
-            
-            # تحديث إعدادات البوت للمستخدم المحدد
-            self.user_settings = {
-                'account_type': user_data.get('account_type', 'demo'),
-                'market_type': user_data.get('market_type', 'spot'),
-                'trade_amount': user_data.get('trade_amount', 100.0),
-                'leverage': user_data.get('leverage', 10)
-            }
-            
-            # تحديث حسابات المستخدم
-            if user_data.get('market_type', 'spot') == 'futures':
-                self.demo_account_futures = user_manager.get_user_account(user_id, 'futures')
-            else:
-                self.demo_account_spot = user_manager.get_user_account(user_id, 'spot')
-            
-            # تحديث API للمستخدم
-            self.bybit_api = user_manager.get_user_api(user_id)
-            
-            # حفظ الصفقات المفتوحة الحالية مؤقتاً
-            original_open_positions = self.open_positions.copy()
-            
-            # استخدام صفقات المستخدم المحدد
-            self.open_positions = user_manager.get_user_positions(user_id)
-            
-            # معالجة الإشارة بنفس طريقة الإشارة العادية
-            await self.process_signal(signal_data)
-            
-            # استعادة الصفقات المفتوحة الأصلية
-            self.open_positions = original_open_positions
-            
-            # استعادة معرف المستخدم الأصلي
-            self.user_id = original_user_id
-            
-            logger.info(f"تم معالجة الإشارة الشخصية للمستخدم {user_id}: {signal_data.get('symbol')} {signal_data.get('action')}")
-            
-        except Exception as e:
-            logger.error(f"خطأ في معالجة الإشارة الشخصية: {e}")
-            # استعادة معرف المستخدم الأصلي في حالة الخطأ
-            if 'original_user_id' in locals():
-                self.user_id = original_user_id
-    
-    
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
         """تنفيذ صفقة حقيقية"""
         try:
@@ -1056,7 +988,7 @@ class TradingBot:
                     # التأكد من أن position هو FuturesPosition
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في القائمة العامة
-                        position_info = {
+                        self.open_positions[position_id] = {
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -1070,14 +1002,6 @@ class TradingBot:
                             'current_price': price,
                             'pnl_percent': 0.0
                         }
-                        
-                        self.open_positions[position_id] = position_info
-                        
-                        # حفظ الصفقة في user_manager للمستخدم الحالي
-                        if hasattr(self, 'user_id') and self.user_id:
-                            if self.user_id not in user_manager.user_positions:
-                                user_manager.user_positions[self.user_id] = {}
-                            user_manager.user_positions[self.user_id][position_id] = position_info
                         
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}")
                         
@@ -1118,7 +1042,7 @@ class TradingBot:
                 if success:
                     position_id = result
                     
-                    position_info = {
+                    self.open_positions[position_id] = {
                         'symbol': symbol,
                         'entry_price': price,
                         'side': action,
@@ -1129,14 +1053,6 @@ class TradingBot:
                         'current_price': price,
                         'pnl_percent': 0.0
                     }
-                    
-                    self.open_positions[position_id] = position_info
-                    
-                    # حفظ الصفقة في user_manager للمستخدم الحالي
-                    if hasattr(self, 'user_id') and self.user_id:
-                        if self.user_id not in user_manager.user_positions:
-                            user_manager.user_positions[self.user_id] = {}
-                        user_manager.user_positions[self.user_id][position_id] = position_info
                     
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}")
                     
@@ -1161,22 +1077,10 @@ class TradingBot:
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
     
     async def send_message_to_admin(self, message: str):
-        """إرسال رسالة للمستخدم الحالي أو المدير"""
+        """إرسال رسالة للمدير"""
         try:
             application = Application.builder().token(TELEGRAM_TOKEN).build()
-            
-            # إرسال للمستخدم الحالي إذا كان متاحاً
-            if hasattr(self, 'user_id') and self.user_id:
-                try:
-                    await application.bot.send_message(chat_id=self.user_id, text=message)
-                except Exception as e:
-                    logger.error(f"خطأ في إرسال الرسالة للمستخدم {self.user_id}: {e}")
-                    # إذا فشل الإرسال للمستخدم، أرسل للمدير
-                    await application.bot.send_message(chat_id=ADMIN_USER_ID, text=f"📤 رسالة للمستخدم {self.user_id}:\n{message}")
-            else:
-                # إرسال للمدير فقط إذا لم يكن هناك مستخدم محدد
-                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
-                
+            await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
 
@@ -1526,12 +1430,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # إضافة أزرار إضافية إذا كان المطور نشطاً
         user_data = user_manager.get_user(user_id)
-        
-        # إنشاء حساب للمطور في user_manager إذا لم يكن موجوداً
-        if not user_data:
-            user_manager.create_user(user_id)
-            user_data = user_manager.get_user(user_id)
-        
         if user_data and user_data.get('is_active'):
             keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
         else:
@@ -1667,8 +1565,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
-        [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")],
-        [InlineKeyboardButton("📡 رابط الإشارة الشخصي", callback_data="personal_webhook")]
+        [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
     ]
     
     # إضافة زر تشغيل/إيقاف البوت
@@ -2460,39 +2357,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚠️ بدون API keys، البوت يعمل في الوضع التجريبي فقط
                     """, reply_markup=reply_markup)
-    elif data == "personal_webhook":
-        # عرض رابط الإشارة الشخصي للمستخدم
-        if user_id is not None:
-            # إنشاء رابط webhook شخصي
-            personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id}/webhook"
-            
-            webhook_message = f"""
-📡 رابط الإشارة الشخصي الخاص بك:
-
-🔗 {personal_webhook_url}
-
-📋 كيفية الاستخدام:
-1. انسخ الرابط أعلاه
-2. ضعه في TradingView أو أي منصة إشارات
-3. أرسل الإشارات بالصيغة:
-   {{"symbol": "BTCUSDT", "action": "BUY", "price": 50000}}
-
-📊 صيغة الإشارة المطلوبة:
-• symbol: رمز العملة (مثل BTCUSDT)
-• action: BUY أو SELL
-• price: السعر (اختياري)
-
-⚠️ ملاحظة: هذا الرابط مخصص لك فقط ولا يجب مشاركته مع الآخرين
-            """
-            
-            keyboard = [
-                [InlineKeyboardButton("📋 نسخ الرابط", callback_data=f"copy_webhook_{user_id}")],
-                [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            if update.callback_query is not None:
-                await update.callback_query.edit_message_text(webhook_message, reply_markup=reply_markup)
     # معالجة زر تشغيل/إيقاف البوت
     elif data == "toggle_bot":
         if user_id is not None:
@@ -2538,23 +2402,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
-    elif data.startswith("copy_webhook_"):
-        # معالجة نسخ رابط webhook الشخصي
-        user_id_from_data = data.replace("copy_webhook_", "")
-        personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id_from_data}/webhook"
-        
-        # إرسال الرابط كرسالة منفصلة لسهولة النسخ
-        copy_message = f"""
-📋 رابط الإشارة الشخصي:
-
-{personal_webhook_url}
-
-💡 انسخ الرابط أعلاه واستخدمه في TradingView أو منصة الإشارات الخاصة بك
-        """
-        
-        if update.callback_query is not None:
-            await update.callback_query.answer("✅ تم إرسال الرابط للنسخ")
-            await update.callback_query.message.reply_text(copy_message)
     elif data == "refresh_positions":
         await open_positions(update, context)
     elif data == "set_amount":
