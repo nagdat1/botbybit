@@ -963,18 +963,26 @@ class TradingBot:
             logger.info(f"🔍 بيانات المستخدم: {user_data}")
             
             if not user_data:
-                logger.error(f"المستخدم {user_id} غير موجود")
-                self.user_id = original_user_id
-                return
+                logger.info(f"المستخدم {user_id} غير موجود، سيتم إنشاؤه تلقائياً")
+                # إنشاء المستخدم تلقائياً
+                success = user_manager.create_user(user_id)
+                if success:
+                    user_data = user_manager.get_user(user_id)
+                    logger.info(f"تم إنشاء المستخدم {user_id} بنجاح")
+                else:
+                    logger.error(f"فشل في إنشاء المستخدم {user_id}")
+                    self.user_id = original_user_id
+                    return
             
             # التحقق من حالة المستخدم
             is_active = user_manager.is_user_active(user_id)
             logger.info(f"🔍 حالة المستخدم النشط: {is_active}")
             
             if not is_active:
-                logger.info(f"المستخدم {user_id} غير نشط، تم تجاهل الإشارة")
-                self.user_id = original_user_id
-                return
+                logger.info(f"المستخدم {user_id} غير نشط، سيتم تفعيله تلقائياً")
+                # تفعيل المستخدم تلقائياً
+                user_manager.toggle_user_active(user_id)
+                logger.info(f"تم تفعيل المستخدم {user_id} تلقائياً")
             
             # تحديث إعدادات البوت للمستخدم المحدد
             self.user_settings = {
@@ -985,10 +993,19 @@ class TradingBot:
             }
             
             # تحديث حسابات المستخدم
-            if user_data.get('market_type', 'spot') == 'futures':
+            market_type = user_data.get('market_type', 'spot')
+            if market_type == 'futures':
                 self.demo_account_futures = user_manager.get_user_account(user_id, 'futures')
+                if not self.demo_account_futures:
+                    logger.info(f"إنشاء حساب فيوتشر للمستخدم {user_id}")
+                    user_manager._create_user_accounts(user_id, user_data)
+                    self.demo_account_futures = user_manager.get_user_account(user_id, 'futures')
             else:
                 self.demo_account_spot = user_manager.get_user_account(user_id, 'spot')
+                if not self.demo_account_spot:
+                    logger.info(f"إنشاء حساب سبوت للمستخدم {user_id}")
+                    user_manager._create_user_accounts(user_id, user_data)
+                    self.demo_account_spot = user_manager.get_user_account(user_id, 'spot')
             
             # تحديث API للمستخدم
             self.bybit_api = user_manager.get_user_api(user_id)
@@ -998,6 +1015,9 @@ class TradingBot:
             
             # استخدام صفقات المستخدم المحدد
             self.open_positions = user_manager.get_user_positions(user_id)
+            if not self.open_positions:
+                logger.info(f"تهيئة صفقات المستخدم {user_id}")
+                self.open_positions = {}
             
             # معالجة الإشارة مباشرة بدون update و context
             logger.info(f"🔍 بدء معالجة الإشارة المباشرة للمستخدم {user_id}")
