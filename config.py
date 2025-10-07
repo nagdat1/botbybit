@@ -27,19 +27,16 @@ RENDER_URL = os.getenv('RENDER_EXTERNAL_URL')
 # Railway will set the PORT environment variable
 PORT = int(os.getenv('PORT', '5000'))
 
-# Base URL configuration for Railway/Render
+# Webhook URL configuration for Railway
 if RAILWAY_URL:
     # Ensure the URL has the correct protocol
     if not RAILWAY_URL.startswith('http'):
         RAILWAY_URL = f"https://{RAILWAY_URL}"
-    BASE_URL = RAILWAY_URL
     WEBHOOK_URL = f"{RAILWAY_URL}/webhook"
 elif RENDER_URL:
-    BASE_URL = RENDER_URL
     WEBHOOK_URL = f"{RENDER_URL}/webhook"
 else:
-    BASE_URL = os.getenv('BASE_URL', f"http://localhost:{PORT}")
-    WEBHOOK_URL = os.getenv('WEBHOOK_URL', f"{BASE_URL}/webhook")
+    WEBHOOK_URL = os.getenv('WEBHOOK_URL', f"http://localhost:{PORT}/webhook")
 
 WEBHOOK_PORT = PORT  # Use Railway's PORT
 

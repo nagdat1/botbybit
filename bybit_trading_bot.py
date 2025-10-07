@@ -26,13 +26,6 @@ import threading
 # استيراد الإعدادات من ملف منفصل
 from config import *
 
-# استيراد BASE_URL للاستخدام في روابط الإشارة الشخصية
-try:
-    from config import BASE_URL
-except ImportError:
-    # في حالة عدم وجود BASE_URL، استخدم WEBHOOK_URL كقاعدة
-    BASE_URL = WEBHOOK_URL.replace('/webhook', '') if WEBHOOK_URL else 'http://localhost:8000'
-
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
 from user_manager import user_manager
@@ -429,13 +422,6 @@ class TradingAccount:
         equity = self.balance + total_unrealized_pnl
         margin_ratio = self.get_margin_ratio()
         
-        # حساب إجمالي الأرباح من الأهداف المنفذة
-        total_tp_profits = 0.0
-        for position in self.positions.values():
-            if isinstance(position, dict) and 'executed_tps' in position:
-                for tp in position['executed_tps']:
-                    total_tp_profits += tp.get('pnl', 0)
-        
         return {
             'balance': round(self.balance, 2),
             'available_balance': round(available_balance, 2),
@@ -448,8 +434,7 @@ class TradingAccount:
             'winning_trades': self.winning_trades,
             'losing_trades': self.losing_trades,
             'win_rate': round((self.winning_trades / max(self.total_trades, 1)) * 100, 2),
-            'open_positions': len(self.positions),
-            'tp_profits': round(total_tp_profits, 2)
+            'open_positions': len(self.positions)
         }
 
 class BybitAPI:
@@ -596,18 +581,12 @@ class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
     
     def __init__(self):
-        # معرف المستخدم الحالي (للبوت الرئيسي فقط)
-        self.user_id = None
-        
-        # إعداد user_manager
-        self.user_manager = user_manager
-        
         # إعداد API
         self.bybit_api = None
         if BYBIT_API_KEY and BYBIT_API_SECRET:
             self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
         
-        # إعداد الحسابات التجريبية (للبوت الرئيسي فقط)
+        # إعداد الحسابات التجريبية
         self.demo_account_spot = TradingAccount(
             initial_balance=DEMO_ACCOUNT_SETTINGS['initial_balance_spot'],
             account_type='spot'
@@ -621,10 +600,10 @@ class TradingBot:
         self.is_running = True
         self.signals_received = 0
         
-        # إعدادات المستخدم (للبوت الرئيسي فقط)
+        # إعدادات المستخدم
         self.user_settings = DEFAULT_SETTINGS.copy()
         
-        # قائمة الصفقات المفتوحة (للبوت الرئيسي فقط)
+        # قائمة الصفقات المفتوحة (مرتبطة بحسابات المستخدم)
         self.open_positions = {}  # {position_id: position_info}
         
         # قائمة الأزواج المتاحة (cache)
@@ -868,60 +847,6 @@ class TradingBot:
                 logger.error("بيانات الإشارة غير مكتملة")
                 return
             
-            # تحديد المستخدم من البيانات أو استخدام المستخدم الحالي
-            user_id = signal_data.get('user_id', self.user_id)
-            
-            # إذا كان هناك user_id في البيانات، استخدم بياناته
-            if user_id and user_id != self.user_id:
-                logger.info(f"🔍 معالجة إشارة للمستخدم {user_id}")
-                
-                # إنشاء المستخدم إذا لم يكن موجود
-                user_data = self.user_manager.get_user(user_id)
-                if not user_data:
-                    logger.info(f"إنشاء مستخدم جديد {user_id}")
-                    self.user_manager.create_user(user_id)
-                    user_data = self.user_manager.get_user(user_id)
-                
-                # تفعيل المستخدم
-                if not self.user_manager.is_user_active(user_id):
-                    logger.info(f"تفعيل المستخدم {user_id}")
-                    self.user_manager.toggle_user_active(user_id)
-                
-                # إعداد بيانات المستخدم المحدد
-                user_settings = {
-                    'account_type': user_data.get('account_type', 'demo'),
-                    'market_type': user_data.get('market_type', 'spot'),
-                    'trade_amount': user_data.get('trade_amount', 100.0),
-                    'leverage': user_data.get('leverage', 10)
-                }
-                
-                # إعداد الحسابات للمستخدم المحدد
-                market_type = user_data.get('market_type', 'spot')
-                demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
-                demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
-                
-                if not demo_account_spot and not demo_account_futures:
-                    logger.info(f"إنشاء حسابات للمستخدم {user_id}")
-                    self.user_manager._create_user_accounts(user_id, user_data)
-                    demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
-                    demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
-                
-                # إعداد API للمستخدم المحدد
-                user_bybit_api = self.user_manager.get_user_api(user_id)
-                
-                # إعداد الصفقات المفتوحة للمستخدم المحدد
-                user_open_positions = self.user_manager.get_user_positions(user_id)
-                if not user_open_positions:
-                    user_open_positions = {}
-                
-                # معالجة الإشارة للمستخدم المحدد
-                await self.process_signal_for_user(
-                    signal_data, user_id, user_settings, 
-                    demo_account_spot, demo_account_futures, 
-                    user_bybit_api, user_open_positions
-                )
-                return
-            
             # 🔥 ميزة جديدة: إذا كان المستخدم هو مطور وفعّل التوزيع التلقائي
             # سيتم إرسال الإشارة لجميع المتابعين
             if developer_manager.is_developer(self.user_id):
@@ -1002,341 +927,9 @@ class TradingBot:
             await self.send_message_to_admin(f"❌ خطأ في معالجة الإشارة: {e}")
     
     async def process_personal_signal(self, signal_data: dict):
-        """معالجة إشارة شخصية لمستخدم محدد - بدون تأثير على البوت الرئيسي"""
-        try:
-            user_id = signal_data.get('user_id')
-            logger.info(f"🔍 بدء معالجة إشارة شخصية للمستخدم: {user_id}")
-            logger.info(f"🔍 بيانات الإشارة: {signal_data}")
-            
-            if not user_id:
-                logger.error("معرف المستخدم غير موجود في الإشارة الشخصية")
-                return
-            
-            # 1. إنشاء المستخدم إذا لم يكن موجود
-            user_data = self.user_manager.get_user(user_id)
-            if not user_data:
-                logger.info(f"المستخدم {user_id} غير موجود، سيتم إنشاؤه تلقائياً")
-                success = self.user_manager.create_user(user_id)
-                if success:
-                    user_data = self.user_manager.get_user(user_id)
-                    logger.info(f"تم إنشاء المستخدم {user_id} بنجاح")
-                else:
-                    logger.error(f"فشل في إنشاء المستخدم {user_id}")
-                    return
-            
-            # 2. تفعيل المستخدم
-            is_active = self.user_manager.is_user_active(user_id)
-            if not is_active:
-                logger.info(f"المستخدم {user_id} غير نشط، سيتم تفعيله تلقائياً")
-                self.user_manager.toggle_user_active(user_id)
-                logger.info(f"تم تفعيل المستخدم {user_id} تلقائياً")
-            
-            # 3. إعداد بيانات المستخدم المحدد (بدون تغيير البوت الرئيسي)
-            user_settings = {
-                'account_type': user_data.get('account_type', 'demo'),
-                'market_type': user_data.get('market_type', 'spot'),
-                'trade_amount': user_data.get('trade_amount', 100.0),
-                'leverage': user_data.get('leverage', 10)
-            }
-            
-            # 4. إعداد الحسابات للمستخدم المحدد
-            market_type = user_data.get('market_type', 'spot')
-            demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
-            demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
-            
-            if not demo_account_spot and not demo_account_futures:
-                logger.info(f"إنشاء حسابات للمستخدم {user_id}")
-                self.user_manager._create_user_accounts(user_id, user_data)
-                demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
-                demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
-            
-            # 5. إعداد API للمستخدم المحدد
-            user_bybit_api = self.user_manager.get_user_api(user_id)
-            
-            # 6. إعداد الصفقات المفتوحة للمستخدم المحدد
-            user_open_positions = self.user_manager.get_user_positions(user_id)
-            if not user_open_positions:
-                user_open_positions = {}
-            
-            # 7. إرسال رسالة ترحيب
-            welcome_message = f"""
-🚀 تم استقبال إشارة شخصية لك!
-
-👋 مرحباً! تم تفعيل بوت التداول على Bybit لك
-
-📡 تم استقبال إشارة التداول:
-🔹 الرمز: {signal_data.get('symbol', 'غير محدد')}
-🔹 الإجراء: {signal_data.get('action', 'غير محدد')}
-
-✅ المشروع يعمل الآن بشكل كامل لك!
-            """
-            
-            await self.send_message_to_user(user_id, welcome_message)
-            
-            # 8. معالجة الإشارة للمستخدم المحدد
-            await self.process_signal_for_user(
-                signal_data, user_id, user_settings, 
-                demo_account_spot, demo_account_futures, 
-                user_bybit_api, user_open_positions
-            )
-            
-            # 9. إرسال رسالة تأكيد نهائية
-            success_message = f"""
-✅ تم تنفيذ الإشارة بنجاح!
-
-📊 تفاصيل الإشارة:
-🔹 الرمز: {signal_data.get('symbol', 'غير محدد')}
-🔹 الإجراء: {signal_data.get('action', 'غير محدد')}
-🔹 المستخدم: {user_id}
-
-🎯 المشروع يعمل الآن بشكل كامل لك!
-            """
-            
-            await self.send_message_to_user(user_id, success_message)
-            
-            logger.info(f"تم معالجة الإشارة الشخصية للمستخدم {user_id}: {signal_data.get('symbol')} {signal_data.get('action')}")
-            
-        except Exception as e:
-            logger.error(f"خطأ في معالجة الإشارة الشخصية: {e}")
-            await self.send_message_to_user(user_id, f"❌ خطأ في معالجة الإشارة: {e}")
-
-    async def process_signal_for_user(self, signal_data: dict, user_id: int, user_settings: dict, 
-                                    demo_account_spot, demo_account_futures, user_bybit_api, user_open_positions: dict):
-        """معالجة الإشارة لمستخدم محدد بدون تأثير على البوت الرئيسي"""
-        try:
-            symbol = signal_data.get('symbol', '').upper()
-            action = signal_data.get('action', '').lower()
-            
-            if not symbol or not action:
-                logger.error("بيانات الإشارة غير مكتملة")
-                return
-            
-            market_type = user_settings.get('market_type', 'spot')
-            bybit_category = 'spot' if market_type == 'spot' else 'linear'
-            
-            # الحصول على السعر الحالي
-            if user_bybit_api:
-                current_price = user_bybit_api.get_ticker_price(symbol, bybit_category)
-            else:
-                # إنشاء API مؤقت للحصول على السعر
-                temp_api = BybitAPI()
-                current_price = temp_api.get_ticker_price(symbol, bybit_category)
-            
-            logger.info(f"🔍 السعر الحالي للرمز {symbol}: {current_price}")
-            
-            if not current_price:
-                logger.error(f"لا يمكن الحصول على السعر الحالي للرمز {symbol}")
-                return
-            
-            logger.info(f"📡 تم استقبال إشارة شخصية للمستخدم {user_id}")
-            logger.info(f"🔹 symbol: {symbol}")
-            logger.info(f"🔹 action: {action}")
-            logger.info(f"🔹 market_type: {market_type}")
-            logger.info(f"🔹 account_type: {user_settings['account_type']}")
-            
-            # تنفيذ الصفقة حسب نوع الحساب
-            if user_settings['account_type'] == 'real':
-                logger.info(f"🔍 تنفيذ صفقة حقيقية للمستخدم {user_id}")
-                await self.execute_real_trade_for_user(
-                    symbol, action, current_price, bybit_category, user_id, user_bybit_api
-                )
-            else:
-                logger.info(f"🔍 تنفيذ صفقة تجريبية للمستخدم {user_id}")
-                await self.execute_demo_trade_for_user(
-                    symbol, action, current_price, bybit_category, market_type,
-                    user_id, user_settings, demo_account_spot, demo_account_futures, user_open_positions
-                )
-            
-        except Exception as e:
-            logger.error(f"خطأ في معالجة الإشارة للمستخدم {user_id}: {e}")
-            await self.send_message_to_user(user_id, f"❌ خطأ في معالجة الإشارة: {e}")
-
-    async def execute_demo_trade_for_user(self, symbol: str, action: str, price: float, category: str, 
-                                        market_type: str, user_id: int, user_settings: dict,
-                                        demo_account_spot, demo_account_futures, user_open_positions: dict):
-        """تنفيذ صفقة تجريبية لمستخدم محدد"""
-        try:
-            logger.info(f"🔍 بدء تنفيذ صفقة تجريبية للمستخدم {user_id}")
-            logger.info(f"🔍 الرمز: {symbol}")
-            logger.info(f"🔍 النوع: {action}")
-            logger.info(f"🔍 نوع السوق: {market_type}")
-            logger.info(f"🔍 السعر: {price}")
-            logger.info(f"🔍 فئة Bybit: {category}")
-            
-            if market_type == 'futures':
-                account = demo_account_futures
-                margin_amount = user_settings['trade_amount']
-                leverage = user_settings['leverage']
-                
-                logger.info(f"🔍 حساب الفيوتشر: {account}")
-                logger.info(f"🔍 مبلغ الهامش: {margin_amount}")
-                logger.info(f"🔍 الرافعة: {leverage}")
-                
-                if not account:
-                    await self.send_message_to_user(user_id, "❌ حساب الفيوتشر غير متاح")
-                    return
-                
-                success, result = account.open_futures_position(
-                    symbol=symbol,
-                    side=action,
-                    margin_amount=margin_amount,
-                    price=price,
-                    leverage=leverage
-                )
-                
-                logger.info(f"🔍 نتيجة فتح صفقة الفيوتشر: success={success}, result={result}")
-                
-                if success:
-                    position_id = result
-                    position = account.positions[position_id]
-                    
-                    position_info = {
-                        'symbol': symbol,
-                        'entry_price': price,
-                        'side': action,
-                        'account_type': market_type,
-                        'leverage': leverage,
-                        'category': category,
-                        'margin_amount': margin_amount,
-                        'position_size': position.position_size,
-                        'liquidation_price': position.liquidation_price,
-                        'contracts': position.contracts,
-                        'current_price': price,
-                        'pnl_percent': 0.0
-                    }
-                    
-                    user_open_positions[position_id] = position_info
-                    
-                    # حفظ الصفقة في user_manager للمستخدم
-                    if user_id not in self.user_manager.user_positions:
-                        self.user_manager.user_positions[user_id] = {}
-                    self.user_manager.user_positions[user_id][position_id] = position_info
-                    
-                    logger.info(f"تم فتح صفقة فيوتشر للمستخدم {user_id}: ID={position_id}, الرمز={symbol}")
-                    
-                    message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
-                    message += f"📊 الرمز: {symbol}\n"
-                    message += f"🔄 النوع: {action.upper()}\n"
-                    message += f"💰 الهامش المحجوز: {margin_amount}\n"
-                    message += f"📈 حجم الصفقة: {position.position_size:.2f}\n"
-                    message += f"💲 سعر الدخول: {price:.6f}\n"
-                    message += f"⚡ الرافعة: {leverage}x\n"
-                    message += f"⚠️ سعر التصفية: {position.liquidation_price:.6f}\n"
-                    message += f"📊 عدد العقود: {position.contracts:.6f}\n"
-                    message += f"🆔 رقم الصفقة: {position_id}\n"
-                    
-                    account_info = account.get_account_info()
-                    message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
-                    message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
-                    message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
-                    
-                    await self.send_message_to_user(user_id, message)
-                else:
-                    await self.send_message_to_user(user_id, f"❌ فشل في فتح صفقة الفيوتشر: {result}")
-                    
-            else:  # spot
-                account = demo_account_spot
-                amount = user_settings['trade_amount']
-                
-                logger.info(f"🔍 حساب السبوت: {account}")
-                logger.info(f"🔍 المبلغ: {amount}")
-                
-                if not account:
-                    await self.send_message_to_user(user_id, "❌ حساب السبوت غير متاح")
-                    return
-                
-                success, result = account.open_spot_position(
-                    symbol=symbol,
-                    side=action,
-                    amount=amount,
-                    price=price
-                )
-                
-                logger.info(f"🔍 نتيجة فتح صفقة السبوت: success={success}, result={result}")
-                
-                if success:
-                    position_id = result
-                    
-                    position_info = {
-                        'symbol': symbol,
-                        'entry_price': price,
-                        'side': action,
-                        'account_type': market_type,
-                        'leverage': 1,
-                        'category': category,
-                        'amount': amount,
-                        'current_price': price,
-                        'pnl_percent': 0.0
-                    }
-                    
-                    user_open_positions[position_id] = position_info
-                    
-                    # حفظ الصفقة في user_manager للمستخدم
-                    if user_id not in self.user_manager.user_positions:
-                        self.user_manager.user_positions[user_id] = {}
-                    self.user_manager.user_positions[user_id][position_id] = position_info
-                    
-                    logger.info(f"تم فتح صفقة سبوت للمستخدم {user_id}: ID={position_id}, الرمز={symbol}")
-                    
-                    message = f"📈 تم فتح صفقة سبوت تجريبية\n"
-                    message += f"📊 الرمز: {symbol}\n"
-                    message += f"🔄 النوع: {action.upper()}\n"
-                    message += f"💰 المبلغ: {amount}\n"
-                    message += f"💲 سعر الدخول: {price:.6f}\n"
-                    message += f"🏪 السوق: SPOT\n"
-                    message += f"🆔 رقم الصفقة: {position_id}\n"
-                    
-                    account_info = account.get_account_info()
-                    message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
-                    
-                    await self.send_message_to_user(user_id, message)
-                else:
-                    await self.send_message_to_user(user_id, f"❌ فشل في فتح الصفقة التجريبية: {result}")
-                    
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الصفقة التجريبية للمستخدم {user_id}: {e}")
-            await self.send_message_to_user(user_id, f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
-
-    async def execute_real_trade_for_user(self, symbol: str, action: str, price: float, category: str, 
-                                        user_id: int, user_bybit_api):
-        """تنفيذ صفقة حقيقية لمستخدم محدد"""
-        try:
-            logger.info(f"🔍 بدء تنفيذ صفقة حقيقية للمستخدم {user_id}")
-            
-            if not user_bybit_api:
-                await self.send_message_to_user(user_id, "❌ API غير متاح للصفقات الحقيقية")
-                return
-            
-            # تنفيذ الصفقة الحقيقية
-            result = user_bybit_api.place_order(
-                symbol=symbol,
-                side=action,
-                order_type="Market",
-                qty="0.001",  # كمية صغيرة للاختبار
-                category=category
-            )
-            
-            if result.get('retCode') == 0:
-                message = f"📈 تم تنفيذ صفقة حقيقية\n"
-                message += f"📊 الرمز: {symbol}\n"
-                message += f"🔄 النوع: {action.upper()}\n"
-                message += f"💲 السعر: {price:.6f}\n"
-                message += f"🆔 رقم الطلب: {result.get('result', {}).get('orderId', 'غير متاح')}\n"
-                
-                await self.send_message_to_user(user_id, message)
-            else:
-                error_msg = result.get('retMsg', 'خطأ غير معروف')
-                await self.send_message_to_user(user_id, f"❌ فشل في تنفيذ الصفقة الحقيقية: {error_msg}")
-                
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الصفقة الحقيقية للمستخدم {user_id}: {e}")
-            await self.send_message_to_user(user_id, f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
         """معالجة إشارة شخصية لمستخدم محدد - تعمل بنفس طريقة الإشارة الحقيقية"""
         try:
             user_id = signal_data.get('user_id')
-            logger.info(f"🔍 بدء معالجة إشارة شخصية للمستخدم: {user_id}")
-            logger.info(f"🔍 بيانات الإشارة: {signal_data}")
-            
             if not user_id:
                 logger.error("معرف المستخدم غير موجود في الإشارة الشخصية")
                 return
@@ -1348,30 +941,17 @@ class TradingBot:
             self.user_id = user_id
             
             # تحديث إعدادات المستخدم الحالي
-            user_data = self.user_manager.get_user(user_id)
-            logger.info(f"🔍 بيانات المستخدم: {user_data}")
-            
+            user_data = user_manager.get_user(user_id)
             if not user_data:
-                logger.info(f"المستخدم {user_id} غير موجود، سيتم إنشاؤه تلقائياً")
-                # إنشاء المستخدم تلقائياً
-                success = self.user_manager.create_user(user_id)
-                if success:
-                    user_data = self.user_manager.get_user(user_id)
-                    logger.info(f"تم إنشاء المستخدم {user_id} بنجاح")
-                else:
-                    logger.error(f"فشل في إنشاء المستخدم {user_id}")
-                    self.user_id = original_user_id
-                    return
+                logger.error(f"المستخدم {user_id} غير موجود")
+                self.user_id = original_user_id
+                return
             
             # التحقق من حالة المستخدم
-            is_active = self.user_manager.is_user_active(user_id)
-            logger.info(f"🔍 حالة المستخدم النشط: {is_active}")
-            
-            if not is_active:
-                logger.info(f"المستخدم {user_id} غير نشط، سيتم تفعيله تلقائياً")
-                # تفعيل المستخدم تلقائياً
-                self.user_manager.toggle_user_active(user_id)
-                logger.info(f"تم تفعيل المستخدم {user_id} تلقائياً")
+            if not user_manager.is_user_active(user_id):
+                logger.info(f"المستخدم {user_id} غير نشط، تم تجاهل الإشارة")
+                self.user_id = original_user_id
+                return
             
             # تحديث إعدادات البوت للمستخدم المحدد
             self.user_settings = {
@@ -1382,36 +962,22 @@ class TradingBot:
             }
             
             # تحديث حسابات المستخدم
-            market_type = user_data.get('market_type', 'spot')
-            if market_type == 'futures':
-                self.demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
-                if not self.demo_account_futures:
-                    logger.info(f"إنشاء حساب فيوتشر للمستخدم {user_id}")
-                    self.user_manager._create_user_accounts(user_id, user_data)
-                    self.demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
+            if user_data.get('market_type', 'spot') == 'futures':
+                self.demo_account_futures = user_manager.get_user_account(user_id, 'futures')
             else:
-                self.demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
-                if not self.demo_account_spot:
-                    logger.info(f"إنشاء حساب سبوت للمستخدم {user_id}")
-                    self.user_manager._create_user_accounts(user_id, user_data)
-                    self.demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
+                self.demo_account_spot = user_manager.get_user_account(user_id, 'spot')
             
             # تحديث API للمستخدم
-            self.bybit_api = self.user_manager.get_user_api(user_id)
+            self.bybit_api = user_manager.get_user_api(user_id)
             
             # حفظ الصفقات المفتوحة الحالية مؤقتاً
             original_open_positions = self.open_positions.copy()
             
             # استخدام صفقات المستخدم المحدد
-            self.open_positions = self.user_manager.get_user_positions(user_id)
-            if not self.open_positions:
-                logger.info(f"تهيئة صفقات المستخدم {user_id}")
-                self.open_positions = {}
+            self.open_positions = user_manager.get_user_positions(user_id)
             
-            # معالجة الإشارة مباشرة بدون update و context
-            logger.info(f"🔍 بدء معالجة الإشارة المباشرة للمستخدم {user_id}")
-            await self.process_signal_direct(signal_data)
-            logger.info(f"🔍 انتهت معالجة الإشارة المباشرة للمستخدم {user_id}")
+            # معالجة الإشارة بنفس طريقة الإشارة العادية
+            await self.process_signal(signal_data)
             
             # استعادة الصفقات المفتوحة الأصلية
             self.open_positions = original_open_positions
@@ -1426,89 +992,6 @@ class TradingBot:
             # استعادة معرف المستخدم الأصلي في حالة الخطأ
             if 'original_user_id' in locals():
                 self.user_id = original_user_id
-    
-    async def process_signal_like_main(self, signal_data: dict, user_id: int):
-        """معالجة الإشارة بنفس طريقة الرابط الأساسي - للإشارات الشخصية"""
-        try:
-            logger.info(f"🔍 بدء معالجة الإشارة بنفس طريقة الرابط الأساسي للمستخدم {user_id}")
-            logger.info(f"🔍 بيانات الإشارة: {signal_data}")
-            
-            # استخدام النظام الجديد المنفصل للمستخدم
-            await self.process_personal_signal(signal_data)
-            
-            logger.info(f"✅ انتهت معالجة الإشارة بنفس طريقة الرابط الأساسي للمستخدم {user_id}")
-            
-        except Exception as e:
-            logger.error(f"خطأ في معالجة الإشارة بنفس طريقة الرابط الأساسي: {e}")
-            await self.send_message_to_user(
-                user_id,
-                f"❌ خطأ في معالجة الإشارة: {e}"
-            )
-
-    async def process_signal_direct(self, signal_data: dict):
-        """معالجة الإشارة مباشرة بدون update و context - للإشارات الشخصية"""
-        try:
-            symbol = signal_data.get('symbol', '').upper()
-            action = signal_data.get('action', '').lower()
-            
-            if not symbol or not action:
-                logger.error("بيانات الإشارة غير مكتملة")
-                return
-            
-            # تحديد نوع السوق
-            market_type = self.user_settings.get('market_type', 'spot')
-            bybit_category = 'spot' if market_type == 'spot' else 'linear'
-            
-            # الحصول على السعر الحالي
-            if hasattr(self, 'bybit_api') and self.bybit_api:
-                current_price = self.bybit_api.get_ticker_price(symbol, bybit_category)
-            else:
-                # إنشاء API مؤقت للحصول على السعر
-                from bybit_trading_bot import BybitAPI
-                temp_api = BybitAPI()
-                current_price = temp_api.get_ticker_price(symbol, bybit_category)
-            
-            logger.info(f"🔍 السعر الحالي للرمز {symbol}: {current_price}")
-            
-            if not current_price:
-                logger.error(f"لا يمكن الحصول على السعر الحالي للرمز {symbol}")
-                return
-            
-            logger.info(f"📡 تم استقبال إشارة شخصية")
-            logger.info(f"🔹 symbol: {symbol}")
-            logger.info(f"🔹 action: {action}")
-            logger.info(f"👤 إشارة شخصية للمستخدم: {self.user_id}")
-            
-            # إرسال إشعار للمستخدم
-            await self.send_message_to_user(
-                self.user_id,
-                f"📡 تم استقبال إشارة شخصية\n\n"
-                f"🔹 symbol: {symbol}\n"
-                f"🔹 action: {action}\n\n"
-                f"👤 إشارة شخصية للمستخدم: {self.user_id}"
-            )
-            
-            # تنفيذ الصفقة حسب نوع الحساب
-            logger.info(f"🔍 نوع الحساب: {self.user_settings['account_type']}")
-            logger.info(f"🔍 نوع السوق: {market_type}")
-            logger.info(f"🔍 فئة Bybit: {bybit_category}")
-            logger.info(f"🔍 مبلغ التداول: {self.user_settings['trade_amount']}")
-            
-            if self.user_settings['account_type'] == 'real':
-                logger.info(f"🔍 تنفيذ صفقة حقيقية")
-                await self.execute_real_trade(symbol, action, current_price, bybit_category)
-            else:
-                logger.info(f"🔍 تنفيذ صفقة تجريبية")
-                logger.info(f"🔍 حساب السبوت متاح: {self.demo_account_spot is not None}")
-                logger.info(f"🔍 حساب الفيوتشر متاح: {self.demo_account_futures is not None}")
-                await self.execute_demo_trade(symbol, action, current_price, bybit_category, market_type)
-            
-        except Exception as e:
-            logger.error(f"خطأ في معالجة الإشارة المباشرة: {e}")
-            await self.send_message_to_user(
-                self.user_id,
-                f"❌ خطأ في معالجة الإشارة: {e}"
-            )
     
     
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
@@ -1551,21 +1034,12 @@ class TradingBot:
         try:
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
-            logger.info(f"🔍 بدء تنفيذ صفقة تجريبية")
-            logger.info(f"🔍 الرمز: {symbol}")
-            logger.info(f"🔍 النوع: {action}")
-            logger.info(f"🔍 نوع السوق: {user_market_type}")
-            logger.info(f"🔍 السعر: {price}")
-            logger.info(f"🔍 فئة Bybit: {category}")
+            logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}")
             
             if user_market_type == 'futures':
                 account = self.demo_account_futures
                 margin_amount = self.user_settings['trade_amount']  # مبلغ الهامش
                 leverage = self.user_settings['leverage']
-                
-                logger.info(f"🔍 حساب الفيوتشر: {account}")
-                logger.info(f"🔍 مبلغ الهامش: {margin_amount}")
-                logger.info(f"🔍 الرافعة: {leverage}")
                 
                 success, result = account.open_futures_position(
                     symbol=symbol,
@@ -1574,8 +1048,6 @@ class TradingBot:
                     price=price,
                     leverage=leverage
                 )
-                
-                logger.info(f"🔍 نتيجة فتح صفقة الفيوتشر: success={success}, result={result}")
                 
                 if success:
                     position_id = result
@@ -1603,9 +1075,9 @@ class TradingBot:
                         
                         # حفظ الصفقة في user_manager للمستخدم الحالي
                         if hasattr(self, 'user_id') and self.user_id:
-                            if self.user_id not in self.user_manager.user_positions:
-                                self.user_manager.user_positions[self.user_id] = {}
-                            self.user_manager.user_positions[self.user_id][position_id] = position_info
+                            if self.user_id not in user_manager.user_positions:
+                                user_manager.user_positions[self.user_id] = {}
+                            user_manager.user_positions[self.user_id][position_id] = position_info
                         
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}")
                         
@@ -1626,18 +1098,15 @@ class TradingBot:
                         message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
                         message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
                         
-                        await self.send_message_to_user(self.user_id, message)
+                        await self.send_message_to_admin(message)
                     else:
-                        await self.send_message_to_user(self.user_id, "❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
+                        await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
                 else:
-                    await self.send_message_to_user(self.user_id, f"❌ فشل في فتح صفقة الفيوتشر: {result}")
+                    await self.send_message_to_admin(f"❌ فشل في فتح صفقة الفيوتشر: {result}")
                     
             else:  # spot
                 account = self.demo_account_spot
                 amount = self.user_settings['trade_amount']
-                
-                logger.info(f"🔍 حساب السبوت: {account}")
-                logger.info(f"🔍 المبلغ: {amount}")
                 
                 success, result = account.open_spot_position(
                     symbol=symbol,
@@ -1645,8 +1114,6 @@ class TradingBot:
                     amount=amount,
                     price=price
                 )
-                
-                logger.info(f"🔍 نتيجة فتح صفقة السبوت: success={success}, result={result}")
                 
                 if success:
                     position_id = result
@@ -1667,9 +1134,9 @@ class TradingBot:
                     
                     # حفظ الصفقة في user_manager للمستخدم الحالي
                     if hasattr(self, 'user_id') and self.user_id:
-                        if self.user_id not in self.user_manager.user_positions:
-                            self.user_manager.user_positions[self.user_id] = {}
-                        self.user_manager.user_positions[self.user_id][position_id] = position_info
+                        if self.user_id not in user_manager.user_positions:
+                            user_manager.user_positions[self.user_id] = {}
+                        user_manager.user_positions[self.user_id][position_id] = position_info
                     
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}")
                     
@@ -1685,13 +1152,13 @@ class TradingBot:
                     account_info = account.get_account_info()
                     message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
                     
-                    await self.send_message_to_user(self.user_id, message)
+                    await self.send_message_to_admin(message)
                 else:
-                    await self.send_message_to_user(self.user_id, f"❌ فشل في فتح الصفقة التجريبية: {result}")
+                    await self.send_message_to_admin(f"❌ فشل في فتح الصفقة التجريبية: {result}")
                 
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة التجريبية: {e}")
-            await self.send_message_to_user(self.user_id, f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
+            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
     
     async def send_message_to_admin(self, message: str):
         """إرسال رسالة للمستخدم الحالي أو المدير"""
@@ -1712,324 +1179,9 @@ class TradingBot:
                 
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
-    
-    async def send_message_to_user(self, user_id: int, message: str):
-        """إرسال رسالة لمستخدم محدد"""
-        try:
-            if not user_id:
-                logger.error("معرف المستخدم غير محدد")
-                return
-                
-            application = Application.builder().token(TELEGRAM_TOKEN).build()
-            await application.bot.send_message(chat_id=user_id, text=message)
-            logger.info(f"تم إرسال رسالة للمستخدم {user_id}")
-        except Exception as e:
-            logger.error(f"خطأ في إرسال الرسالة للمستخدم {user_id}: {e}")
-
-class PositionTargetManager:
-    """فئة لإدارة أهداف الربح ووقف الخسارة للصفقات"""
-    
-    def __init__(self, trading_bot):
-        self.trading_bot = trading_bot
-        self.monitoring_active = False
-        
-    def calculate_tp_prices(self, entry_price: float, side: str, tp_percentages: List[float]) -> List[float]:
-        """حساب أسعار أهداف الربح"""
-        tp_prices = []
-        for tp_percent in tp_percentages:
-            if side.lower() == "buy":
-                tp_price = entry_price * (1 + tp_percent / 100)
-            else:  # sell
-                tp_price = entry_price * (1 - tp_percent / 100)
-            tp_prices.append(tp_price)
-        return tp_prices
-    
-    def calculate_sl_price(self, entry_price: float, side: str, sl_percentage: float) -> float:
-        """حساب سعر وقف الخسارة"""
-        if sl_percentage <= 0:
-            return 0.0
-        
-        if side.lower() == "buy":
-            sl_price = entry_price * (1 - sl_percentage / 100)
-        else:  # sell
-            sl_price = entry_price * (1 + sl_percentage / 100)
-        
-        return sl_price
-    
-    def set_position_targets(self, position_id: str, tp_percentages: List[float], 
-                           sl_percentage: float, partial_percentages: List[float]) -> bool:
-        """تعيين أهداف لصفقة معينة"""
-        try:
-            from database import db_manager
-            
-            # التحقق من وجود الصفقة
-            if position_id not in self.trading_bot.open_positions:
-                logger.error(f"الصفقة {position_id} غير موجودة")
-                return False
-            
-            position_info = self.trading_bot.open_positions[position_id]
-            entry_price = position_info['entry_price']
-            side = position_info['side']
-            
-            # حساب أسعار الأهداف
-            tp_prices = self.calculate_tp_prices(entry_price, side, tp_percentages)
-            sl_price = self.calculate_sl_price(entry_price, side, sl_percentage)
-            
-            # إعداد بيانات الأهداف
-            tp_targets = []
-            for i, (tp_percent, tp_price) in enumerate(zip(tp_percentages, tp_prices)):
-                tp_targets.append({
-                    'index': i,
-                    'percentage': tp_percent,
-                    'price': tp_price,
-                    'partial_close_percent': partial_percentages[i] if i < len(partial_percentages) else 0,
-                    'executed': False
-                })
-            
-            # حفظ في قاعدة البيانات
-            success = db_manager.set_order_targets(
-                order_id=position_id,
-                tp_targets=tp_targets,
-                sl_percentage=sl_percentage,
-                partial_percentages=partial_percentages
-            )
-            
-            if success:
-                # تحديث معلومات الصفقة في الذاكرة
-                position_info['tp_targets'] = tp_targets
-                position_info['sl_percentage'] = sl_percentage
-                position_info['sl_price'] = sl_price
-                position_info['partial_close_percentages'] = partial_percentages
-                position_info['executed_tps'] = []
-                position_info['remaining_quantity'] = position_info.get('quantity', 
-                    position_info.get('margin_amount', position_info.get('contracts', 0)))
-                
-                logger.info(f"تم تعيين أهداف للصفقة {position_id}: TPs={len(tp_targets)}, SL={sl_percentage}%")
-                return True
-            
-            return False
-            
-        except Exception as e:
-            logger.error(f"خطأ في تعيين أهداف الصفقة {position_id}: {e}")
-            return False
-    
-    async def check_and_execute_targets(self, position_id: str, current_price: float) -> Dict:
-        """فحص وتنفيذ الأهداف ووقف الخسارة"""
-        try:
-            if position_id not in self.trading_bot.open_positions:
-                return {'status': 'error', 'message': 'Position not found'}
-            
-            position_info = self.trading_bot.open_positions[position_id]
-            side = position_info['side']
-            entry_price = position_info['entry_price']
-            
-            # التحقق من وجود أهداف
-            tp_targets = position_info.get('tp_targets', [])
-            sl_price = position_info.get('sl_price', 0)
-            executed_tps = position_info.get('executed_tps', [])
-            
-            result = {'targets_hit': [], 'sl_hit': False, 'actions': []}
-            
-            # فحص وقف الخسارة أولاً
-            if sl_price > 0:
-                sl_triggered = False
-                if side.lower() == "buy" and current_price <= sl_price:
-                    sl_triggered = True
-                elif side.lower() == "sell" and current_price >= sl_price:
-                    sl_triggered = True
-                
-                if sl_triggered:
-                    # إغلاق الصفقة بالكامل
-                    await self._close_position_at_sl(position_id, current_price)
-                    result['sl_hit'] = True
-                    result['actions'].append('SL_EXECUTED')
-                    return result
-            
-            # فحص أهداف الربح
-            for tp in tp_targets:
-                if tp['executed']:
-                    continue
-                
-                tp_triggered = False
-                if side.lower() == "buy" and current_price >= tp['price']:
-                    tp_triggered = True
-                elif side.lower() == "sell" and current_price <= tp['price']:
-                    tp_triggered = True
-                
-                if tp_triggered:
-                    # تنفيذ الإغلاق الجزئي
-                    success = await self._execute_partial_close(
-                        position_id, 
-                        tp['index'], 
-                        current_price,
-                        tp['partial_close_percent']
-                    )
-                    
-                    if success:
-                        tp['executed'] = True
-                        result['targets_hit'].append(tp['index'])
-                        result['actions'].append(f"TP{tp['index']}_EXECUTED")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"خطأ في فحص أهداف الصفقة {position_id}: {e}")
-            return {'status': 'error', 'message': str(e)}
-    
-    async def _close_position_at_sl(self, position_id: str, current_price: float):
-        """إغلاق صفقة عند وقف الخسارة"""
-        try:
-            from database import db_manager
-            
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            side = position_info['side']
-            entry_price = position_info['entry_price']
-            
-            # حساب الخسارة
-            remaining_quantity = position_info.get('remaining_quantity', 
-                position_info.get('quantity', position_info.get('contracts', 0)))
-            
-            if side.lower() == "buy":
-                pnl = (current_price - entry_price) * remaining_quantity
-            else:
-                pnl = (entry_price - current_price) * remaining_quantity
-            
-            # إغلاق الصفقة
-            db_manager.close_order(position_id, current_price, pnl)
-            
-            # حذف من القائمة
-            if position_id in self.trading_bot.open_positions:
-                del self.trading_bot.open_positions[position_id]
-            
-            # إرسال إشعار
-            message = f"🔴 تم إغلاق صفقة عند وقف الخسارة\n"
-            message += f"📊 الرمز: {symbol}\n"
-            message += f"🔄 النوع: {side.upper()}\n"
-            message += f"💲 سعر الدخول: {entry_price:.6f}\n"
-            message += f"💲 سعر الإغلاق: {current_price:.6f}\n"
-            message += f"📉 الخسارة: {pnl:.2f} USDT\n"
-            message += f"🆔 رقم الصفقة: {position_id}"
-            
-            await self.trading_bot.send_message_to_admin(message)
-            
-            logger.info(f"تم إغلاق الصفقة {position_id} عند SL: Price={current_price}, PnL={pnl}")
-            
-        except Exception as e:
-            logger.error(f"خطأ في إغلاق الصفقة عند SL {position_id}: {e}")
-    
-    async def _execute_partial_close(self, position_id: str, tp_index: int, 
-                                     current_price: float, close_percentage: float) -> bool:
-        """تنفيذ إغلاق جزئي عند تحقيق هدف"""
-        try:
-            from database import db_manager
-            
-            position_info = self.trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            side = position_info['side']
-            entry_price = position_info['entry_price']
-            
-            # حساب الكمية المراد إغلاقها
-            remaining_quantity = position_info.get('remaining_quantity', 
-                position_info.get('quantity', position_info.get('contracts', 0)))
-            
-            close_quantity = remaining_quantity * (close_percentage / 100)
-            
-            # حساب الربح
-            if side.lower() == "buy":
-                pnl = (current_price - entry_price) * close_quantity
-            else:
-                pnl = (entry_price - current_price) * close_quantity
-            
-            # تسجيل التنفيذ في قاعدة البيانات
-            db_manager.mark_tp_executed(position_id, tp_index, current_price, close_quantity)
-            
-            # تحديث الصفقة في الذاكرة
-            position_info['remaining_quantity'] = remaining_quantity - close_quantity
-            
-            if not position_info.get('executed_tps'):
-                position_info['executed_tps'] = []
-            
-            position_info['executed_tps'].append({
-                'index': tp_index,
-                'price': current_price,
-                'quantity': close_quantity,
-                'pnl': pnl
-            })
-            
-            # إرسال إشعار
-            message = f"🟢 تم تحقيق هدف ربح #{tp_index + 1}\n"
-            message += f"📊 الرمز: {symbol}\n"
-            message += f"🔄 النوع: {side.upper()}\n"
-            message += f"💲 سعر الدخول: {entry_price:.6f}\n"
-            message += f"💲 سعر التنفيذ: {current_price:.6f}\n"
-            message += f"📊 نسبة الإغلاق: {close_percentage}%\n"
-            message += f"💰 الربح: {pnl:.2f} USDT\n"
-            message += f"📦 الكمية المتبقية: {position_info['remaining_quantity']:.4f}\n"
-            message += f"🆔 رقم الصفقة: {position_id}"
-            
-            await self.trading_bot.send_message_to_admin(message)
-            
-            # إذا تم إغلاق كل الكمية، أغلق الصفقة
-            if position_info['remaining_quantity'] <= 0.0001:
-                db_manager.close_order(position_id, current_price, pnl)
-                if position_id in self.trading_bot.open_positions:
-                    del self.trading_bot.open_positions[position_id]
-            
-            logger.info(f"تم تنفيذ TP{tp_index} للصفقة {position_id}: Price={current_price}, Qty={close_quantity}, PnL={pnl}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الإغلاق الجزئي للصفقة {position_id}: {e}")
-            return False
-    
-    async def monitor_all_positions(self):
-        """مراقبة جميع الصفقات المفتوحة وتنفيذ الأهداف"""
-        while self.monitoring_active:
-            try:
-                if not self.trading_bot.open_positions:
-                    await asyncio.sleep(5)
-                    continue
-                
-                # تحديث الأسعار
-                await self.trading_bot.update_open_positions_prices()
-                
-                # فحص كل صفقة
-                for position_id, position_info in list(self.trading_bot.open_positions.items()):
-                    current_price = position_info.get('current_price')
-                    
-                    if not current_price:
-                        continue
-                    
-                    # التحقق من وجود أهداف
-                    if position_info.get('tp_targets') or position_info.get('sl_price', 0) > 0:
-                        result = await self.check_and_execute_targets(position_id, current_price)
-                        
-                        if result.get('actions'):
-                            logger.info(f"تم تنفيذ إجراءات على الصفقة {position_id}: {result['actions']}")
-                
-                await asyncio.sleep(10)  # انتظار 10 ثواني قبل الفحص التالي
-                
-            except Exception as e:
-                logger.error(f"خطأ في مراقبة الصفقات: {e}")
-                await asyncio.sleep(30)
-    
-    def start_monitoring(self):
-        """بدء مراقبة الصفقات"""
-        if not self.monitoring_active:
-            self.monitoring_active = True
-            logger.info("تم بدء مراقبة الصفقات")
-    
-    def stop_monitoring(self):
-        """إيقاف مراقبة الصفقات"""
-        self.monitoring_active = False
-        logger.info("تم إيقاف مراقبة الصفقات")
 
 # إنشاء البوت العام
 trading_bot = TradingBot()
-
-# إنشاء مدير الأهداف
-target_manager = PositionTargetManager(trading_bot)
 
 # تهيئة مدير المستخدمين مع الفئات اللازمة
 import user_manager as um_module
@@ -2789,23 +1941,10 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة أزرار إدارة الصفقة
+        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
         pnl_display = f"({pnl_value:+.2f})" if current_price else ""
-        
-        # التحقق من وجود أهداف مسبقاً
-        has_targets = position_info.get('tp_targets') or position_info.get('sl_price', 0) > 0
-        
-        # أزرار في صف واحد
-        row_buttons = []
-        row_buttons.append(InlineKeyboardButton(f"❌ إغلاق {pnl_display}", callback_data=f"close_{position_id}"))
-        
-        if has_targets:
-            row_buttons.append(InlineKeyboardButton("📊 عرض الأهداف", callback_data=f"view_targets_{position_id}"))
-            row_buttons.append(InlineKeyboardButton("✏️ تعديل", callback_data=f"edit_targets_{position_id}"))
-        else:
-            row_buttons.append(InlineKeyboardButton("🎯 تعيين أهداف", callback_data=f"set_targets_{position_id}"))
-        
-        spot_keyboard.append(row_buttons)
+        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
+        spot_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
     
     spot_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     spot_reply_markup = InlineKeyboardMarkup(spot_keyboard)
@@ -2917,23 +2056,10 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة أزرار إدارة الصفقة
+        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
         pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
-        
-        # التحقق من وجود أهداف مسبقاً
-        has_targets = position_info.get('tp_targets') or position_info.get('sl_price', 0) > 0
-        
-        # أزرار في صف واحد
-        row_buttons = []
-        row_buttons.append(InlineKeyboardButton(f"❌ إغلاق {pnl_display}", callback_data=f"close_{position_id}"))
-        
-        if has_targets:
-            row_buttons.append(InlineKeyboardButton("📊 عرض الأهداف", callback_data=f"view_targets_{position_id}"))
-            row_buttons.append(InlineKeyboardButton("✏️ تعديل", callback_data=f"edit_targets_{position_id}"))
-        else:
-            row_buttons.append(InlineKeyboardButton("🎯 تعيين أهداف", callback_data=f"set_targets_{position_id}"))
-        
-        futures_keyboard.append(row_buttons)
+        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
+        futures_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
     
     futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
@@ -3201,9 +2327,6 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total_losing_trades = spot_info['losing_trades'] + futures_info['losing_trades']
         total_win_rate = round((total_winning_trades / max(total_trades, 1)) * 100, 2)
         
-        # حساب إجمالي أرباح الأهداف
-        total_tp_profits = spot_info.get('tp_profits', 0) + futures_info.get('tp_profits', 0)
-        
         wallet_message = f"""
 💰 معلومات المحفظة الشاملة
 
@@ -3211,14 +2334,12 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {spot_pnl_emoji} السبوت: {spot_info['balance']:.2f}
    💳 المتاح: {spot_info.get('available_balance', spot_info['balance']):.2f}
    📈 PnL: {spot_info['unrealized_pnl']:.2f}
-   🎯 أرباح الأهداف: {spot_info.get('tp_profits', 0):.2f}
 
 {futures_pnl_emoji} الفيوتشر: {futures_info['balance']:.2f}
    💳 المتاح: {futures_info.get('available_balance', futures_info['balance']):.2f}
    🔒 الهامش المحجوز: {futures_info.get('margin_locked', 0):.2f}
    💼 القيمة الصافية: {futures_info.get('equity', futures_info['balance']):.2f}
    📈 PnL: {futures_info['unrealized_pnl']:.2f}
-   🎯 أرباح الأهداف: {futures_info.get('tp_profits', 0):.2f}
    📊 نسبة الهامش: {futures_info.get('margin_ratio', '∞')}
 
 📈 الإجمالي:
@@ -3227,7 +2348,6 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔒 الهامش المحجوز: {total_margin_locked:.2f}
 💼 القيمة الصافية: {total_equity:.2f}
 {total_pnl_arrow} إجمالي PnL: {total_pnl:.2f} - {total_pnl_status}
-🎯 إجمالي أرباح الأهداف: {total_tp_profits:.2f}
 
 📊 إحصائيات التداول:
 🔄 الصفقات المفتوحة: {total_open_positions}
@@ -3251,166 +2371,6 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {e}")
 
 # باقي الوظائف تبقى كما هي مع بعض التحديثات...
-async def view_position_targets(update: Update, position_id: str):
-    """عرض أهداف الربح ووقف الخسارة لصفقة"""
-    try:
-        if position_id not in trading_bot.open_positions:
-            await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
-            return
-        
-        position_info = trading_bot.open_positions[position_id]
-        symbol = position_info['symbol']
-        side = position_info['side']
-        entry_price = position_info['entry_price']
-        current_price = position_info.get('current_price', entry_price)
-        
-        tp_targets = position_info.get('tp_targets', [])
-        sl_price = position_info.get('sl_price', 0)
-        sl_percentage = position_info.get('sl_percentage', 0)
-        executed_tps = position_info.get('executed_tps', [])
-        
-        message = f"🎯 أهداف الصفقة - {symbol}\n\n"
-        message += f"📊 النوع: {side.upper()}\n"
-        message += f"💲 سعر الدخول: {entry_price:.6f}\n"
-        message += f"💲 السعر الحالي: {current_price:.6f}\n\n"
-        
-        if tp_targets:
-            message += "🎯 أهداف الربح:\n"
-            for i, tp in enumerate(tp_targets):
-                status = "✅" if tp.get('executed') else "⏳"
-                executed_marker = " (تم التنفيذ)" if tp.get('executed') else ""
-                message += f"{status} TP{i+1}: {tp['price']:.6f} ({tp['percentage']:.2f}%)"
-                message += f" - إغلاق {tp['partial_close_percent']}%{executed_marker}\n"
-        else:
-            message += "⚠️ لا توجد أهداف ربح محددة\n"
-        
-        message += "\n"
-        
-        if sl_price > 0:
-            message += f"🔴 وقف الخسارة:\n"
-            message += f"💲 السعر: {sl_price:.6f} ({sl_percentage:.2f}%)\n"
-        else:
-            message += "⚠️ لا يوجد وقف خسارة محدد\n"
-        
-        # عرض الأهداف المنفذة
-        if executed_tps:
-            message += f"\n✅ الأهداف المنفذة: {len(executed_tps)}\n"
-            total_pnl = sum([tp['pnl'] for tp in executed_tps])
-            message += f"💰 إجمالي الربح: {total_pnl:.2f} USDT\n"
-        
-        keyboard = [
-            [InlineKeyboardButton("✏️ تعديل الأهداف", callback_data=f"edit_targets_{position_id}")],
-            [InlineKeyboardButton("🔙 العودة", callback_data="open_positions")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
-        
-    except Exception as e:
-        logger.error(f"خطأ في عرض أهداف الصفقة: {e}")
-        await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
-async def set_position_targets_menu(update: Update, position_id: str):
-    """عرض قائمة تعيين الأهداف"""
-    try:
-        if position_id not in trading_bot.open_positions:
-            await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
-            return
-        
-        position_info = trading_bot.open_positions[position_id]
-        symbol = position_info['symbol']
-        
-        message = f"""
-🎯 تعيين أهداف الصفقة - {symbol}
-
-اختر عدد الأهداف والنسب:
-
-📊 الخيارات المتاحة:
-• 3 أهداف (مُوصى به)
-• 2 أهداف
-• 1 هدف
-• مخصص
-
-⚙️ يمكنك أيضاً تعيين:
-• نسبة وقف الخسارة
-• نسب الإغلاق الجزئي لكل هدف
-        """
-        
-        keyboard = [
-            [InlineKeyboardButton("🎯 3 أهداف (1.5%, 3%, 5%)", callback_data=f"targets_preset_3_{position_id}")],
-            [InlineKeyboardButton("🎯 2 أهداف (2%, 4%)", callback_data=f"targets_preset_2_{position_id}")],
-            [InlineKeyboardButton("🎯 1 هدف (3%)", callback_data=f"targets_preset_1_{position_id}")],
-            [InlineKeyboardButton("✏️ مخصص", callback_data=f"targets_custom_{position_id}")],
-            [InlineKeyboardButton("🔙 العودة", callback_data="open_positions")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
-        
-    except Exception as e:
-        logger.error(f"خطأ في عرض قائمة تعيين الأهداف: {e}")
-        await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
-async def apply_targets_preset(update: Update, preset_type: str, position_id: str):
-    """تطبيق إعدادات أهداف مسبقة"""
-    try:
-        # تعريف الإعدادات المسبقة
-        presets = {
-            '3': {
-                'tp_percentages': [1.5, 3.0, 5.0],
-                'partial_percentages': [30, 40, 30],
-                'sl_percentage': 2.0
-            },
-            '2': {
-                'tp_percentages': [2.0, 4.0],
-                'partial_percentages': [50, 50],
-                'sl_percentage': 2.0
-            },
-            '1': {
-                'tp_percentages': [3.0],
-                'partial_percentages': [100],
-                'sl_percentage': 2.0
-            }
-        }
-        
-        if preset_type not in presets:
-            await update.callback_query.edit_message_text("❌ إعداد غير صحيح")
-            return
-        
-        preset = presets[preset_type]
-        
-        # تطبيق الأهداف
-        success = target_manager.set_position_targets(
-            position_id=position_id,
-            tp_percentages=preset['tp_percentages'],
-            sl_percentage=preset['sl_percentage'],
-            partial_percentages=preset['partial_percentages']
-        )
-        
-        if success:
-            position_info = trading_bot.open_positions[position_id]
-            symbol = position_info['symbol']
-            
-            message = f"✅ تم تعيين الأهداف بنجاح لـ {symbol}\n\n"
-            message += f"🎯 عدد الأهداف: {len(preset['tp_percentages'])}\n"
-            message += f"📊 نسب الأهداف: {preset['tp_percentages']}\n"
-            message += f"📊 نسب الإغلاق: {preset['partial_percentages']}\n"
-            message += f"🔴 وقف الخسارة: {preset['sl_percentage']}%\n"
-            
-            keyboard = [
-                [InlineKeyboardButton("📊 عرض التفاصيل", callback_data=f"view_targets_{position_id}")],
-                [InlineKeyboardButton("🔙 العودة", callback_data="open_positions")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
-        else:
-            await update.callback_query.edit_message_text("❌ فشل في تعيين الأهداف")
-        
-    except Exception as e:
-        logger.error(f"خطأ في تطبيق الإعدادات المسبقة: {e}")
-        await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة الأزرار المضغوطة"""
     if update.callback_query is None:
@@ -3503,43 +2463,30 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "personal_webhook":
         # عرض رابط الإشارة الشخصي للمستخدم
         if user_id is not None:
-            # إنشاء رابط webhook شخصي باستخدام BASE_URL
-            personal_webhook_url = f"{BASE_URL}/personal/{user_id}/webhook"
+            # إنشاء رابط webhook شخصي
+            personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id}/webhook"
             
             webhook_message = f"""
-🚀 رابط الإشارة الشخصي - إشارة بدء كاملة
+📡 رابط الإشارة الشخصي الخاص بك:
 
 🔗 {personal_webhook_url}
-
-✅ هذا الرابط يعمل كإشارة بدء كاملة للبوت!
 
 📋 كيفية الاستخدام:
 1. انسخ الرابط أعلاه
 2. ضعه في TradingView أو أي منصة إشارات
 3. أرسل الإشارات بالصيغة:
-   {{"symbol": "NFPUSDT", "action": "buy"}}
-
-🎯 ما يحدث عند الإرسال:
-• ✅ يتم استقبال الإشارة فوراً
-• ✅ يتم تنفيذ الصفقة تلقائياً
-• ✅ يتم إرسال إشعار في البوت
-• ✅ يتم حفظ الصفقة في المحفظة
+   {{"symbol": "BTCUSDT", "action": "BUY", "price": 50000}}
 
 📊 صيغة الإشارة المطلوبة:
-• symbol: رمز العملة (مثل NFPUSDT, BTCUSDT)
-• action: buy أو sell
-• price: السعر (اختياري - إذا لم يُحدد يستخدم السعر الحالي)
-
-🔧 أنواع الحسابات المدعومة:
-• 💰 حساب تجريبي (Demo)
-• 🏦 حساب حقيقي (Real)
+• symbol: رمز العملة (مثل BTCUSDT)
+• action: BUY أو SELL
+• price: السعر (اختياري)
 
 ⚠️ ملاحظة: هذا الرابط مخصص لك فقط ولا يجب مشاركته مع الآخرين
             """
             
             keyboard = [
                 [InlineKeyboardButton("📋 نسخ الرابط", callback_data=f"copy_webhook_{user_id}")],
-                [InlineKeyboardButton("🧪 اختبار الرابط", callback_data=f"test_webhook_{user_id}")],
                 [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3591,46 +2538,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
-    elif data.startswith("view_targets_"):
-        position_id = data.replace("view_targets_", "")
-        await view_position_targets(update, position_id)
-    elif data.startswith("set_targets_"):
-        position_id = data.replace("set_targets_", "")
-        await set_position_targets_menu(update, position_id)
-    elif data.startswith("edit_targets_"):
-        position_id = data.replace("edit_targets_", "")
-        await set_position_targets_menu(update, position_id)
-    elif data.startswith("targets_preset_"):
-        # استخراج نوع الإعداد والمعرف
-        parts = data.replace("targets_preset_", "").split("_")
-        if len(parts) >= 2:
-            preset_type = parts[0]
-            position_id = "_".join(parts[1:])
-            await apply_targets_preset(update, preset_type, position_id)
     elif data.startswith("copy_webhook_"):
         # معالجة نسخ رابط webhook الشخصي
         user_id_from_data = data.replace("copy_webhook_", "")
-        personal_webhook_url = f"{BASE_URL}/personal/{user_id_from_data}/webhook"
+        personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id_from_data}/webhook"
         
         # إرسال الرابط كرسالة منفصلة لسهولة النسخ
         copy_message = f"""
-🚀 رابط الإشارة الشخصي - إشارة بدء كاملة
+📋 رابط الإشارة الشخصي:
 
-🔗 {personal_webhook_url}
-
-✅ هذا الرابط يعمل كإشارة بدء كاملة للبوت!
-
-📋 كيفية الاستخدام:
-1. انسخ الرابط أعلاه
-2. ضعه في TradingView أو أي منصة إشارات
-3. أرسل الإشارات بالصيغة:
-   {{"symbol": "NFPUSDT", "action": "buy"}}
-
-🎯 ما يحدث عند الإرسال:
-• ✅ يتم استقبال الإشارة فوراً
-• ✅ يتم تنفيذ الصفقة تلقائياً
-• ✅ يتم إرسال إشعار في البوت
-• ✅ يتم حفظ الصفقة في المحفظة
+{personal_webhook_url}
 
 💡 انسخ الرابط أعلاه واستخدمه في TradingView أو منصة الإشارات الخاصة بك
         """
@@ -3638,85 +2555,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query is not None:
             await update.callback_query.answer("✅ تم إرسال الرابط للنسخ")
             await update.callback_query.message.reply_text(copy_message)
-    elif data.startswith("test_webhook_"):
-        # اختبار رابط webhook الشخصي
-        user_id_from_data = data.replace("test_webhook_", "")
-        personal_webhook_url = f"{BASE_URL}/personal/{user_id_from_data}/webhook"
-        
-        # إرسال إشارة اختبار
-        test_signal = {
-            "symbol": "NFPUSDT",
-            "action": "buy"
-        }
-        
-        test_message = f"""
-🧪 اختبار رابط الإشارة الشخصي
-
-🔗 {personal_webhook_url}
-
-📡 إرسال إشارة اختبار:
-• Symbol: NFPUSDT
-• Action: buy
-
-⏳ جاري الإرسال...
-        """
-        
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(test_message)
-            
-            # إرسال إشارة الاختبار
-            import requests
-            try:
-                response = requests.post(
-                    personal_webhook_url,
-                    json=test_signal,
-                    headers={'Content-Type': 'application/json'},
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    result_message = f"""
-✅ نجح الاختبار!
-
-🔗 {personal_webhook_url}
-
-📊 النتيجة:
-• Status: {response.status_code}
-• Response: {response.text}
-
-🎯 الرابط يعمل بشكل صحيح!
-                    """
-                else:
-                    result_message = f"""
-❌ فشل الاختبار!
-
-🔗 {personal_webhook_url}
-
-📊 النتيجة:
-• Status: {response.status_code}
-• Response: {response.text}
-
-🔧 تحقق من السجلات لمزيد من التفاصيل
-                    """
-                    
-            except Exception as e:
-                result_message = f"""
-❌ خطأ في الاختبار!
-
-🔗 {personal_webhook_url}
-
-📊 الخطأ:
-• {str(e)}
-
-🔧 تحقق من اتصال الإنترنت وحالة السيرفر
-                """
-            
-            keyboard = [
-                [InlineKeyboardButton("🔙 العودة للإعدادات", callback_data="settings")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.callback_query.edit_message_text(result_message, reply_markup=reply_markup)
     elif data == "refresh_positions":
         await open_positions(update, context)
     elif data == "set_amount":

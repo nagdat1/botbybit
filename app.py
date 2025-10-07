@@ -47,127 +47,19 @@ def health_check():
         "timestamp": datetime.now().isoformat()
     })
 
-@app.route('/personal/<int:user_id>/test', methods=['GET'])
-def test_personal_webhook(user_id):
-    """اختبار رابط الإشارة الشخصية"""
-    try:
-        print(f"🔍 اختبار رابط للمستخدم: {user_id}")
-        
-        return jsonify({
-            "status": "success",
-            "message": f"Personal webhook endpoint is working for user {user_id}",
-            "user_id": user_id,
-            "webhook_url": f"/personal/{user_id}/webhook",
-            "timestamp": datetime.now().isoformat()
-        }), 200
-        
-    except Exception as e:
-        print(f"❌ خطأ في اختبار الرابط: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/personal/<int:user_id>/start', methods=['POST'])
-def start_project_for_user(user_id):
-    """بدء المشروع كاملاً لمستخدم محدد بدون إشارة"""
-    try:
-        print(f"🚀 بدء المشروع كاملاً للمستخدم: {user_id}")
-        
-        # التحقق من وجود trading_bot
-        if not trading_bot:
-            print("❌ trading_bot غير متاح")
-            return jsonify({"status": "error", "message": "Trading bot not available"}), 500
-        
-        # بدء المشروع في thread منفصل
-        def start_project_async():
-            try:
-                print(f"🚀 بدء تشغيل المشروع كاملاً للمستخدم {user_id}")
-                
-                # إنشاء event loop جديد
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                # تشغيل المشروع كاملاً للمستخدم
-                async def run_full_project():
-                    try:
-                        # 1. إنشاء المستخدم إذا لم يكن موجود
-                        print(f"🔍 التحقق من وجود المستخدم {user_id}")
-                        user_data = trading_bot.user_manager.get_user(user_id)
-                        if not user_data:
-                            print(f"🔍 إنشاء مستخدم جديد {user_id}")
-                            trading_bot.user_manager.create_user(user_id)
-                            user_data = trading_bot.user_manager.get_user(user_id)
-                        
-                        # 2. تفعيل المستخدم
-                        print(f"🔍 تفعيل المستخدم {user_id}")
-                        trading_bot.user_manager.toggle_user_active(user_id)
-                        
-                        # 3. إرسال رسالة ترحيب للمستخدم
-                        welcome_message = f"""
-🚀 تم تشغيل المشروع كاملاً لك!
-
-👋 مرحباً! تم تفعيل بوت التداول على Bybit لك
-
-✅ المشروع يعمل الآن بشكل كامل!
-
-📋 الميزات المتاحة:
-• التداول الحقيقي والتجريبي
-• دعم أسواق Spot و Futures
-• استقبال إشارات من TradingView
-• إدارة المخاطر والأرباح
-
-🔗 رابط الإشارة الشخصي:
-https://botbybit-production.up.railway.app/personal/{user_id}/webhook
-
-📡 أرسل إشارات بالصيغة:
-{{"symbol": "BTCUSDT", "action": "buy"}}
-                        """
-                        
-                        await trading_bot.send_message_to_user(user_id, welcome_message)
-                        
-                    except Exception as e:
-                        error_message = f"""
-❌ خطأ في تشغيل المشروع
-
-🔍 الخطأ: {str(e)}
-
-🔧 يرجى المحاولة مرة أخرى أو التواصل مع الدعم
-                        """
-                        await trading_bot.send_message_to_user(user_id, error_message)
-                        print(f"❌ خطأ في تشغيل المشروع: {e}")
-                        import traceback
-                        traceback.print_exc()
-                
-                # تشغيل المشروع كاملاً
-                loop.run_until_complete(run_full_project())
-                loop.close()
-                
-                print(f"✅ انتهى تشغيل المشروع كاملاً للمستخدم {user_id}")
-                
-            except Exception as e:
-                print(f"❌ خطأ في تشغيل المشروع: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        threading.Thread(target=start_project_async, daemon=True).start()
-        
-        return jsonify({
-            "status": "success",
-            "message": f"Project started successfully for user {user_id}",
-            "user_id": user_id,
-            "webhook_url": f"/personal/{user_id}/webhook",
-            "timestamp": datetime.now().isoformat()
-        }), 200
-        
-    except Exception as e:
-        print(f"❌ خطأ في بدء المشروع: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """استقبال إشارات TradingView العامة"""
+    """استقبال إشارات TradingView (الرابط القديم - يعمل مع المستخدم الافتراضي)"""
     try:
         data = request.get_json()
         
+        print("=" * 50)
+        print("📥 [OLD WEBHOOK] استقبال إشارة على الرابط القديم /webhook")
+        print(f"📊 البيانات المستلمة: {data}")
+        print("=" * 50)
+        
         if not data:
+            print("❌ خطأ: لم يتم استقبال بيانات")
             return jsonify({"status": "error", "message": "No data received"}), 400
         
         # معالجة الإشارة في thread منفصل
@@ -179,75 +71,216 @@ def webhook():
         
         threading.Thread(target=process_signal_async, daemon=True).start()
         
+        print("✅ تم إرسال الإشارة للمعالجة")
         return jsonify({"status": "success", "message": "Signal processed"}), 200
         
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/personal/<int:user_id>/webhook', methods=['POST'])
-def personal_webhook(user_id):
-    """استقبال إشارات شخصية لمستخدم محدد - يعمل مثل الرابط الأساسي"""
-    try:
-        print(f"🔍 تم استقبال طلب webhook للمستخدم: {user_id}")
-        
-        data = request.get_json()
-        print(f"🔍 البيانات المستلمة: {data}")
-        
-        if not data:
-            print("❌ لا توجد بيانات في الطلب")
-            return jsonify({"status": "error", "message": "No data received"}), 400
-        
-        # إضافة معرف المستخدم للبيانات
-        data['user_id'] = user_id
-        data['source'] = 'personal_webhook'
-        
-        print(f"🔍 البيانات بعد الإضافة: {data}")
-        
-        # التحقق من وجود trading_bot
-        if not trading_bot:
-            print("❌ trading_bot غير متاح")
-            return jsonify({"status": "error", "message": "Trading bot not available"}), 500
-        
-        print("🔍 بدء معالجة الإشارة الشخصية")
-        
-        # معالجة الإشارة الشخصية بنفس طريقة الرابط الأساسي
-        def process_personal_signal_async():
-            try:
-                print(f"🚀 بدء معالجة الإشارة للمستخدم {user_id}")
-                print(f"🔍 البيانات: {data}")
-                
-                # إنشاء event loop جديد
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                # معالجة الإشارة بنفس طريقة الرابط الأساسي - بسيط وفعال
-                print(f"🔍 معالجة الإشارة للمستخدم {user_id} بنفس طريقة الرابط الأساسي")
-                loop.run_until_complete(trading_bot.process_signal(data))
-                loop.close()
-                
-                print(f"✅ انتهت معالجة الإشارة للمستخدم {user_id}")
-                
-            except Exception as e:
-                print(f"❌ خطأ في معالجة الإشارة: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        threading.Thread(target=process_personal_signal_async, daemon=True).start()
-        
-        print(f"✅ تم بدء thread معالجة الإشارة للمستخدم {user_id}")
-        
-        return jsonify({
-            "status": "success", 
-            "message": f"Personal signal received for user {user_id}",
-            "user_id": user_id,
-            "data": data
-        }), 200
-        
-    except Exception as e:
-        print(f"❌ خطأ في personal_webhook: {e}")
+        print(f"❌ خطأ في معالجة الإشارة: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/personal/<int:user_id>/webhook', methods=['POST'])
+def personal_webhook(user_id):
+    """استقبال إشارات TradingView لمستخدم محدد"""
+    try:
+        data = request.get_json()
+        
+        print("=" * 50)
+        print(f"📥 [PERSONAL WEBHOOK] استقبال إشارة شخصية")
+        print(f"👤 معرف المستخدم: {user_id}")
+        print(f"📊 البيانات المستلمة: {data}")
+        print("=" * 50)
+        
+        if not data:
+            print(f"❌ خطأ: لم يتم استقبال بيانات للمستخدم {user_id}")
+            return jsonify({
+                "status": "error", 
+                "message": "No data received",
+                "user_id": user_id
+            }), 400
+        
+        # استيراد user_manager
+        from user_manager import user_manager
+        
+        # التحقق من وجود المستخدم
+        if not user_manager:
+            print(f"❌ خطأ: مدير المستخدمين غير متاح")
+            return jsonify({
+                "status": "error",
+                "message": "User manager not initialized",
+                "user_id": user_id
+            }), 500
+        
+        user_data = user_manager.get_user(user_id)
+        if not user_data:
+            print(f"⚠️ تحذير: المستخدم {user_id} غير موجود في قاعدة البيانات")
+            return jsonify({
+                "status": "error",
+                "message": f"User {user_id} not found",
+                "user_id": user_id
+            }), 404
+        
+        # التحقق من حالة المستخدم
+        if not user_manager.is_user_active(user_id):
+            print(f"⚠️ تحذير: المستخدم {user_id} غير نشط")
+            return jsonify({
+                "status": "error",
+                "message": f"User {user_id} is not active",
+                "user_id": user_id
+            }), 403
+        
+        print(f"✅ تم التحقق من المستخدم {user_id} - الحالة: نشط")
+        print(f"📋 إعدادات المستخدم: market_type={user_data.get('market_type', 'spot')}, "
+              f"balance={user_data.get('balance', 0)}, "
+              f"notifications={user_data.get('notifications', True)}")
+        
+        # معالجة الإشارة للمستخدم المحدد
+        def process_user_signal_async():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # استخدام دالة خاصة لمعالجة إشارات المستخدمين
+                loop.run_until_complete(
+                    process_personal_signal(user_id, data, user_manager)
+                )
+                
+                loop.close()
+            except Exception as e:
+                print(f"❌ خطأ في معالجة إشارة المستخدم {user_id}: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        threading.Thread(target=process_user_signal_async, daemon=True).start()
+        
+        print(f"✅ تم إرسال إشارة المستخدم {user_id} للمعالجة")
+        return jsonify({
+            "status": "success",
+            "message": f"Signal processed for user {user_id}",
+            "user_id": user_id
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ خطأ في معالجة إشارة المستخدم {user_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "user_id": user_id
+        }), 500
+
+
+async def process_personal_signal(user_id: int, signal_data: dict, user_manager):
+    """معالجة إشارة شخصية لمستخدم محدد"""
+    try:
+        print(f"🔄 بدء معالجة الإشارة للمستخدم {user_id}")
+        
+        # استخراج بيانات الإشارة
+        symbol = signal_data.get('symbol', '').upper()
+        action = signal_data.get('action', '').lower()
+        price = signal_data.get('price', 0)
+        
+        print(f"📊 تفاصيل الإشارة: symbol={symbol}, action={action}, price={price}")
+        
+        if not symbol or not action:
+            print(f"❌ بيانات الإشارة غير مكتملة للمستخدم {user_id}")
+            return
+        
+        # الحصول على إعدادات المستخدم
+        user_data = user_manager.get_user(user_id)
+        if not user_data:
+            print(f"❌ فشل في الحصول على بيانات المستخدم {user_id}")
+            return
+        
+        market_type = user_data.get('market_type', 'spot')
+        trade_amount = user_data.get('trade_amount', 100.0)
+        
+        print(f"⚙️ إعدادات التداول: market_type={market_type}, trade_amount={trade_amount}")
+        
+        # معالجة الإشارة حسب نوع العملية
+        if action in ['buy', 'sell']:
+            print(f"📈 تنفيذ صفقة {action} للمستخدم {user_id}")
+            
+            # تنفيذ الصفقة
+            success, result = user_manager.execute_user_trade(
+                user_id=user_id,
+                symbol=symbol,
+                action=action,
+                price=price if price > 0 else 1.0,  # استخدام سعر افتراضي إذا لم يتم توفيره
+                amount=trade_amount,
+                market_type=market_type
+            )
+            
+            if success:
+                print(f"✅ تم تنفيذ الصفقة بنجاح للمستخدم {user_id}: {result}")
+                
+                # إرسال إشعار إذا كان مفعلاً
+                if user_data.get('notifications', True):
+                    try:
+                        await send_notification_to_user(
+                            user_id,
+                            f"✅ تم تنفيذ صفقة {action} على {symbol} بسعر {price}"
+                        )
+                    except Exception as e:
+                        print(f"⚠️ فشل إرسال الإشعار: {e}")
+            else:
+                print(f"❌ فشل تنفيذ الصفقة للمستخدم {user_id}: {result}")
+                
+        elif action in ['close', 'exit', 'stop']:
+            print(f"📉 إغلاق صفقة للمستخدم {user_id}")
+            
+            # إغلاق جميع صفقات الرمز
+            user_positions = user_manager.get_user_positions(user_id)
+            closed_count = 0
+            
+            for position_id, position_data in list(user_positions.items()):
+                if position_data['symbol'] == symbol:
+                    success, result = user_manager.close_user_position(
+                        user_id=user_id,
+                        position_id=position_id,
+                        close_price=price if price > 0 else position_data.get('current_price', 1.0)
+                    )
+                    
+                    if success:
+                        closed_count += 1
+                        print(f"✅ تم إغلاق الصفقة {position_id} للمستخدم {user_id}")
+                        
+                        # إرسال إشعار
+                        if user_data.get('notifications', True):
+                            try:
+                                pnl = result.get('pnl', 0)
+                                await send_notification_to_user(
+                                    user_id,
+                                    f"✅ تم إغلاق صفقة {symbol} - الربح/الخسارة: {pnl:.2f}"
+                                )
+                            except Exception as e:
+                                print(f"⚠️ فشل إرسال الإشعار: {e}")
+            
+            print(f"📊 تم إغلاق {closed_count} صفقة للمستخدم {user_id}")
+        
+        else:
+            print(f"⚠️ نوع إشارة غير معروف للمستخدم {user_id}: {action}")
+            
+    except Exception as e:
+        print(f"❌ خطأ في معالجة الإشارة الشخصية للمستخدم {user_id}: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def send_notification_to_user(user_id: int, message: str):
+    """إرسال إشعار للمستخدم عبر Telegram"""
+    try:
+        from bybit_trading_bot import application
+        if application:
+            await application.bot.send_message(
+                chat_id=user_id,
+                text=message
+            )
+    except Exception as e:
+        print(f"خطأ في إرسال الإشعار للمستخدم {user_id}: {e}")
 
 def start_bot():
     """بدء تشغيل البوت"""
@@ -301,28 +334,6 @@ def start_bot():
             
             # بدء التحديث الدوري
             start_price_updates()
-            
-            # بدء مراقبة الأهداف
-            def start_target_monitoring():
-                """بدء مراقبة أهداف الصفقات"""
-                from bybit_trading_bot import target_manager
-                
-                def monitor_targets():
-                    while True:
-                        try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            target_manager.start_monitoring()
-                            loop.run_until_complete(target_manager.monitor_all_positions())
-                            loop.close()
-                        except Exception as e:
-                            print(f"خطأ في مراقبة الأهداف: {e}")
-                            threading.Event().wait(60)
-                
-                threading.Thread(target=monitor_targets, daemon=True).start()
-            
-            # بدء المراقبة
-            start_target_monitoring()
             
             # تشغيل البوت
             print("بدء تشغيل البوت...")

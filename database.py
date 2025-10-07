@@ -59,12 +59,6 @@ class DatabaseManager:
                         partial_close TEXT DEFAULT '[]',
                         status TEXT DEFAULT 'OPEN',
                         notes TEXT,
-                        tp_targets TEXT DEFAULT '[]',
-                        sl_percentage REAL DEFAULT 0.0,
-                        partial_close_percentages TEXT DEFAULT '[]',
-                        executed_tps TEXT DEFAULT '[]',
-                        executed_partials TEXT DEFAULT '[]',
-                        remaining_quantity REAL,
                         FOREIGN KEY (user_id) REFERENCES users (user_id)
                     )
                 """)
@@ -101,22 +95,6 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE developers ADD COLUMN auto_broadcast BOOLEAN DEFAULT 0")
                 except sqlite3.OperationalError:
                     pass  # الحقل موجود بالفعل
-                
-                # إضافة حقول إدارة الأهداف ووقف الخسارة للصفقات
-                new_columns = [
-                    ("tp_targets", "TEXT DEFAULT '[]'"),
-                    ("sl_percentage", "REAL DEFAULT 0.0"),
-                    ("partial_close_percentages", "TEXT DEFAULT '[]'"),
-                    ("executed_tps", "TEXT DEFAULT '[]'"),
-                    ("executed_partials", "TEXT DEFAULT '[]'"),
-                    ("remaining_quantity", "REAL")
-                ]
-                
-                for column_name, column_type in new_columns:
-                    try:
-                        cursor.execute(f"ALTER TABLE orders ADD COLUMN {column_name} {column_type}")
-                    except sqlite3.OperationalError:
-                        pass  # الحقل موجود بالفعل
                 
                 # جدول متابعي المطورين
                 cursor.execute("""
@@ -391,17 +369,9 @@ class DatabaseManager:
                     try:
                         order['tps'] = json.loads(order['tps'])
                         order['partial_close'] = json.loads(order['partial_close'])
-                        order['tp_targets'] = json.loads(order.get('tp_targets', '[]'))
-                        order['partial_close_percentages'] = json.loads(order.get('partial_close_percentages', '[]'))
-                        order['executed_tps'] = json.loads(order.get('executed_tps', '[]'))
-                        order['executed_partials'] = json.loads(order.get('executed_partials', '[]'))
                     except (json.JSONDecodeError, TypeError):
                         order['tps'] = []
                         order['partial_close'] = []
-                        order['tp_targets'] = []
-                        order['partial_close_percentages'] = []
-                        order['executed_tps'] = []
-                        order['executed_partials'] = []
                     
                     orders.append(order)
                 
@@ -427,17 +397,9 @@ class DatabaseManager:
                     try:
                         order['tps'] = json.loads(order['tps'])
                         order['partial_close'] = json.loads(order['partial_close'])
-                        order['tp_targets'] = json.loads(order.get('tp_targets', '[]'))
-                        order['partial_close_percentages'] = json.loads(order.get('partial_close_percentages', '[]'))
-                        order['executed_tps'] = json.loads(order.get('executed_tps', '[]'))
-                        order['executed_partials'] = json.loads(order.get('executed_partials', '[]'))
                     except (json.JSONDecodeError, TypeError):
                         order['tps'] = []
                         order['partial_close'] = []
-                        order['tp_targets'] = []
-                        order['partial_close_percentages'] = []
-                        order['executed_tps'] = []
-                        order['executed_partials'] = []
                     
                     return order
                 return None
@@ -457,8 +419,7 @@ class DatabaseManager:
                 values = []
                 
                 for key, value in updates.items():
-                    if key in ['tps', 'partial_close', 'tp_targets', 'partial_close_percentages', 
-                              'executed_tps', 'executed_partials']:
+                    if key in ['tps', 'partial_close']:
                         set_clauses.append(f"{key} = ?")
                         values.append(json.dumps(value))
                     else:
@@ -825,134 +786,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على عدد إشارات المطور {developer_id}: {e}")
             return 0
-    
-    # إدارة الأهداف ووقف الخسارة للصفقات
-    def set_order_targets(self, order_id: str, tp_targets: List[Dict], sl_percentage: float, 
-                         partial_percentages: List[float]) -> bool:
-        """تعيين أهداف الربح ووقف الخسارة والإغلاق الجزئي للصفقة"""
-        try:
-            updates = {
-                'tp_targets': tp_targets,
-                'sl_percentage': sl_percentage,
-                'partial_close_percentages': partial_percentages
-            }
-            return self.update_order(order_id, updates)
-        except Exception as e:
-            logger.error(f"خطأ في تعيين أهداف الصفقة {order_id}: {e}")
-            return False
-    
-    def mark_tp_executed(self, order_id: str, tp_index: int, execution_price: float, 
-                        closed_quantity: float) -> bool:
-        """تسجيل تنفيذ هدف ربح"""
-        try:
-            order = self.get_order(order_id)
-            if not order:
-                return False
-            
-            executed_tps = order.get('executed_tps', [])
-            executed_tps.append({
-                'index': tp_index,
-                'price': execution_price,
-                'quantity': closed_quantity,
-                'timestamp': datetime.now().isoformat()
-            })
-            
-            # تحديث الكمية المتبقية
-            remaining_quantity = order.get('remaining_quantity', order['quantity'])
-            remaining_quantity -= closed_quantity
-            
-            updates = {
-                'executed_tps': executed_tps,
-                'remaining_quantity': remaining_quantity
-            }
-            
-            return self.update_order(order_id, updates)
-            
-        except Exception as e:
-            logger.error(f"خطأ في تسجيل تنفيذ TP للصفقة {order_id}: {e}")
-            return False
-    
-    def mark_partial_executed(self, order_id: str, partial_index: int, execution_price: float, 
-                             closed_quantity: float) -> bool:
-        """تسجيل تنفيذ إغلاق جزئي"""
-        try:
-            order = self.get_order(order_id)
-            if not order:
-                return False
-            
-            executed_partials = order.get('executed_partials', [])
-            executed_partials.append({
-                'index': partial_index,
-                'price': execution_price,
-                'quantity': closed_quantity,
-                'timestamp': datetime.now().isoformat()
-            })
-            
-            # تحديث الكمية المتبقية
-            remaining_quantity = order.get('remaining_quantity', order['quantity'])
-            remaining_quantity -= closed_quantity
-            
-            updates = {
-                'executed_partials': executed_partials,
-                'remaining_quantity': remaining_quantity
-            }
-            
-            return self.update_order(order_id, updates)
-            
-        except Exception as e:
-            logger.error(f"خطأ في تسجيل تنفيذ Partial للصفقة {order_id}: {e}")
-            return False
-    
-    def get_active_orders_with_targets(self, user_id: int = None) -> List[Dict]:
-        """الحصول على الصفقات النشطة التي لديها أهداف"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                if user_id:
-                    cursor.execute("""
-                        SELECT * FROM orders 
-                        WHERE user_id = ? AND status = 'OPEN' 
-                        AND (tp_targets != '[]' OR sl_percentage > 0)
-                        ORDER BY open_time DESC
-                    """, (user_id,))
-                else:
-                    cursor.execute("""
-                        SELECT * FROM orders 
-                        WHERE status = 'OPEN' 
-                        AND (tp_targets != '[]' OR sl_percentage > 0)
-                        ORDER BY open_time DESC
-                    """)
-                
-                rows = cursor.fetchall()
-                orders = []
-                
-                for row in rows:
-                    order = dict(row)
-                    
-                    # تحويل النصوص JSON إلى قوائم
-                    try:
-                        order['tps'] = json.loads(order['tps'])
-                        order['partial_close'] = json.loads(order['partial_close'])
-                        order['tp_targets'] = json.loads(order.get('tp_targets', '[]'))
-                        order['partial_close_percentages'] = json.loads(order.get('partial_close_percentages', '[]'))
-                        order['executed_tps'] = json.loads(order.get('executed_tps', '[]'))
-                        order['executed_partials'] = json.loads(order.get('executed_partials', '[]'))
-                    except (json.JSONDecodeError, TypeError):
-                        order['tps'] = []
-                        order['partial_close'] = []
-                        order['tp_targets'] = []
-                        order['partial_close_percentages'] = []
-                        order['executed_tps'] = []
-                        order['executed_partials'] = []
-                    
-                    orders.append(order)
-                
-                return orders
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على الصفقات النشطة مع الأهداف: {e}")
-            return []
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()
