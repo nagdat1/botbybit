@@ -1382,10 +1382,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # استخدام ADMIN_USER_ID مباشرة من config.py
     is_admin = (user_id == ADMIN_USER_ID)
     
-    # إذا كان المستخدم هو ADMIN، عرض لوحة التحكم مباشرة
+    # إذا كان المستخدم هو ADMIN، عرض القائمة الرئيسية مع زر المطور
     if is_admin:
-        # عرض لوحة تحكم المطور
-        await show_developer_panel(update, context)
+        # عرض القائمة الرئيسية للمطور مع زر الرجوع لحساب المطور
+        keyboard = [
+            [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
+            [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
+            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+            [KeyboardButton("🔙 الرجوع لحساب المطور")]
+        ]
+        
+        # إضافة أزرار إضافية إذا كان المطور نشطاً
+        user_data = user_manager.get_user(user_id)
+        if user_data and user_data.get('is_active'):
+            keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
+        else:
+            keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
+        
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        
+        # رسالة ترحيب للمطور
+        welcome_message = f"""
+🤖 مرحباً بك {update.effective_user.first_name} - المطور
+
+👨‍💻 أنت في الوضع العادي للمطور
+🔙 يمكنك العودة إلى لوحة تحكم المطور في أي وقت
+
+استخدم الأزرار أدناه للتنقل
+        """
+        
+        if update.message is not None:
+            await update.message.reply_text(welcome_message, reply_markup=reply_markup)
         return
     
     # التحقق من وجود المستخدم في قاعدة البيانات
