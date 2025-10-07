@@ -59,13 +59,12 @@ class DatabaseManager:
                         partial_close TEXT DEFAULT '[]',
                         status TEXT DEFAULT 'OPEN',
                         notes TEXT,
-                        # حقول جديدة للأهداف ووقف الخسارة
-                        targets TEXT DEFAULT '[]',  # قائمة الأهداف
-                        stop_loss REAL DEFAULT 0.0,  # وقف الخسارة
-                        partial_close_percentages TEXT DEFAULT '[]',  # نسب الإغلاق الجزئي
-                        partial_close_prices TEXT DEFAULT '[]',  # أسعار الإغلاق الجزئي
-                        trailing_stop BOOLEAN DEFAULT 0,  # وقف الخسارة المتحرك
-                        trailing_stop_distance REAL DEFAULT 0.0,  # مسافة وقف الخسارة المتحرك
+                        targets TEXT DEFAULT '[]',
+                        stop_loss REAL DEFAULT 0.0,
+                        partial_close_percentages TEXT DEFAULT '[]',
+                        partial_close_prices TEXT DEFAULT '[]',
+                        trailing_stop BOOLEAN DEFAULT 0,
+                        trailing_stop_distance REAL DEFAULT 0.0,
                         FOREIGN KEY (user_id) REFERENCES users (user_id)
                     )
                 """)
