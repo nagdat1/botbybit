@@ -1441,9 +1441,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     
-    # إضافة زر الرجوع لحساب المطور إذا كان المستخدم يتابع المطور
-    if is_following:
-        keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
@@ -2609,10 +2606,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
                 [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
             ]
-            # إضافة زر الرجوع لحساب المطور إذا كان المستخدم يتابع المطور
-            is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
-            if is_following:
-                keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
             
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
@@ -2661,15 +2654,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await start(update, context)
                 else:
                     await update.message.reply_text("❌ فشل في المتابعة")
-            return
-        elif text == "🔙 الرجوع لحساب المطور":
-            # التحقق من أن المستخدم يتابع المطور
-            is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
-            if is_following:
-                # عرض لوحة تحكم المطور
-                await show_developer_panel(update, context)
-            else:
-                await update.message.reply_text("❌ يجب أن تكون متابعاً للمطور للوصول إلى لوحة التحكم")
             return
     
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
