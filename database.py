@@ -59,18 +59,63 @@ class DatabaseManager:
                         partial_close TEXT DEFAULT '[]',
                         status TEXT DEFAULT 'OPEN',
                         notes TEXT,
+                        # حقول جديدة للأهداف ووقف الخسارة
+                        targets TEXT DEFAULT '[]',  # قائمة الأهداف
+                        stop_loss REAL DEFAULT 0.0,  # وقف الخسارة
+                        partial_close_percentages TEXT DEFAULT '[]',  # نسب الإغلاق الجزئي
+                        partial_close_prices TEXT DEFAULT '[]',  # أسعار الإغلاق الجزئي
+                        trailing_stop BOOLEAN DEFAULT 0,  # وقف الخسارة المتحرك
+                        trailing_stop_distance REAL DEFAULT 0.0,  # مسافة وقف الخسارة المتحرك
                         FOREIGN KEY (user_id) REFERENCES users (user_id)
                     )
                 """)
                 
-                # جدول إعدادات المستخدم
+                # جدول المحفظة
                 cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS user_settings (
-                        user_id INTEGER PRIMARY KEY,
-                        market_type TEXT DEFAULT 'spot',
-                        trade_amount REAL DEFAULT 100.0,
-                        leverage INTEGER DEFAULT 10,
-                        account_type TEXT DEFAULT 'demo',
+                    CREATE TABLE IF NOT EXISTS portfolio (
+                        portfolio_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        symbol TEXT NOT NULL,
+                        total_quantity REAL DEFAULT 0.0,
+                        average_price REAL DEFAULT 0.0,
+                        total_invested REAL DEFAULT 0.0,
+                        unrealized_pnl REAL DEFAULT 0.0,
+                        realized_pnl REAL DEFAULT 0.0,
+                        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (user_id),
+                        UNIQUE(user_id, symbol)
+                    )
+                """)
+                
+                # جدول تفاصيل الصفقات الجزئية
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS partial_closes (
+                        partial_close_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id TEXT NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        close_percentage REAL NOT NULL,
+                        close_price REAL NOT NULL,
+                        close_quantity REAL NOT NULL,
+                        realized_pnl REAL DEFAULT 0.0,
+                        close_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (order_id) REFERENCES orders (order_id),
+                        FOREIGN KEY (user_id) REFERENCES users (user_id)
+                    )
+                """)
+                
+                # جدول الأهداف المحققة
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS target_achievements (
+                        achievement_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id TEXT NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        target_price REAL NOT NULL,
+                        target_percentage REAL NOT NULL,
+                        achieved_price REAL NOT NULL,
+                        achieved_quantity REAL NOT NULL,
+                        realized_pnl REAL DEFAULT 0.0,
+                        achievement_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (order_id) REFERENCES orders (order_id),
                         FOREIGN KEY (user_id) REFERENCES users (user_id)
                     )
                 """)
@@ -317,8 +362,10 @@ class DatabaseManager:
                 cursor.execute("""
                     INSERT INTO orders (
                         order_id, user_id, symbol, side, entry_price, quantity,
-                        tps, sl, partial_close, status, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        tps, sl, partial_close, status, notes,
+                        targets, stop_loss, partial_close_percentages, 
+                        partial_close_prices, trailing_stop, trailing_stop_distance
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     order_data['order_id'],
                     order_data['user_id'],
@@ -330,7 +377,13 @@ class DatabaseManager:
                     order_data.get('sl', 0.0),
                     json.dumps(order_data.get('partial_close', [])),
                     order_data.get('status', 'OPEN'),
-                    order_data.get('notes', '')
+                    order_data.get('notes', ''),
+                    json.dumps(order_data.get('targets', [])),
+                    order_data.get('stop_loss', 0.0),
+                    json.dumps(order_data.get('partial_close_percentages', [])),
+                    json.dumps(order_data.get('partial_close_prices', [])),
+                    order_data.get('trailing_stop', False),
+                    order_data.get('trailing_stop_distance', 0.0)
                 ))
                 
                 conn.commit()
@@ -369,9 +422,15 @@ class DatabaseManager:
                     try:
                         order['tps'] = json.loads(order['tps'])
                         order['partial_close'] = json.loads(order['partial_close'])
+                        order['targets'] = json.loads(order.get('targets', '[]'))
+                        order['partial_close_percentages'] = json.loads(order.get('partial_close_percentages', '[]'))
+                        order['partial_close_prices'] = json.loads(order.get('partial_close_prices', '[]'))
                     except (json.JSONDecodeError, TypeError):
                         order['tps'] = []
                         order['partial_close'] = []
+                        order['targets'] = []
+                        order['partial_close_percentages'] = []
+                        order['partial_close_prices'] = []
                     
                     orders.append(order)
                 
@@ -397,9 +456,15 @@ class DatabaseManager:
                     try:
                         order['tps'] = json.loads(order['tps'])
                         order['partial_close'] = json.loads(order['partial_close'])
+                        order['targets'] = json.loads(order.get('targets', '[]'))
+                        order['partial_close_percentages'] = json.loads(order.get('partial_close_percentages', '[]'))
+                        order['partial_close_prices'] = json.loads(order.get('partial_close_prices', '[]'))
                     except (json.JSONDecodeError, TypeError):
                         order['tps'] = []
                         order['partial_close'] = []
+                        order['targets'] = []
+                        order['partial_close_percentages'] = []
+                        order['partial_close_prices'] = []
                     
                     return order
                 return None
@@ -419,7 +484,7 @@ class DatabaseManager:
                 values = []
                 
                 for key, value in updates.items():
-                    if key in ['tps', 'partial_close']:
+                    if key in ['tps', 'partial_close', 'targets', 'partial_close_percentages', 'partial_close_prices']:
                         set_clauses.append(f"{key} = ?")
                         values.append(json.dumps(value))
                     else:
@@ -786,6 +851,251 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على عدد إشارات المطور {developer_id}: {e}")
             return 0
+
+    # إدارة المحفظة والأهداف
+    def update_portfolio(self, user_id: int, symbol: str, quantity_change: float, 
+                        price: float, pnl: float = 0.0) -> bool:
+        """تحديث المحفظة بعد صفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # البحث عن السجل الموجود
+                cursor.execute("""
+                    SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?
+                """, (user_id, symbol))
+                
+                existing = cursor.fetchone()
+                
+                if existing:
+                    # تحديث السجل الموجود
+                    new_quantity = existing['total_quantity'] + quantity_change
+                    new_invested = existing['total_invested'] + (quantity_change * price)
+                    new_average_price = new_invested / new_quantity if new_quantity != 0 else 0
+                    new_realized_pnl = existing['realized_pnl'] + pnl
+                    
+                    cursor.execute("""
+                        UPDATE portfolio SET 
+                            total_quantity = ?, 
+                            average_price = ?, 
+                            total_invested = ?,
+                            realized_pnl = ?,
+                            last_updated = CURRENT_TIMESTAMP
+                        WHERE user_id = ? AND symbol = ?
+                    """, (new_quantity, new_average_price, new_invested, 
+                          new_realized_pnl, user_id, symbol))
+                else:
+                    # إنشاء سجل جديد
+                    cursor.execute("""
+                        INSERT INTO portfolio (
+                            user_id, symbol, total_quantity, average_price, 
+                            total_invested, realized_pnl
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    """, (user_id, symbol, quantity_change, price, 
+                          quantity_change * price, pnl))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث المحفظة: {e}")
+            return False
+    
+    def get_user_portfolio(self, user_id: int) -> List[Dict]:
+        """الحصول على محفظة المستخدم"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM portfolio WHERE user_id = ? AND total_quantity > 0
+                    ORDER BY last_updated DESC
+                """, (user_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على محفظة المستخدم {user_id}: {e}")
+            return []
+    
+    def add_partial_close(self, order_id: str, user_id: int, close_percentage: float, 
+                         close_price: float, close_quantity: float, realized_pnl: float) -> bool:
+        """إضافة إغلاق جزئي للصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO partial_closes (
+                        order_id, user_id, close_percentage, close_price, 
+                        close_quantity, realized_pnl
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (order_id, user_id, close_percentage, close_price, 
+                      close_quantity, realized_pnl))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إضافة الإغلاق الجزئي: {e}")
+            return False
+    
+    def get_partial_closes(self, order_id: str) -> List[Dict]:
+        """الحصول على الإغلاقات الجزئية للصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM partial_closes WHERE order_id = ?
+                    ORDER BY close_time ASC
+                """, (order_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الإغلاقات الجزئية: {e}")
+            return []
+    
+    def add_target_achievement(self, order_id: str, user_id: int, target_price: float,
+                              target_percentage: float, achieved_price: float,
+                              achieved_quantity: float, realized_pnl: float) -> bool:
+        """إضافة هدف محقق"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO target_achievements (
+                        order_id, user_id, target_price, target_percentage,
+                        achieved_price, achieved_quantity, realized_pnl
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (order_id, user_id, target_price, target_percentage,
+                      achieved_price, achieved_quantity, realized_pnl))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إضافة الهدف المحقق: {e}")
+            return False
+    
+    def get_target_achievements(self, order_id: str) -> List[Dict]:
+        """الحصول على الأهداف المحققة للصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM target_achievements WHERE order_id = ?
+                    ORDER BY achievement_time ASC
+                """, (order_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الأهداف المحققة: {e}")
+            return []
+    
+    def update_order_targets(self, order_id: str, targets: List[Dict]) -> bool:
+        """تحديث أهداف الصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE orders SET targets = ? WHERE order_id = ?
+                """, (json.dumps(targets), order_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث أهداف الصفقة: {e}")
+            return False
+    
+    def update_order_stop_loss(self, order_id: str, stop_loss: float) -> bool:
+        """تحديث وقف الخسارة للصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE orders SET stop_loss = ? WHERE order_id = ?
+                """, (stop_loss, order_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث وقف الخسارة: {e}")
+            return False
+    
+    def update_trailing_stop(self, order_id: str, enabled: bool, distance: float = 0.0) -> bool:
+        """تحديث وقف الخسارة المتحرك"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE orders SET trailing_stop = ?, trailing_stop_distance = ? 
+                    WHERE order_id = ?
+                """, (enabled, distance, order_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث وقف الخسارة المتحرك: {e}")
+            return False
+    
+    def get_orders_with_targets(self, user_id: int = None) -> List[Dict]:
+        """الحصول على الصفقات التي لها أهداف أو وقف خسارة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if user_id:
+                    cursor.execute("""
+                        SELECT * FROM orders 
+                        WHERE user_id = ? AND status = 'OPEN' 
+                        AND (targets != '[]' OR stop_loss > 0 OR trailing_stop = 1)
+                        ORDER BY open_time DESC
+                    """, (user_id,))
+                else:
+                    cursor.execute("""
+                        SELECT * FROM orders 
+                        WHERE status = 'OPEN' 
+                        AND (targets != '[]' OR stop_loss > 0 OR trailing_stop = 1)
+                        ORDER BY open_time DESC
+                    """)
+                
+                rows = cursor.fetchall()
+                orders = []
+                
+                for row in rows:
+                    order = dict(row)
+                    
+                    # تحويل النصوص JSON إلى قوائم
+                    try:
+                        order['targets'] = json.loads(order.get('targets', '[]'))
+                        order['partial_close_percentages'] = json.loads(order.get('partial_close_percentages', '[]'))
+                        order['partial_close_prices'] = json.loads(order.get('partial_close_prices', '[]'))
+                    except (json.JSONDecodeError, TypeError):
+                        order['targets'] = []
+                        order['partial_close_percentages'] = []
+                        order['partial_close_prices'] = []
+                    
+                    orders.append(order)
+                
+                return orders
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الصفقات ذات الأهداف: {e}")
+            return []
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

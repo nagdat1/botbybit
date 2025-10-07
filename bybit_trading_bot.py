@@ -34,6 +34,9 @@ from user_manager import user_manager
 from developer_manager import developer_manager
 import init_developers
 
+# استيراد مدير الأهداف
+from target_manager import TargetManager
+
 # إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -600,6 +603,9 @@ class TradingBot:
         self.is_running = True
         self.signals_received = 0
         
+        # إعداد مدير الأهداف
+        self.target_manager = TargetManager(self)
+        
         # إعدادات المستخدم
         self.user_settings = DEFAULT_SETTINGS.copy()
         
@@ -704,9 +710,103 @@ class TradingBot:
                             pnl_percent = ((entry_price - current_price) / entry_price) * 100
                         
                         position_info['pnl_percent'] = pnl_percent
+            
+            # فحص الأهداف ووقف الخسارة بعد تحديث الأسعار
+            await self.target_manager.check_targets_and_stops()
                         
         except Exception as e:
             logger.error(f"خطأ في تحديث أسعار الصفقات: {e}")
+    
+    async def execute_partial_close(self, order_id: str, user_id: int, symbol: str, 
+                                   side: str, quantity: float, price: float) -> bool:
+        """تنفيذ إغلاق جزئي للصفقة"""
+        try:
+            # البحث عن الصفقة في الصفقات المفتوحة
+            if order_id in self.open_positions:
+                position_info = self.open_positions[order_id]
+                
+                # تحديث الكمية المتبقية
+                remaining_quantity = position_info['quantity'] - quantity
+                if remaining_quantity <= 0:
+                    # إغلاق كامل
+                    return await self.execute_full_close(order_id, user_id, symbol, side, quantity, price)
+                
+                # تحديث الصفقة
+                position_info['quantity'] = remaining_quantity
+                
+                # حساب الربح/الخسارة المحققة
+                entry_price = position_info['entry_price']
+                if side.lower() == 'buy':
+                    realized_pnl = (price - entry_price) * quantity
+                else:
+                    realized_pnl = (entry_price - price) * quantity
+                
+                # إضافة سجل الإغلاق الجزئي
+                self.db_manager.add_partial_close(
+                    order_id, user_id, (quantity / position_info['quantity']) * 100,
+                    price, quantity, realized_pnl
+                )
+                
+                # تحديث المحفظة
+                self.db_manager.update_portfolio(user_id, symbol, -quantity, price, realized_pnl)
+                
+                logger.info(f"تم الإغلاق الجزئي للصفقة {order_id}: {quantity} بسعر {price}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ الإغلاق الجزئي: {e}")
+            return False
+    
+    async def execute_full_close(self, order_id: str, user_id: int, symbol: str, 
+                               side: str, quantity: float, price: float) -> bool:
+        """تنفيذ إغلاق كامل للصفقة"""
+        try:
+            # البحث عن الصفقة في الصفقات المفتوحة
+            if order_id in self.open_positions:
+                position_info = self.open_positions[order_id]
+                
+                # حساب الربح/الخسارة المحققة
+                entry_price = position_info['entry_price']
+                if side.lower() == 'buy':
+                    realized_pnl = (price - entry_price) * quantity
+                else:
+                    realized_pnl = (entry_price - price) * quantity
+                
+                # إغلاق الصفقة في الحساب التجريبي
+                account = self.get_current_account()
+                if account:
+                    account.close_position(order_id, price, realized_pnl)
+                
+                # إزالة الصفقة من القائمة
+                del self.open_positions[order_id]
+                
+                # تحديث قاعدة البيانات
+                self.db_manager.close_order(order_id, price, realized_pnl)
+                
+                # تحديث المحفظة
+                self.db_manager.update_portfolio(user_id, symbol, -quantity, price, realized_pnl)
+                
+                logger.info(f"تم الإغلاق الكامل للصفقة {order_id}: {quantity} بسعر {price}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ الإغلاق الكامل: {e}")
+            return False
+    
+    async def send_notification(self, user_id: int, message: str):
+        """إرسال إشعار للمستخدم"""
+        try:
+            # إرسال إشعار تلجرام
+            from telegram.ext import Application
+            application = Application.builder().token(TELEGRAM_TOKEN).build()
+            await application.bot.send_message(chat_id=user_id, text=message)
+            
+        except Exception as e:
+            logger.error(f"خطأ في إرسال الإشعار: {e}")
     
     def get_available_pairs_message(self, category=None, brief=False, limit=50):
         """الحصول على رسالة الأزواج المتاحة"""
@@ -1180,6 +1280,352 @@ class TradingBot:
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
 
+# دوال إدارة الأهداف ووقف الخسارة
+async def manage_order_targets(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إدارة أهداف ووقف الخسارة للصفقات"""
+    try:
+        user_id = update.effective_user.id
+        
+        # الحصول على الصفقات المفتوحة للمستخدم
+        orders = trading_bot.db_manager.get_user_orders(user_id, 'OPEN')
+        
+        if not orders:
+            await update.message.reply_text("❌ لا توجد صفقات مفتوحة لإدارة الأهداف")
+            return
+        
+        # إنشاء قائمة الصفقات مع أزرار الإدارة
+        keyboard = []
+        for order in orders[:10]:  # عرض أول 10 صفقات
+            symbol = order['symbol']
+            side = "🟢 شراء" if order['side'] == 'buy' else "🔴 بيع"
+            entry_price = order['entry_price']
+            
+            # فحص ما إذا كانت الصفقة لها أهداف أو وقف خسارة
+            has_targets = len(order.get('targets', [])) > 0
+            has_stop_loss = order.get('stop_loss', 0) > 0
+            
+            status_icon = "🎯" if has_targets else "⚠️"
+            if has_stop_loss:
+                status_icon += "🛑"
+            
+            button_text = f"{status_icon} {symbol} {side} @{entry_price}"
+            callback_data = f"manage_targets_{order['order_id']}"
+            
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+        
+        keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "🎯 إدارة الأهداف ووقف الخسارة\n\n"
+            "اختر الصفقة التي تريد إدارة أهدافها:",
+            reply_markup=reply_markup
+        )
+        
+    except Exception as e:
+        logger.error(f"خطأ في إدارة أهداف الصفقات: {e}")
+        await update.message.reply_text("❌ حدث خطأ في عرض الصفقات")
+
+async def show_order_targets_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض قائمة إدارة أهداف صفقة محددة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        order_id = query.data.split('_')[-1]
+        order = trading_bot.db_manager.get_order(order_id)
+        
+        if not order:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        symbol = order['symbol']
+        side = order['side']
+        entry_price = order['entry_price']
+        current_price = order.get('current_price', entry_price)
+        
+        # الحصول على الأهداف الحالية
+        targets = order.get('targets', [])
+        stop_loss = order.get('stop_loss', 0)
+        trailing_stop = order.get('trailing_stop', False)
+        
+        # إنشاء الرسالة
+        message = f"🎯 إدارة أهداف الصفقة\n\n"
+        message += f"الرمز: {symbol}\n"
+        message += f"الاتجاه: {'🟢 شراء' if side == 'buy' else '🔴 بيع'}\n"
+        message += f"سعر الدخول: {entry_price}\n"
+        message += f"السعر الحالي: {current_price}\n\n"
+        
+        if targets:
+            message += "🎯 الأهداف الحالية:\n"
+            for i, target in enumerate(targets):
+                status = "✅ محقق" if target.get('achieved', False) else "⏳ في الانتظار"
+                message += f"{i+1}. {target['percentage']}% @ {target['price']} - {status}\n"
+        else:
+            message += "⚠️ لا توجد أهداف محددة\n"
+        
+        if stop_loss > 0:
+            message += f"\n🛑 وقف الخسارة: {stop_loss}\n"
+        else:
+            message += "\n⚠️ لا يوجد وقف خسارة\n"
+        
+        if trailing_stop:
+            message += f"🔄 وقف الخسارة المتحرك: مفعل\n"
+        
+        # إنشاء الأزرار
+        keyboard = [
+            [InlineKeyboardButton("➕ إضافة هدف", callback_data=f"add_target_{order_id}")],
+            [InlineKeyboardButton("🛑 إضافة وقف خسارة", callback_data=f"add_stop_loss_{order_id}")],
+            [InlineKeyboardButton("🔄 وقف خسارة متحرك", callback_data=f"trailing_stop_{order_id}")],
+            [InlineKeyboardButton("📊 عرض التفاصيل", callback_data=f"order_details_{order_id}")],
+            [InlineKeyboardButton("🔙 العودة", callback_data="manage_targets")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض قائمة الأهداف: {e}")
+        await query.edit_message_text("❌ حدث خطأ في عرض الأهداف")
+
+async def add_target_to_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إضافة هدف جديد للصفقة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        order_id = query.data.split('_')[-1]
+        order = trading_bot.db_manager.get_order(order_id)
+        
+        if not order:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        # حفظ معرف الصفقة في السياق
+        context.user_data['target_order_id'] = order_id
+        context.user_data['waiting_for_target'] = True
+        
+        symbol = order['symbol']
+        side = order['side']
+        entry_price = order['entry_price']
+        
+        message = f"➕ إضافة هدف جديد\n\n"
+        message += f"الرمز: {symbol}\n"
+        message += f"الاتجاه: {'🟢 شراء' if side == 'buy' else '🔴 بيع'}\n"
+        message += f"سعر الدخول: {entry_price}\n\n"
+        message += "أرسل الهدف بالصيغة التالية:\n"
+        message += "النسبة_السعر\n\n"
+        message += "مثال: 50_45000\n"
+        message += "(يعني إغلاق 50% من الصفقة عند سعر 45000)\n\n"
+        message += "أو أرسل 'إلغاء' للعودة"
+        
+        await query.edit_message_text(message)
+        
+    except Exception as e:
+        logger.error(f"خطأ في إضافة هدف: {e}")
+        await query.edit_message_text("❌ حدث خطأ في إضافة الهدف")
+
+async def add_stop_loss_to_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إضافة وقف خسارة للصفقة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        order_id = query.data.split('_')[-1]
+        order = trading_bot.db_manager.get_order(order_id)
+        
+        if not order:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        # حفظ معرف الصفقة في السياق
+        context.user_data['stop_loss_order_id'] = order_id
+        context.user_data['waiting_for_stop_loss'] = True
+        
+        symbol = order['symbol']
+        side = order['side']
+        entry_price = order['entry_price']
+        
+        message = f"🛑 إضافة وقف خسارة\n\n"
+        message += f"الرمز: {symbol}\n"
+        message += f"الاتجاه: {'🟢 شراء' if side == 'buy' else '🔴 بيع'}\n"
+        message += f"سعر الدخول: {entry_price}\n\n"
+        message += "أرسل سعر وقف الخسارة:\n\n"
+        message += "مثال: 40000\n"
+        message += "(سيتم إغلاق الصفقة عند الوصول لهذا السعر)\n\n"
+        message += "أو أرسل 'إلغاء' للعودة"
+        
+        await query.edit_message_text(message)
+        
+    except Exception as e:
+        logger.error(f"خطأ في إضافة وقف خسارة: {e}")
+        await query.edit_message_text("❌ حدث خطأ في إضافة وقف الخسارة")
+
+async def toggle_trailing_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تبديل وقف الخسارة المتحرك"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        order_id = query.data.split('_')[-1]
+        order = trading_bot.db_manager.get_order(order_id)
+        
+        if not order:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        # تبديل حالة وقف الخسارة المتحرك
+        current_trailing = order.get('trailing_stop', False)
+        new_trailing = not current_trailing
+        
+        # إذا كان مفعل، نحتاج لمسافة
+        distance = 0.0
+        if new_trailing:
+            context.user_data['trailing_order_id'] = order_id
+            context.user_data['waiting_for_trailing_distance'] = True
+            
+            message = f"🔄 إعداد وقف الخسارة المتحرك\n\n"
+            message += f"الرمز: {order['symbol']}\n"
+            message += f"الاتجاه: {'🟢 شراء' if order['side'] == 'buy' else '🔴 بيع'}\n\n"
+            message += "أرسل المسافة كنسبة مئوية:\n\n"
+            message += "مثال: 2.5\n"
+            message += "(يعني وقف الخسارة المتحرك بمسافة 2.5%)\n\n"
+            message += "أو أرسل 'إلغاء' للعودة"
+            
+            await query.edit_message_text(message)
+        else:
+            # إلغاء وقف الخسارة المتحرك
+            trading_bot.db_manager.update_trailing_stop(order_id, False, 0.0)
+            await query.edit_message_text("✅ تم إلغاء وقف الخسارة المتحرك")
+        
+    except Exception as e:
+        logger.error(f"خطأ في تبديل وقف الخسارة المتحرك: {e}")
+        await query.edit_message_text("❌ حدث خطأ في تبديل وقف الخسارة المتحرك")
+
+async def show_order_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض تفاصيل الصفقة مع المحفظة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        order_id = query.data.split('_')[-1]
+        order = trading_bot.db_manager.get_order(order_id)
+        
+        if not order:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        user_id = order['user_id']
+        symbol = order['symbol']
+        
+        # الحصول على تفاصيل الصفقة
+        partial_closes = trading_bot.db_manager.get_partial_closes(order_id)
+        target_achievements = trading_bot.db_manager.get_target_achievements(order_id)
+        
+        # الحصول على معلومات المحفظة
+        portfolio = trading_bot.db_manager.get_user_portfolio(user_id)
+        symbol_portfolio = next((p for p in portfolio if p['symbol'] == symbol), None)
+        
+        # إنشاء الرسالة
+        message = f"📊 تفاصيل الصفقة والمحفظة\n\n"
+        message += f"الرمز: {symbol}\n"
+        message += f"الاتجاه: {'🟢 شراء' if order['side'] == 'buy' else '🔴 بيع'}\n"
+        message += f"سعر الدخول: {order['entry_price']}\n"
+        message += f"الكمية: {order['quantity']}\n"
+        message += f"تاريخ الفتح: {order['open_time']}\n\n"
+        
+        # معلومات المحفظة
+        if symbol_portfolio:
+            message += f"💼 المحفظة:\n"
+            message += f"الكمية الإجمالية: {symbol_portfolio['total_quantity']}\n"
+            message += f"متوسط السعر: {symbol_portfolio['average_price']}\n"
+            message += f"الربح المحقق: {symbol_portfolio['realized_pnl']:.2f}\n\n"
+        
+        # الإغلاقات الجزئية
+        if partial_closes:
+            message += f"📈 الإغلاقات الجزئية ({len(partial_closes)}):\n"
+            for i, close in enumerate(partial_closes[-3:], 1):  # آخر 3 إغلاقات
+                message += f"{i}. {close['close_percentage']:.1f}% @ {close['close_price']} - ربح: {close['realized_pnl']:.2f}\n"
+            message += "\n"
+        
+        # الأهداف المحققة
+        if target_achievements:
+            message += f"🎯 الأهداف المحققة ({len(target_achievements)}):\n"
+            for i, achievement in enumerate(target_achievements[-3:], 1):  # آخر 3 أهداف
+                message += f"{i}. {achievement['target_percentage']:.1f}% @ {achievement['achieved_price']} - ربح: {achievement['realized_pnl']:.2f}\n"
+        
+        # أزرار العودة
+        keyboard = [[InlineKeyboardButton("🔙 العودة", callback_data=f"manage_targets_{order_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض تفاصيل الصفقة: {e}")
+        await query.edit_message_text("❌ حدث خطأ في عرض التفاصيل")
+
+async def show_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض محفظة المستخدم"""
+    try:
+        user_id = update.effective_user.id
+        
+        # الحصول على محفظة المستخدم
+        portfolio = trading_bot.db_manager.get_user_portfolio(user_id)
+        
+        if not portfolio:
+            await update.message.reply_text("💼 المحفظة فارغة\n\nلا توجد أصول في محفظتك حالياً")
+            return
+        
+        # إنشاء الرسالة
+        message = "💼 محفظتك\n\n"
+        
+        total_value = 0
+        total_pnl = 0
+        
+        for asset in portfolio:
+            symbol = asset['symbol']
+            quantity = asset['total_quantity']
+            avg_price = asset['average_price']
+            realized_pnl = asset['realized_pnl']
+            
+            # حساب القيمة الحالية
+            current_price = await trading_bot.target_manager._get_current_price(symbol)
+            if current_price:
+                current_value = quantity * current_price
+                total_value += current_value
+                
+                # حساب الربح/الخسارة غير المحققة
+                unrealized_pnl = (current_price - avg_price) * quantity
+                
+                message += f"🔹 {symbol}\n"
+                message += f"   الكمية: {quantity:.6f}\n"
+                message += f"   متوسط السعر: {avg_price:.2f}\n"
+                message += f"   السعر الحالي: {current_price:.2f}\n"
+                message += f"   القيمة الحالية: {current_value:.2f}\n"
+                message += f"   الربح المحقق: {realized_pnl:.2f}\n"
+                message += f"   الربح غير المحقق: {unrealized_pnl:.2f}\n\n"
+            else:
+                message += f"🔹 {symbol}\n"
+                message += f"   الكمية: {quantity:.6f}\n"
+                message += f"   متوسط السعر: {avg_price:.2f}\n"
+                message += f"   الربح المحقق: {realized_pnl:.2f}\n"
+                message += f"   ⚠️ لا يمكن الحصول على السعر الحالي\n\n"
+            
+            total_pnl += realized_pnl
+        
+        # إضافة الملخص
+        message += f"📊 الملخص:\n"
+        message += f"إجمالي القيمة: {total_value:.2f}\n"
+        message += f"إجمالي الربح المحقق: {total_pnl:.2f}\n"
+        message += f"عدد الأصول: {len(portfolio)}"
+        
+        await update.message.reply_text(message)
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض المحفظة: {e}")
+        await update.message.reply_text("❌ حدث خطأ في عرض المحفظة")
+
 # إنشاء البوت العام
 trading_bot = TradingBot()
 
@@ -1521,7 +1967,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔙 الرجوع لحساب المطور")]
+            [KeyboardButton("🎯 إدارة الأهداف"), KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
         # إضافة أزرار إضافية إذا كان المطور نشطاً
@@ -1922,6 +2368,30 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
             pnl_status = "رابح" if pnl_value >= 0 else "خاسر"
             arrow = "⬆️" if pnl_value >= 0 else "⬇️"
             
+            # الحصول على معلومات الأهداف ووقف الخسارة
+            order = trading_bot.db_manager.get_order(position_id)
+            targets_info = ""
+            stop_loss_info = ""
+            
+            if order:
+                targets = order.get('targets', [])
+                stop_loss = order.get('stop_loss', 0)
+                trailing_stop = order.get('trailing_stop', False)
+                
+                if targets:
+                    active_targets = [t for t in targets if not t.get('achieved', False)]
+                    if active_targets:
+                        targets_info = f"🎯 أهداف: {len(active_targets)} نشط"
+                    else:
+                        targets_info = "🎯 أهداف: جميعها محققة"
+                
+                if stop_loss > 0:
+                    stop_loss_info = f"🛑 وقف خسارة: {stop_loss:.6f}"
+                
+                if trailing_stop:
+                    trailing_distance = order.get('trailing_stop_distance', 0)
+                    stop_loss_info += f" 🔄 متحرك ({trailing_distance}%)"
+            
             spot_text += f"""
 {pnl_emoji} {symbol}
 🔄 النوع: {side.upper()}
@@ -1929,6 +2399,8 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
 💲 السعر الحالي: {current_price:.6f}
 💰 المبلغ: {amount:.2f}
 {arrow} الربح/الخسارة: {pnl_value:.2f} ({pnl_percent:.2f}%) - {pnl_status}
+{targets_info}
+{stop_loss_info}
 🆔 رقم الصفقة: {position_id}
             """
         else:
@@ -1944,7 +2416,14 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
         pnl_display = f"({pnl_value:+.2f})" if current_price else ""
         close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
-        spot_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
+        
+        # إضافة زر إدارة الأهداف
+        manage_button_text = f"🎯 أهداف {symbol}"
+        
+        spot_keyboard.append([
+            InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}"),
+            InlineKeyboardButton(manage_button_text, callback_data=f"manage_targets_{position_id}")
+        ])
     
     spot_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     spot_reply_markup = InlineKeyboardMarkup(spot_keyboard)
@@ -2030,6 +2509,30 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
             pnl_status = "رابح" if unrealized_pnl >= 0 else "خاسر"
             arrow = "⬆️" if unrealized_pnl >= 0 else "⬇️"
             
+            # الحصول على معلومات الأهداف ووقف الخسارة
+            order = trading_bot.db_manager.get_order(position_id)
+            targets_info = ""
+            stop_loss_info = ""
+            
+            if order:
+                targets = order.get('targets', [])
+                stop_loss = order.get('stop_loss', 0)
+                trailing_stop = order.get('trailing_stop', False)
+                
+                if targets:
+                    active_targets = [t for t in targets if not t.get('achieved', False)]
+                    if active_targets:
+                        targets_info = f"🎯 أهداف: {len(active_targets)} نشط"
+                    else:
+                        targets_info = "🎯 أهداف: جميعها محققة"
+                
+                if stop_loss > 0:
+                    stop_loss_info = f"🛑 وقف خسارة: {stop_loss:.6f}"
+                
+                if trailing_stop:
+                    trailing_distance = order.get('trailing_stop_distance', 0)
+                    stop_loss_info += f" 🔄 متحرك ({trailing_distance}%)"
+            
             futures_text += f"""
 {liquidation_warning}{pnl_emoji} {symbol}
 🔄 النوع: {side.upper()}
@@ -2041,6 +2544,8 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 ⚡ الرافعة: {leverage}x
 ⚠️ سعر التصفية: {actual_position.liquidation_price:.6f}
 📊 عدد العقود: {actual_position.contracts:.6f}
+{targets_info}
+{stop_loss_info}
 🆔 رقم الصفقة: {position_id}
             """
         else:
@@ -2059,7 +2564,13 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
         # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
         pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
         close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
-        futures_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
+        # إضافة زر إدارة الأهداف
+        manage_button_text = f"🎯 أهداف {symbol}"
+        
+        futures_keyboard.append([
+            InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}"),
+            InlineKeyboardButton(manage_button_text, callback_data=f"manage_targets_{position_id}")
+        ])
     
     futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
@@ -2525,6 +3036,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(info_text)
+    
+    # معالجة أزرار إدارة الأهداف ووقف الخسارة
+    elif data == "manage_targets":
+        await manage_order_targets(update, context)
+    elif data.startswith("manage_targets_"):
+        await show_order_targets_menu(update, context)
+    elif data.startswith("add_target_"):
+        await add_target_to_order(update, context)
+    elif data.startswith("add_stop_loss_"):
+        await add_stop_loss_to_order(update, context)
+    elif data.startswith("trailing_stop_"):
+        await toggle_trailing_stop(update, context)
+    elif data.startswith("order_details_"):
+        await show_order_details(update, context)
+    
     elif data == "main_menu":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
@@ -2793,6 +3319,13 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     user_id = update.effective_user.id if update.effective_user else None
     text = update.message.text
+    
+    # معالجة إدخال الأهداف ووقف الخسارة أولاً
+    if (context.user_data.get('waiting_for_target', False) or 
+        context.user_data.get('waiting_for_stop_loss', False) or 
+        context.user_data.get('waiting_for_trailing_distance', False)):
+        await handle_target_input(update, context)
+        return
     
     # معالجة أزرار المطور
     if user_id and developer_manager.is_developer(user_id):
@@ -3145,6 +3678,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         if update.message is not None:
             await update.message.reply_text(message)
+    elif text == "🎯 إدارة الأهداف":
+        await manage_order_targets(update, context)
+    elif text == "💰 المحفظة":
+        await show_portfolio(update, context)
     elif text == "🔄 تحديث الأزواج":
         try:
             await trading_bot.update_available_pairs()
@@ -3186,6 +3723,183 @@ async def process_external_signal(symbol: str, action: str):
         'action': action
     }
     await trading_bot.process_signal(signal_data)
+
+async def handle_target_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالجة إدخال الأهداف ووقف الخسارة"""
+    try:
+        user_id = update.effective_user.id
+        text = update.message.text.strip()
+        
+        # معالجة إلغاء العملية
+        if text.lower() in ['إلغاء', 'cancel', 'الغاء']:
+            context.user_data['waiting_for_target'] = False
+            context.user_data['waiting_for_stop_loss'] = False
+            context.user_data['waiting_for_trailing_distance'] = False
+            await update.message.reply_text("تم إلغاء العملية")
+            return
+        
+        # معالجة إدخال الهدف
+        if context.user_data.get('waiting_for_target', False):
+            order_id = context.user_data.get('target_order_id')
+            if not order_id:
+                await update.message.reply_text("❌ خطأ في معرف الصفقة")
+                return
+            
+            try:
+                # تحليل النص المدخل (النسبة_السعر)
+                if '_' not in text:
+                    await update.message.reply_text("❌ الصيغة غير صحيحة. استخدم: النسبة_السعر\nمثال: 50_45000")
+                    return
+                
+                percentage_str, price_str = text.split('_', 1)
+                percentage = float(percentage_str)
+                price = float(price_str)
+                
+                if percentage <= 0 or percentage > 100:
+                    await update.message.reply_text("❌ النسبة يجب أن تكون بين 0 و 100")
+                    return
+                
+                if price <= 0:
+                    await update.message.reply_text("❌ السعر يجب أن يكون أكبر من 0")
+                    return
+                
+                # الحصول على الصفقة الحالية
+                order = trading_bot.db_manager.get_order(order_id)
+                if not order:
+                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    return
+                
+                # إضافة الهدف الجديد
+                targets = order.get('targets', [])
+                new_target = {
+                    'percentage': percentage,
+                    'price': price,
+                    'achieved': False,
+                    'created_time': datetime.now().isoformat()
+                }
+                targets.append(new_target)
+                
+                # حفظ الأهداف المحدثة
+                success = trading_bot.db_manager.update_order_targets(order_id, targets)
+                
+                if success:
+                    await update.message.reply_text(
+                        f"✅ تم إضافة الهدف بنجاح!\n"
+                        f"النسبة: {percentage}%\n"
+                        f"السعر: {price}\n"
+                        f"الرمز: {order['symbol']}"
+                    )
+                else:
+                    await update.message.reply_text("❌ فشل في إضافة الهدف")
+                
+                # إعادة تعيين الحالة
+                context.user_data['waiting_for_target'] = False
+                context.user_data['target_order_id'] = None
+                
+            except ValueError:
+                await update.message.reply_text("❌ الصيغة غير صحيحة. استخدم: النسبة_السعر\nمثال: 50_45000")
+            except Exception as e:
+                logger.error(f"خطأ في إضافة الهدف: {e}")
+                await update.message.reply_text("❌ حدث خطأ في إضافة الهدف")
+        
+        # معالجة إدخال وقف الخسارة
+        elif context.user_data.get('waiting_for_stop_loss', False):
+            order_id = context.user_data.get('stop_loss_order_id')
+            if not order_id:
+                await update.message.reply_text("❌ خطأ في معرف الصفقة")
+                return
+            
+            try:
+                stop_loss_price = float(text)
+                
+                if stop_loss_price <= 0:
+                    await update.message.reply_text("❌ سعر وقف الخسارة يجب أن يكون أكبر من 0")
+                    return
+                
+                # الحصول على الصفقة الحالية
+                order = trading_bot.db_manager.get_order(order_id)
+                if not order:
+                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    return
+                
+                # التحقق من صحة وقف الخسارة بالنسبة لاتجاه الصفقة
+                entry_price = order['entry_price']
+                side = order['side']
+                
+                if side.lower() == 'buy' and stop_loss_price >= entry_price:
+                    await update.message.reply_text("❌ وقف الخسارة للصفقة الشرائية يجب أن يكون أقل من سعر الدخول")
+                    return
+                elif side.lower() == 'sell' and stop_loss_price <= entry_price:
+                    await update.message.reply_text("❌ وقف الخسارة للصفقة البيعية يجب أن يكون أكبر من سعر الدخول")
+                    return
+                
+                # حفظ وقف الخسارة
+                success = trading_bot.db_manager.update_order_stop_loss(order_id, stop_loss_price)
+                
+                if success:
+                    await update.message.reply_text(
+                        f"✅ تم إضافة وقف الخسارة بنجاح!\n"
+                        f"السعر: {stop_loss_price}\n"
+                        f"الرمز: {order['symbol']}"
+                    )
+                else:
+                    await update.message.reply_text("❌ فشل في إضافة وقف الخسارة")
+                
+                # إعادة تعيين الحالة
+                context.user_data['waiting_for_stop_loss'] = False
+                context.user_data['stop_loss_order_id'] = None
+                
+            except ValueError:
+                await update.message.reply_text("❌ السعر غير صحيح. أدخل رقم صحيح")
+            except Exception as e:
+                logger.error(f"خطأ في إضافة وقف الخسارة: {e}")
+                await update.message.reply_text("❌ حدث خطأ في إضافة وقف الخسارة")
+        
+        # معالجة إدخال مسافة وقف الخسارة المتحرك
+        elif context.user_data.get('waiting_for_trailing_distance', False):
+            order_id = context.user_data.get('trailing_order_id')
+            if not order_id:
+                await update.message.reply_text("❌ خطأ في معرف الصفقة")
+                return
+            
+            try:
+                distance = float(text)
+                
+                if distance <= 0 or distance > 50:
+                    await update.message.reply_text("❌ المسافة يجب أن تكون بين 0 و 50%")
+                    return
+                
+                # الحصول على الصفقة الحالية
+                order = trading_bot.db_manager.get_order(order_id)
+                if not order:
+                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    return
+                
+                # تفعيل وقف الخسارة المتحرك
+                success = trading_bot.db_manager.update_trailing_stop(order_id, True, distance)
+                
+                if success:
+                    await update.message.reply_text(
+                        f"✅ تم تفعيل وقف الخسارة المتحرك بنجاح!\n"
+                        f"المسافة: {distance}%\n"
+                        f"الرمز: {order['symbol']}"
+                    )
+                else:
+                    await update.message.reply_text("❌ فشل في تفعيل وقف الخسارة المتحرك")
+                
+                # إعادة تعيين الحالة
+                context.user_data['waiting_for_trailing_distance'] = False
+                context.user_data['trailing_order_id'] = None
+                
+            except ValueError:
+                await update.message.reply_text("❌ المسافة غير صحيحة. أدخل رقم صحيح")
+            except Exception as e:
+                logger.error(f"خطأ في إضافة وقف الخسارة المتحرك: {e}")
+                await update.message.reply_text("❌ حدث خطأ في إضافة وقف الخسارة المتحرك")
+        
+    except Exception as e:
+        logger.error(f"خطأ في معالجة إدخال الأهداف: {e}")
+        await update.message.reply_text("❌ حدث خطأ في معالجة الإدخال")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """معالج الأخطاء"""
