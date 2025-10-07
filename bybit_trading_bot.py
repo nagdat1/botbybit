@@ -10,6 +10,7 @@ import asyncio
 import json
 import time
 import threading
+import os
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_DOWN
 from typing import Dict, List, Optional, Any, Union
@@ -1488,7 +1489,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+        [KeyboardButton("🔗 رابط الإشارات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -1528,6 +1530,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     api_secret = user_data.get('api_secret')
     api_status = get_api_status_indicator(api_key, api_secret)
     
+    # إنشاء رابط webhook الشخصي للمستخدم
+    railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+    render_url = os.getenv('RENDER_EXTERNAL_URL')
+    
+    if railway_url:
+        if not railway_url.startswith('http'):
+            railway_url = f"https://{railway_url}"
+        personal_webhook_url = f"{railway_url}/personal/{user_id}/webhook"
+    elif render_url:
+        personal_webhook_url = f"{render_url}/personal/{user_id}/webhook"
+    else:
+        port = PORT
+        personal_webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
+    
     welcome_message = f"""
 🤖 مرحباً بك {update.effective_user.first_name}
 
@@ -1538,6 +1554,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • الرصيد الكلي: {account_info.get('balance', 0):.2f} USDT
 • الرصيد المتاح: {account_info.get('available_balance', 0):.2f} USDT
 • الصفقات المفتوحة: {account_info.get('open_positions', 0)}
+
+🔗 رابط الإشارات الخاص بك:
+`{personal_webhook_url}`
+
+📋 استخدم هذا الرابط في TradingView أو أي منصة إشارات
 
 استخدم الأزرار أدناه للتنقل في البوت
     """
@@ -2968,6 +2989,72 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_menu(update, context)
     elif text == "📊 حالة الحساب":
         await account_status(update, context)
+    elif text == "🔗 رابط الإشارات":
+        # عرض رابط الإشارات الشخصي للمستخدم
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        render_url = os.getenv('RENDER_EXTERNAL_URL')
+        
+        if railway_url:
+            if not railway_url.startswith('http'):
+                railway_url = f"https://{railway_url}"
+            personal_webhook_url = f"{railway_url}/personal/{user_id}/webhook"
+            old_webhook_url = f"{railway_url}/webhook"
+        elif render_url:
+            personal_webhook_url = f"{render_url}/personal/{user_id}/webhook"
+            old_webhook_url = f"{render_url}/webhook"
+        else:
+            port = PORT
+            personal_webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
+            old_webhook_url = f"http://localhost:{port}/webhook"
+        
+        message = f"""
+🔗 روابط استقبال الإشارات
+
+📡 رابطك الشخصي (موصى به):
+`{personal_webhook_url}`
+
+• يستخدم إعداداتك الخاصة
+• صفقات منفصلة لحسابك فقط
+• آمن ومخصص لك
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 الرابط العام (قديم):
+`{old_webhook_url}`
+
+• يستخدم الإعدادات الافتراضية
+• مشترك بين جميع المستخدمين
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📋 كيفية الاستخدام في TradingView:
+
+1️⃣ افتح استراتيجيتك في TradingView
+2️⃣ اذهب إلى Settings → Notifications
+3️⃣ أضف Webhook URL
+4️⃣ الصق رابطك الشخصي
+5️⃣ في Message:
+```
+{{"symbol": "{{"{{ticker}}"}}", "action": "{{"{{strategy.order.action}}"}}", "price": {{"{{close}}"}}}}
+```
+
+💡 نصائح:
+• استخدم رابطك الشخصي للحصول على تجربة أفضل
+• يمكنك نسخ الرابط بالضغط عليه
+• الرابط يعمل مع TradingView و أي منصة إشارات أخرى
+
+🔐 الأمان:
+• لا تشارك رابطك الشخصي مع أحد
+• يمكن تعطيل حسابك من الإعدادات إذا لزم الأمر
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("📖 شرح مفصل", callback_data="webhook_help")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
     elif text == "🔄 الصفقات المفتوحة" or "الصفقات المفتوحة" in text or "🔄" in text:
         await open_positions(update, context)
     elif text == "📈 تاريخ التداول":
