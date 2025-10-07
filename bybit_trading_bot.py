@@ -1565,6 +1565,84 @@ async def show_order_details(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"خطأ في عرض تفاصيل الصفقة: {e}")
         await query.edit_message_text("❌ حدث خطأ في عرض التفاصيل")
 
+async def copy_personal_webhook(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نسخ رابط الإشارة الشخصي للمستخدم"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        
+        # إنشاء رابط webhook شخصي
+        personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id}/webhook"
+        
+        # إنشاء رسالة مع الرابط
+        message = f"""
+📋 رابط الإشارة الشخصي الخاص بك:
+
+🔗 `{personal_webhook_url}`
+
+📋 كيفية الاستخدام:
+1. انسخ الرابط أعلاه (اضغط عليه لنسخه)
+2. ضعه في TradingView أو أي منصة إشارات
+3. أرسل الإشارات بالصيغة:
+   {{"symbol": "BTCUSDT", "action": "BUY", "price": 50000}}
+
+📊 صيغة الإشارة المطلوبة:
+• symbol: رمز العملة (مثل BTCUSDT)
+• action: BUY أو SELL
+• price: السعر (اختياري)
+
+✅ هذا الرابط مخصص لك فقط!
+🎯 الإشارات المرسلة لهذا الرابط ستؤثر على حسابك فقط
+        """
+        
+        # إنشاء أزرار
+        keyboard = [
+            [InlineKeyboardButton("📡 عرض الرابط كامل", callback_data="personal_webhook")],
+            [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في نسخ رابط الإشارة الشخصي: {e}")
+        await query.edit_message_text("❌ حدث خطأ في نسخ الرابط")
+
+async def copy_webhook_for_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نسخ رابط الإشارة الشخصي لمستخدم محدد (للمطورين)"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        # استخراج معرف المستخدم من البيانات
+        user_id_from_data = int(query.data.split('_')[-1])
+        
+        # إنشاء رابط webhook شخصي
+        personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id_from_data}/webhook"
+        
+        message = f"""
+📋 رابط الإشارة الشخصي:
+
+🔗 `{personal_webhook_url}`
+
+👤 المستخدم: {user_id_from_data}
+📡 هذا الرابط مخصص للمستخدم المحدد فقط
+🎯 الإشارات المرسلة لهذا الرابط ستؤثر على حساب المستخدم فقط
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في نسخ رابط الإشارة للمستخدم: {e}")
+        await query.edit_message_text("❌ حدث خطأ في نسخ الرابط")
+
 async def show_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض محفظة المستخدم"""
     try:
@@ -2013,11 +2091,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 👋 أهلاً {update.effective_user.first_name}!
 
+🎯 المميزات الجديدة:
+• رابط إشارة شخصي لكل مستخدم
+• نظام الأهداف ووقف الخسارة المتقدم
+• الإغلاق الجزئي للصفقات
+• تتبع المحفظة المتكامل
+
 🔗 للبدء، يرجى ربط حسابك على Bybit:
 • اضغط على زر "🔗 ربط API" أدناه
 • سيطلب منك إدخال API_KEY و API_SECRET
 • يمكنك الحصول على المفاتيح من: https://api.bybit.com
 
+📡 رابط الإشارة الشخصي متوفر في الإعدادات
 ⚠️ ملاحظة: البوت يدعم التداول الحقيقي والتجريبي
         """
         
@@ -2114,7 +2199,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
         [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")],
-        [InlineKeyboardButton("📡 رابط الإشارة الشخصي", callback_data="personal_webhook")]
+        [InlineKeyboardButton("📡 رابط الإشارة الشخصي", callback_data="personal_webhook")],
+        [InlineKeyboardButton("📋 نسخ الرابط", callback_data="copy_personal_webhook")]
     ]
     
     # إضافة زر تشغيل/إيقاف البوت
@@ -2980,10 +3066,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             webhook_message = f"""
 📡 رابط الإشارة الشخصي الخاص بك:
 
-🔗 {personal_webhook_url}
+🔗 `{personal_webhook_url}`
 
 📋 كيفية الاستخدام:
-1. انسخ الرابط أعلاه
+1. انسخ الرابط أعلاه (اضغط عليه لنسخه)
 2. ضعه في TradingView أو أي منصة إشارات
 3. أرسل الإشارات بالصيغة:
    {{"symbol": "BTCUSDT", "action": "BUY", "price": 50000}}
@@ -2993,7 +3079,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • action: BUY أو SELL
 • price: السعر (اختياري)
 
-⚠️ ملاحظة: هذا الرابط مخصص لك فقط ولا يجب مشاركته مع الآخرين
+✅ هذا الرابط مخصص لك فقط!
+🎯 الإشارات المرسلة لهذا الرابط ستؤثر على حسابك فقط
+🔒 لا تشارك هذا الرابط مع الآخرين
             """
             
             keyboard = [
@@ -3050,6 +3138,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await toggle_trailing_stop(update, context)
     elif data.startswith("order_details_"):
         await show_order_details(update, context)
+    elif data == "copy_personal_webhook":
+        await copy_personal_webhook(update, context)
+    elif data.startswith("copy_webhook_"):
+        await copy_webhook_for_user(update, context)
     
     elif data == "main_menu":
         # إعادة تعيين حالة إدخال المستخدم
