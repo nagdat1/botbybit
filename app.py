@@ -49,7 +49,7 @@ def health_check():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """استقبال إشارات TradingView"""
+    """استقبال إشارات TradingView العامة"""
     try:
         data = request.get_json()
         
@@ -66,6 +66,37 @@ def webhook():
         threading.Thread(target=process_signal_async, daemon=True).start()
         
         return jsonify({"status": "success", "message": "Signal processed"}), 200
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/personal/<int:user_id>/webhook', methods=['POST'])
+def personal_webhook(user_id):
+    """استقبال إشارات شخصية لمستخدم محدد"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"status": "error", "message": "No data received"}), 400
+        
+        # إضافة معرف المستخدم للبيانات
+        data['user_id'] = user_id
+        data['source'] = 'personal_webhook'
+        
+        # معالجة الإشارة الشخصية في thread منفصل
+        def process_personal_signal_async():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(trading_bot.process_personal_signal(data))
+            loop.close()
+        
+        threading.Thread(target=process_personal_signal_async, daemon=True).start()
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Personal signal received for user {user_id}",
+            "user_id": user_id
+        }), 200
         
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
