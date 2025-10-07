@@ -25,15 +25,14 @@ def test_personal_webhook():
     
     # بيانات الإشارة
     signal_data = {
-        "symbol": "BTCUSDT",
-        "action": "buy",
-        "price": 50000
+        "symbol": "NFPUSDT",
+        "action": "buy"
     }
     
     print(f"📡 إرسال إشارة:")
     print(f"   Symbol: {signal_data['symbol']}")
     print(f"   Action: {signal_data['action']}")
-    print(f"   Price: {signal_data['price']}")
+    print()
     print()
     
     try:
@@ -65,9 +64,9 @@ def test_multiple_signals():
     webhook_url = f"{BASE_URL}/personal/{USER_ID}/webhook"
     
     signals = [
-        {"symbol": "BTCUSDT", "action": "buy", "price": 50000},
-        {"symbol": "ETHUSDT", "action": "sell", "price": 3000},
-        {"symbol": "ADAUSDT", "action": "buy", "price": 0.5}
+        {"symbol": "NFPUSDT", "action": "buy"},
+        {"symbol": "BTCUSDT", "action": "sell"},
+        {"symbol": "ETHUSDT", "action": "buy"}
     ]
     
     print(f"🧪 اختبار إرسال {len(signals)} إشارات")

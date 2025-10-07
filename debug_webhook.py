@@ -25,9 +25,8 @@ def test_personal_webhook():
     
     # بيانات الإشارة
     signal_data = {
-        "symbol": "BTCUSDT",
-        "action": "buy",
-        "price": 50000
+        "symbol": "NFPUSDT",
+        "action": "buy"
     }
     
     print("📡 إرسال إشارة:")
@@ -97,9 +96,8 @@ def test_general_webhook():
     print(f"🔗 الرابط: {webhook_url}")
     
     signal_data = {
-        "symbol": "BTCUSDT",
-        "action": "buy",
-        "price": 50000
+        "symbol": "NFPUSDT",
+        "action": "buy"
     }
     
     try:

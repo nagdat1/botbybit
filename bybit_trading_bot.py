@@ -3057,26 +3057,39 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             personal_webhook_url = f"{BASE_URL}/personal/{user_id}/webhook"
             
             webhook_message = f"""
-📡 رابط الإشارة الشخصي الخاص بك:
+🚀 رابط الإشارة الشخصي - إشارة بدء كاملة
 
 🔗 {personal_webhook_url}
+
+✅ هذا الرابط يعمل كإشارة بدء كاملة للبوت!
 
 📋 كيفية الاستخدام:
 1. انسخ الرابط أعلاه
 2. ضعه في TradingView أو أي منصة إشارات
 3. أرسل الإشارات بالصيغة:
-   {{"symbol": "BTCUSDT", "action": "BUY", "price": 50000}}
+   {{"symbol": "NFPUSDT", "action": "buy"}}
+
+🎯 ما يحدث عند الإرسال:
+• ✅ يتم استقبال الإشارة فوراً
+• ✅ يتم تنفيذ الصفقة تلقائياً
+• ✅ يتم إرسال إشعار في البوت
+• ✅ يتم حفظ الصفقة في المحفظة
 
 📊 صيغة الإشارة المطلوبة:
-• symbol: رمز العملة (مثل BTCUSDT)
-• action: BUY أو SELL
-• price: السعر (اختياري)
+• symbol: رمز العملة (مثل NFPUSDT, BTCUSDT)
+• action: buy أو sell
+• price: السعر (اختياري - إذا لم يُحدد يستخدم السعر الحالي)
+
+🔧 أنواع الحسابات المدعومة:
+• 💰 حساب تجريبي (Demo)
+• 🏦 حساب حقيقي (Real)
 
 ⚠️ ملاحظة: هذا الرابط مخصص لك فقط ولا يجب مشاركته مع الآخرين
             """
             
             keyboard = [
                 [InlineKeyboardButton("📋 نسخ الرابط", callback_data=f"copy_webhook_{user_id}")],
+                [InlineKeyboardButton("🧪 اختبار الرابط", callback_data=f"test_webhook_{user_id}")],
                 [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3151,9 +3164,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # إرسال الرابط كرسالة منفصلة لسهولة النسخ
         copy_message = f"""
-📋 رابط الإشارة الشخصي:
+🚀 رابط الإشارة الشخصي - إشارة بدء كاملة
 
-{personal_webhook_url}
+🔗 {personal_webhook_url}
+
+✅ هذا الرابط يعمل كإشارة بدء كاملة للبوت!
+
+📋 كيفية الاستخدام:
+1. انسخ الرابط أعلاه
+2. ضعه في TradingView أو أي منصة إشارات
+3. أرسل الإشارات بالصيغة:
+   {{"symbol": "NFPUSDT", "action": "buy"}}
+
+🎯 ما يحدث عند الإرسال:
+• ✅ يتم استقبال الإشارة فوراً
+• ✅ يتم تنفيذ الصفقة تلقائياً
+• ✅ يتم إرسال إشعار في البوت
+• ✅ يتم حفظ الصفقة في المحفظة
 
 💡 انسخ الرابط أعلاه واستخدمه في TradingView أو منصة الإشارات الخاصة بك
         """
@@ -3161,6 +3188,85 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query is not None:
             await update.callback_query.answer("✅ تم إرسال الرابط للنسخ")
             await update.callback_query.message.reply_text(copy_message)
+    elif data.startswith("test_webhook_"):
+        # اختبار رابط webhook الشخصي
+        user_id_from_data = data.replace("test_webhook_", "")
+        personal_webhook_url = f"{BASE_URL}/personal/{user_id_from_data}/webhook"
+        
+        # إرسال إشارة اختبار
+        test_signal = {
+            "symbol": "NFPUSDT",
+            "action": "buy"
+        }
+        
+        test_message = f"""
+🧪 اختبار رابط الإشارة الشخصي
+
+🔗 {personal_webhook_url}
+
+📡 إرسال إشارة اختبار:
+• Symbol: NFPUSDT
+• Action: buy
+
+⏳ جاري الإرسال...
+        """
+        
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(test_message)
+            
+            # إرسال إشارة الاختبار
+            import requests
+            try:
+                response = requests.post(
+                    personal_webhook_url,
+                    json=test_signal,
+                    headers={'Content-Type': 'application/json'},
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    result_message = f"""
+✅ نجح الاختبار!
+
+🔗 {personal_webhook_url}
+
+📊 النتيجة:
+• Status: {response.status_code}
+• Response: {response.text}
+
+🎯 الرابط يعمل بشكل صحيح!
+                    """
+                else:
+                    result_message = f"""
+❌ فشل الاختبار!
+
+🔗 {personal_webhook_url}
+
+📊 النتيجة:
+• Status: {response.status_code}
+• Response: {response.text}
+
+🔧 تحقق من السجلات لمزيد من التفاصيل
+                    """
+                    
+            except Exception as e:
+                result_message = f"""
+❌ خطأ في الاختبار!
+
+🔗 {personal_webhook_url}
+
+📊 الخطأ:
+• {str(e)}
+
+🔧 تحقق من اتصال الإنترنت وحالة السيرفر
+                """
+            
+            keyboard = [
+                [InlineKeyboardButton("🔙 العودة للإعدادات", callback_data="settings")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.callback_query.edit_message_text(result_message, reply_markup=reply_markup)
     elif data == "refresh_positions":
         await open_positions(update, context)
     elif data == "set_amount":
