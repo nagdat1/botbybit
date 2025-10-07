@@ -105,9 +105,15 @@ class WebServer:
         
         @self.app.route('/webhook', methods=['POST'])
         def webhook():
-            """استقبال إشارات TradingView وتحديث الرسوم البيانية"""
+            """استقبال إشارات TradingView (الرابط القديم - يستخدم الإعدادات الافتراضية)"""
             try:
                 data = request.get_json()
+                
+                print(f"🔔 [WEB SERVER - WEBHOOK القديم] استقبال إشارة: {data}")
+                
+                if not data:
+                    print("⚠️ [WEB SERVER - WEBHOOK القديم] لا توجد بيانات")
+                    return jsonify({"status": "error", "message": "No data received"}), 400
                 
                 # تسجيل الإشارة
                 self.add_signal_to_chart(data)
@@ -127,10 +133,197 @@ class WebServer:
                 # إرسال إشعار تلجرام
                 self.send_telegram_notification("📡 تم استقبال إشارة جديدة", data)
                 
+                print(f"✅ [WEB SERVER - WEBHOOK القديم] تمت معالجة الإشارة بنجاح")
                 return jsonify({"status": "success"}), 200
                 
             except Exception as e:
+                print(f"❌ [WEB SERVER - WEBHOOK القديم] خطأ: {e}")
                 return jsonify({"status": "error", "message": str(e)}), 400
+        
+        @self.app.route('/personal/<int:user_id>/webhook', methods=['POST'])
+        def personal_webhook(user_id):
+            """استقبال إشارات TradingView الشخصية لكل مستخدم"""
+            try:
+                data = request.get_json()
+                
+                print(f"🔔 [WEB SERVER - WEBHOOK شخصي] المستخدم: {user_id}")
+                print(f"📊 [WEB SERVER - WEBHOOK شخصي] البيانات المستلمة: {data}")
+                
+                if not data:
+                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] لا توجد بيانات للمستخدم {user_id}")
+                    return jsonify({"status": "error", "message": "No data received"}), 400
+                
+                # التحقق من وجود user_manager
+                from user_manager import user_manager
+                if not user_manager:
+                    print(f"❌ [WEB SERVER - WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
+                    return jsonify({"status": "error", "message": "User manager not initialized"}), 500
+                
+                # التحقق من وجود المستخدم
+                user_data = user_manager.get_user(user_id)
+                if not user_data:
+                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
+                    return jsonify({"status": "error", "message": f"User {user_id} not found"}), 404
+                
+                # التحقق من تفعيل المستخدم
+                if not user_data.get('is_active', False):
+                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير نشط")
+                    return jsonify({"status": "error", "message": f"User {user_id} is not active"}), 403
+                
+                print(f"✅ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
+                print(f"📋 [WEB SERVER - WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
+                
+                # تسجيل الإشارة في الرسم البياني
+                self.add_signal_to_chart(data)
+                
+                # إرسال تحديث مباشر للعملاء
+                self.socketio.emit('new_signal', {
+                    'user_id': user_id,
+                    'data': data
+                })
+                
+                # معالجة الإشارة للمستخدم المحدد
+                def process_user_signal_async():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self._process_user_signal(user_id, data, user_data))
+                    loop.close()
+                
+                threading.Thread(target=process_user_signal_async, daemon=True).start()
+                
+                print(f"✅ [WEB SERVER - WEBHOOK شخصي] تمت معالجة إشارة المستخدم {user_id} بنجاح")
+                return jsonify({
+                    "status": "success", 
+                    "message": f"Signal processed for user {user_id}",
+                    "user_id": user_id
+                }), 200
+                
+            except Exception as e:
+                print(f"❌ [WEB SERVER - WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({"status": "error", "message": str(e)}), 500
+    
+    async def _process_user_signal(self, user_id: int, signal_data: dict, user_data: dict):
+        """معالجة الإشارة باستخدام إعدادات المستخدم الخاصة"""
+        try:
+            from user_manager import user_manager
+            
+            print(f"🔄 [WEB SERVER - معالجة الإشارة] بدء معالجة إشارة المستخدم {user_id}")
+            
+            # استخراج بيانات الإشارة
+            symbol = signal_data.get('symbol', '').upper()
+            action = signal_data.get('action', '').lower()  # buy, sell, stop, close
+            price = signal_data.get('price', 0.0)
+            
+            print(f"📈 [WEB SERVER - معالجة الإشارة] الرمز: {symbol}, الإجراء: {action}, السعر: {price}")
+            
+            if not symbol or not action:
+                print(f"❌ [WEB SERVER - معالجة الإشارة] بيانات غير مكتملة للمستخدم {user_id}")
+                return
+            
+            # الحصول على إعدادات المستخدم
+            market_type = user_data.get('market_type', 'spot')
+            account_type = user_data.get('account_type', 'demo')
+            trade_amount = user_data.get('trade_amount', 100.0)
+            leverage = user_data.get('leverage', 10)
+            
+            print(f"⚙️ [WEB SERVER - معالجة الإشارة] الإعدادات: market={market_type}, account={account_type}, amount={trade_amount}, leverage={leverage}")
+            
+            # معالجة أنواع الإشارات المختلفة
+            if action in ['buy', 'sell', 'long', 'short']:
+                # فتح صفقة جديدة
+                print(f"📝 [WEB SERVER - معالجة الإشارة] فتح صفقة {action} للمستخدم {user_id}")
+                
+                # تحويل long/short إلى buy/sell
+                if action == 'long':
+                    action = 'buy'
+                elif action == 'short':
+                    action = 'sell'
+                
+                success, result = user_manager.execute_user_trade(
+                    user_id=user_id,
+                    symbol=symbol,
+                    action=action,
+                    price=price if price > 0 else None,
+                    amount=trade_amount,
+                    market_type=market_type
+                )
+                
+                if success:
+                    print(f"✅ [WEB SERVER - معالجة الإشارة] نجح فتح الصفقة للمستخدم {user_id}: {result}")
+                    
+                    # تحديث الرسوم البيانية
+                    self.add_trade_to_chart({
+                        'symbol': symbol,
+                        'side': action,
+                        'price': price,
+                        'amount': trade_amount,
+                        'pnl': 0
+                    })
+                    
+                    # إرسال إشعار للمستخدم
+                    message_data = {
+                        "رسالة": "تم فتح صفقة جديدة ✅",
+                        "الرمز": symbol,
+                        "النوع": action.upper(),
+                        "المبلغ": trade_amount,
+                        "السعر": price if price > 0 else 'السعر الحالي',
+                        "السوق": market_type
+                    }
+                    self.send_telegram_notification(f"📊 صفقة جديدة للمستخدم {user_id}", message_data)
+                else:
+                    print(f"❌ [WEB SERVER - معالجة الإشارة] فشل فتح الصفقة للمستخدم {user_id}: {result}")
+                    
+            elif action in ['close', 'exit', 'stop']:
+                # إغلاق الصفقات المفتوحة
+                print(f"📝 [WEB SERVER - معالجة الإشارة] إغلاق صفقات للمستخدم {user_id}")
+                
+                user_positions = user_manager.get_user_positions(user_id)
+                if not user_positions:
+                    print(f"⚠️ [WEB SERVER - معالجة الإشارة] لا توجد صفقات مفتوحة للمستخدم {user_id}")
+                    return
+                
+                # إغلاق جميع الصفقات المتعلقة بهذا الرمز
+                closed_count = 0
+                for position_id, position_data in list(user_positions.items()):
+                    if position_data['symbol'] == symbol:
+                        close_price = price if price > 0 else position_data['current_price']
+                        success, result = user_manager.close_user_position(
+                            user_id=user_id,
+                            position_id=position_id,
+                            close_price=close_price
+                        )
+                        
+                        if success:
+                            closed_count += 1
+                            print(f"✅ [WEB SERVER - معالجة الإشارة] تم إغلاق الصفقة {position_id} للمستخدم {user_id}")
+                            
+                            # تحديث الرسوم البيانية
+                            self.add_trade_to_chart({
+                                'symbol': symbol,
+                                'side': 'close',
+                                'price': close_price,
+                                'amount': position_data.get('quantity', 0),
+                                'pnl': result.get('pnl', 0)
+                            })
+                
+                print(f"✅ [WEB SERVER - معالجة الإشارة] تم إغلاق {closed_count} صفقة للمستخدم {user_id}")
+                
+                # إرسال إشعار
+                message_data = {
+                    "رسالة": "تم إغلاق الصفقات ✅",
+                    "الرمز": symbol,
+                    "عدد الصفقات المغلقة": closed_count
+                }
+                self.send_telegram_notification(f"🔒 إغلاق صفقات المستخدم {user_id}", message_data)
+            else:
+                print(f"⚠️ [WEB SERVER - معالجة الإشارة] إجراء غير معروف '{action}' للمستخدم {user_id}")
+            
+        except Exception as e:
+            print(f"❌ [WEB SERVER - معالجة الإشارة] خطأ في معالجة إشارة المستخدم {user_id}: {e}")
+            import traceback
+            traceback.print_exc()
     
     def setup_socketio_events(self):
         """إعداد أحداث WebSocket"""
