@@ -131,6 +131,43 @@ class WebServer:
                 
             except Exception as e:
                 return jsonify({"status": "error", "message": str(e)}), 400
+        
+        @self.app.route('/personal/<int:user_id>/webhook', methods=['POST'])
+        def personal_webhook(user_id):
+            """استقبال إشارات شخصية لمستخدم محدد"""
+            try:
+                data = request.get_json()
+                
+                if not data:
+                    return jsonify({"status": "error", "message": "No data received"}), 400
+                
+                # إضافة معرف المستخدم للبيانات
+                data['user_id'] = user_id
+                data['source'] = 'personal_webhook'
+                
+                # تسجيل الإشارة الشخصية
+                self.add_signal_to_chart(data)
+                
+                # معالجة الإشارة الشخصية في البوت
+                def process_personal_signal_async():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self.trading_bot.process_personal_signal(data))
+                    loop.close()
+                
+                threading.Thread(target=process_personal_signal_async, daemon=True).start()
+                
+                # إرسال إشعار تلجرام للمستخدم
+                self.send_personal_telegram_notification(user_id, "📡 تم استقبال إشارة شخصية", data)
+                
+                return jsonify({
+                    "status": "success", 
+                    "message": f"Signal received for user {user_id}",
+                    "user_id": user_id
+                }), 200
+                
+            except Exception as e:
+                return jsonify({"status": "error", "message": str(e)}), 400
     
     def setup_socketio_events(self):
         """إعداد أحداث WebSocket"""
@@ -355,6 +392,43 @@ class WebServer:
             
         except Exception as e:
             print(f"❌ خطأ في إرسال إشعار تلجرام: {e}")
+    
+    def send_personal_telegram_notification(self, user_id, title, data):
+        """إرسال إشعار تلجرام شخصي لمستخدم محدد"""
+        try:
+            message = f"{title}\n\n"
+            
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if key not in ['user_id', 'source']:  # استبعاد البيانات الداخلية
+                        message += f"🔹 {key}: {value}\n"
+            else:
+                message += str(data)
+            
+            message += f"\n👤 إشارة شخصية للمستخدم: {user_id}"
+            
+            # إرسال الرسالة للمستخدم المحدد
+            import asyncio
+            from telegram.ext import Application
+            
+            async def send_message():
+                try:
+                    application = Application.builder().token(TELEGRAM_TOKEN).build()
+                    await application.bot.send_message(chat_id=user_id, text=message)
+                except Exception as e:
+                    print(f"خطأ في إرسال الرسالة الشخصية: {e}")
+            
+            # تشغيل في thread منفصل
+            def run_async():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(send_message())
+                loop.close()
+            
+            threading.Thread(target=run_async, daemon=True).start()
+            
+        except Exception as e:
+            print(f"❌ خطأ في إرسال إشعار تلجرام شخصي: {e}")
     
     def start_background_tasks(self):
         """بدء المهام الخلفية"""
