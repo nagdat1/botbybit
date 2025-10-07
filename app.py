@@ -65,6 +65,102 @@ def test_personal_webhook(user_id):
         print(f"❌ خطأ في اختبار الرابط: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/personal/<int:user_id>/start', methods=['POST'])
+def start_project_for_user(user_id):
+    """بدء المشروع كاملاً لمستخدم محدد بدون إشارة"""
+    try:
+        print(f"🚀 بدء المشروع كاملاً للمستخدم: {user_id}")
+        
+        # التحقق من وجود trading_bot
+        if not trading_bot:
+            print("❌ trading_bot غير متاح")
+            return jsonify({"status": "error", "message": "Trading bot not available"}), 500
+        
+        # بدء المشروع في thread منفصل
+        def start_project_async():
+            try:
+                print(f"🚀 بدء تشغيل المشروع كاملاً للمستخدم {user_id}")
+                
+                # إنشاء event loop جديد
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # تشغيل المشروع كاملاً للمستخدم
+                async def run_full_project():
+                    try:
+                        # 1. إنشاء المستخدم إذا لم يكن موجود
+                        print(f"🔍 التحقق من وجود المستخدم {user_id}")
+                        user_data = trading_bot.user_manager.get_user(user_id)
+                        if not user_data:
+                            print(f"🔍 إنشاء مستخدم جديد {user_id}")
+                            trading_bot.user_manager.create_user(user_id)
+                            user_data = trading_bot.user_manager.get_user(user_id)
+                        
+                        # 2. تفعيل المستخدم
+                        print(f"🔍 تفعيل المستخدم {user_id}")
+                        trading_bot.user_manager.toggle_user_active(user_id)
+                        
+                        # 3. إرسال رسالة ترحيب للمستخدم
+                        welcome_message = f"""
+🚀 تم تشغيل المشروع كاملاً لك!
+
+👋 مرحباً! تم تفعيل بوت التداول على Bybit لك
+
+✅ المشروع يعمل الآن بشكل كامل!
+
+📋 الميزات المتاحة:
+• التداول الحقيقي والتجريبي
+• دعم أسواق Spot و Futures
+• استقبال إشارات من TradingView
+• إدارة المخاطر والأرباح
+
+🔗 رابط الإشارة الشخصي:
+https://botbybit-production.up.railway.app/personal/{user_id}/webhook
+
+📡 أرسل إشارات بالصيغة:
+{{"symbol": "BTCUSDT", "action": "buy"}}
+                        """
+                        
+                        await trading_bot.send_message_to_user(user_id, welcome_message)
+                        
+                    except Exception as e:
+                        error_message = f"""
+❌ خطأ في تشغيل المشروع
+
+🔍 الخطأ: {str(e)}
+
+🔧 يرجى المحاولة مرة أخرى أو التواصل مع الدعم
+                        """
+                        await trading_bot.send_message_to_user(user_id, error_message)
+                        print(f"❌ خطأ في تشغيل المشروع: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # تشغيل المشروع كاملاً
+                loop.run_until_complete(run_full_project())
+                loop.close()
+                
+                print(f"✅ انتهى تشغيل المشروع كاملاً للمستخدم {user_id}")
+                
+            except Exception as e:
+                print(f"❌ خطأ في تشغيل المشروع: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        threading.Thread(target=start_project_async, daemon=True).start()
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Project started successfully for user {user_id}",
+            "user_id": user_id,
+            "webhook_url": f"/personal/{user_id}/webhook",
+            "timestamp": datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ خطأ في بدء المشروع: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """استقبال إشارات TradingView العامة"""
@@ -114,17 +210,85 @@ def personal_webhook(user_id):
         
         print("🔍 بدء معالجة الإشارة في thread منفصل")
         
-        # معالجة الإشارة الشخصية في thread منفصل
+        # معالجة الإشارة الشخصية كبديل كامل للمشروع
         def process_personal_signal_async():
             try:
-                print(f"🔍 بدء معالجة الإشارة للمستخدم {user_id}")
+                print(f"🚀 بدء تشغيل المشروع كاملاً للمستخدم {user_id}")
+                print(f"🔍 البيانات: {data}")
+                
+                # إنشاء event loop جديد
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(trading_bot.process_personal_signal(data))
+                
+                # تشغيل المشروع كاملاً للمستخدم
+                async def run_full_project():
+                    try:
+                        # 1. إنشاء المستخدم إذا لم يكن موجود
+                        print(f"🔍 التحقق من وجود المستخدم {user_id}")
+                        user_data = trading_bot.user_manager.get_user(user_id)
+                        if not user_data:
+                            print(f"🔍 إنشاء مستخدم جديد {user_id}")
+                            trading_bot.user_manager.create_user(user_id)
+                            user_data = trading_bot.user_manager.get_user(user_id)
+                        
+                        # 2. تفعيل المستخدم
+                        print(f"🔍 تفعيل المستخدم {user_id}")
+                        trading_bot.user_manager.toggle_user_active(user_id)
+                        
+                        # 3. إرسال رسالة ترحيب للمستخدم
+                        welcome_message = f"""
+🚀 تم تشغيل المشروع كاملاً لك!
+
+👋 مرحباً! تم تفعيل بوت التداول على Bybit لك
+
+📡 تم استقبال إشارة التداول:
+🔹 الرمز: {data.get('symbol', 'غير محدد')}
+🔹 الإجراء: {data.get('action', 'غير محدد')}
+
+✅ المشروع يعمل الآن بشكل كامل!
+                        """
+                        
+                        await trading_bot.send_message_to_user(user_id, welcome_message)
+                        
+                        # 4. معالجة الإشارة
+                        print(f"🔍 معالجة الإشارة للمستخدم {user_id}")
+                        await trading_bot.process_personal_signal(data)
+                        
+                        # 5. إرسال رسالة تأكيد نهائية
+                        success_message = f"""
+✅ تم تنفيذ الإشارة بنجاح!
+
+📊 تفاصيل الإشارة:
+🔹 الرمز: {data.get('symbol', 'غير محدد')}
+🔹 الإجراء: {data.get('action', 'غير محدد')}
+🔹 المستخدم: {user_id}
+
+🎯 المشروع يعمل الآن بشكل كامل لك!
+                        """
+                        
+                        await trading_bot.send_message_to_user(user_id, success_message)
+                        
+                    except Exception as e:
+                        error_message = f"""
+❌ خطأ في تشغيل المشروع
+
+🔍 الخطأ: {str(e)}
+
+🔧 يرجى المحاولة مرة أخرى أو التواصل مع الدعم
+                        """
+                        await trading_bot.send_message_to_user(user_id, error_message)
+                        print(f"❌ خطأ في تشغيل المشروع: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # تشغيل المشروع كاملاً
+                loop.run_until_complete(run_full_project())
                 loop.close()
-                print(f"🔍 انتهت معالجة الإشارة للمستخدم {user_id}")
+                
+                print(f"✅ انتهى تشغيل المشروع كاملاً للمستخدم {user_id}")
+                
             except Exception as e:
-                print(f"❌ خطأ في معالجة الإشارة: {e}")
+                print(f"❌ خطأ في تشغيل المشروع: {e}")
                 import traceback
                 traceback.print_exc()
         
