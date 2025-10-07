@@ -603,6 +603,7 @@ class TradingBot:
         
         # إعدادات المستخدم
         self.user_settings = DEFAULT_SETTINGS.copy()
+        self.user_id = None  # معرّف المستخدم الحالي (يُستخدم للإشارات الشخصية)
         
         # قائمة الصفقات المفتوحة (مرتبطة بحسابات المستخدم)
         self.open_positions = {}  # {position_id: position_info}

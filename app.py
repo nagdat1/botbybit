@@ -79,10 +79,15 @@ def webhook():
 def personal_webhook(user_id):
     """استقبال إشارات TradingView الشخصية لكل مستخدم"""
     try:
-        data = request.get_json()
+        print(f"\n{'='*60}")
+        print(f"🔔 [WEBHOOK شخصي] استقبال طلب جديد")
+        print(f"👤 المستخدم: {user_id}")
+        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        print(f"🔔 [WEBHOOK شخصي] المستخدم: {user_id}")
-        print(f"📊 [WEBHOOK شخصي] البيانات المستلمة: {data}")
+        data = request.get_json()
+        print(f"📊 البيانات المستلمة: {data}")
+        print(f"📋 نوع البيانات: {type(data)}")
+        print(f"{'='*60}\n")
         
         if not data:
             print(f"⚠️ [WEBHOOK شخصي] لا توجد بيانات للمستخدم {user_id}")
@@ -111,7 +116,8 @@ def personal_webhook(user_id):
             # إعادة تحميل المستخدم في الذاكرة
             print(f"✅ [WEBHOOK شخصي] تم العثور على المستخدم {user_id} في قاعدة البيانات، جاري التحميل...")
             user_manager.reload_user_data(user_id)
-            # إنشاء الحسابات للمستخدم
+            # إنشاء الحسابات للمستخدم (استخدام البيانات المُعاد تحميلها)
+            user_data = user_manager.get_user(user_id)  # الحصول على البيانات المُحدثة
             user_manager._create_user_accounts(user_id, user_data)
             print(f"✅ [WEBHOOK شخصي] تم تحميل المستخدم {user_id} بنجاح")
         
@@ -123,48 +129,60 @@ def personal_webhook(user_id):
         print(f"✅ [WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
         print(f"📋 [WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
         
-        # حفظ إعدادات البوت الحالية مؤقتًا
+        # استيراد trading_bot
         from bybit_trading_bot import trading_bot
         
-        original_settings = trading_bot.user_settings.copy()
-        original_user_id = trading_bot.user_id
+        # نسخ بيانات المستخدم للاستخدام في الـ thread
+        user_settings_copy = {
+            'user_id': user_id,
+            'market_type': user_data.get('market_type', 'spot'),
+            'account_type': user_data.get('account_type', 'demo'),
+            'trade_amount': user_data.get('trade_amount', 100.0),
+            'leverage': user_data.get('leverage', 10)
+        }
         
-        try:
-            # تطبيق إعدادات المستخدم المحدد مؤقتًا
-            trading_bot.user_id = user_id
-            trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
-            trading_bot.user_settings['account_type'] = user_data.get('account_type', 'demo')
-            trading_bot.user_settings['trade_amount'] = user_data.get('trade_amount', 100.0)
-            trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
+        # معالجة الإشارة في thread منفصل مع إعدادات المستخدم
+        def process_signal_async():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
-            print(f"✅ [WEBHOOK شخصي] تم تطبيق إعدادات المستخدم {user_id}")
+            # حفظ الإعدادات الأصلية داخل الـ thread
+            original_settings = trading_bot.user_settings.copy()
+            original_user_id = trading_bot.user_id
             
-            # معالجة الإشارة باستخدام نفس دالة البوت
-            def process_signal_async():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(trading_bot.process_signal(data))
-                finally:
-                    # استعادة الإعدادات الأصلية
-                    trading_bot.user_settings.update(original_settings)
-                    trading_bot.user_id = original_user_id
-                    loop.close()
-            
-            threading.Thread(target=process_signal_async, daemon=True).start()
-            
-            print(f"✅ [WEBHOOK شخصي] تمت معالجة إشارة المستخدم {user_id} بنجاح")
-            return jsonify({
-                "status": "success", 
-                "message": f"Signal processed for user {user_id}",
-                "user_id": user_id
-            }), 200
-            
-        except Exception as e:
-            # استعادة الإعدادات في حالة الخطأ
-            trading_bot.user_settings.update(original_settings)
-            trading_bot.user_id = original_user_id
-            raise
+            try:
+                # تطبيق إعدادات المستخدم المحدد
+                trading_bot.user_id = user_settings_copy['user_id']
+                trading_bot.user_settings['market_type'] = user_settings_copy['market_type']
+                trading_bot.user_settings['account_type'] = user_settings_copy['account_type']
+                trading_bot.user_settings['trade_amount'] = user_settings_copy['trade_amount']
+                trading_bot.user_settings['leverage'] = user_settings_copy['leverage']
+                
+                print(f"✅ [WEBHOOK شخصي - Thread] تم تطبيق إعدادات المستخدم {user_settings_copy['user_id']}")
+                
+                # معالجة الإشارة
+                loop.run_until_complete(trading_bot.process_signal(data))
+                
+                print(f"✅ [WEBHOOK شخصي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
+            except Exception as e:
+                print(f"❌ [WEBHOOK شخصي - Thread] خطأ في معالجة الإشارة: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                # استعادة الإعدادات الأصلية
+                trading_bot.user_settings.update(original_settings)
+                trading_bot.user_id = original_user_id
+                loop.close()
+                print(f"✅ [WEBHOOK شخصي - Thread] تم استعادة الإعدادات الأصلية")
+        
+        threading.Thread(target=process_signal_async, daemon=True).start()
+        
+        print(f"✅ [WEBHOOK شخصي] تم بدء معالجة إشارة المستخدم {user_id}")
+        return jsonify({
+            "status": "success", 
+            "message": f"Signal processing started for user {user_id}",
+            "user_id": user_id
+        }), 200
         
     except Exception as e:
         print(f"❌ [WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
@@ -242,38 +260,63 @@ def start_bot():
     print("✅ تم بدء تشغيل البوت في thread منفصل")
 
 def start_web_server():
-    """بدء تشغيل السيرفر الويب"""
-    global web_server
-    
-    try:
-        # إنشاء السيرفر وربطه بالبوت
-        web_server = WebServer(trading_bot)
-        trading_bot.web_server = web_server
-        
-        # تشغيل السيرفر في thread منفصل
-        server_thread = threading.Thread(
-            target=lambda: web_server.run(debug=False, port=PORT), 
-            daemon=True
-        )
-        server_thread.start()
-        
-        print("✅ تم تشغيل السيرفر الويب بنجاح")
-        
-    except Exception as e:
-        print(f"❌ خطأ في تشغيل السيرفر الويب: {e}")
-        import traceback
-        traceback.print_exc()
+    """بدء تشغيل السيرفر الويب - لن يتم استخدامه في app.py"""
+    pass
 
 if __name__ == "__main__":
     print("🚀 بدء تشغيل بوت التداول على Railway...")
     print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🔗 المنفذ: {PORT}")
     
+    # إرسال إشعار بدء التشغيل
+    def send_startup_notification():
+        """إرسال إشعار بدء التشغيل عبر تلجرام"""
+        try:
+            from config import TELEGRAM_TOKEN, ADMIN_USER_ID
+            from telegram.ext import Application
+            import os
+            
+            async def send_message():
+                try:
+                    application = Application.builder().token(TELEGRAM_TOKEN).build()
+                    
+                    railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+                    if railway_url:
+                        if not railway_url.startswith('http'):
+                            railway_url = f"https://{railway_url}"
+                        webhook_url = railway_url
+                        environment = "🚂 Railway Cloud"
+                    else:
+                        webhook_url = f"http://localhost:{PORT}"
+                        environment = "💻 Local Development"
+                    
+                    message = f"🚀 بدء تشغيل بوت التداول متعدد المستخدمين\n\n"
+                    message += f"🌍 البيئة: {environment}\n"
+                    message += f"🌐 رابط استقبال الإشارات القديم:\n`{webhook_url}/webhook`\n\n"
+                    message += f"📡 رابط استقبال الإشارات الشخصي:\n`{webhook_url}/personal/YOUR_USER_ID/webhook`\n\n"
+                    message += f"✅ استخدم أحد الروابط أعلاه في TradingView\n"
+                    message += f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    message += f"👥 البوت جاهز لاستقبال الإشارات!"
+                    
+                    await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
+                    print(f"✅ تم إرسال إشعار بدء التشغيل إلى تلجرام")
+                except Exception as e:
+                    print(f"❌ خطأ في إرسال إشعار بدء التشغيل: {e}")
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(send_message())
+            loop.close()
+            
+        except Exception as e:
+            print(f"❌ خطأ في إعداد إشعار بدء التشغيل: {e}")
+    
     # بدء البوت
     start_bot()
     
-    # بدء السيرفر الويب
-    start_web_server()
+    # إرسال إشعار بدء التشغيل
+    threading.Thread(target=send_startup_notification, daemon=True).start()
     
-    # تشغيل تطبيق Flask
+    # تشغيل تطبيق Flask الرئيسي
+    print(f"🌐 تشغيل Flask Server على http://0.0.0.0:{PORT}")
     app.run(host='0.0.0.0', port=PORT, debug=False)
