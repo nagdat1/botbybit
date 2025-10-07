@@ -127,6 +127,19 @@ class UserManager:
         """الحصول على بيانات المستخدم"""
         return self.users.get(user_id)
     
+    def get_user_settings(self, user_id: int) -> Optional[Dict]:
+        """الحصول على إعدادات المستخدم في صيغة settings dict"""
+        user_data = self.get_user(user_id)
+        if not user_data:
+            return None
+        
+        return {
+            'market_type': user_data.get('market_type', 'spot'),
+            'account_type': user_data.get('account_type', 'demo'),
+            'trade_amount': user_data.get('trade_amount', 100.0),
+            'leverage': user_data.get('leverage', 10)
+        }
+    
     def get_user_account(self, user_id: int, market_type: str = 'spot') -> Optional[Any]:
         """الحصول على حساب المستخدم"""
         user_accounts = self.user_accounts.get(user_id)

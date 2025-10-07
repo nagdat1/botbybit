@@ -968,10 +968,30 @@ class TradingBot:
         try:
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
-            logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}")
+            logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}, user_id={self.user_id}")
+            
+            # تحديد الحساب والصفقات بناءً على نوع المستخدم
+            if self.user_id:
+                # استخدام حساب المستخدم من user_manager
+                from user_manager import user_manager
+                account = user_manager.get_user_account(self.user_id, user_market_type)
+                if not account:
+                    logger.error(f"لم يتم العثور على حساب للمستخدم {self.user_id}")
+                    await self.send_message_to_user(self.user_id, f"❌ خطأ: لم يتم العثور على حساب {user_market_type}")
+                    return
+                # استخدام صفقات المستخدم
+                user_positions = user_manager.user_positions.get(self.user_id, {})
+                logger.info(f"استخدام حساب المستخدم {self.user_id} لنوع السوق {user_market_type}")
+            else:
+                # استخدام الحساب العام (للإشارات القديمة)
+                if user_market_type == 'futures':
+                    account = self.demo_account_futures
+                else:
+                    account = self.demo_account_spot
+                user_positions = self.open_positions
+                logger.info(f"استخدام الحساب العام لنوع السوق {user_market_type}")
             
             if user_market_type == 'futures':
-                account = self.demo_account_futures
                 margin_amount = self.user_settings['trade_amount']  # مبلغ الهامش
                 leverage = self.user_settings['leverage']
                 
@@ -989,8 +1009,8 @@ class TradingBot:
                     
                     # التأكد من أن position هو FuturesPosition
                     if isinstance(position, FuturesPosition):
-                        # حفظ معلومات الصفقة في القائمة العامة
-                        self.open_positions[position_id] = {
+                        # حفظ معلومات الصفقة في قائمة المستخدم
+                        user_positions[position_id] = {
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -1005,9 +1025,11 @@ class TradingBot:
                             'pnl_percent': 0.0
                         }
                         
-                        logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}")
+                        logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}, user_id={self.user_id}")
                         
                         message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
+                        if self.user_id:
+                            message += f"👤 المستخدم: {self.user_id}\n"
                         message += f"📊 الرمز: {symbol}\n"
                         message += f"🔄 النوع: {action.upper()}\n"
                         message += f"💰 الهامش المحجوز: {margin_amount}\n"
@@ -1031,7 +1053,6 @@ class TradingBot:
                     await self.send_message_to_admin(f"❌ فشل في فتح صفقة الفيوتشر: {result}")
                     
             else:  # spot
-                account = self.demo_account_spot
                 amount = self.user_settings['trade_amount']
                 
                 success, result = account.open_spot_position(
@@ -1044,7 +1065,7 @@ class TradingBot:
                 if success:
                     position_id = result
                     
-                    self.open_positions[position_id] = {
+                    user_positions[position_id] = {
                         'symbol': symbol,
                         'entry_price': price,
                         'side': action,
@@ -1056,15 +1077,17 @@ class TradingBot:
                         'pnl_percent': 0.0
                     }
                     
-                    logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}")
+                    logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}, user_id={self.user_id}")
                     
                     message = f"📈 تم فتح صفقة سبوت تجريبية\n"
+                    if self.user_id:
+                        message += f"👤 المستخدم: {self.user_id}\n"
                     message += f"📊 الرمز: {symbol}\n"
                     message += f"🔄 النوع: {action.upper()}\n"
                     message += f"💰 المبلغ: {amount}\n"
                     message += f"💲 سعر الدخول: {price:.6f}\n"
                     message += f"🏪 السوق: SPOT\n"
-                    message += f"ident رقم الصفقة: {position_id}\n"
+                    message += f"🆔 رقم الصفقة: {position_id}\n"
                     
                     # إضافة معلومات الحساب
                     account_info = account.get_account_info()
@@ -1079,12 +1102,22 @@ class TradingBot:
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
     
     async def send_message_to_admin(self, message: str):
-        """إرسال رسالة للمدير"""
+        """إرسال رسالة للمدير أو المستخدم الحالي"""
         try:
             application = Application.builder().token(TELEGRAM_TOKEN).build()
-            await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
+            # إرسال للمستخدم الحالي إذا كان محدداً، وإلا للأدمن
+            chat_id = self.user_id if self.user_id else ADMIN_USER_ID
+            await application.bot.send_message(chat_id=chat_id, text=message)
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
+    
+    async def send_message_to_user(self, user_id: int, message: str):
+        """إرسال رسالة لمستخدم محدد"""
+        try:
+            application = Application.builder().token(TELEGRAM_TOKEN).build()
+            await application.bot.send_message(chat_id=user_id, text=message)
+        except Exception as e:
+            logger.error(f"خطأ في إرسال الرسالة للمستخدم {user_id}: {e}")
 
 # إنشاء البوت العام
 trading_bot = TradingBot()
