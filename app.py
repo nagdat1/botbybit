@@ -123,6 +123,28 @@ def start_bot():
             # بدء التحديث الدوري
             start_price_updates()
             
+            # بدء مراقبة الأهداف
+            def start_target_monitoring():
+                """بدء مراقبة أهداف الصفقات"""
+                from bybit_trading_bot import target_manager
+                
+                def monitor_targets():
+                    while True:
+                        try:
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            target_manager.start_monitoring()
+                            loop.run_until_complete(target_manager.monitor_all_positions())
+                            loop.close()
+                        except Exception as e:
+                            print(f"خطأ في مراقبة الأهداف: {e}")
+                            threading.Event().wait(60)
+                
+                threading.Thread(target=monitor_targets, daemon=True).start()
+            
+            # بدء المراقبة
+            start_target_monitoring()
+            
             # تشغيل البوت
             print("بدء تشغيل البوت...")
             application.run_polling(allowed_updates=['message', 'callback_query'])
