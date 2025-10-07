@@ -991,8 +991,8 @@ class TradingBot:
             # استخدام صفقات المستخدم المحدد
             self.open_positions = user_manager.get_user_positions(user_id)
             
-            # معالجة الإشارة بنفس طريقة الإشارة العادية
-            await self.process_signal(signal_data)
+            # معالجة الإشارة مباشرة بدون update و context
+            await self.process_signal_direct(signal_data)
             
             # استعادة الصفقات المفتوحة الأصلية
             self.open_positions = original_open_positions
@@ -1007,6 +1007,53 @@ class TradingBot:
             # استعادة معرف المستخدم الأصلي في حالة الخطأ
             if 'original_user_id' in locals():
                 self.user_id = original_user_id
+    
+    async def process_signal_direct(self, signal_data: dict):
+        """معالجة الإشارة مباشرة بدون update و context - للإشارات الشخصية"""
+        try:
+            symbol = signal_data.get('symbol', '').upper()
+            action = signal_data.get('action', '').lower()
+            
+            if not symbol or not action:
+                logger.error("بيانات الإشارة غير مكتملة")
+                return
+            
+            # تحديد نوع السوق
+            market_type = self.user_settings.get('market_type', 'spot')
+            bybit_category = 'spot' if market_type == 'spot' else 'linear'
+            
+            # الحصول على السعر الحالي
+            current_price = await self.get_current_price(symbol)
+            if not current_price:
+                logger.error(f"لا يمكن الحصول على السعر الحالي للرمز {symbol}")
+                return
+            
+            logger.info(f"📡 تم استقبال إشارة شخصية")
+            logger.info(f"🔹 symbol: {symbol}")
+            logger.info(f"🔹 action: {action}")
+            logger.info(f"👤 إشارة شخصية للمستخدم: {self.user_id}")
+            
+            # إرسال إشعار للمستخدم
+            await self.send_message_to_user(
+                self.user_id,
+                f"📡 تم استقبال إشارة شخصية\n\n"
+                f"🔹 symbol: {symbol}\n"
+                f"🔹 action: {action}\n\n"
+                f"👤 إشارة شخصية للمستخدم: {self.user_id}"
+            )
+            
+            # تنفيذ الصفقة حسب نوع الحساب
+            if self.user_settings['account_type'] == 'real':
+                await self.execute_real_trade(symbol, action, current_price, bybit_category)
+            else:
+                await self.execute_demo_trade(symbol, action, current_price, bybit_category, market_type)
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة الإشارة المباشرة: {e}")
+            await self.send_message_to_user(
+                self.user_id,
+                f"❌ خطأ في معالجة الإشارة: {e}"
+            )
     
     
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
@@ -1194,6 +1241,15 @@ class TradingBot:
                 
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
+    
+    async def send_message_to_user(self, user_id: int, message: str):
+        """إرسال رسالة لمستخدم محدد"""
+        try:
+            application = Application.builder().token(TELEGRAM_TOKEN).build()
+            await application.bot.send_message(chat_id=user_id, text=message)
+            logger.info(f"تم إرسال رسالة للمستخدم {user_id}")
+        except Exception as e:
+            logger.error(f"خطأ في إرسال الرسالة للمستخدم {user_id}: {e}")
 
 class PositionTargetManager:
     """فئة لإدارة أهداف الربح ووقف الخسارة للصفقات"""
