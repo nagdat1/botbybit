@@ -596,7 +596,7 @@ class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
     
     def __init__(self):
-        # معرف المستخدم الحالي
+        # معرف المستخدم الحالي (للبوت الرئيسي فقط)
         self.user_id = None
         
         # إعداد user_manager
@@ -607,7 +607,7 @@ class TradingBot:
         if BYBIT_API_KEY and BYBIT_API_SECRET:
             self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
         
-        # إعداد الحسابات التجريبية
+        # إعداد الحسابات التجريبية (للبوت الرئيسي فقط)
         self.demo_account_spot = TradingAccount(
             initial_balance=DEMO_ACCOUNT_SETTINGS['initial_balance_spot'],
             account_type='spot'
@@ -621,10 +621,10 @@ class TradingBot:
         self.is_running = True
         self.signals_received = 0
         
-        # إعدادات المستخدم
+        # إعدادات المستخدم (للبوت الرئيسي فقط)
         self.user_settings = DEFAULT_SETTINGS.copy()
         
-        # قائمة الصفقات المفتوحة (مرتبطة بحسابات المستخدم)
+        # قائمة الصفقات المفتوحة (للبوت الرئيسي فقط)
         self.open_positions = {}  # {position_id: position_info}
         
         # قائمة الأزواج المتاحة (cache)
@@ -948,6 +948,335 @@ class TradingBot:
             await self.send_message_to_admin(f"❌ خطأ في معالجة الإشارة: {e}")
     
     async def process_personal_signal(self, signal_data: dict):
+        """معالجة إشارة شخصية لمستخدم محدد - بدون تأثير على البوت الرئيسي"""
+        try:
+            user_id = signal_data.get('user_id')
+            logger.info(f"🔍 بدء معالجة إشارة شخصية للمستخدم: {user_id}")
+            logger.info(f"🔍 بيانات الإشارة: {signal_data}")
+            
+            if not user_id:
+                logger.error("معرف المستخدم غير موجود في الإشارة الشخصية")
+                return
+            
+            # 1. إنشاء المستخدم إذا لم يكن موجود
+            user_data = self.user_manager.get_user(user_id)
+            if not user_data:
+                logger.info(f"المستخدم {user_id} غير موجود، سيتم إنشاؤه تلقائياً")
+                success = self.user_manager.create_user(user_id)
+                if success:
+                    user_data = self.user_manager.get_user(user_id)
+                    logger.info(f"تم إنشاء المستخدم {user_id} بنجاح")
+                else:
+                    logger.error(f"فشل في إنشاء المستخدم {user_id}")
+                    return
+            
+            # 2. تفعيل المستخدم
+            is_active = self.user_manager.is_user_active(user_id)
+            if not is_active:
+                logger.info(f"المستخدم {user_id} غير نشط، سيتم تفعيله تلقائياً")
+                self.user_manager.toggle_user_active(user_id)
+                logger.info(f"تم تفعيل المستخدم {user_id} تلقائياً")
+            
+            # 3. إعداد بيانات المستخدم المحدد (بدون تغيير البوت الرئيسي)
+            user_settings = {
+                'account_type': user_data.get('account_type', 'demo'),
+                'market_type': user_data.get('market_type', 'spot'),
+                'trade_amount': user_data.get('trade_amount', 100.0),
+                'leverage': user_data.get('leverage', 10)
+            }
+            
+            # 4. إعداد الحسابات للمستخدم المحدد
+            market_type = user_data.get('market_type', 'spot')
+            demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
+            demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
+            
+            if not demo_account_spot and not demo_account_futures:
+                logger.info(f"إنشاء حسابات للمستخدم {user_id}")
+                self.user_manager._create_user_accounts(user_id, user_data)
+                demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
+                demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
+            
+            # 5. إعداد API للمستخدم المحدد
+            user_bybit_api = self.user_manager.get_user_api(user_id)
+            
+            # 6. إعداد الصفقات المفتوحة للمستخدم المحدد
+            user_open_positions = self.user_manager.get_user_positions(user_id)
+            if not user_open_positions:
+                user_open_positions = {}
+            
+            # 7. إرسال رسالة ترحيب
+            welcome_message = f"""
+🚀 تم استقبال إشارة شخصية لك!
+
+👋 مرحباً! تم تفعيل بوت التداول على Bybit لك
+
+📡 تم استقبال إشارة التداول:
+🔹 الرمز: {signal_data.get('symbol', 'غير محدد')}
+🔹 الإجراء: {signal_data.get('action', 'غير محدد')}
+
+✅ المشروع يعمل الآن بشكل كامل لك!
+            """
+            
+            await self.send_message_to_user(user_id, welcome_message)
+            
+            # 8. معالجة الإشارة للمستخدم المحدد
+            await self.process_signal_for_user(
+                signal_data, user_id, user_settings, 
+                demo_account_spot, demo_account_futures, 
+                user_bybit_api, user_open_positions
+            )
+            
+            # 9. إرسال رسالة تأكيد نهائية
+            success_message = f"""
+✅ تم تنفيذ الإشارة بنجاح!
+
+📊 تفاصيل الإشارة:
+🔹 الرمز: {signal_data.get('symbol', 'غير محدد')}
+🔹 الإجراء: {signal_data.get('action', 'غير محدد')}
+🔹 المستخدم: {user_id}
+
+🎯 المشروع يعمل الآن بشكل كامل لك!
+            """
+            
+            await self.send_message_to_user(user_id, success_message)
+            
+            logger.info(f"تم معالجة الإشارة الشخصية للمستخدم {user_id}: {signal_data.get('symbol')} {signal_data.get('action')}")
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة الإشارة الشخصية: {e}")
+            await self.send_message_to_user(user_id, f"❌ خطأ في معالجة الإشارة: {e}")
+
+    async def process_signal_for_user(self, signal_data: dict, user_id: int, user_settings: dict, 
+                                    demo_account_spot, demo_account_futures, user_bybit_api, user_open_positions: dict):
+        """معالجة الإشارة لمستخدم محدد بدون تأثير على البوت الرئيسي"""
+        try:
+            symbol = signal_data.get('symbol', '').upper()
+            action = signal_data.get('action', '').lower()
+            
+            if not symbol or not action:
+                logger.error("بيانات الإشارة غير مكتملة")
+                return
+            
+            market_type = user_settings.get('market_type', 'spot')
+            bybit_category = 'spot' if market_type == 'spot' else 'linear'
+            
+            # الحصول على السعر الحالي
+            if user_bybit_api:
+                current_price = user_bybit_api.get_ticker_price(symbol, bybit_category)
+            else:
+                # إنشاء API مؤقت للحصول على السعر
+                temp_api = BybitAPI()
+                current_price = temp_api.get_ticker_price(symbol, bybit_category)
+            
+            logger.info(f"🔍 السعر الحالي للرمز {symbol}: {current_price}")
+            
+            if not current_price:
+                logger.error(f"لا يمكن الحصول على السعر الحالي للرمز {symbol}")
+                return
+            
+            logger.info(f"📡 تم استقبال إشارة شخصية للمستخدم {user_id}")
+            logger.info(f"🔹 symbol: {symbol}")
+            logger.info(f"🔹 action: {action}")
+            logger.info(f"🔹 market_type: {market_type}")
+            logger.info(f"🔹 account_type: {user_settings['account_type']}")
+            
+            # تنفيذ الصفقة حسب نوع الحساب
+            if user_settings['account_type'] == 'real':
+                logger.info(f"🔍 تنفيذ صفقة حقيقية للمستخدم {user_id}")
+                await self.execute_real_trade_for_user(
+                    symbol, action, current_price, bybit_category, user_id, user_bybit_api
+                )
+            else:
+                logger.info(f"🔍 تنفيذ صفقة تجريبية للمستخدم {user_id}")
+                await self.execute_demo_trade_for_user(
+                    symbol, action, current_price, bybit_category, market_type,
+                    user_id, user_settings, demo_account_spot, demo_account_futures, user_open_positions
+                )
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة الإشارة للمستخدم {user_id}: {e}")
+            await self.send_message_to_user(user_id, f"❌ خطأ في معالجة الإشارة: {e}")
+
+    async def execute_demo_trade_for_user(self, symbol: str, action: str, price: float, category: str, 
+                                        market_type: str, user_id: int, user_settings: dict,
+                                        demo_account_spot, demo_account_futures, user_open_positions: dict):
+        """تنفيذ صفقة تجريبية لمستخدم محدد"""
+        try:
+            logger.info(f"🔍 بدء تنفيذ صفقة تجريبية للمستخدم {user_id}")
+            logger.info(f"🔍 الرمز: {symbol}")
+            logger.info(f"🔍 النوع: {action}")
+            logger.info(f"🔍 نوع السوق: {market_type}")
+            logger.info(f"🔍 السعر: {price}")
+            logger.info(f"🔍 فئة Bybit: {category}")
+            
+            if market_type == 'futures':
+                account = demo_account_futures
+                margin_amount = user_settings['trade_amount']
+                leverage = user_settings['leverage']
+                
+                logger.info(f"🔍 حساب الفيوتشر: {account}")
+                logger.info(f"🔍 مبلغ الهامش: {margin_amount}")
+                logger.info(f"🔍 الرافعة: {leverage}")
+                
+                if not account:
+                    await self.send_message_to_user(user_id, "❌ حساب الفيوتشر غير متاح")
+                    return
+                
+                success, result = account.open_futures_position(
+                    symbol=symbol,
+                    side=action,
+                    margin_amount=margin_amount,
+                    price=price,
+                    leverage=leverage
+                )
+                
+                logger.info(f"🔍 نتيجة فتح صفقة الفيوتشر: success={success}, result={result}")
+                
+                if success:
+                    position_id = result
+                    position = account.positions[position_id]
+                    
+                    position_info = {
+                        'symbol': symbol,
+                        'entry_price': price,
+                        'side': action,
+                        'account_type': market_type,
+                        'leverage': leverage,
+                        'category': category,
+                        'margin_amount': margin_amount,
+                        'position_size': position.position_size,
+                        'liquidation_price': position.liquidation_price,
+                        'contracts': position.contracts,
+                        'current_price': price,
+                        'pnl_percent': 0.0
+                    }
+                    
+                    user_open_positions[position_id] = position_info
+                    
+                    # حفظ الصفقة في user_manager للمستخدم
+                    if user_id not in self.user_manager.user_positions:
+                        self.user_manager.user_positions[user_id] = {}
+                    self.user_manager.user_positions[user_id][position_id] = position_info
+                    
+                    logger.info(f"تم فتح صفقة فيوتشر للمستخدم {user_id}: ID={position_id}, الرمز={symbol}")
+                    
+                    message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
+                    message += f"📊 الرمز: {symbol}\n"
+                    message += f"🔄 النوع: {action.upper()}\n"
+                    message += f"💰 الهامش المحجوز: {margin_amount}\n"
+                    message += f"📈 حجم الصفقة: {position.position_size:.2f}\n"
+                    message += f"💲 سعر الدخول: {price:.6f}\n"
+                    message += f"⚡ الرافعة: {leverage}x\n"
+                    message += f"⚠️ سعر التصفية: {position.liquidation_price:.6f}\n"
+                    message += f"📊 عدد العقود: {position.contracts:.6f}\n"
+                    message += f"🆔 رقم الصفقة: {position_id}\n"
+                    
+                    account_info = account.get_account_info()
+                    message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                    message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
+                    message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
+                    
+                    await self.send_message_to_user(user_id, message)
+                else:
+                    await self.send_message_to_user(user_id, f"❌ فشل في فتح صفقة الفيوتشر: {result}")
+                    
+            else:  # spot
+                account = demo_account_spot
+                amount = user_settings['trade_amount']
+                
+                logger.info(f"🔍 حساب السبوت: {account}")
+                logger.info(f"🔍 المبلغ: {amount}")
+                
+                if not account:
+                    await self.send_message_to_user(user_id, "❌ حساب السبوت غير متاح")
+                    return
+                
+                success, result = account.open_spot_position(
+                    symbol=symbol,
+                    side=action,
+                    amount=amount,
+                    price=price
+                )
+                
+                logger.info(f"🔍 نتيجة فتح صفقة السبوت: success={success}, result={result}")
+                
+                if success:
+                    position_id = result
+                    
+                    position_info = {
+                        'symbol': symbol,
+                        'entry_price': price,
+                        'side': action,
+                        'account_type': market_type,
+                        'leverage': 1,
+                        'category': category,
+                        'amount': amount,
+                        'current_price': price,
+                        'pnl_percent': 0.0
+                    }
+                    
+                    user_open_positions[position_id] = position_info
+                    
+                    # حفظ الصفقة في user_manager للمستخدم
+                    if user_id not in self.user_manager.user_positions:
+                        self.user_manager.user_positions[user_id] = {}
+                    self.user_manager.user_positions[user_id][position_id] = position_info
+                    
+                    logger.info(f"تم فتح صفقة سبوت للمستخدم {user_id}: ID={position_id}, الرمز={symbol}")
+                    
+                    message = f"📈 تم فتح صفقة سبوت تجريبية\n"
+                    message += f"📊 الرمز: {symbol}\n"
+                    message += f"🔄 النوع: {action.upper()}\n"
+                    message += f"💰 المبلغ: {amount}\n"
+                    message += f"💲 سعر الدخول: {price:.6f}\n"
+                    message += f"🏪 السوق: SPOT\n"
+                    message += f"🆔 رقم الصفقة: {position_id}\n"
+                    
+                    account_info = account.get_account_info()
+                    message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
+                    
+                    await self.send_message_to_user(user_id, message)
+                else:
+                    await self.send_message_to_user(user_id, f"❌ فشل في فتح الصفقة التجريبية: {result}")
+                    
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ الصفقة التجريبية للمستخدم {user_id}: {e}")
+            await self.send_message_to_user(user_id, f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
+
+    async def execute_real_trade_for_user(self, symbol: str, action: str, price: float, category: str, 
+                                        user_id: int, user_bybit_api):
+        """تنفيذ صفقة حقيقية لمستخدم محدد"""
+        try:
+            logger.info(f"🔍 بدء تنفيذ صفقة حقيقية للمستخدم {user_id}")
+            
+            if not user_bybit_api:
+                await self.send_message_to_user(user_id, "❌ API غير متاح للصفقات الحقيقية")
+                return
+            
+            # تنفيذ الصفقة الحقيقية
+            result = user_bybit_api.place_order(
+                symbol=symbol,
+                side=action,
+                order_type="Market",
+                qty="0.001",  # كمية صغيرة للاختبار
+                category=category
+            )
+            
+            if result.get('retCode') == 0:
+                message = f"📈 تم تنفيذ صفقة حقيقية\n"
+                message += f"📊 الرمز: {symbol}\n"
+                message += f"🔄 النوع: {action.upper()}\n"
+                message += f"💲 السعر: {price:.6f}\n"
+                message += f"🆔 رقم الطلب: {result.get('result', {}).get('orderId', 'غير متاح')}\n"
+                
+                await self.send_message_to_user(user_id, message)
+            else:
+                error_msg = result.get('retMsg', 'خطأ غير معروف')
+                await self.send_message_to_user(user_id, f"❌ فشل في تنفيذ الصفقة الحقيقية: {error_msg}")
+                
+        except Exception as e:
+            logger.error(f"خطأ في تنفيذ الصفقة الحقيقية للمستخدم {user_id}: {e}")
+            await self.send_message_to_user(user_id, f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
         """معالجة إشارة شخصية لمستخدم محدد - تعمل بنفس طريقة الإشارة الحقيقية"""
         try:
             user_id = signal_data.get('user_id')
@@ -1047,44 +1376,11 @@ class TradingBot:
     async def process_signal_like_main(self, signal_data: dict, user_id: int):
         """معالجة الإشارة بنفس طريقة الرابط الأساسي - للإشارات الشخصية"""
         try:
-            # إنشاء update و context وهميين للتوافق مع process_signal
-            from telegram import Update
-            from telegram.ext import ContextTypes
-            
-            # إنشاء update وهمي
-            fake_update = Update(
-                update_id=0,
-                message=None,
-                edited_message=None,
-                channel_post=None,
-                edited_channel_post=None,
-                inline_query=None,
-                chosen_inline_result=None,
-                callback_query=None,
-                shipping_query=None,
-                pre_checkout_query=None,
-                poll=None,
-                poll_answer=None,
-                my_chat_member=None,
-                chat_member=None,
-                chat_join_request=None
-            )
-            
-            # إنشاء context وهمي
-            fake_context = ContextTypes.DEFAULT_TYPE()
-            
-            # تعيين المستخدم الحالي
-            original_user_id = self.user_id
-            self.user_id = user_id
-            
             logger.info(f"🔍 بدء معالجة الإشارة بنفس طريقة الرابط الأساسي للمستخدم {user_id}")
             logger.info(f"🔍 بيانات الإشارة: {signal_data}")
             
-            # استدعاء process_signal بنفس طريقة الرابط الأساسي
-            await self.process_signal(fake_update, fake_context, signal_data)
-            
-            # استعادة المستخدم الأصلي
-            self.user_id = original_user_id
+            # استخدام النظام الجديد المنفصل للمستخدم
+            await self.process_personal_signal(signal_data)
             
             logger.info(f"✅ انتهت معالجة الإشارة بنفس طريقة الرابط الأساسي للمستخدم {user_id}")
             
