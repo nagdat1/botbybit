@@ -830,6 +830,30 @@ class TradingBot:
                 'success': False,
                 'error': str(e)
             }
+
+    async def process_user_signal(self, signal_data: dict, user_id: int):
+        """معالجة إشارة لمستخدم محدد"""
+        try:
+            logger.info(f"📡 استقبال إشارة للمستخدم {user_id}: {signal_data}")
+            
+            # التحقق من وجود المستخدم
+            user_data = user_manager.get_user(user_id)
+            if not user_data:
+                logger.error(f"المستخدم {user_id} غير موجود")
+                return
+            
+            # التحقق من أن المستخدم نشط
+            if not user_data.get('is_active', False):
+                logger.warning(f"المستخدم {user_id} غير نشط")
+                return
+            
+            # معالجة الإشارة للمستخدم
+            await self.process_signal_for_user(signal_data, user_id)
+            
+            logger.info(f"✅ تم معالجة الإشارة للمستخدم {user_id}")
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة إشارة المستخدم {user_id}: {e}")
     
     async def process_signal(self, signal_data: dict):
         """معالجة إشارة التداول مع دعم محسن للفيوتشر"""
@@ -1418,38 +1442,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # استخدام ADMIN_USER_ID مباشرة من config.py
     is_admin = (user_id == ADMIN_USER_ID)
     
-    # إذا كان المستخدم هو ADMIN، عرض القائمة الرئيسية مع زر المطور
-    if is_admin:
-        # عرض القائمة الرئيسية للمطور مع زر الرجوع لحساب المطور
-        keyboard = [
-            [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
-            [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔙 الرجوع لحساب المطور")]
-        ]
-        
-        # إضافة أزرار إضافية إذا كان المطور نشطاً
-        user_data = user_manager.get_user(user_id)
-        if user_data and user_data.get('is_active'):
-            keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
-        else:
-            keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
-        
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        
-        # رسالة ترحيب للمطور
-        welcome_message = f"""
-🤖 مرحباً بك {update.effective_user.first_name} - المطور
-
-👨‍💻 أنت في الوضع العادي للمطور
-🔙 يمكنك العودة إلى لوحة تحكم المطور في أي وقت
-
-استخدم الأزرار أدناه للتنقل
-        """
-        
-        if update.message is not None:
-            await update.message.reply_text(welcome_message, reply_markup=reply_markup)
-        return
+    # المطور يبدأ بالوضع العادي مثل أي مستخدم آخر
+    # يمكنه الوصول للوضع المطور من الإعدادات
     
     # التحقق من وجود المستخدم في قاعدة البيانات
     user_data = user_manager.get_user(user_id)
@@ -1565,7 +1559,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
-        [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
+        [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")],
+        [InlineKeyboardButton("📡 رابط الإشارات", callback_data="user_webhook")]
     ]
     
     # إضافة زر تشغيل/إيقاف البوت
@@ -1573,6 +1568,10 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
+    
+    # إضافة زر للمطور للوصول لوضع المطور
+    if is_admin:
+        keyboard.append([InlineKeyboardButton("👨‍💻 وضع المطور", callback_data="developer_mode")])
     
     keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
     
@@ -2357,6 +2356,60 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚠️ بدون API keys، البوت يعمل في الوضع التجريبي فقط
                     """, reply_markup=reply_markup)
+    elif data == "developer_mode":
+        # التحقق من أن المستخدم هو المطور
+        if user_id and user_id == ADMIN_USER_ID:
+            await show_developer_panel(update, context)
+        else:
+            if update.callback_query is not None:
+                await update.callback_query.answer("❌ ليس لديك صلاحية للوصول لوضع المطور")
+    elif data == "user_webhook":
+        # عرض رابط webhook الخاص بالمستخدم
+        if user_id is not None:
+            # إنشاء رابط webhook فريد للمستخدم
+            user_webhook_url = f"{WEBHOOK_URL}/webhook/{user_id}"
+            
+            webhook_message = f"""
+📡 رابط الإشارات الخاص بك
+
+🔗 رابط Webhook:
+`{user_webhook_url}`
+
+📋 كيفية الاستخدام:
+1. انسخ الرابط أعلاه
+2. ضعه في TradingView كـ webhook
+3. أرسل إشارات التداول
+
+📊 مثال على الإشارة:
+```json
+{{
+    "symbol": "BTCUSDT",
+    "action": "buy",
+    "price": 50000,
+    "amount": 0.01,
+    "user_id": {user_id}
+}}
+```
+
+⚠️ ملاحظة: هذا الرابط مخصص لك فقط
+🔐 لا تشاركه مع أي شخص آخر
+            """
+            
+            keyboard = [
+                [InlineKeyboardButton("📋 نسخ الرابط", callback_data=f"copy_webhook_{user_id}")],
+                [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if update.callback_query is not None:
+                await update.callback_query.message.edit_text(webhook_message, reply_markup=reply_markup, parse_mode='Markdown')
+    elif data.startswith("copy_webhook_"):
+        # نسخ رابط webhook
+        target_user_id = data.replace("copy_webhook_", "")
+        if target_user_id == str(user_id):
+            user_webhook_url = f"{WEBHOOK_URL}/webhook/{user_id}"
+            if update.callback_query is not None:
+                await update.callback_query.answer(f"📋 تم نسخ الرابط: {user_webhook_url}")
     # معالجة زر تشغيل/إيقاف البوت
     elif data == "toggle_bot":
         if user_id is not None:
