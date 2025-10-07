@@ -57,8 +57,6 @@ class UserManager:
             if not self.TradingAccount:
                 logger.warning(f"TradingAccount class not set, skipping account creation for user {user_id}")
                 return
-            
-            logger.info(f"إنشاء حسابات تجريبية للمستخدم {user_id}...")
                 
             # حساب سبوت
             spot_account = self.TradingAccount(
@@ -112,12 +110,6 @@ class UserManager:
                     self.users[user_id] = user_data
                     self._create_user_accounts(user_id, user_data)
                     
-                    # التحقق من أن الحسابات تم إنشاؤها بنجاح
-                    if user_id in self.user_accounts:
-                        logger.info(f"✅ تم إنشاء حسابات التداول للمستخدم {user_id}")
-                    else:
-                        logger.warning(f"⚠️ فشل في إنشاء حسابات التداول للمستخدم {user_id}")
-                    
                     # إنشاء API إذا تم توفير المفاتيح
                     if api_key and api_secret:
                         self._create_user_api(user_id, api_key, api_secret)
@@ -137,9 +129,6 @@ class UserManager:
     
     def get_user_account(self, user_id: int, market_type: str = 'spot') -> Optional[Any]:
         """الحصول على حساب المستخدم"""
-        # التأكد من وجود حسابات التداول
-        self.ensure_user_accounts(user_id)
-        
         user_accounts = self.user_accounts.get(user_id)
         if user_accounts:
             return user_accounts.get(market_type)
@@ -151,9 +140,6 @@ class UserManager:
     
     def get_user_positions(self, user_id: int) -> Dict[str, Dict]:
         """الحصول على صفقات المستخدم"""
-        # التأكد من وجود حسابات التداول
-        self.ensure_user_accounts(user_id)
-        
         return self.user_positions.get(user_id, {})
     
     def update_user_api(self, user_id: int, api_key: str, api_secret: str) -> bool:
@@ -429,29 +415,6 @@ class UserManager:
         except Exception as e:
             logger.error(f"خطأ في إعادة تحميل بيانات المستخدم {user_id}: {e}")
     
-    def ensure_user_accounts(self, user_id: int):
-        """التأكد من وجود حسابات التداول للمستخدم"""
-        try:
-            user_data = self.get_user(user_id)
-            if not user_data:
-                logger.warning(f"المستخدم {user_id} غير موجود في قاعدة البيانات")
-                return False
-            
-            # التحقق من وجود حسابات التداول
-            if user_id not in self.user_accounts:
-                logger.info(f"إعادة إنشاء حسابات التداول للمستخدم {user_id}")
-                self._create_user_accounts(user_id, user_data)
-            
-            # التحقق من وجود قائمة الصفقات
-            if user_id not in self.user_positions:
-                logger.info(f"إعادة إنشاء قائمة الصفقات للمستخدم {user_id}")
-                self.user_positions[user_id] = {}
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"خطأ في التأكد من حسابات المستخدم {user_id}: {e}")
-            return False
 
 # سيتم إنشاء مثيل UserManager بعد تهيئة الفئات في bybit_trading_bot.py
 user_manager = None

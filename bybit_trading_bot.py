@@ -1526,6 +1526,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # إضافة أزرار إضافية إذا كان المطور نشطاً
         user_data = user_manager.get_user(user_id)
+        
+        # إنشاء حساب للمطور في user_manager إذا لم يكن موجوداً
+        if not user_data:
+            user_manager.create_user(user_id)
+            user_data = user_manager.get_user(user_id)
+        
         if user_data and user_data.get('is_active'):
             keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
         else:
