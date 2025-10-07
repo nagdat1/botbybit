@@ -174,7 +174,7 @@ def personal_webhook(user_id):
 
 
 async def process_personal_signal(user_id: int, signal_data: dict, user_manager):
-    """معالجة إشارة شخصية لمستخدم محدد"""
+    """معالجة إشارة شخصية لمستخدم محدد باستخدام البوت الرئيسي"""
     try:
         print(f"🔄 بدء معالجة الإشارة للمستخدم {user_id}")
         
@@ -200,69 +200,90 @@ async def process_personal_signal(user_id: int, signal_data: dict, user_manager)
         
         print(f"⚙️ إعدادات التداول: market_type={market_type}, trade_amount={trade_amount}")
         
-        # معالجة الإشارة حسب نوع العملية
-        if action in ['buy', 'sell']:
-            print(f"📈 تنفيذ صفقة {action} للمستخدم {user_id}")
+        # حفظ الحالة الأصلية للبوت
+        original_user_id = getattr(trading_bot, 'user_id', None)
+        original_settings = trading_bot.user_settings.copy()
+        original_demo_spot = trading_bot.demo_account_spot
+        original_demo_futures = trading_bot.demo_account_futures
+        original_bybit_api = trading_bot.bybit_api
+        original_positions = trading_bot.open_positions.copy()
+        
+        try:
+            # تعيين معرف المستخدم في البوت
+            trading_bot.user_id = user_id
             
-            # تنفيذ الصفقة
-            success, result = user_manager.execute_user_trade(
-                user_id=user_id,
-                symbol=symbol,
-                action=action,
-                price=price if price > 0 else 1.0,  # استخدام سعر افتراضي إذا لم يتم توفيره
-                amount=trade_amount,
-                market_type=market_type
-            )
+            # تحديث إعدادات البوت للمستخدم
+            trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
+            trading_bot.user_settings['trade_amount'] = user_data.get('trade_amount', 100.0)
+            trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
+            trading_bot.user_settings['partial_percents'] = user_data.get('partial_percents', [25, 50, 25])
+            trading_bot.user_settings['tps_percents'] = user_data.get('tps_percents', [1.5, 3.0, 5.0])
             
-            if success:
-                print(f"✅ تم تنفيذ الصفقة بنجاح للمستخدم {user_id}: {result}")
-                
-                # إرسال إشعار إذا كان مفعلاً
-                if user_data.get('notifications', True):
-                    try:
+            # استخدام حسابات المستخدم من user_manager
+            user_account_spot = user_manager.get_user_account(user_id, 'spot')
+            user_account_futures = user_manager.get_user_account(user_id, 'futures')
+            
+            if user_account_spot:
+                trading_bot.demo_account_spot = user_account_spot
+                print(f"✅ تم تعيين حساب Spot للمستخدم {user_id}")
+            
+            if user_account_futures:
+                trading_bot.demo_account_futures = user_account_futures
+                print(f"✅ تم تعيين حساب Futures للمستخدم {user_id}")
+            
+            # استخدام API المستخدم إذا كان متاحاً
+            user_api = user_manager.get_user_api(user_id)
+            if user_api:
+                trading_bot.bybit_api = user_api
+                print(f"✅ تم تعيين API للمستخدم {user_id}")
+            
+            # استخدام صفقات المستخدم
+            user_positions = user_manager.get_user_positions(user_id)
+            trading_bot.open_positions = user_positions
+            print(f"✅ تم تعيين صفقات المستخدم {user_id} (عدد الصفقات: {len(user_positions)})")
+            
+            print(f"✅ تم تحديث إعدادات البوت للمستخدم {user_id}")
+            
+            # معالجة الإشارة باستخدام البوت الرئيسي
+            await trading_bot.process_signal(signal_data)
+            
+            # تحديث صفقات المستخدم في user_manager بعد المعالجة
+            user_manager.user_positions[user_id] = trading_bot.open_positions.copy()
+            print(f"✅ تم حفظ صفقات المستخدم {user_id} (عدد الصفقات: {len(trading_bot.open_positions)})")
+            
+            print(f"✅ تم معالجة الإشارة بنجاح للمستخدم {user_id}")
+            
+            # إرسال إشعار إذا كان مفعلاً
+            if user_data.get('notifications', True):
+                try:
+                    if action in ['buy', 'sell']:
                         await send_notification_to_user(
                             user_id,
-                            f"✅ تم تنفيذ صفقة {action} على {symbol} بسعر {price}"
+                            f"✅ تم تنفيذ صفقة {action} على {symbol}"
                         )
-                    except Exception as e:
-                        print(f"⚠️ فشل إرسال الإشعار: {e}")
-            else:
-                print(f"❌ فشل تنفيذ الصفقة للمستخدم {user_id}: {result}")
-                
-        elif action in ['close', 'exit', 'stop']:
-            print(f"📉 إغلاق صفقة للمستخدم {user_id}")
-            
-            # إغلاق جميع صفقات الرمز
-            user_positions = user_manager.get_user_positions(user_id)
-            closed_count = 0
-            
-            for position_id, position_data in list(user_positions.items()):
-                if position_data['symbol'] == symbol:
-                    success, result = user_manager.close_user_position(
-                        user_id=user_id,
-                        position_id=position_id,
-                        close_price=price if price > 0 else position_data.get('current_price', 1.0)
-                    )
-                    
-                    if success:
-                        closed_count += 1
-                        print(f"✅ تم إغلاق الصفقة {position_id} للمستخدم {user_id}")
-                        
-                        # إرسال إشعار
-                        if user_data.get('notifications', True):
-                            try:
-                                pnl = result.get('pnl', 0)
-                                await send_notification_to_user(
-                                    user_id,
-                                    f"✅ تم إغلاق صفقة {symbol} - الربح/الخسارة: {pnl:.2f}"
-                                )
-                            except Exception as e:
-                                print(f"⚠️ فشل إرسال الإشعار: {e}")
-            
-            print(f"📊 تم إغلاق {closed_count} صفقة للمستخدم {user_id}")
+                    elif action in ['close', 'exit', 'stop']:
+                        await send_notification_to_user(
+                            user_id,
+                            f"✅ تم إغلاق صفقة {symbol}"
+                        )
+                except Exception as e:
+                    print(f"⚠️ فشل إرسال الإشعار: {e}")
         
-        else:
-            print(f"⚠️ نوع إشارة غير معروف للمستخدم {user_id}: {action}")
+        finally:
+            # استعادة الحالة الأصلية للبوت
+            if original_user_id is not None:
+                trading_bot.user_id = original_user_id
+            else:
+                if hasattr(trading_bot, 'user_id'):
+                    delattr(trading_bot, 'user_id')
+            
+            trading_bot.user_settings = original_settings
+            trading_bot.demo_account_spot = original_demo_spot
+            trading_bot.demo_account_futures = original_demo_futures
+            trading_bot.bybit_api = original_bybit_api
+            trading_bot.open_positions = original_positions
+            
+            print(f"🔄 تم استعادة حالة البوت الأصلية")
             
     except Exception as e:
         print(f"❌ خطأ في معالجة الإشارة الشخصية للمستخدم {user_id}: {e}")
