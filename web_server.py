@@ -155,15 +155,30 @@ class WebServer:
                 
                 # التحقق من وجود user_manager
                 from user_manager import user_manager
+                from database import db_manager
+                
                 if not user_manager:
                     print(f"❌ [WEB SERVER - WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
                     return jsonify({"status": "error", "message": "User manager not initialized"}), 500
                 
-                # التحقق من وجود المستخدم
+                # التحقق من وجود المستخدم في الذاكرة
                 user_data = user_manager.get_user(user_id)
+                
+                # إذا لم يكن موجودًا في الذاكرة، تحقق من قاعدة البيانات مباشرة
                 if not user_data:
-                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
-                    return jsonify({"status": "error", "message": f"User {user_id} not found"}), 404
+                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في الذاكرة، جاري التحقق من قاعدة البيانات...")
+                    user_data = db_manager.get_user(user_id)
+                    
+                    if not user_data:
+                        print(f"❌ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
+                        return jsonify({"status": "error", "message": f"User {user_id} not found. Please start the bot first with /start"}), 404
+                    
+                    # إعادة تحميل المستخدم في الذاكرة
+                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تم العثور على المستخدم {user_id} في قاعدة البيانات، جاري التحميل...")
+                    user_manager.reload_user_data(user_id)
+                    # إنشاء الحسابات للمستخدم
+                    user_manager._create_user_accounts(user_id, user_data)
+                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تم تحميل المستخدم {user_id} بنجاح")
                 
                 # التحقق من تفعيل المستخدم
                 if not user_data.get('is_active', False):
