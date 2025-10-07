@@ -123,21 +123,48 @@ def personal_webhook(user_id):
         print(f"✅ [WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
         print(f"📋 [WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
         
-        # معالجة الإشارة للمستخدم المحدد
-        def process_user_signal_async():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(process_user_signal(user_id, data, user_data))
-            loop.close()
+        # حفظ إعدادات البوت الحالية مؤقتًا
+        from bybit_trading_bot import trading_bot
         
-        threading.Thread(target=process_user_signal_async, daemon=True).start()
+        original_settings = trading_bot.user_settings.copy()
+        original_user_id = trading_bot.user_id
         
-        print(f"✅ [WEBHOOK شخصي] تمت معالجة إشارة المستخدم {user_id} بنجاح")
-        return jsonify({
-            "status": "success", 
-            "message": f"Signal processed for user {user_id}",
-            "user_id": user_id
-        }), 200
+        try:
+            # تطبيق إعدادات المستخدم المحدد مؤقتًا
+            trading_bot.user_id = user_id
+            trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
+            trading_bot.user_settings['account_type'] = user_data.get('account_type', 'demo')
+            trading_bot.user_settings['trade_amount'] = user_data.get('trade_amount', 100.0)
+            trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
+            
+            print(f"✅ [WEBHOOK شخصي] تم تطبيق إعدادات المستخدم {user_id}")
+            
+            # معالجة الإشارة باستخدام نفس دالة البوت
+            def process_signal_async():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(trading_bot.process_signal(data))
+                finally:
+                    # استعادة الإعدادات الأصلية
+                    trading_bot.user_settings.update(original_settings)
+                    trading_bot.user_id = original_user_id
+                    loop.close()
+            
+            threading.Thread(target=process_signal_async, daemon=True).start()
+            
+            print(f"✅ [WEBHOOK شخصي] تمت معالجة إشارة المستخدم {user_id} بنجاح")
+            return jsonify({
+                "status": "success", 
+                "message": f"Signal processed for user {user_id}",
+                "user_id": user_id
+            }), 200
+            
+        except Exception as e:
+            # استعادة الإعدادات في حالة الخطأ
+            trading_bot.user_settings.update(original_settings)
+            trading_bot.user_id = original_user_id
+            raise
         
     except Exception as e:
         print(f"❌ [WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
@@ -145,127 +172,7 @@ def personal_webhook(user_id):
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-async def process_user_signal(user_id: int, signal_data: dict, user_data: dict):
-    """معالجة الإشارة باستخدام إعدادات المستخدم الخاصة"""
-    try:
-        from user_manager import user_manager
-        from bybit_trading_bot import BybitAPI
-        
-        print(f"🔄 [معالجة الإشارة] بدء معالجة إشارة المستخدم {user_id}")
-        
-        # استخراج بيانات الإشارة
-        symbol = signal_data.get('symbol', '').upper()
-        action = signal_data.get('action', '').lower()  # buy, sell, stop, close
-        price = signal_data.get('price', 0.0)
-        
-        print(f"📈 [معالجة الإشارة] الرمز: {symbol}, الإجراء: {action}, السعر: {price}")
-        
-        if not symbol or not action:
-            print(f"❌ [معالجة الإشارة] بيانات غير مكتملة للمستخدم {user_id}")
-            return
-        
-        # الحصول على إعدادات المستخدم
-        market_type = user_data.get('market_type', 'spot')
-        account_type = user_data.get('account_type', 'demo')
-        trade_amount = user_data.get('trade_amount', 100.0)
-        leverage = user_data.get('leverage', 10)
-        
-        print(f"⚙️ [معالجة الإشارة] الإعدادات: market={market_type}, account={account_type}, amount={trade_amount}, leverage={leverage}")
-        
-        # معالجة أنواع الإشارات المختلفة
-        if action in ['buy', 'sell', 'long', 'short']:
-            # فتح صفقة جديدة
-            print(f"📝 [معالجة الإشارة] فتح صفقة {action} للمستخدم {user_id}")
-            
-            # تحويل long/short إلى buy/sell
-            if action == 'long':
-                action = 'buy'
-            elif action == 'short':
-                action = 'sell'
-            
-            success, result = user_manager.execute_user_trade(
-                user_id=user_id,
-                symbol=symbol,
-                action=action,
-                price=price if price > 0 else None,  # إذا كان السعر 0، استخدم السعر الحالي
-                amount=trade_amount,
-                market_type=market_type
-            )
-            
-            if success:
-                print(f"✅ [معالجة الإشارة] نجح فتح الصفقة للمستخدم {user_id}: {result}")
-                
-                # إرسال إشعار للمستخدم
-                try:
-                    from telegram.ext import Application
-                    from config import TELEGRAM_TOKEN
-                    
-                    application = Application.builder().token(TELEGRAM_TOKEN).build()
-                    message = f"""
-✅ تم فتح صفقة جديدة
-
-📊 الرمز: {symbol}
-📈 النوع: {action.upper()}
-💰 المبلغ: {trade_amount}
-🎯 السعر: {price if price > 0 else 'السعر الحالي'}
-🏪 السوق: {market_type}
-                    """
-                    await application.bot.send_message(chat_id=user_id, text=message)
-                    print(f"📨 [معالجة الإشارة] تم إرسال إشعار للمستخدم {user_id}")
-                except Exception as e:
-                    print(f"⚠️ [معالجة الإشارة] فشل إرسال الإشعار: {e}")
-            else:
-                print(f"❌ [معالجة الإشارة] فشل فتح الصفقة للمستخدم {user_id}: {result}")
-                
-        elif action in ['close', 'exit', 'stop']:
-            # إغلاق الصفقات المفتوحة
-            print(f"📝 [معالجة الإشارة] إغلاق صفقات للمستخدم {user_id}")
-            
-            user_positions = user_manager.get_user_positions(user_id)
-            if not user_positions:
-                print(f"⚠️ [معالجة الإشارة] لا توجد صفقات مفتوحة للمستخدم {user_id}")
-                return
-            
-            # إغلاق جميع الصفقات المتعلقة بهذا الرمز
-            closed_count = 0
-            for position_id, position_data in list(user_positions.items()):
-                if position_data['symbol'] == symbol:
-                    close_price = price if price > 0 else position_data['current_price']
-                    success, result = user_manager.close_user_position(
-                        user_id=user_id,
-                        position_id=position_id,
-                        close_price=close_price
-                    )
-                    
-                    if success:
-                        closed_count += 1
-                        print(f"✅ [معالجة الإشارة] تم إغلاق الصفقة {position_id} للمستخدم {user_id}")
-            
-            print(f"✅ [معالجة الإشارة] تم إغلاق {closed_count} صفقة للمستخدم {user_id}")
-            
-            # إرسال إشعار
-            try:
-                from telegram.ext import Application
-                from config import TELEGRAM_TOKEN
-                
-                application = Application.builder().token(TELEGRAM_TOKEN).build()
-                message = f"""
-✅ تم إغلاق الصفقات
-
-📊 الرمز: {symbol}
-🔢 عدد الصفقات المغلقة: {closed_count}
-                """
-                await application.bot.send_message(chat_id=user_id, text=message)
-                print(f"📨 [معالجة الإشارة] تم إرسال إشعار الإغلاق للمستخدم {user_id}")
-            except Exception as e:
-                print(f"⚠️ [معالجة الإشارة] فشل إرسال إشعار الإغلاق: {e}")
-        else:
-            print(f"⚠️ [معالجة الإشارة] إجراء غير معروف '{action}' للمستخدم {user_id}")
-        
-    except Exception as e:
-        print(f"❌ [معالجة الإشارة] خطأ في معالجة إشارة المستخدم {user_id}: {e}")
-        import traceback
-        traceback.print_exc()
+# تم حذف دالة process_user_signal القديمة - الآن نستخدم trading_bot.process_signal مباشرة
 
 def start_bot():
     """بدء تشغيل البوت"""
