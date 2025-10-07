@@ -1426,6 +1426,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+            [KeyboardButton("🔗 رابط الإشارات")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -1438,6 +1439,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
+        # إنشاء رابط webhook الشخصي للمطور
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        render_url = os.getenv('RENDER_EXTERNAL_URL')
+        
+        if railway_url:
+            if not railway_url.startswith('http'):
+                railway_url = f"https://{railway_url}"
+            personal_webhook_url = f"{railway_url}/personal/{user_id}/webhook"
+        elif render_url:
+            personal_webhook_url = f"{render_url}/personal/{user_id}/webhook"
+        else:
+            port = PORT
+            personal_webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
+        
         # رسالة ترحيب للمطور
         welcome_message = f"""
 🤖 مرحباً بك {update.effective_user.first_name} - المطور
@@ -1445,11 +1460,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 👨‍💻 أنت في الوضع العادي للمطور
 🔙 يمكنك العودة إلى لوحة تحكم المطور في أي وقت
 
+🔗 رابط الإشارات الخاص بك:
+`{personal_webhook_url}`
+
 استخدم الأزرار أدناه للتنقل
         """
         
         if update.message is not None:
-            await update.message.reply_text(welcome_message, reply_markup=reply_markup)
+            await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
         return
     
     # التحقق من وجود المستخدم في قاعدة البيانات
@@ -1564,7 +1582,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     if update.message is not None:
-        await update.message.reply_text(welcome_message, reply_markup=reply_markup)
+        await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة الإعدادات لكل مستخدم"""
