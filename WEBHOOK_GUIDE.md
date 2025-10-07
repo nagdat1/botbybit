@@ -59,21 +59,46 @@ curl -X POST https://botbybit-production.up.railway.app/personal/123456789/webho
 
 ## 📝 صيغة الإشارات المدعومة
 
-### إشارات الشراء/البيع
+### ✅ الصيغة البسيطة (موصى بها)
 ```json
 {
   "symbol": "BTCUSDT",
-  "action": "buy",      // أو "sell", "long", "short"
+  "action": "buy"      // أو "sell", "long", "short", "close"
+}
+```
+
+### الصيغة مع السعر (اختياري)
+```json
+{
+  "symbol": "BTCUSDT",
+  "action": "buy",
   "price": 50000        // اختياري - إذا لم يحدد، يستخدم السعر الحالي
 }
 ```
 
-### إشارات الإغلاق
+### أمثلة:
+
+**فتح صفقة شراء:**
 ```json
 {
   "symbol": "BTCUSDT",
-  "action": "close",    // أو "exit", "stop"
-  "price": 51000        // اختياري
+  "action": "buy"
+}
+```
+
+**فتح صفقة بيع:**
+```json
+{
+  "symbol": "ETHUSDT",
+  "action": "sell"
+}
+```
+
+**إغلاق صفقة:**
+```json
+{
+  "symbol": "BTCUSDT",
+  "action": "close"
 }
 ```
 
@@ -190,7 +215,14 @@ db_manager.update_user_settings(
 **للرابط القديم:**
 ```
 URL: https://botbybit-production.up.railway.app/webhook
-Message:
+
+Message (الصيغة البسيطة):
+{
+  "symbol": "{{ticker}}",
+  "action": "{{strategy.order.action}}"
+}
+
+Message (مع السعر - اختياري):
 {
   "symbol": "{{ticker}}",
   "action": "{{strategy.order.action}}",
@@ -201,13 +233,22 @@ Message:
 **للرابط الشخصي:**
 ```
 URL: https://botbybit-production.up.railway.app/personal/123456789/webhook
-Message:
+
+Message (الصيغة البسيطة - موصى بها):
+{
+  "symbol": "{{ticker}}",
+  "action": "{{strategy.order.action}}"
+}
+
+Message (مع السعر - اختياري):
 {
   "symbol": "{{ticker}}",
   "action": "{{strategy.order.action}}",
   "price": {{close}}
 }
 ```
+
+**ملاحظة:** استخدم الصيغة البسيطة إذا كنت لا تحتاج إلى تحديد السعر. البوت سيستخدم السعر الحالي للسوق تلقائيًا.
 
 ---
 
