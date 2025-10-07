@@ -47,6 +47,24 @@ def health_check():
         "timestamp": datetime.now().isoformat()
     })
 
+@app.route('/personal/<int:user_id>/test', methods=['GET'])
+def test_personal_webhook(user_id):
+    """اختبار رابط الإشارة الشخصية"""
+    try:
+        print(f"🔍 اختبار رابط للمستخدم: {user_id}")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Personal webhook endpoint is working for user {user_id}",
+            "user_id": user_id,
+            "webhook_url": f"/personal/{user_id}/webhook",
+            "timestamp": datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ خطأ في اختبار الرابط: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """استقبال إشارات TradingView العامة"""
@@ -74,31 +92,57 @@ def webhook():
 def personal_webhook(user_id):
     """استقبال إشارات شخصية لمستخدم محدد"""
     try:
+        print(f"🔍 تم استقبال طلب webhook للمستخدم: {user_id}")
+        
         data = request.get_json()
+        print(f"🔍 البيانات المستلمة: {data}")
         
         if not data:
+            print("❌ لا توجد بيانات في الطلب")
             return jsonify({"status": "error", "message": "No data received"}), 400
         
         # إضافة معرف المستخدم للبيانات
         data['user_id'] = user_id
         data['source'] = 'personal_webhook'
         
+        print(f"🔍 البيانات بعد الإضافة: {data}")
+        
+        # التحقق من وجود trading_bot
+        if not trading_bot:
+            print("❌ trading_bot غير متاح")
+            return jsonify({"status": "error", "message": "Trading bot not available"}), 500
+        
+        print("🔍 بدء معالجة الإشارة في thread منفصل")
+        
         # معالجة الإشارة الشخصية في thread منفصل
         def process_personal_signal_async():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(trading_bot.process_personal_signal(data))
-            loop.close()
+            try:
+                print(f"🔍 بدء معالجة الإشارة للمستخدم {user_id}")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(trading_bot.process_personal_signal(data))
+                loop.close()
+                print(f"🔍 انتهت معالجة الإشارة للمستخدم {user_id}")
+            except Exception as e:
+                print(f"❌ خطأ في معالجة الإشارة: {e}")
+                import traceback
+                traceback.print_exc()
         
         threading.Thread(target=process_personal_signal_async, daemon=True).start()
+        
+        print(f"✅ تم بدء thread معالجة الإشارة للمستخدم {user_id}")
         
         return jsonify({
             "status": "success", 
             "message": f"Personal signal received for user {user_id}",
-            "user_id": user_id
+            "user_id": user_id,
+            "data": data
         }), 200
         
     except Exception as e:
+        print(f"❌ خطأ في personal_webhook: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def start_bot():
