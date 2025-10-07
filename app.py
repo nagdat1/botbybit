@@ -186,7 +186,7 @@ def webhook():
 
 @app.route('/personal/<int:user_id>/webhook', methods=['POST'])
 def personal_webhook(user_id):
-    """استقبال إشارات شخصية لمستخدم محدد"""
+    """استقبال إشارات شخصية لمستخدم محدد - يعمل مثل الرابط الأساسي"""
     try:
         print(f"🔍 تم استقبال طلب webhook للمستخدم: {user_id}")
         
@@ -208,20 +208,20 @@ def personal_webhook(user_id):
             print("❌ trading_bot غير متاح")
             return jsonify({"status": "error", "message": "Trading bot not available"}), 500
         
-        print("🔍 بدء معالجة الإشارة في thread منفصل")
+        print("🔍 بدء معالجة الإشارة الشخصية")
         
-        # معالجة الإشارة الشخصية كبديل كامل للمشروع
+        # معالجة الإشارة الشخصية بنفس طريقة الرابط الأساسي
         def process_personal_signal_async():
             try:
-                print(f"🚀 بدء تشغيل المشروع كاملاً للمستخدم {user_id}")
+                print(f"🚀 بدء معالجة الإشارة للمستخدم {user_id}")
                 print(f"🔍 البيانات: {data}")
                 
                 # إنشاء event loop جديد
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 
-                # تشغيل المشروع كاملاً للمستخدم
-                async def run_full_project():
+                # معالجة الإشارة بنفس طريقة الرابط الأساسي
+                async def process_signal_like_main():
                     try:
                         # 1. إنشاء المستخدم إذا لم يكن موجود
                         print(f"🔍 التحقق من وجود المستخدم {user_id}")
@@ -235,7 +235,40 @@ def personal_webhook(user_id):
                         print(f"🔍 تفعيل المستخدم {user_id}")
                         trading_bot.user_manager.toggle_user_active(user_id)
                         
-                        # 3. إرسال رسالة ترحيب للمستخدم
+                        # 3. إعداد البوت للمستخدم المحدد
+                        original_user_id = trading_bot.user_id
+                        trading_bot.user_id = user_id
+                        
+                        # 4. تحديث إعدادات المستخدم
+                        trading_bot.user_settings = {
+                            'account_type': user_data.get('account_type', 'demo'),
+                            'market_type': user_data.get('market_type', 'spot'),
+                            'trade_amount': user_data.get('trade_amount', 100.0),
+                            'leverage': user_data.get('leverage', 10)
+                        }
+                        
+                        # 5. إعداد الحسابات
+                        market_type = user_data.get('market_type', 'spot')
+                        if market_type == 'futures':
+                            trading_bot.demo_account_futures = trading_bot.user_manager.get_user_account(user_id, 'futures')
+                            if not trading_bot.demo_account_futures:
+                                trading_bot.user_manager._create_user_accounts(user_id, user_data)
+                                trading_bot.demo_account_futures = trading_bot.user_manager.get_user_account(user_id, 'futures')
+                        else:
+                            trading_bot.demo_account_spot = trading_bot.user_manager.get_user_account(user_id, 'spot')
+                            if not trading_bot.demo_account_spot:
+                                trading_bot.user_manager._create_user_accounts(user_id, user_data)
+                                trading_bot.demo_account_spot = trading_bot.user_manager.get_user_account(user_id, 'spot')
+                        
+                        # 6. إعداد API
+                        trading_bot.bybit_api = trading_bot.user_manager.get_user_api(user_id)
+                        
+                        # 7. إعداد الصفقات المفتوحة
+                        trading_bot.open_positions = trading_bot.user_manager.get_user_positions(user_id)
+                        if not trading_bot.open_positions:
+                            trading_bot.open_positions = {}
+                        
+                        # 8. إرسال رسالة ترحيب
                         welcome_message = f"""
 🚀 تم تشغيل المشروع كاملاً لك!
 
@@ -250,11 +283,11 @@ def personal_webhook(user_id):
                         
                         await trading_bot.send_message_to_user(user_id, welcome_message)
                         
-                        # 4. معالجة الإشارة
+                        # 9. معالجة الإشارة بنفس طريقة الرابط الأساسي
                         print(f"🔍 معالجة الإشارة للمستخدم {user_id}")
-                        await trading_bot.process_personal_signal(data)
+                        await trading_bot.process_signal_direct(data)
                         
-                        # 5. إرسال رسالة تأكيد نهائية
+                        # 10. إرسال رسالة تأكيد نهائية
                         success_message = f"""
 ✅ تم تنفيذ الإشارة بنجاح!
 
@@ -268,27 +301,30 @@ def personal_webhook(user_id):
                         
                         await trading_bot.send_message_to_user(user_id, success_message)
                         
+                        # 11. استعادة المستخدم الأصلي
+                        trading_bot.user_id = original_user_id
+                        
                     except Exception as e:
                         error_message = f"""
-❌ خطأ في تشغيل المشروع
+❌ خطأ في معالجة الإشارة
 
 🔍 الخطأ: {str(e)}
 
 🔧 يرجى المحاولة مرة أخرى أو التواصل مع الدعم
                         """
                         await trading_bot.send_message_to_user(user_id, error_message)
-                        print(f"❌ خطأ في تشغيل المشروع: {e}")
+                        print(f"❌ خطأ في معالجة الإشارة: {e}")
                         import traceback
                         traceback.print_exc()
                 
-                # تشغيل المشروع كاملاً
-                loop.run_until_complete(run_full_project())
+                # تشغيل معالجة الإشارة
+                loop.run_until_complete(process_signal_like_main())
                 loop.close()
                 
-                print(f"✅ انتهى تشغيل المشروع كاملاً للمستخدم {user_id}")
+                print(f"✅ انتهت معالجة الإشارة للمستخدم {user_id}")
                 
             except Exception as e:
-                print(f"❌ خطأ في تشغيل المشروع: {e}")
+                print(f"❌ خطأ في معالجة الإشارة: {e}")
                 import traceback
                 traceback.print_exc()
         
