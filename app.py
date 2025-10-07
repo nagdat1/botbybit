@@ -285,7 +285,8 @@ def personal_webhook(user_id):
                         
                         # 9. معالجة الإشارة بنفس طريقة الرابط الأساسي
                         print(f"🔍 معالجة الإشارة للمستخدم {user_id}")
-                        await trading_bot.process_signal_direct(data)
+                        # إنشاء update و context وهميين للتوافق مع process_signal
+                        await trading_bot.process_signal_like_main(data, user_id)
                         
                         # 10. إرسال رسالة تأكيد نهائية
                         success_message = f"""

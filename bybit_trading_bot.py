@@ -1044,6 +1044,57 @@ class TradingBot:
             if 'original_user_id' in locals():
                 self.user_id = original_user_id
     
+    async def process_signal_like_main(self, signal_data: dict, user_id: int):
+        """معالجة الإشارة بنفس طريقة الرابط الأساسي - للإشارات الشخصية"""
+        try:
+            # إنشاء update و context وهميين للتوافق مع process_signal
+            from telegram import Update
+            from telegram.ext import ContextTypes
+            
+            # إنشاء update وهمي
+            fake_update = Update(
+                update_id=0,
+                message=None,
+                edited_message=None,
+                channel_post=None,
+                edited_channel_post=None,
+                inline_query=None,
+                chosen_inline_result=None,
+                callback_query=None,
+                shipping_query=None,
+                pre_checkout_query=None,
+                poll=None,
+                poll_answer=None,
+                my_chat_member=None,
+                chat_member=None,
+                chat_join_request=None
+            )
+            
+            # إنشاء context وهمي
+            fake_context = ContextTypes.DEFAULT_TYPE()
+            
+            # تعيين المستخدم الحالي
+            original_user_id = self.user_id
+            self.user_id = user_id
+            
+            logger.info(f"🔍 بدء معالجة الإشارة بنفس طريقة الرابط الأساسي للمستخدم {user_id}")
+            logger.info(f"🔍 بيانات الإشارة: {signal_data}")
+            
+            # استدعاء process_signal بنفس طريقة الرابط الأساسي
+            await self.process_signal(fake_update, fake_context, signal_data)
+            
+            # استعادة المستخدم الأصلي
+            self.user_id = original_user_id
+            
+            logger.info(f"✅ انتهت معالجة الإشارة بنفس طريقة الرابط الأساسي للمستخدم {user_id}")
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة الإشارة بنفس طريقة الرابط الأساسي: {e}")
+            await self.send_message_to_user(
+                user_id,
+                f"❌ خطأ في معالجة الإشارة: {e}"
+            )
+
     async def process_signal_direct(self, signal_data: dict):
         """معالجة الإشارة مباشرة بدون update و context - للإشارات الشخصية"""
         try:
