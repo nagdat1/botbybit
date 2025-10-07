@@ -26,6 +26,13 @@ import threading
 # استيراد الإعدادات من ملف منفصل
 from config import *
 
+# استيراد BASE_URL للاستخدام في روابط الإشارة الشخصية
+try:
+    from config import BASE_URL
+except ImportError:
+    # في حالة عدم وجود BASE_URL، استخدم WEBHOOK_URL كقاعدة
+    BASE_URL = WEBHOOK_URL.replace('/webhook', '') if WEBHOOK_URL else 'http://localhost:8000'
+
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
 from user_manager import user_manager
@@ -2965,8 +2972,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "personal_webhook":
         # عرض رابط الإشارة الشخصي للمستخدم
         if user_id is not None:
-            # إنشاء رابط webhook شخصي
-            personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id}/webhook"
+            # إنشاء رابط webhook شخصي باستخدام BASE_URL
+            personal_webhook_url = f"{BASE_URL}/personal/{user_id}/webhook"
             
             webhook_message = f"""
 📡 رابط الإشارة الشخصي الخاص بك:
@@ -3059,7 +3066,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("copy_webhook_"):
         # معالجة نسخ رابط webhook الشخصي
         user_id_from_data = data.replace("copy_webhook_", "")
-        personal_webhook_url = f"{WEBHOOK_URL.replace('/webhook', '')}/personal/{user_id_from_data}/webhook"
+        personal_webhook_url = f"{BASE_URL}/personal/{user_id_from_data}/webhook"
         
         # إرسال الرابط كرسالة منفصلة لسهولة النسخ
         copy_message = f"""
