@@ -235,38 +235,8 @@ def personal_webhook(user_id):
                         print(f"🔍 تفعيل المستخدم {user_id}")
                         trading_bot.user_manager.toggle_user_active(user_id)
                         
-                        # 3. إعداد البوت للمستخدم المحدد
-                        original_user_id = trading_bot.user_id
-                        trading_bot.user_id = user_id
-                        
-                        # 4. تحديث إعدادات المستخدم
-                        trading_bot.user_settings = {
-                            'account_type': user_data.get('account_type', 'demo'),
-                            'market_type': user_data.get('market_type', 'spot'),
-                            'trade_amount': user_data.get('trade_amount', 100.0),
-                            'leverage': user_data.get('leverage', 10)
-                        }
-                        
-                        # 5. إعداد الحسابات
-                        market_type = user_data.get('market_type', 'spot')
-                        if market_type == 'futures':
-                            trading_bot.demo_account_futures = trading_bot.user_manager.get_user_account(user_id, 'futures')
-                            if not trading_bot.demo_account_futures:
-                                trading_bot.user_manager._create_user_accounts(user_id, user_data)
-                                trading_bot.demo_account_futures = trading_bot.user_manager.get_user_account(user_id, 'futures')
-                        else:
-                            trading_bot.demo_account_spot = trading_bot.user_manager.get_user_account(user_id, 'spot')
-                            if not trading_bot.demo_account_spot:
-                                trading_bot.user_manager._create_user_accounts(user_id, user_data)
-                                trading_bot.demo_account_spot = trading_bot.user_manager.get_user_account(user_id, 'spot')
-                        
-                        # 6. إعداد API
-                        trading_bot.bybit_api = trading_bot.user_manager.get_user_api(user_id)
-                        
-                        # 7. إعداد الصفقات المفتوحة
-                        trading_bot.open_positions = trading_bot.user_manager.get_user_positions(user_id)
-                        if not trading_bot.open_positions:
-                            trading_bot.open_positions = {}
+                        # 3. معالجة الإشارة باستخدام النظام المنفصل (بدون تغيير البوت الرئيسي)
+                        print(f"🔍 استخدام النظام المنفصل للمستخدم {user_id}")
                         
                         # 8. إرسال رسالة ترحيب
                         welcome_message = f"""
@@ -283,10 +253,10 @@ def personal_webhook(user_id):
                         
                         await trading_bot.send_message_to_user(user_id, welcome_message)
                         
-                        # 9. معالجة الإشارة بنفس طريقة الرابط الأساسي
+                        # 9. معالجة الإشارة باستخدام النظام المنفصل الجديد
                         print(f"🔍 معالجة الإشارة للمستخدم {user_id}")
-                        # إنشاء update و context وهميين للتوافق مع process_signal
-                        await trading_bot.process_signal_like_main(data, user_id)
+                        # استخدام النظام الجديد المنفصل للمستخدم
+                        await trading_bot.process_personal_signal(data)
                         
                         # 10. إرسال رسالة تأكيد نهائية
                         success_message = f"""
@@ -302,8 +272,7 @@ def personal_webhook(user_id):
                         
                         await trading_bot.send_message_to_user(user_id, success_message)
                         
-                        # 11. استعادة المستخدم الأصلي
-                        trading_bot.user_id = original_user_id
+                        # 11. النظام المنفصل لا يحتاج استعادة (لم نغير البوت الرئيسي)
                         
                     except Exception as e:
                         error_message = f"""
