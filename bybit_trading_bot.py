@@ -596,6 +596,12 @@ class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
     
     def __init__(self):
+        # معرف المستخدم الحالي
+        self.user_id = None
+        
+        # إعداد user_manager
+        self.user_manager = user_manager
+        
         # إعداد API
         self.bybit_api = None
         if BYBIT_API_KEY and BYBIT_API_SECRET:
@@ -959,15 +965,15 @@ class TradingBot:
             self.user_id = user_id
             
             # تحديث إعدادات المستخدم الحالي
-            user_data = user_manager.get_user(user_id)
+            user_data = self.user_manager.get_user(user_id)
             logger.info(f"🔍 بيانات المستخدم: {user_data}")
             
             if not user_data:
                 logger.info(f"المستخدم {user_id} غير موجود، سيتم إنشاؤه تلقائياً")
                 # إنشاء المستخدم تلقائياً
-                success = user_manager.create_user(user_id)
+                success = self.user_manager.create_user(user_id)
                 if success:
-                    user_data = user_manager.get_user(user_id)
+                    user_data = self.user_manager.get_user(user_id)
                     logger.info(f"تم إنشاء المستخدم {user_id} بنجاح")
                 else:
                     logger.error(f"فشل في إنشاء المستخدم {user_id}")
@@ -975,13 +981,13 @@ class TradingBot:
                     return
             
             # التحقق من حالة المستخدم
-            is_active = user_manager.is_user_active(user_id)
+            is_active = self.user_manager.is_user_active(user_id)
             logger.info(f"🔍 حالة المستخدم النشط: {is_active}")
             
             if not is_active:
                 logger.info(f"المستخدم {user_id} غير نشط، سيتم تفعيله تلقائياً")
                 # تفعيل المستخدم تلقائياً
-                user_manager.toggle_user_active(user_id)
+                self.user_manager.toggle_user_active(user_id)
                 logger.info(f"تم تفعيل المستخدم {user_id} تلقائياً")
             
             # تحديث إعدادات البوت للمستخدم المحدد
@@ -995,26 +1001,26 @@ class TradingBot:
             # تحديث حسابات المستخدم
             market_type = user_data.get('market_type', 'spot')
             if market_type == 'futures':
-                self.demo_account_futures = user_manager.get_user_account(user_id, 'futures')
+                self.demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
                 if not self.demo_account_futures:
                     logger.info(f"إنشاء حساب فيوتشر للمستخدم {user_id}")
-                    user_manager._create_user_accounts(user_id, user_data)
-                    self.demo_account_futures = user_manager.get_user_account(user_id, 'futures')
+                    self.user_manager._create_user_accounts(user_id, user_data)
+                    self.demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
             else:
-                self.demo_account_spot = user_manager.get_user_account(user_id, 'spot')
+                self.demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
                 if not self.demo_account_spot:
                     logger.info(f"إنشاء حساب سبوت للمستخدم {user_id}")
-                    user_manager._create_user_accounts(user_id, user_data)
-                    self.demo_account_spot = user_manager.get_user_account(user_id, 'spot')
+                    self.user_manager._create_user_accounts(user_id, user_data)
+                    self.demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
             
             # تحديث API للمستخدم
-            self.bybit_api = user_manager.get_user_api(user_id)
+            self.bybit_api = self.user_manager.get_user_api(user_id)
             
             # حفظ الصفقات المفتوحة الحالية مؤقتاً
             original_open_positions = self.open_positions.copy()
             
             # استخدام صفقات المستخدم المحدد
-            self.open_positions = user_manager.get_user_positions(user_id)
+            self.open_positions = self.user_manager.get_user_positions(user_id)
             if not self.open_positions:
                 logger.info(f"تهيئة صفقات المستخدم {user_id}")
                 self.open_positions = {}
@@ -1196,9 +1202,9 @@ class TradingBot:
                         
                         # حفظ الصفقة في user_manager للمستخدم الحالي
                         if hasattr(self, 'user_id') and self.user_id:
-                            if self.user_id not in user_manager.user_positions:
-                                user_manager.user_positions[self.user_id] = {}
-                            user_manager.user_positions[self.user_id][position_id] = position_info
+                            if self.user_id not in self.user_manager.user_positions:
+                                self.user_manager.user_positions[self.user_id] = {}
+                            self.user_manager.user_positions[self.user_id][position_id] = position_info
                         
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}")
                         
@@ -1260,9 +1266,9 @@ class TradingBot:
                     
                     # حفظ الصفقة في user_manager للمستخدم الحالي
                     if hasattr(self, 'user_id') and self.user_id:
-                        if self.user_id not in user_manager.user_positions:
-                            user_manager.user_positions[self.user_id] = {}
-                        user_manager.user_positions[self.user_id][position_id] = position_info
+                        if self.user_id not in self.user_manager.user_positions:
+                            self.user_manager.user_positions[self.user_id] = {}
+                        self.user_manager.user_positions[self.user_id][position_id] = position_info
                     
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}")
                     
@@ -1309,6 +1315,10 @@ class TradingBot:
     async def send_message_to_user(self, user_id: int, message: str):
         """إرسال رسالة لمستخدم محدد"""
         try:
+            if not user_id:
+                logger.error("معرف المستخدم غير محدد")
+                return
+                
             application = Application.builder().token(TELEGRAM_TOKEN).build()
             await application.bot.send_message(chat_id=user_id, text=message)
             logger.info(f"تم إرسال رسالة للمستخدم {user_id}")
