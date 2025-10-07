@@ -1442,8 +1442,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # استخدام ADMIN_USER_ID مباشرة من config.py
     is_admin = (user_id == ADMIN_USER_ID)
     
-    # المطور يبدأ بالوضع العادي مثل أي مستخدم آخر
-    # يمكنه الوصول للوضع المطور من الإعدادات
+    # إذا كان المستخدم هو المطور، عرض وضع المطور مباشرة
+    if is_admin:
+        await show_developer_panel(update, context)
+        return
     
     # التحقق من وجود المستخدم في قاعدة البيانات
     user_data = user_manager.get_user(user_id)
@@ -1569,7 +1571,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
-    # إضافة زر للمطور للوصول لوضع المطور
+    # إضافة زر للمطور للوصول لوضع المطور أو العودة للوضع العادي
     if is_admin:
         keyboard.append([InlineKeyboardButton("👨‍💻 وضع المطور", callback_data="developer_mode")])
     
