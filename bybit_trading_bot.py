@@ -927,199 +927,72 @@ class TradingBot:
             await self.send_message_to_admin(f"❌ خطأ في معالجة الإشارة: {e}")
     
     async def process_personal_signal(self, signal_data: dict):
-        """معالجة إشارة شخصية لمستخدم محدد"""
+        """معالجة إشارة شخصية لمستخدم محدد - تعمل بنفس طريقة الإشارة الحقيقية"""
         try:
             user_id = signal_data.get('user_id')
             if not user_id:
                 logger.error("معرف المستخدم غير موجود في الإشارة الشخصية")
                 return
             
-            # التحقق من وجود المستخدم
+            # حفظ معرف المستخدم الأصلي
+            original_user_id = self.user_id
+            
+            # تعيين المستخدم الحالي للمستخدم المحدد
+            self.user_id = user_id
+            
+            # تحديث إعدادات المستخدم الحالي
             user_data = user_manager.get_user(user_id)
             if not user_data:
                 logger.error(f"المستخدم {user_id} غير موجود")
+                self.user_id = original_user_id
                 return
             
             # التحقق من حالة المستخدم
             if not user_manager.is_user_active(user_id):
                 logger.info(f"المستخدم {user_id} غير نشط، تم تجاهل الإشارة")
+                self.user_id = original_user_id
                 return
             
-            symbol = signal_data.get('symbol', '').upper()
-            action = signal_data.get('action', '').lower()
+            # تحديث إعدادات البوت للمستخدم المحدد
+            self.user_settings = {
+                'account_type': user_data.get('account_type', 'demo'),
+                'market_type': user_data.get('market_type', 'spot'),
+                'trade_amount': user_data.get('trade_amount', 100.0),
+                'leverage': user_data.get('leverage', 10)
+            }
             
-            if not symbol or not action:
-                logger.error("بيانات الإشارة الشخصية غير مكتملة")
-                return
-            
-            # تحديث الأزواج إذا لزم الأمر
-            await self.update_available_pairs()
-            
-            # تحديد نوع السوق بناءً على إعدادات المستخدم
-            user_market_type = user_data.get('market_type', 'spot')
-            bybit_category = "spot" if user_market_type == "spot" else "linear"
-            market_type = user_market_type
-            
-            # التحقق من وجود الرمز
-            symbol_found = False
-            if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
-                symbol_found = True
-            elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
-                symbol_found = True
-                if symbol in self.available_pairs.get('inverse', []):
-                    bybit_category = "inverse"
-            
-            if not symbol_found:
-                logger.error(f"الرمز {symbol} غير موجود في نوع السوق {user_market_type}")
-                return
-            
-            # الحصول على السعر الحالي
-            current_price = signal_data.get('price')
-            if not current_price:
-                # محاولة الحصول على السعر من API
-                user_api = user_manager.get_user_api(user_id)
-                if user_api:
-                    current_price = user_api.get_ticker_price(symbol, bybit_category)
-                
-                if not current_price:
-                    # استخدام سعر وهمي للاختبار
-                    current_price = 100.0
-            
-            # تنفيذ الصفقة للمستخدم المحدد
-            account_type = user_data.get('account_type', 'demo')
-            
-            if account_type == 'real':
-                await self.execute_personal_real_trade(user_id, symbol, action, current_price, bybit_category)
+            # تحديث حسابات المستخدم
+            if user_data.get('market_type', 'spot') == 'futures':
+                self.demo_account_futures = user_manager.get_user_account(user_id, 'futures')
             else:
-                await self.execute_personal_demo_trade(user_id, symbol, action, current_price, bybit_category, market_type)
+                self.demo_account_spot = user_manager.get_user_account(user_id, 'spot')
             
-            logger.info(f"تم معالجة الإشارة الشخصية للمستخدم {user_id}: {symbol} {action}")
+            # تحديث API للمستخدم
+            self.bybit_api = user_manager.get_user_api(user_id)
+            
+            # حفظ الصفقات المفتوحة الحالية مؤقتاً
+            original_open_positions = self.open_positions.copy()
+            
+            # استخدام صفقات المستخدم المحدد
+            self.open_positions = user_manager.get_user_positions(user_id)
+            
+            # معالجة الإشارة بنفس طريقة الإشارة العادية
+            await self.process_signal(signal_data)
+            
+            # استعادة الصفقات المفتوحة الأصلية
+            self.open_positions = original_open_positions
+            
+            # استعادة معرف المستخدم الأصلي
+            self.user_id = original_user_id
+            
+            logger.info(f"تم معالجة الإشارة الشخصية للمستخدم {user_id}: {signal_data.get('symbol')} {signal_data.get('action')}")
             
         except Exception as e:
             logger.error(f"خطأ في معالجة الإشارة الشخصية: {e}")
+            # استعادة معرف المستخدم الأصلي في حالة الخطأ
+            if 'original_user_id' in locals():
+                self.user_id = original_user_id
     
-    async def execute_personal_demo_trade(self, user_id: int, symbol: str, action: str, price: float, bybit_category: str, market_type: str):
-        """تنفيذ صفقة تجريبية شخصية للمستخدم"""
-        try:
-            # الحصول على حساب المستخدم
-            account = user_manager.get_user_account(user_id, market_type)
-            if not account:
-                logger.error(f"حساب المستخدم {user_id} غير موجود")
-                return
-            
-            # الحصول على إعدادات المستخدم
-            user_data = user_manager.get_user(user_id)
-            trade_amount = user_data.get('trade_amount', 100.0)
-            leverage = user_data.get('leverage', 10)
-            
-            # تنفيذ الصفقة
-            if market_type == 'futures':
-                success, result = account.open_futures_position(
-                    symbol=symbol,
-                    side=action,
-                    margin_amount=trade_amount,
-                    price=price,
-                    leverage=leverage
-                )
-            else:
-                success, result = account.open_spot_position(
-                    symbol=symbol,
-                    side=action,
-                    amount=trade_amount,
-                    price=price
-                )
-            
-            if success:
-                position_id = result
-                
-                # حفظ الصفقة في قاعدة البيانات
-                order_data = {
-                    'order_id': position_id,
-                    'user_id': user_id,
-                    'symbol': symbol,
-                    'side': action,
-                    'entry_price': price,
-                    'quantity': trade_amount,
-                    'status': 'OPEN'
-                }
-                
-                db_manager.create_order(order_data)
-                
-                # إرسال إشعار للمستخدم
-                await self.send_personal_notification(user_id, f"✅ تم فتح صفقة تجريبية: {symbol} {action.upper()} بسعر {price}")
-                
-                logger.info(f"تم فتح صفقة تجريبية للمستخدم {user_id}: {symbol} {action}")
-            else:
-                await self.send_personal_notification(user_id, f"❌ فشل في فتح الصفقة: {result}")
-                
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الصفقة التجريبية الشخصية: {e}")
-            await self.send_personal_notification(user_id, f"❌ خطأ في تنفيذ الصفقة: {e}")
-    
-    async def execute_personal_real_trade(self, user_id: int, symbol: str, action: str, price: float, bybit_category: str):
-        """تنفيذ صفقة حقيقية شخصية للمستخدم"""
-        try:
-            # الحصول على API للمستخدم
-            user_api = user_manager.get_user_api(user_id)
-            if not user_api:
-                await self.send_personal_notification(user_id, "❌ API غير متاح للتداول الحقيقي")
-                return
-            
-            # الحصول على إعدادات المستخدم
-            user_data = user_manager.get_user(user_id)
-            trade_amount = user_data.get('trade_amount', 100.0)
-            
-            # تنفيذ الصفقة الحقيقية
-            if bybit_category == "spot":
-                success, result = user_api.place_spot_order(
-                    symbol=symbol,
-                    side=action,
-                    quantity=trade_amount,
-                    price=price
-                )
-            else:
-                leverage = user_data.get('leverage', 10)
-                success, result = user_api.place_futures_order(
-                    symbol=symbol,
-                    side=action,
-                    quantity=trade_amount,
-                    price=price,
-                    leverage=leverage
-                )
-            
-            if success:
-                await self.send_personal_notification(user_id, f"✅ تم فتح صفقة حقيقية: {symbol} {action.upper()} بسعر {price}")
-                logger.info(f"تم فتح صفقة حقيقية للمستخدم {user_id}: {symbol} {action}")
-            else:
-                await self.send_personal_notification(user_id, f"❌ فشل في فتح الصفقة الحقيقية: {result}")
-                
-        except Exception as e:
-            logger.error(f"خطأ في تنفيذ الصفقة الحقيقية الشخصية: {e}")
-            await self.send_personal_notification(user_id, f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
-    
-    async def send_personal_notification(self, user_id: int, message: str):
-        """إرسال إشعار شخصي للمستخدم"""
-        try:
-            from telegram.ext import Application
-            
-            async def send_message():
-                try:
-                    application = Application.builder().token(TELEGRAM_TOKEN).build()
-                    await application.bot.send_message(chat_id=user_id, text=message)
-                except Exception as e:
-                    logger.error(f"خطأ في إرسال الإشعار الشخصي: {e}")
-            
-            # تشغيل في thread منفصل
-            def run_async():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(send_message())
-                loop.close()
-            
-            threading.Thread(target=run_async, daemon=True).start()
-            
-        except Exception as e:
-            logger.error(f"خطأ في إرسال الإشعار الشخصي: {e}")
     
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
         """تنفيذ صفقة حقيقية"""
@@ -1183,7 +1056,7 @@ class TradingBot:
                     # التأكد من أن position هو FuturesPosition
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في القائمة العامة
-                        self.open_positions[position_id] = {
+                        position_info = {
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -1197,6 +1070,14 @@ class TradingBot:
                             'current_price': price,
                             'pnl_percent': 0.0
                         }
+                        
+                        self.open_positions[position_id] = position_info
+                        
+                        # حفظ الصفقة في user_manager للمستخدم الحالي
+                        if hasattr(self, 'user_id') and self.user_id:
+                            if self.user_id not in user_manager.user_positions:
+                                user_manager.user_positions[self.user_id] = {}
+                            user_manager.user_positions[self.user_id][position_id] = position_info
                         
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}")
                         
@@ -1237,7 +1118,7 @@ class TradingBot:
                 if success:
                     position_id = result
                     
-                    self.open_positions[position_id] = {
+                    position_info = {
                         'symbol': symbol,
                         'entry_price': price,
                         'side': action,
@@ -1248,6 +1129,14 @@ class TradingBot:
                         'current_price': price,
                         'pnl_percent': 0.0
                     }
+                    
+                    self.open_positions[position_id] = position_info
+                    
+                    # حفظ الصفقة في user_manager للمستخدم الحالي
+                    if hasattr(self, 'user_id') and self.user_id:
+                        if self.user_id not in user_manager.user_positions:
+                            user_manager.user_positions[self.user_id] = {}
+                        user_manager.user_positions[self.user_id][position_id] = position_info
                     
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}")
                     
@@ -1272,10 +1161,22 @@ class TradingBot:
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
     
     async def send_message_to_admin(self, message: str):
-        """إرسال رسالة للمدير"""
+        """إرسال رسالة للمستخدم الحالي أو المدير"""
         try:
             application = Application.builder().token(TELEGRAM_TOKEN).build()
-            await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
+            
+            # إرسال للمستخدم الحالي إذا كان متاحاً
+            if hasattr(self, 'user_id') and self.user_id:
+                try:
+                    await application.bot.send_message(chat_id=self.user_id, text=message)
+                except Exception as e:
+                    logger.error(f"خطأ في إرسال الرسالة للمستخدم {self.user_id}: {e}")
+                    # إذا فشل الإرسال للمستخدم، أرسل للمدير
+                    await application.bot.send_message(chat_id=ADMIN_USER_ID, text=f"📤 رسالة للمستخدم {self.user_id}:\n{message}")
+            else:
+                # إرسال للمدير فقط إذا لم يكن هناك مستخدم محدد
+                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message)
+                
         except Exception as e:
             logger.error(f"خطأ في إرسال الرسالة: {e}")
 
