@@ -2732,19 +2732,26 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not user_data:
                 user_manager.create_user(user_id)
             
-            # عرض القائمة العادية
+            # عرض القائمة العادية مع زر مخفي للمطور للعودة لوضع المطور
             keyboard = [
                 [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
                 [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
                 [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
             ]
             
+            # إضافة زر مخفي للمطور للعودة لوضع المطور (يظهر فقط للمطورين)
+            if developer_manager.is_developer(user_id):
+                keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
+            
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
             return
         elif text == "🔙 الرجوع لحساب المطور":
-            # الرجوع إلى لوحة تحكم المطور
-            await show_developer_panel(update, context)
+            # التحقق من أن المستخدم مطور قبل الرجوع لوضع المطور
+            if developer_manager.is_developer(user_id):
+                await show_developer_panel(update, context)
+            else:
+                await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
             return
     
     # معالجة أزرار المستخدمين العاديين
