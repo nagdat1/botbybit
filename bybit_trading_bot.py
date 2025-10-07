@@ -945,6 +945,9 @@ class TradingBot:
         """معالجة إشارة شخصية لمستخدم محدد - تعمل بنفس طريقة الإشارة الحقيقية"""
         try:
             user_id = signal_data.get('user_id')
+            logger.info(f"🔍 بدء معالجة إشارة شخصية للمستخدم: {user_id}")
+            logger.info(f"🔍 بيانات الإشارة: {signal_data}")
+            
             if not user_id:
                 logger.error("معرف المستخدم غير موجود في الإشارة الشخصية")
                 return
@@ -957,13 +960,18 @@ class TradingBot:
             
             # تحديث إعدادات المستخدم الحالي
             user_data = user_manager.get_user(user_id)
+            logger.info(f"🔍 بيانات المستخدم: {user_data}")
+            
             if not user_data:
                 logger.error(f"المستخدم {user_id} غير موجود")
                 self.user_id = original_user_id
                 return
             
             # التحقق من حالة المستخدم
-            if not user_manager.is_user_active(user_id):
+            is_active = user_manager.is_user_active(user_id)
+            logger.info(f"🔍 حالة المستخدم النشط: {is_active}")
+            
+            if not is_active:
                 logger.info(f"المستخدم {user_id} غير نشط، تم تجاهل الإشارة")
                 self.user_id = original_user_id
                 return
@@ -992,7 +1000,9 @@ class TradingBot:
             self.open_positions = user_manager.get_user_positions(user_id)
             
             # معالجة الإشارة مباشرة بدون update و context
+            logger.info(f"🔍 بدء معالجة الإشارة المباشرة للمستخدم {user_id}")
             await self.process_signal_direct(signal_data)
+            logger.info(f"🔍 انتهت معالجة الإشارة المباشرة للمستخدم {user_id}")
             
             # استعادة الصفقات المفتوحة الأصلية
             self.open_positions = original_open_positions
@@ -1023,7 +1033,16 @@ class TradingBot:
             bybit_category = 'spot' if market_type == 'spot' else 'linear'
             
             # الحصول على السعر الحالي
-            current_price = await self.get_current_price(symbol)
+            if hasattr(self, 'bybit_api') and self.bybit_api:
+                current_price = self.bybit_api.get_ticker_price(symbol, bybit_category)
+            else:
+                # إنشاء API مؤقت للحصول على السعر
+                from bybit_trading_bot import BybitAPI
+                temp_api = BybitAPI()
+                current_price = temp_api.get_ticker_price(symbol, bybit_category)
+            
+            logger.info(f"🔍 السعر الحالي للرمز {symbol}: {current_price}")
+            
             if not current_price:
                 logger.error(f"لا يمكن الحصول على السعر الحالي للرمز {symbol}")
                 return
@@ -1043,9 +1062,15 @@ class TradingBot:
             )
             
             # تنفيذ الصفقة حسب نوع الحساب
+            logger.info(f"🔍 نوع الحساب: {self.user_settings['account_type']}")
+            logger.info(f"🔍 نوع السوق: {market_type}")
+            logger.info(f"🔍 فئة Bybit: {bybit_category}")
+            
             if self.user_settings['account_type'] == 'real':
+                logger.info(f"🔍 تنفيذ صفقة حقيقية")
                 await self.execute_real_trade(symbol, action, current_price, bybit_category)
             else:
+                logger.info(f"🔍 تنفيذ صفقة تجريبية")
                 await self.execute_demo_trade(symbol, action, current_price, bybit_category, market_type)
             
         except Exception as e:
