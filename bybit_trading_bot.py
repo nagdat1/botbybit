@@ -868,6 +868,60 @@ class TradingBot:
                 logger.error("بيانات الإشارة غير مكتملة")
                 return
             
+            # تحديد المستخدم من البيانات أو استخدام المستخدم الحالي
+            user_id = signal_data.get('user_id', self.user_id)
+            
+            # إذا كان هناك user_id في البيانات، استخدم بياناته
+            if user_id and user_id != self.user_id:
+                logger.info(f"🔍 معالجة إشارة للمستخدم {user_id}")
+                
+                # إنشاء المستخدم إذا لم يكن موجود
+                user_data = self.user_manager.get_user(user_id)
+                if not user_data:
+                    logger.info(f"إنشاء مستخدم جديد {user_id}")
+                    self.user_manager.create_user(user_id)
+                    user_data = self.user_manager.get_user(user_id)
+                
+                # تفعيل المستخدم
+                if not self.user_manager.is_user_active(user_id):
+                    logger.info(f"تفعيل المستخدم {user_id}")
+                    self.user_manager.toggle_user_active(user_id)
+                
+                # إعداد بيانات المستخدم المحدد
+                user_settings = {
+                    'account_type': user_data.get('account_type', 'demo'),
+                    'market_type': user_data.get('market_type', 'spot'),
+                    'trade_amount': user_data.get('trade_amount', 100.0),
+                    'leverage': user_data.get('leverage', 10)
+                }
+                
+                # إعداد الحسابات للمستخدم المحدد
+                market_type = user_data.get('market_type', 'spot')
+                demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
+                demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
+                
+                if not demo_account_spot and not demo_account_futures:
+                    logger.info(f"إنشاء حسابات للمستخدم {user_id}")
+                    self.user_manager._create_user_accounts(user_id, user_data)
+                    demo_account_spot = self.user_manager.get_user_account(user_id, 'spot')
+                    demo_account_futures = self.user_manager.get_user_account(user_id, 'futures')
+                
+                # إعداد API للمستخدم المحدد
+                user_bybit_api = self.user_manager.get_user_api(user_id)
+                
+                # إعداد الصفقات المفتوحة للمستخدم المحدد
+                user_open_positions = self.user_manager.get_user_positions(user_id)
+                if not user_open_positions:
+                    user_open_positions = {}
+                
+                # معالجة الإشارة للمستخدم المحدد
+                await self.process_signal_for_user(
+                    signal_data, user_id, user_settings, 
+                    demo_account_spot, demo_account_futures, 
+                    user_bybit_api, user_open_positions
+                )
+                return
+            
             # 🔥 ميزة جديدة: إذا كان المستخدم هو مطور وفعّل التوزيع التلقائي
             # سيتم إرسال الإشارة لجميع المتابعين
             if developer_manager.is_developer(self.user_id):
