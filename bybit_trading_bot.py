@@ -1085,12 +1085,15 @@ class TradingBot:
             logger.info(f"🔍 نوع الحساب: {self.user_settings['account_type']}")
             logger.info(f"🔍 نوع السوق: {market_type}")
             logger.info(f"🔍 فئة Bybit: {bybit_category}")
+            logger.info(f"🔍 مبلغ التداول: {self.user_settings['trade_amount']}")
             
             if self.user_settings['account_type'] == 'real':
                 logger.info(f"🔍 تنفيذ صفقة حقيقية")
                 await self.execute_real_trade(symbol, action, current_price, bybit_category)
             else:
                 logger.info(f"🔍 تنفيذ صفقة تجريبية")
+                logger.info(f"🔍 حساب السبوت متاح: {self.demo_account_spot is not None}")
+                logger.info(f"🔍 حساب الفيوتشر متاح: {self.demo_account_futures is not None}")
                 await self.execute_demo_trade(symbol, action, current_price, bybit_category, market_type)
             
         except Exception as e:
@@ -1141,12 +1144,21 @@ class TradingBot:
         try:
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
-            logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}")
+            logger.info(f"🔍 بدء تنفيذ صفقة تجريبية")
+            logger.info(f"🔍 الرمز: {symbol}")
+            logger.info(f"🔍 النوع: {action}")
+            logger.info(f"🔍 نوع السوق: {user_market_type}")
+            logger.info(f"🔍 السعر: {price}")
+            logger.info(f"🔍 فئة Bybit: {category}")
             
             if user_market_type == 'futures':
                 account = self.demo_account_futures
                 margin_amount = self.user_settings['trade_amount']  # مبلغ الهامش
                 leverage = self.user_settings['leverage']
+                
+                logger.info(f"🔍 حساب الفيوتشر: {account}")
+                logger.info(f"🔍 مبلغ الهامش: {margin_amount}")
+                logger.info(f"🔍 الرافعة: {leverage}")
                 
                 success, result = account.open_futures_position(
                     symbol=symbol,
@@ -1155,6 +1167,8 @@ class TradingBot:
                     price=price,
                     leverage=leverage
                 )
+                
+                logger.info(f"🔍 نتيجة فتح صفقة الفيوتشر: success={success}, result={result}")
                 
                 if success:
                     position_id = result
@@ -1205,15 +1219,18 @@ class TradingBot:
                         message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
                         message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
                         
-                        await self.send_message_to_admin(message)
+                        await self.send_message_to_user(self.user_id, message)
                     else:
-                        await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
+                        await self.send_message_to_user(self.user_id, "❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
                 else:
-                    await self.send_message_to_admin(f"❌ فشل في فتح صفقة الفيوتشر: {result}")
+                    await self.send_message_to_user(self.user_id, f"❌ فشل في فتح صفقة الفيوتشر: {result}")
                     
             else:  # spot
                 account = self.demo_account_spot
                 amount = self.user_settings['trade_amount']
+                
+                logger.info(f"🔍 حساب السبوت: {account}")
+                logger.info(f"🔍 المبلغ: {amount}")
                 
                 success, result = account.open_spot_position(
                     symbol=symbol,
@@ -1221,6 +1238,8 @@ class TradingBot:
                     amount=amount,
                     price=price
                 )
+                
+                logger.info(f"🔍 نتيجة فتح صفقة السبوت: success={success}, result={result}")
                 
                 if success:
                     position_id = result
@@ -1259,13 +1278,13 @@ class TradingBot:
                     account_info = account.get_account_info()
                     message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
                     
-                    await self.send_message_to_admin(message)
+                    await self.send_message_to_user(self.user_id, message)
                 else:
-                    await self.send_message_to_admin(f"❌ فشل في فتح الصفقة التجريبية: {result}")
+                    await self.send_message_to_user(self.user_id, f"❌ فشل في فتح الصفقة التجريبية: {result}")
                 
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة التجريبية: {e}")
-            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
+            await self.send_message_to_user(self.user_id, f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
     
     async def send_message_to_admin(self, message: str):
         """إرسال رسالة للمستخدم الحالي أو المدير"""
