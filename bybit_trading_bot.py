@@ -1616,12 +1616,82 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message is not None:
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض القائمة الرئيسية مع inline buttons"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    user_data = user_manager.get_user(user_id)
+    
+    if not user_data:
+        message = "❌ يرجى استخدام /start أولاً"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(message)
+        return
+    
+    # إنشاء أزرار القائمة الرئيسية
+    keyboard = [
+        [InlineKeyboardButton("⚙️ الإعدادات", callback_data="settings"),
+         InlineKeyboardButton("📊 حالة الحساب", callback_data="account_status")],
+        [InlineKeyboardButton("🔄 الصفقات المفتوحة", callback_data="open_positions"),
+         InlineKeyboardButton("📈 تاريخ التداول", callback_data="trade_history")],
+        [InlineKeyboardButton("💰 المحفظة", callback_data="wallet"),
+         InlineKeyboardButton("📊 إحصائيات", callback_data="statistics")]
+    ]
+    
+    # إضافة زر متابعة Nagdat
+    is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
+    if is_following:
+        keyboard.append([InlineKeyboardButton("⚡ متابع لـ Nagdat ✅", callback_data="unfollow_nagdat")])
+    else:
+        keyboard.append([InlineKeyboardButton("⚡ متابعة Nagdat", callback_data="follow_nagdat")])
+    
+    # إضافة زر تشغيل/إيقاف البوت
+    if user_data.get('is_active'):
+        keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
+    else:
+        keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # الحصول على معلومات الحساب
+    market_type = user_data.get('market_type', 'spot')
+    account = user_manager.get_user_account(user_id, market_type)
+    
+    if account:
+        account_info = account.get_account_info()
+        balance = account_info.get('balance', 0)
+        available = account_info.get('available_balance', 0)
+    else:
+        balance = user_data.get('balance', 10000.0)
+        available = balance
+    
+    # حالة البوت
+    bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
+    
+    message = f"""
+🤖 القائمة الرئيسية
+
+📊 حالة البوت: {bot_status}
+🏪 نوع السوق: {market_type.upper()}
+💰 الرصيد: {balance:.2f}
+💳 المتاح: {available:.2f}
+
+اختر من القائمة أدناه:
+    """
+    
+    if update.callback_query is not None:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(message, reply_markup=reply_markup)
+
 async def safe_settings_menu_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تحديث آمن لقائمة الإعدادات مع تجنب تراكم الرسائل"""
     try:
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("🔄 جاري تحديث الإعدادات...")
-        await safe_settings_menu_update(update, context)
+        await settings_menu(update, context)
     except Exception as e:
         logger.warning(f"خطأ في تحديث الإعدادات: {e}")
         if update.callback_query is not None:
@@ -1662,6 +1732,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
+    # إضافة زر العودة للقائمة الرئيسية
+    keyboard.append([InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -2490,12 +2562,37 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await start(update, context)
+        
+        # التأكد من تحديث الرسالة بدلاً من إنشاء رسالة جديدة
+        if update.callback_query is not None:
+            try:
+                await show_main_menu(update, context)
+            except Exception as e:
+                # إذا فشل التحديث، أرسل رسالة جديدة
+                logger.error(f"خطأ في العودة للقائمة الرئيسية: {e}")
+                try:
+                    await update.callback_query.message.delete()
+                except:
+                    pass
+                await update.callback_query.message.reply_text("🔄 العودة للقائمة الرئيسية...")
+                await show_main_menu(update, context)
+        else:
+            await start(update, context)
     elif data == "settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await safe_settings_menu_update(update, context)
+    elif data == "account_status":
+        await account_status(update, context)
+    elif data == "open_positions":
+        await open_positions(update, context)
+    elif data == "trade_history":
+        await update.callback_query.edit_message_text("📈 تاريخ التداول - قريباً!")
+    elif data == "wallet":
+        await update.callback_query.edit_message_text("💰 المحفظة - قريباً!")
+    elif data == "statistics":
+        await update.callback_query.edit_message_text("📊 الإحصائيات - قريباً!")
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
