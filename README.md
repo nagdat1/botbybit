@@ -152,9 +152,7 @@ BYBIT_API_SECRET=your_bybit_api_secret
 ```
 {
     "symbol": "{{ticker}}",
-    "action": "{{strategy.order.action}}",
-    "price": {{close}},
-    "time": "{{time}}"
+    "action": "{{strategy.order.action}}"
 }
 ```
 
