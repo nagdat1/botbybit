@@ -2228,6 +2228,23 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🔥 الحصول على نوع السوق من البيانات المحدثة
     market_type = fresh_user_data.get('market_type', 'spot')
     logger.info(f"⚙️ settings_menu: user_id={user_id}, market_type={market_type}")
+    logger.info(f"📊 fresh_user_data keys: {list(fresh_user_data.keys())}")
+    logger.info(f"📊 fresh_user_data market_type: {fresh_user_data.get('market_type')}")
+    
+    # 🔥 تأكيد إضافي: قراءة مباشرة من user_settings
+    try:
+        with db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT market_type FROM user_settings WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            if result:
+                db_market_type = result['market_type']
+                logger.info(f"🔍 قراءة مباشرة من DB: market_type={db_market_type}")
+                if db_market_type != market_type:
+                    logger.warning(f"⚠️ تضارب! fresh_user_data={market_type}, DB={db_market_type}")
+                    market_type = db_market_type  # استخدام القيمة من DB
+    except Exception as e:
+        logger.error(f"❌ خطأ في القراءة المباشرة: {e}")
     
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
@@ -3154,6 +3171,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 from database import db_manager
                 result2 = db_manager.update_user_settings(user_id, {'market_type': 'futures'})
                 logger.info(f"✓ تحديث database: {result2}")
+                
+                # 🔥 تأكيد إضافي: قراءة مباشرة للتأكد من التحديث
+                try:
+                    with db_manager.get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT market_type FROM user_settings WHERE user_id = ?", (user_id,))
+                        result = cursor.fetchone()
+                        if result:
+                            actual_market_type = result['market_type']
+                            logger.info(f"🔍 تأكيد من DB: market_type={actual_market_type}")
+                        else:
+                            logger.error(f"❌ لم يتم العثور على user_settings للمستخدم {user_id}")
+                except Exception as e:
+                    logger.error(f"❌ خطأ في التأكيد: {e}")
                 
                 logger.info(f"✅ تم تغيير نوع السوق إلى FUTURES للمستخدم {user_id} بنجاح")
                 logger.info(f"🎯 الآن سيظهر زر الرافعة المالية في الإعدادات")
