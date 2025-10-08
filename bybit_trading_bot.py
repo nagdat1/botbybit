@@ -1462,13 +1462,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
-        # إضافة أزرار إضافية إذا كان المطور نشطاً
-        user_data = user_manager.get_user(user_id)
-        if user_data and user_data.get('is_active'):
-            keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
-        else:
-            keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
-        
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
         # إنشاء رابط webhook الشخصي للمطور
@@ -1548,13 +1541,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
     else:
         keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
-    
-    # إضافة أزرار إضافية إذا كان المستخدم نشطاً
-    if user_data.get('is_active'):
-        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
-    else:
-        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
-    
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
