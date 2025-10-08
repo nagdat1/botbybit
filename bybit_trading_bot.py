@@ -1550,7 +1550,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
-    if user_data.get('is_active'):
+    is_active = user_data.get('is_active', False)
+    logger.info(f"المستخدم {user_id} حالة is_active: {is_active}")
+    if is_active:
         keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
     else:
         keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
