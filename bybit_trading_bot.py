@@ -1462,12 +1462,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
         ]
         
-        # إضافة أزرار إضافية إذا كان المطور نشطاً
+        # إضافة زر تشغيل/إيقاف البوت
         user_data = user_manager.get_user(user_id)
-        if user_data and user_data.get('is_active'):
-            keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
-        else:
-            keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
+        is_active = user_data.get('is_active', False) if user_data else False
+        bot_button = "⏹️ إيقاف البوت" if is_active else "▶️ تشغيل البوت"
+        keyboard.append([KeyboardButton(bot_button)])
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -1541,21 +1540,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
-    # إضافة زر متابعة Nagdat
-    is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
-    if is_following:
-        keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
-    else:
-        keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
-    
-    
-    # إضافة أزرار إضافية إذا كان المستخدم نشطاً
+    # تحديد زر التشغيل/الإيقاف بناءً على حالة المستخدم
     is_active = user_data.get('is_active', False)
     logger.info(f"المستخدم {user_id} حالة is_active: {is_active}")
-    if is_active:
-        keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
-    else:
-        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
+    bot_button = "⏹️ إيقاف البوت" if is_active else "▶️ تشغيل البوت"
+    
+    # إضافة زر متابعة Nagdat مع زر البوت في نفس الصف
+    is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
+    nagdat_button = "⚡ متابع لـ Nagdat ✅" if is_following else "⚡ متابعة Nagdat"
+    
+    keyboard.append([KeyboardButton(nagdat_button), KeyboardButton(bot_button)])
     
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
