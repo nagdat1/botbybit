@@ -1299,8 +1299,7 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
         [KeyboardButton("📡 إرسال إشارة"), KeyboardButton("👥 المتابعين")],
         [KeyboardButton("📊 إحصائيات المطور"), KeyboardButton("👥 إدارة المستخدمين")],
         [KeyboardButton("📱 إشعار جماعي"), KeyboardButton("⚙️ إعدادات المطور")],
-        [KeyboardButton("🔄 تحديث"), KeyboardButton("👤 الوضع العادي")],
-        [KeyboardButton("🔙 الرجوع لحساب المطور")]
+        [KeyboardButton("🔄 تحديث"), KeyboardButton("👤 الوضع العادي")]
     ]
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
