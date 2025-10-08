@@ -3107,13 +3107,28 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "set_market":
         # تنفيذ إعداد نوع السوق
         keyboard = [
-            [InlineKeyboardButton("-spot", callback_data="market_spot")],
-            [InlineKeyboardButton("futures", callback_data="market_futures")],
+            [InlineKeyboardButton("📊 سبوت (Spot)", callback_data="market_spot")],
+            [InlineKeyboardButton("📈 فيوتشر (Futures)", callback_data="market_futures")],
             [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        message_text = """
+🏪 اختر نوع السوق:
+
+📊 سبوت (Spot):
+• تداول مباشر بدون رافعة مالية
+• مناسب للمبتدئين
+• أكثر أماناً
+
+📈 فيوتشر (Futures):
+• تداول بالرافعة المالية
+• أرباح وخسائر أعلى
+• يتطلب خبرة
+        """
+        
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text("اختر نوع السوق:", reply_markup=reply_markup)
+            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
     elif data == "set_account":
         # تنفيذ إعداد نوع الحساب
         keyboard = [
@@ -3155,6 +3170,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # إعادة تعيين حالة إدخال المستخدم
             if user_id in user_input_state:
                 del user_input_state[user_id]
+            
+            # 🔥 إرسال رسالة تأكيد
+            if update.callback_query is not None:
+                await update.callback_query.answer("✅ تم التغيير إلى سبوت", show_alert=True)
         
         await settings_menu(update, context)
         
@@ -3177,6 +3196,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # إعادة تعيين حالة إدخال المستخدم
             if user_id in user_input_state:
                 del user_input_state[user_id]
+            
+            # 🔥 إرسال رسالة تأكيد مع تنبيه بظهور زر الرافعة المالية
+            if update.callback_query is not None:
+                await update.callback_query.answer("✅ تم التغيير إلى فيوتشر - ستظهر الرافعة المالية الآن", show_alert=True)
         
         await settings_menu(update, context)
     elif data == "account_real":
