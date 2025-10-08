@@ -2963,18 +2963,27 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # باقي الوظائف تبقى كما هي مع بعض التحديثات...
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة الأزرار المضغوطة"""
+    """معالجة الأزرار المضغوطة - نظام ذكي مع تتبع كامل"""
     if update.callback_query is None:
         return
         
     query = update.callback_query
-    await query.answer()
     
     if query.data is None:
+        await query.answer()
         return
         
     user_id = update.effective_user.id if update.effective_user else None
     data = query.data
+    
+    # 🔥 تسجيل ذكي لكل callback
+    logger.info(f"🎯 CALLBACK: user_id={user_id}, data={data}")
+    
+    # إرسال الرد للـ callback أولاً لتجنب timeout
+    try:
+        await query.answer()
+    except Exception as e:
+        logger.warning(f"⚠️ خطأ في query.answer: {e}")
     
     # معالجة زر الربط API
     if data == "link_api":
@@ -3153,6 +3162,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
     elif data == "market_spot":
         # 🔥 تحديث ديناميكي ذكي لنوع السوق
+        logger.info(f"🏪 تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
         if user_id is not None:
             # تحديث في trading_bot
             trading_bot.user_settings['market_type'] = 'spot'
@@ -3170,15 +3180,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # إعادة تعيين حالة إدخال المستخدم
             if user_id in user_input_state:
                 del user_input_state[user_id]
-            
-            # 🔥 إرسال رسالة تأكيد
-            if update.callback_query is not None:
-                await update.callback_query.answer("✅ تم التغيير إلى سبوت", show_alert=True)
         
+        # 🔥 عرض قائمة الإعدادات المحدثة
         await settings_menu(update, context)
         
     elif data == "market_futures":
         # 🔥 تحديث ديناميكي ذكي لنوع السوق
+        logger.info(f"🏪 تغيير نوع السوق إلى FUTURES للمستخدم {user_id}")
         if user_id is not None:
             # تحديث في trading_bot
             trading_bot.user_settings['market_type'] = 'futures'
@@ -3196,11 +3204,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # إعادة تعيين حالة إدخال المستخدم
             if user_id in user_input_state:
                 del user_input_state[user_id]
-            
-            # 🔥 إرسال رسالة تأكيد مع تنبيه بظهور زر الرافعة المالية
-            if update.callback_query is not None:
-                await update.callback_query.answer("✅ تم التغيير إلى فيوتشر - ستظهر الرافعة المالية الآن", show_alert=True)
         
+        # 🔥 عرض قائمة الإعدادات المحدثة (سيظهر زر الرافعة المالية)
         await settings_menu(update, context)
     elif data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
