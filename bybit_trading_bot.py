@@ -3227,6 +3227,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال قيمة بين 1 و 100")
+            except ValueError:
+                if update.message is not None:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
         
         # معالجة إدخال الزوج للإشارة
         elif state == "waiting_for_signal_symbol":
