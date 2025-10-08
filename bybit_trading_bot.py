@@ -1459,14 +1459,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+            [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
-        # إضافة زر تشغيل/إيقاف البوت
+        # إضافة أزرار إضافية إذا كان المطور نشطاً
         user_data = user_manager.get_user(user_id)
-        is_active = user_data.get('is_active', False) if user_data else False
-        bot_button = "⏹️ إيقاف البوت" if is_active else "▶️ تشغيل البوت"
-        keyboard.append([KeyboardButton(bot_button)])
+        if user_data and user_data.get('is_active'):
+            keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
+        else:
+            keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -1489,6 +1491,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🤖 مرحباً بك {update.effective_user.first_name} - المطور
 
 👨‍💻 أنت في الوضع العادي للمطور
+🔙 يمكنك العودة إلى لوحة تحكم المطور في أي وقت
 
 🔗 رابط الإشارات الخاص بك:
 `{personal_webhook_url}`
@@ -1540,11 +1543,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
-    # إضافة زر متابعة Nagdat مع زر الرجوع لحساب المطور في نفس الصف
+    # إضافة زر متابعة Nagdat
     is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
-    nagdat_button = "⚡ متابع لـ Nagdat ✅" if is_following else "⚡ متابعة Nagdat"
+    if is_following:
+        keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
+    else:
+        keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
-    keyboard.append([KeyboardButton(nagdat_button), KeyboardButton("🔙 الرجوع لحساب المطور")])
+    # إضافة أزرار إضافية إذا كان المستخدم نشطاً
+    if user_data.get('is_active'):
+        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
+    else:
+        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -1606,90 +1616,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message is not None:
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض القائمة الرئيسية مع inline buttons"""
-    if update.effective_user is None:
-        return
-    
-    user_id = update.effective_user.id
-    user_data = user_manager.get_user(user_id)
-    
-    if not user_data:
-        message = "❌ يرجى استخدام /start أولاً"
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(message)
-        return
-    
-    # إنشاء أزرار القائمة الرئيسية
-    keyboard = [
-        [InlineKeyboardButton("⚙️ الإعدادات", callback_data="settings"),
-         InlineKeyboardButton("📊 حالة الحساب", callback_data="account_status")],
-        [InlineKeyboardButton("🔄 الصفقات المفتوحة", callback_data="open_positions"),
-         InlineKeyboardButton("📈 تاريخ التداول", callback_data="trade_history")],
-        [InlineKeyboardButton("💰 المحفظة", callback_data="wallet"),
-         InlineKeyboardButton("📊 إحصائيات", callback_data="statistics")]
-    ]
-    
-    # إضافة زر متابعة Nagdat
-    is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
-    if is_following:
-        keyboard.append([InlineKeyboardButton("⚡ متابع لـ Nagdat ✅", callback_data="unfollow_nagdat")])
-    else:
-        keyboard.append([InlineKeyboardButton("⚡ متابعة Nagdat", callback_data="follow_nagdat")])
-    
-    
-    # إضافة زر الرجوع لحساب المطور
-    keyboard.append([InlineKeyboardButton("🔙 الرجوع لحساب المطور", callback_data="developer_panel")])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    # الحصول على معلومات الحساب
-    market_type = user_data.get('market_type', 'spot')
-    account = user_manager.get_user_account(user_id, market_type)
-    
-    if account:
-        account_info = account.get_account_info()
-        balance = account_info.get('balance', 0)
-        available = account_info.get('available_balance', 0)
-    else:
-        balance = user_data.get('balance', 10000.0)
-        available = balance
-    
-    # حالة البوت
-    bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
-    
-    message = f"""
-🤖 القائمة الرئيسية
-
-📊 حالة البوت: {bot_status}
-🏪 نوع السوق: {market_type.upper()}
-💰 الرصيد: {balance:.2f}
-💳 المتاح: {available:.2f}
-
-اختر من القائمة أدناه:
-    """
-    
-    if update.callback_query is not None:
-        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(message, reply_markup=reply_markup)
-
-async def safe_settings_menu_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تحديث آمن لقائمة الإعدادات مع تجنب تراكم الرسائل"""
-    try:
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("🔄 جاري تحديث الإعدادات...")
-        await settings_menu(update, context)
-    except Exception as e:
-        logger.warning(f"خطأ في تحديث الإعدادات: {e}")
-        if update.callback_query is not None:
-            try:
-                await update.callback_query.message.delete()
-            except:
-                pass
-            await update.callback_query.message.reply_text("⚠️ تم تحديث الإعدادات")
-        await safe_settings_menu_update(update, context)
-
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة الإعدادات لكل مستخدم"""
     if update.effective_user is None:
@@ -1720,6 +1646,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
+    keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -1767,17 +1694,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     if update.callback_query is not None:
-        try:
-            # محاولة تحديث الرسالة الموجودة
-            await update.callback_query.edit_message_text(settings_text, reply_markup=reply_markup)
-        except Exception as e:
-            # إذا فشل التحديث، حذف الرسالة القديمة وإرسال جديدة
-            logger.warning(f"فشل في تحديث رسالة الإعدادات: {e}")
-            try:
-                await update.callback_query.message.delete()
-            except:
-                pass
-            await update.callback_query.message.reply_text(settings_text, reply_markup=reply_markup)
+        await update.callback_query.edit_message_text(settings_text, reply_markup=reply_markup)
     elif update.message is not None:
         await update.message.reply_text(settings_text, reply_markup=reply_markup)
 
@@ -2524,7 +2441,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.edit_message_text(status_text)
                 # العودة إلى قائمة الإعدادات
                 await asyncio.sleep(1)
-                await safe_settings_menu_update(update, context)
+                await settings_menu(update, context)
             else:
                 if update.callback_query is not None:
                     await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
@@ -2548,37 +2465,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        
-        # التأكد من تحديث الرسالة بدلاً من إنشاء رسالة جديدة
-        if update.callback_query is not None:
-            try:
-                await show_main_menu(update, context)
-            except Exception as e:
-                # إذا فشل التحديث، أرسل رسالة جديدة
-                logger.error(f"خطأ في العودة للقائمة الرئيسية: {e}")
-                try:
-                    await update.callback_query.message.delete()
-                except:
-                    pass
-                await update.callback_query.message.reply_text("🔄 العودة للقائمة الرئيسية...")
-                await show_main_menu(update, context)
-        else:
-            await start(update, context)
+        await start(update, context)
     elif data == "settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await safe_settings_menu_update(update, context)
-    elif data == "account_status":
-        await account_status(update, context)
-    elif data == "open_positions":
-        await open_positions(update, context)
-    elif data == "trade_history":
-        await update.callback_query.edit_message_text("📈 تاريخ التداول - قريباً!")
-    elif data == "wallet":
-        await update.callback_query.edit_message_text("💰 المحفظة - قريباً!")
-    elif data == "statistics":
-        await update.callback_query.edit_message_text("📊 الإحصائيات - قريباً!")
+        await settings_menu(update, context)
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
@@ -2627,41 +2519,30 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await safe_settings_menu_update(update, context)
+        await settings_menu(update, context)
     elif data == "market_futures":
         trading_bot.user_settings['market_type'] = 'futures'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await safe_settings_menu_update(update, context)
+        await settings_menu(update, context)
     elif data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await safe_settings_menu_update(update, context)
+        await settings_menu(update, context)
     elif data == "account_demo":
         trading_bot.user_settings['account_type'] = 'demo'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await safe_settings_menu_update(update, context)
+        await settings_menu(update, context)
     elif data == "back_to_settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        
-        # التأكد من تحديث الرسالة بدلاً من إنشاء رسالة جديدة
-        if update.callback_query is not None:
-            try:
-                await safe_settings_menu_update(update, context)
-            except Exception as e:
-                # إذا فشل التحديث، أرسل رسالة جديدة
-                logger.error(f"خطأ في تحديث رسالة الإعدادات: {e}")
-                await update.callback_query.message.reply_text("⚠️ تم تحديث الإعدادات", reply_markup=InlineKeyboardMarkup([[]]))
-                await safe_settings_menu_update(update, context)
-        else:
-            await safe_settings_menu_update(update, context)
+        await settings_menu(update, context)
     elif data == "webhook_url":
         # عرض رابط الإشارات الشخصي للمستخدم
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
@@ -3006,15 +2887,13 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
             return
-    
-    # معالجة زر الرجوع لحساب المطور (للجميع)
-    if text == "🔙 الرجوع لحساب المطور":
-        # التحقق من أن المستخدم مطور أو المطور نفسه قبل الرجوع لوضع المطور
-        if developer_manager.is_developer(user_id) or user_id == ADMIN_USER_ID:
-            await show_developer_panel(update, context)
-        else:
-            await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
-        return
+        elif text == "🔙 الرجوع لحساب المطور":
+            # التحقق من أن المستخدم مطور قبل الرجوع لوضع المطور
+            if developer_manager.is_developer(user_id):
+                await show_developer_panel(update, context)
+            else:
+                await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
+            return
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
@@ -3176,7 +3055,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث مبلغ التداول إلى: {amount}")
-                        await safe_settings_menu_update(update, context)
+                        await settings_menu(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -3193,7 +3072,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث الرافعة المالية إلى: {leverage}x")
-                        await safe_settings_menu_update(update, context)
+                        await settings_menu(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال قيمة بين 1 و 100")
@@ -3214,7 +3093,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث رصيد الحساب التجريبي إلى: {balance}")
-                        await safe_settings_menu_update(update, context)
+                        await settings_menu(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال رصيد غير سالب")
@@ -3227,7 +3106,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 del user_input_state[user_id]
     
     elif text == "⚙️ الإعدادات":
-        await safe_settings_menu_update(update, context)
+        await settings_menu(update, context)
     elif text == "📊 حالة الحساب":
         await account_status(update, context)
     elif text == "🔄 الصفقات المفتوحة" or "الصفقات المفتوحة" in text or "🔄" in text:
@@ -3237,14 +3116,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "💰 المحفظة":
         await wallet_overview(update, context)
     elif text == "▶️ تشغيل البوت":
-        if user_id is not None:
-            user_manager.set_user_active(user_id, True)
         trading_bot.is_running = True
         if update.message is not None:
             await update.message.reply_text("✅ تم تشغيل البوت")
     elif text == "⏹️ إيقاف البوت":
-        if user_id is not None:
-            user_manager.set_user_active(user_id, False)
         trading_bot.is_running = False
         if update.message is not None:
             await update.message.reply_text("⏹️ تم إيقاف البوت")
