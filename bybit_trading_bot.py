@@ -2980,34 +2980,43 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # باقي الوظائف تبقى كما هي مع بعض التحديثات...
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة الأزرار المضغوطة - نظام ذكي مع تتبع كامل"""
-    if update.callback_query is None:
-        return
-        
-    query = update.callback_query
-    
-    if query.data is None:
-        await query.answer()
-        return
-        
-    user_id = update.effective_user.id if update.effective_user else None
-    data = query.data
-    
-    # 🔥 تسجيل ذكي لكل callback
-    logger.info(f"🎯 CALLBACK: user_id={user_id}, data={data}")
-    
-    # إرسال الرد للـ callback أولاً لتجنب timeout
+    """معالجة الأزرار المضغوطة - نظام ذكي مع تتبع كامل ومعالجة شاملة للأخطاء"""
     try:
-        await query.answer()
-    except Exception as e:
-        logger.warning(f"⚠️ خطأ في query.answer: {e}")
+        logger.info("🚀 بدء handle_callback")
+        
+        if update.callback_query is None:
+            logger.warning("⚠️ callback_query is None")
+            return
+            
+        query = update.callback_query
+        logger.info(f"📞 query موجود: {query}")
+        
+        if query.data is None:
+            logger.warning("⚠️ query.data is None")
+            await query.answer()
+            return
+            
+        user_id = update.effective_user.id if update.effective_user else None
+        data = query.data
+        
+        # 🔥 تسجيل ذكي لكل callback
+        logger.info(f"🎯 CALLBACK: user_id={user_id}, data={data}")
+        
+        # إرسال الرد للـ callback أولاً لتجنب timeout
+        try:
+            await query.answer()
+            logger.info("✅ query.answer() نجح")
+        except Exception as e:
+            logger.error(f"❌ خطأ في query.answer: {e}")
+            # لا نوقف التنفيذ بسبب هذا الخطأ
     
-    # معالجة زر الربط API
-    if data == "link_api":
-        if user_id is not None:
-            user_input_state[user_id] = "waiting_for_api_key"
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("""
+        # معالجة زر الربط API
+        if data == "link_api":
+            logger.info("🔗 معالجة link_api")
+            if user_id is not None:
+                user_input_state[user_id] = "waiting_for_api_key"
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text("""
 🔗 ربط API - الخطوة 1
 
 أرسل API_KEY الخاص بك من Bybit
@@ -3016,7 +3025,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • عدم مشاركة المفاتيح مع أي شخص
 • إنشاء مفاتيح API محدودة الصلاحيات
 • يمكنك الحصول على المفاتيح من: https://api.bybit.com
-            """)
+                """)
     elif data == "check_api":
         # فحص حالة API
         if user_id is not None:
@@ -3124,6 +3133,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "market_spot":
         # 🔥 تحديث ديناميكي ذكي لنوع السوق
         logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
+        logger.info("📊 معالجة market_spot - تم الوصول للكود!")
         try:
             if user_id is not None:
                 # تحديث في trading_bot
@@ -3156,6 +3166,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "market_futures":
         # 🔥 تحديث ديناميكي ذكي لنوع السوق
         logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى FUTURES للمستخدم {user_id}")
+        logger.info("📈 معالجة market_futures - تم الوصول للكود!")
         try:
             if user_id is not None:
                 # تحديث في trading_bot
@@ -3206,12 +3217,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "refresh_positions":
         await open_positions(update, context)
     elif data == "set_amount":
+        logger.info("💰 معالجة set_amount")
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_trade_amount"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
     elif data == "set_market":
+        logger.info("🏪 معالجة set_market")
         # تنفيذ إعداد نوع السوق
         keyboard = [
             [InlineKeyboardButton("📊 سبوت (Spot)", callback_data="market_spot")],
@@ -3471,10 +3484,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
             await update.callback_query.answer("✅ تم التحديث")
     
-    else:
-        # معالجة أي أزرار أخرى غير محددة
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("❌ زر غير مدعوم")
+        else:
+            # معالجة أي أزرار أخرى غير محددة
+            logger.warning(f"❓ زر غير مدعوم: {data}")
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text("❌ زر غير مدعوم")
+    
+    except Exception as e:
+        logger.error(f"❌ خطأ عام في handle_callback: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # محاولة إرسال رسالة خطأ للمستخدم
+        try:
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(f"❌ حدث خطأ: {str(e)}")
+        except:
+            pass
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
