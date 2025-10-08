@@ -1459,8 +1459,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔙 الرجوع لحساب المطور")]
+            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
         ]
         
         # إضافة أزرار إضافية إذا كان المطور نشطاً
@@ -1491,7 +1490,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🤖 مرحباً بك {update.effective_user.first_name} - المطور
 
 👨‍💻 أنت في الوضع العادي للمطور
-🔙 يمكنك العودة إلى لوحة تحكم المطور في أي وقت
 
 🔗 رابط الإشارات الخاص بك:
 `{personal_webhook_url}`
@@ -1732,8 +1730,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
-    # إضافة زر العودة للقائمة الرئيسية
-    keyboard.append([InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
