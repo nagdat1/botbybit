@@ -779,84 +779,32 @@ class TradingBot:
                     # الحصول على إعدادات المتابع
                     follower_settings = user_manager.get_user_settings(follower_id)
                     if follower_settings:
-                        follower_bot.user_settings = follower_settings.copy()
+                        follower_bot.user_settings = follower_settings
                     
-                    # 🔥 استخدام النظام الموحد الجديد - execute_trade_unified
-                    # يتعامل تلقائياً مع جميع أنواع الحسابات والأسواق
-                    symbol = signal_data.get('symbol')
-                    action = signal_data.get('action')
-                    price = signal_data.get('price', 0)
-                    
-                    # إذا كان السعر 0، احصل على السعر الحالي
-                    if not price or price == 0:
-                        try:
-                            if trading_bot.bybit_api:
-                                price = trading_bot.bybit_api.get_ticker_price(symbol, 'spot')
-                                if not price:
-                                    price = trading_bot.bybit_api.get_ticker_price(symbol, 'linear')
-                        except:
-                            price = 1  # قيمة افتراضية لتجنب الأخطاء
-                    
-                    # تنفيذ الصفقة باستخدام النظام الموحد
-                    await follower_bot.execute_trade_unified(
-                        symbol=symbol,
-                        action=action,
-                        price=price,
-                        signal_data=signal_data  # تمرير بيانات الإشارة الكاملة
-                    )
+                    # تنفيذ الإشارة على حساب المتابع
+                    await follower_bot.process_signal(signal_data.copy())
                     success_count += 1
                     logger.info(f"✅ تم إرسال الإشارة للمتابع {follower_id}")
                     
-                    # إرسال إشعار محسّن للمتابع
+                    # إرسال إشعار للمتابع
                     try:
                         from telegram import Bot
                         bot = Bot(token=TELEGRAM_TOKEN)
-                        
-                        # الحصول على إعدادات المتابع للعرض
-                        trade_amount = signal_data.get('amount', follower_settings.get('trade_amount', 100))
-                        leverage = signal_data.get('leverage', follower_settings.get('leverage', 10))
-                        price = signal_data.get('price', 0)
-                        
-                        # تحديد نوع السوق الذي تم التنفيذ عليه
-                        detected_market = follower_bot.detect_market_type_smart(
-                            signal_data.get('symbol'),
-                            follower_settings.get('market_type', 'spot')
-                        )
-                        
-                        # تحديد نوع الحساب
-                        account_type_ar = "حقيقي 🔴" if follower_settings.get('account_type') == 'real' else "تجريبي 🟢"
-                        market_type_ar = "فيوتشر" if detected_market == 'futures' else "سبوت"
-                        
                         notification_message = f"""
 📡 إشارة جديدة من Nagdat!
 
-━━━━━━━━━━━━━━━━━━━━━━
-📊 تفاصيل الإشارة:
+📊 الرمز: {signal_data.get('symbol', 'N/A')}
+🔄 الإجراء: {signal_data.get('action', 'N/A').upper()}
+💲 السعر: {signal_data.get('price', 'N/A')}
 
-🔹 الرمز: {signal_data.get('symbol', 'N/A')}
-🔹 الإجراء: {signal_data.get('action', 'N/A').upper()}
-💲 السعر: {price if price > 0 else 'السعر الحالي'}
-💰 المبلغ: {trade_amount} USDT
-⚡ الرافعة: {leverage}x
-
-━━━━━━━━━━━━━━━━━━━━━━
-📋 تفاصيل التنفيذ:
-
-🏪 السوق: {market_type_ar}
-👤 نوع الحساب: {account_type_ar}
-
-━━━━━━━━━━━━━━━━━━━━━━
-✅ تم تنفيذ الصفقة تلقائياً على حسابك!
-
-💡 ملاحظة: تم تحديد نوع السوق تلقائياً بناءً على توفر الزوج وإعداداتك.
+⚡ تم تنفيذ الصفقة تلقائياً على حسابك!
                         """
                         await bot.send_message(
                             chat_id=follower_id,
                             text=notification_message
                         )
-                        logger.info(f"📧 تم إرسال إشعار محسّن للمتابع {follower_id}")
                     except Exception as notify_error:
-                        logger.error(f"❌ خطأ في إرسال الإشعار للمتابع {follower_id}: {notify_error}")
+                        logger.error(f"خطأ في إرسال الإشعار للمتابع {follower_id}: {notify_error}")
                         
                 except Exception as e:
                     logger.error(f"❌ خطأ في إرسال الإشارة للمتابع {follower_id}: {e}")
@@ -1015,353 +963,12 @@ class TradingBot:
             logger.error(f"خطأ في تنفيذ الصفقة الحقيقية: {e}")
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
     
-    def detect_market_type_smart(self, symbol: str, user_preference: str = None) -> str:
-        """
-        معالج ذكي لتحديد نوع السوق تلقائياً
-        
-        يحلل الرمز ويقرر ما إذا كان متاحاً في السبوت أو الفيوتشر
-        الأولوية: تفضيل المستخدم > التحليل الذكي
-        """
-        try:
-            # إذا كان لدى المستخدم تفضيل واضح، استخدمه
-            if user_preference:
-                # تحقق من توفر الرمز في نوع السوق المفضل
-                if user_preference == 'spot' and symbol in self.available_pairs.get('spot', []):
-                    logger.info(f"✅ الرمز {symbol} متاح في SPOT (تفضيل المستخدم)")
-                    return 'spot'
-                elif user_preference == 'futures' and (symbol in self.available_pairs.get('futures', []) or 
-                                                       symbol in self.available_pairs.get('inverse', [])):
-                    logger.info(f"✅ الرمز {symbol} متاح في FUTURES (تفضيل المستخدم)")
-                    return 'futures'
-            
-            # التحليل الذكي: تحقق من توفر الرمز في كل سوق
-            available_in_spot = symbol in self.available_pairs.get('spot', [])
-            available_in_futures = symbol in self.available_pairs.get('futures', []) or \
-                                  symbol in self.available_pairs.get('inverse', [])
-            
-            # قرار ذكي بناءً على التوفر
-            if available_in_spot and not available_in_futures:
-                logger.info(f"🧠 التحليل الذكي: {symbol} متاح في SPOT فقط")
-                return 'spot'
-            elif available_in_futures and not available_in_spot:
-                logger.info(f"🧠 التحليل الذكي: {symbol} متاح في FUTURES فقط")
-                return 'futures'
-            elif available_in_spot and available_in_futures:
-                # متاح في كلا السوقين - استخدم تفضيل المستخدم أو الافتراضي
-                logger.info(f"🧠 التحليل الذكي: {symbol} متاح في كلا السوقين")
-                return user_preference if user_preference else 'spot'
-            else:
-                # غير متاح في أي سوق - استخدم الافتراضي
-                logger.warning(f"⚠️ {symbol} غير متاح في الأسواق المحملة - استخدام {user_preference or 'spot'}")
-                return user_preference if user_preference else 'spot'
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في detect_market_type_smart: {e}")
-            return user_preference if user_preference else 'spot'
-    
-    async def execute_trade_unified(self, symbol: str, action: str, price: float, signal_data: dict = None):
-        """
-        نظام موحد لتنفيذ الصفقات - يدعم جميع أنواع الحسابات والأسواق
-        
-        يحدد تلقائياً:
-        - نوع الحساب (حقيقي/تجريبي) من إعدادات المستخدم
-        - نوع السوق (سبوت/فيوتشر) بذكاء من توفر الرمز وتفضيلات المستخدم
-        - المبلغ والرافعة من الإشارة أو من إعدادات المستخدم
-        """
-        try:
-            # 1. تحديد نوع الحساب (حقيقي/تجريبي)
-            account_type = self.user_settings.get('account_type', 'demo')
-            
-            # 2. تحديد نوع السوق بذكاء (سبوت/فيوتشر)
-            # الأولوية: signal_data > التحليل الذكي > إعدادات المستخدم
-            user_preference = self.user_settings.get('market_type', 'spot')
-            
-            if signal_data and 'market_type' in signal_data:
-                market_type = signal_data['market_type']
-                logger.info(f"📊 استخدام market_type من الإشارة: {market_type}")
-            else:
-                # استخدام المعالج الذكي
-                market_type = self.detect_market_type_smart(symbol, user_preference)
-            
-            # 3. تحديد المبلغ والرافعة
-            if signal_data:
-                trade_amount = signal_data.get('amount', self.user_settings.get('trade_amount', 100))
-                leverage = signal_data.get('leverage', self.user_settings.get('leverage', 10))
-            else:
-                trade_amount = self.user_settings.get('trade_amount', 100)
-                leverage = self.user_settings.get('leverage', 10)
-            
-            # تسجيل متقدم لتتبع الصفقة
-            trade_log = {
-                'timestamp': datetime.now().isoformat(),
-                'user_id': self.user_id,
-                'symbol': symbol,
-                'action': action,
-                'price': price,
-                'account_type': account_type,
-                'market_type': market_type,
-                'trade_amount': trade_amount,
-                'leverage': leverage,
-                'source': 'developer_signal' if signal_data else 'direct'
-            }
-            
-            logger.info(f"""
-            📊 ═══════════════════════════════════════
-            📊 تنفيذ صفقة موحدة - نظام متكامل
-            📊 ═══════════════════════════════════════
-            👤 المستخدم: {self.user_id or 'عام'}
-            📈 الرمز: {symbol}
-            🔄 الإجراء: {action.upper()}
-            💲 السعر: {price}
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            🏦 نوع الحساب: {account_type.upper()} {'🔴' if account_type == 'real' else '🟢'}
-            🏪 نوع السوق: {market_type.upper()}
-            💰 المبلغ: {trade_amount} USDT
-            ⚡ الرافعة: {leverage}x
-            📡 المصدر: {'إشارة مطور' if signal_data else 'مباشر'}
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            """)
-            
-            # 4. توجيه الصفقة للدالة المناسبة
-            if account_type == 'real':
-                # تنفيذ على الحساب الحقيقي
-                await self.execute_real_trade_unified(symbol, action, price, market_type, trade_amount, leverage)
-            else:
-                # تنفيذ على الحساب التجريبي
-                await self.execute_demo_trade_unified(symbol, action, price, market_type, trade_amount, leverage)
-            
-            # 5. حفظ سجل الصفقة في قاعدة البيانات
-            if self.user_id:
-                try:
-                    from database import db_manager
-                    db_manager.log_trade(self.user_id, trade_log)
-                    logger.info(f"💾 تم حفظ سجل الصفقة في قاعدة البيانات للمستخدم {self.user_id}")
-                except Exception as log_error:
-                    logger.error(f"❌ خطأ في حفظ سجل الصفقة: {log_error}")
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في execute_trade_unified: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    async def execute_real_trade_unified(self, symbol: str, action: str, price: float, 
-                                        market_type: str, trade_amount: float, leverage: int):
-        """تنفيذ صفقة على الحساب الحقيقي - موحد لجميع الأنواع"""
-        try:
-            if not self.bybit_api:
-                logger.error("❌ API غير متصل")
-                await self.send_message_to_admin("❌ خطأ: API غير متصل")
-                return
-            
-            # تحديد الفئة بناءً على نوع السوق
-            category = "spot" if market_type == "spot" else "linear"
-            
-            logger.info(f"🔴 تنفيذ صفقة حقيقية: {symbol} {action} على {market_type}")
-            
-            if market_type == 'futures':
-                # صفقة فيوتشر حقيقية
-                response = self.bybit_api.place_futures_order(
-                    symbol=symbol,
-                    side="Buy" if action == "buy" else "Sell",
-                    order_type="Market",
-                    qty=trade_amount / price * leverage,  # حساب الكمية بناءً على المبلغ والرافعة
-                    leverage=leverage
-                )
-            else:
-                # صفقة سبوت حقيقية
-                qty = trade_amount / price  # حساب الكمية
-                response = self.bybit_api.place_spot_order(
-                    symbol=symbol,
-                    side="Buy" if action == "buy" else "Sell",
-                    order_type="Market",
-                    qty=qty
-                )
-            
-            if response and response.get("retCode") == 0:
-                order_id = response.get("result", {}).get("orderId", "N/A")
-                
-                message = f"✅ تم تنفيذ أمر حقيقي {action.upper()}\n"
-                if self.user_id:
-                    message += f"👤 المستخدم: {self.user_id}\n"
-                message += f"📊 الرمز: {symbol}\n"
-                message += f"💰 المبلغ: {trade_amount} USDT\n"
-                message += f"💲 السعر: {price:.6f}\n"
-                message += f"🏪 السوق: {market_type.upper()}\n"
-                if market_type == 'futures':
-                    message += f"⚡ الرافعة: {leverage}x\n"
-                message += f"🆔 رقم الأمر: {order_id}"
-                
-                await self.send_message_to_admin(message)
-            else:
-                error_msg = response.get("retMsg", "خطأ غير محدد") if response else "لا يوجد استجابة"
-                await self.send_message_to_admin(f"❌ فشل في تنفيذ الأمر الحقيقي: {error_msg}")
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في execute_real_trade_unified: {e}")
-            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
-    
-    async def execute_demo_trade_unified(self, symbol: str, action: str, price: float,
-                                        market_type: str, trade_amount: float, leverage: int):
-        """تنفيذ صفقة تجريبية - موحد لجميع الأنواع"""
-        try:
-            logger.info(f"🟢 تنفيذ صفقة تجريبية: {symbol} {action} على {market_type}")
-            
-            # تحديد الحساب والصفقات بناءً على نوع المستخدم
-            if self.user_id:
-                # استخدام حساب المستخدم من user_manager
-                from user_manager import user_manager
-                account = user_manager.get_user_account(self.user_id, market_type)
-                if not account:
-                    logger.error(f"❌ لم يتم العثور على حساب للمستخدم {self.user_id}")
-                    await self.send_message_to_user(self.user_id, f"❌ خطأ: لم يتم العثور على حساب {market_type}")
-                    return
-                user_positions = user_manager.user_positions.get(self.user_id, {})
-                logger.info(f"✅ استخدام حساب المستخدم {self.user_id} لنوع السوق {market_type}")
-            else:
-                # استخدام الحساب العام (للإشارات القديمة)
-                if market_type == 'futures':
-                    account = self.demo_account_futures
-                else:
-                    account = self.demo_account_spot
-                user_positions = self.open_positions
-                logger.info(f"✅ استخدام الحساب العام لنوع السوق {market_type}")
-            
-            # تنفيذ الصفقة بناءً على نوع السوق
-            if market_type == 'futures':
-                # صفقة فيوتشر تجريبية
-                success, result = account.open_futures_position(
-                    symbol=symbol,
-                    side=action,
-                    margin_amount=trade_amount,
-                    price=price,
-                    leverage=leverage
-                )
-                
-                if success:
-                    position_id = result
-                    position = account.positions[position_id]
-                    
-                    if isinstance(position, FuturesPosition):
-                        # 🔥 حفظ معلومات الصفقة بشكل ديناميكي وذكي
-                        position_data = {
-                            'symbol': symbol,
-                            'entry_price': price,
-                            'side': action,
-                            'account_type': market_type,
-                            'leverage': leverage,
-                            'margin_amount': trade_amount,
-                            'position_size': position.position_size,
-                            'liquidation_price': position.liquidation_price,
-                            'contracts': position.contracts,
-                            'current_price': price,
-                            'pnl_percent': 0.0,
-                            'category': 'linear'
-                        }
-                        
-                        # حفظ في user_positions المحلي
-                        user_positions[position_id] = position_data
-                        
-                        # 🔥 حفظ في open_positions للعرض في قائمة الصفقات المفتوحة
-                        if self.user_id:
-                            # حفظ في trading_bot.open_positions للمستخدم
-                            from user_manager import user_manager
-                            if self.user_id not in user_manager.user_positions:
-                                user_manager.user_positions[self.user_id] = {}
-                            user_manager.user_positions[self.user_id][position_id] = position_data
-                            logger.info(f"💾 تم حفظ الصفقة {position_id} في user_positions للمستخدم {self.user_id}")
-                        else:
-                            # حفظ في الحساب العام
-                            self.open_positions[position_id] = position_data
-                        
-                        message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
-                        if self.user_id:
-                            message += f"👤 المستخدم: {self.user_id}\n"
-                        message += f"📊 الرمز: {symbol}\n"
-                        message += f"🔄 النوع: {action.upper()}\n"
-                        message += f"💰 الهامش المحجوز: {trade_amount} USDT\n"
-                        message += f"📈 حجم الصفقة: {position.position_size:.2f}\n"
-                        message += f"💲 سعر الدخول: {price:.6f}\n"
-                        message += f"⚡ الرافعة: {leverage}x\n"
-                        message += f"⚠️ سعر التصفية: {position.liquidation_price:.6f}\n"
-                        message += f"🆔 رقم الصفقة: {position_id}\n"
-                        
-                        account_info = account.get_account_info()
-                        message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
-                        message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
-                        
-                        await self.send_message_to_admin(message)
-                else:
-                    await self.send_message_to_admin(f"❌ فشل في فتح صفقة فيوتشر: {result}")
-            
-            else:
-                # صفقة سبوت تجريبية
-                amount_to_trade = trade_amount
-                success, result = account.open_spot_position(
-                    symbol=symbol,
-                    side=action,
-                    amount=amount_to_trade,
-                    price=price
-                )
-                
-                if success:
-                    position_id = result
-                    position = account.positions[position_id]
-                    
-                    # 🔥 حفظ معلومات الصفقة بشكل ديناميكي وذكي
-                    position_data = {
-                        'symbol': symbol,
-                        'entry_price': price,
-                        'side': action,
-                        'account_type': market_type,
-                        'amount': amount_to_trade,
-                        'current_price': price,
-                        'pnl_percent': 0.0,
-                        'category': 'spot'
-                    }
-                    
-                    # حفظ في user_positions المحلي
-                    user_positions[position_id] = position_data
-                    
-                    # 🔥 حفظ في open_positions للعرض في قائمة الصفقات المفتوحة
-                    if self.user_id:
-                        # حفظ في trading_bot.open_positions للمستخدم
-                        from user_manager import user_manager
-                        if self.user_id not in user_manager.user_positions:
-                            user_manager.user_positions[self.user_id] = {}
-                        user_manager.user_positions[self.user_id][position_id] = position_data
-                        logger.info(f"💾 تم حفظ الصفقة {position_id} في user_positions للمستخدم {self.user_id}")
-                    else:
-                        # حفظ في الحساب العام
-                        self.open_positions[position_id] = position_data
-                    
-                    message = f"📊 تم فتح صفقة سبوت تجريبية\n"
-                    if self.user_id:
-                        message += f"👤 المستخدم: {self.user_id}\n"
-                    message += f"📊 الرمز: {symbol}\n"
-                    message += f"🔄 النوع: {action.upper()}\n"
-                    message += f"💰 المبلغ: {amount_to_trade} USDT\n"
-                    message += f"💲 سعر الدخول: {price:.6f}\n"
-                    message += f"🆔 رقم الصفقة: {position_id}\n"
-                    
-                    account_info = account.get_account_info()
-                    message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
-                    message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
-                    
-                    await self.send_message_to_admin(message)
-                else:
-                    await self.send_message_to_admin(f"❌ فشل في فتح صفقة سبوت: {result}")
-                    
-        except Exception as e:
-            logger.error(f"❌ خطأ في execute_demo_trade_unified: {e}")
-            import traceback
-            traceback.print_exc()
-    
     async def execute_demo_trade(self, symbol: str, action: str, price: float, category: str, market_type: str):
-        """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر - DEPRECATED - استخدم execute_trade_unified"""
+        """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر"""
         try:
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
-            logger.info(f"⚠️ استخدام execute_demo_trade القديم - يُفضل استخدام execute_trade_unified")
+            logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}, user_id={self.user_id}")
             
             # تحديد الحساب والصفقات بناءً على نوع المستخدم
             if self.user_id:
@@ -1704,7 +1311,7 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.callback_query.message.edit_text(message)
 
 async def handle_send_signal_developer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة إرسال إشارة من المطور - النظام المحسّن"""
+    """معالجة إرسال إشارة من المطور"""
     if update.effective_user is None:
         return
     
@@ -1715,233 +1322,32 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
             await update.message.reply_text("❌ ليس لديك صلاحية لإرسال إشارات")
         return
     
-    # تعيين حالة إدخال المستخدم لانتظار اسم الزوج
-    user_input_state[user_id] = "waiting_for_signal_symbol"
-    
-    # عرض نموذج إرسال الإشارة المحسّن
+    # عرض نموذج إرسال الإشارة
     message = """
 📡 إرسال إشارة للمتابعين
 
-🔹 الخطوة 1: أدخل اسم الزوج
+أرسل الإشارة بالصيغة التالية:
 
-أمثلة:
-• <code>BTCUSDT</code>
-• <code>ETHUSDT</code>
-• <code>SOLUSDT</code>
-• <code>BNBUSDT</code>
+<code>SYMBOL:ACTION:PRICE</code>
 
-💡 يمكنك إدخال أي زوج متاح على Bybit
+مثال:
+<code>BTCUSDT:BUY:50000</code>
 
-اكتب اسم الزوج الآن:
+أو استخدم الأزرار أدناه:
     """
     
     keyboard = [
-        [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.message:
-        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
-
-async def handle_signal_action_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, symbol: str):
-    """عرض خيارات الشراء والبيع للزوج المحدد"""
-    user_id = update.effective_user.id if update.effective_user else None
-    
-    if not user_id:
-        return
-    
-    message = f"""
-📡 إرسال إشارة: {symbol}
-
-🔹 الخطوة 2: اختر نوع العملية
-
-اختر ما تريد إرساله للمتابعين:
-    """
-    
-    keyboard = [
-        [InlineKeyboardButton(f"📈 شراء {symbol}", callback_data=f"signal_buy_{symbol}")],
-        [InlineKeyboardButton(f"📉 بيع {symbol}", callback_data=f"signal_sell_{symbol}")],
+        [InlineKeyboardButton("📈 BUY Bitcoin", callback_data="dev_signal_BTCUSDT_BUY")],
+        [InlineKeyboardButton("📉 SELL Bitcoin", callback_data="dev_signal_BTCUSDT_SELL")],
+        [InlineKeyboardButton("📈 BUY Ethereum", callback_data="dev_signal_ETHUSDT_BUY")],
+        [InlineKeyboardButton("📉 SELL Ethereum", callback_data="dev_signal_ETHUSDT_SELL")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.message:
-        await update.message.reply_text(message, reply_markup=reply_markup)
-
-async def handle_signal_amount_input(update: Update, context: ContextTypes.DEFAULT_TYPE, symbol: str, action: str):
-    """طلب إدخال المبلغ والرافعة المالية"""
-    user_id = update.effective_user.id if update.effective_user else None
-    
-    if not user_id:
-        return
-    
-    # تخزين بيانات الإشارة مؤقتاً
-    if user_id not in context.user_data:
-        context.user_data[user_id] = {}
-    
-    context.user_data[user_id]['signal_symbol'] = symbol
-    context.user_data[user_id]['signal_action'] = action
-    
-    # تعيين حالة إدخال المستخدم
-    user_input_state[user_id] = "waiting_for_signal_amount"
-    
-    action_text = "الشراء" if action == "buy" else "البيع"
-    
-    message = f"""
-📡 إرسال إشارة: {symbol}
-📊 العملية: {action_text}
-
-🔹 الخطوة 3: تحديد المبلغ
-
-أدخل المبلغ بالدولار (USDT) الذي سيستخدمه المتابعين:
-
-مثال:
-• <code>100</code> - للتداول بمبلغ 100 دولار
-• <code>500</code> - للتداول بمبلغ 500 دولار
-
-💡 هذا المبلغ سيُطبّق على جميع المتابعين
-
-اكتب المبلغ الآن:
-    """
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='HTML')
-    elif update.message:
         await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
-
-async def handle_signal_leverage_input(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: float):
-    """طلب إدخال الرافعة المالية"""
-    user_id = update.effective_user.id if update.effective_user else None
-    
-    if not user_id or user_id not in context.user_data:
-        return
-    
-    # تخزين المبلغ
-    context.user_data[user_id]['signal_amount'] = amount
-    
-    # تعيين حالة إدخال المستخدم
-    user_input_state[user_id] = "waiting_for_signal_leverage"
-    
-    symbol = context.user_data[user_id].get('signal_symbol', '')
-    action = context.user_data[user_id].get('signal_action', '')
-    action_text = "الشراء" if action == "buy" else "البيع"
-    
-    message = f"""
-📡 إرسال إشارة: {symbol}
-📊 العملية: {action_text}
-💰 المبلغ: {amount} USDT
-
-🔹 الخطوة 4: تحديد الرافعة المالية
-
-✍️ <b>اكتب الرافعة المالية مباشرة</b>
-📌 أو اختر من الأزرار السريعة:
-
-📝 أمثلة للكتابة:
-• اكتب <code>1</code> للتداول بدون رافعة (Spot)
-• اكتب <code>10</code> لرافعة 10x
-• اكتب <code>25</code> لرافعة 25x
-• اكتب <code>75</code> لرافعة 75x
-
-💡 نصائح:
-• الرافعة 1 مناسبة لتداول Spot
-• الرافعات من 5-20 مناسبة للمبتدئين
-• الرافعات العالية (50-100) للمحترفين فقط
-    """
-    
-    keyboard = [
-        [InlineKeyboardButton("1x", callback_data="signal_leverage_1"),
-         InlineKeyboardButton("2x", callback_data="signal_leverage_2"),
-         InlineKeyboardButton("3x", callback_data="signal_leverage_3")],
-        [InlineKeyboardButton("5x", callback_data="signal_leverage_5"),
-         InlineKeyboardButton("10x", callback_data="signal_leverage_10"),
-         InlineKeyboardButton("20x", callback_data="signal_leverage_20")],
-        [InlineKeyboardButton("50x", callback_data="signal_leverage_50"),
-         InlineKeyboardButton("75x", callback_data="signal_leverage_75"),
-         InlineKeyboardButton("100x", callback_data="signal_leverage_100")],
-        [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.message:
-        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
-
-async def confirm_and_send_signal(update: Update, context: ContextTypes.DEFAULT_TYPE, leverage: int):
-    """تأكيد وإرسال الإشارة للمتابعين"""
-    user_id = update.effective_user.id if update.effective_user else None
-    
-    if not user_id or user_id not in context.user_data:
-        return
-    
-    # جمع كل البيانات
-    symbol = context.user_data[user_id].get('signal_symbol', '')
-    action = context.user_data[user_id].get('signal_action', '')
-    amount = context.user_data[user_id].get('signal_amount', 100)
-    
-    action_text = "الشراء" if action == "buy" else "البيع"
-    
-    # الحصول على السعر الحالي
-    price = 0
-    try:
-        if trading_bot.bybit_api:
-            price = trading_bot.bybit_api.get_ticker_price(symbol, 'spot')
-            if not price or price == 0:
-                # المحاولة مع الفيوتشر
-                price = trading_bot.bybit_api.get_ticker_price(symbol, 'linear')
-        
-        # إذا فشل، استخدام API مباشرة
-        if not price or price == 0:
-            from pybit.unified_trading import HTTP
-            session = HTTP(testnet=False)
-            ticker = session.get_tickers(category="spot", symbol=symbol)
-            if ticker and ticker.get('retCode') == 0:
-                result = ticker.get('result', {}).get('list', [])
-                if result:
-                    price = float(result[0].get('lastPrice', 0))
-    except Exception as e:
-        logger.error(f"خطأ في الحصول على السعر: {e}")
-        price = 0
-    
-    # عرض رسالة التأكيد
-    confirm_message = f"""
-✅ معاينة الإشارة
-
-📊 تفاصيل الإشارة:
-━━━━━━━━━━━━━━━━━
-🔹 الزوج: {symbol}
-🔹 العملية: {action_text}
-🔹 السعر الحالي: {price}
-🔹 المبلغ: {amount} USDT
-🔹 الرافعة: {leverage}x
-
-👥 عدد المتابعين: {len(developer_manager.get_followers(user_id))}
-
-هل تريد إرسال هذه الإشارة؟
-    """
-    
-    keyboard = [
-        [InlineKeyboardButton("✅ تأكيد وإرسال", callback_data=f"confirm_signal_{symbol}_{action}_{amount}_{leverage}_{price}")],
-        [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        await update.callback_query.edit_message_text(confirm_message, reply_markup=reply_markup)
-    elif update.message:
-        await update.message.reply_text(confirm_message, reply_markup=reply_markup)
-    
-    # تنظيف الحالة
-    if user_id in user_input_state:
-        del user_input_state[user_id]
 
 async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض قائمة المتابعين"""
@@ -2059,7 +1465,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         
         # إضافة أزرار إضافية إذا كان المطور نشطاً
-        # تم إزالة زر إيقاف/تشغيل البوت من الواجهة الرئيسية
+        user_data = user_manager.get_user(user_id)
+        if user_data and user_data.get('is_active'):
+            keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
+        else:
+            keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -2143,7 +1553,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
-    # تم إزالة زر إيقاف/تشغيل البوت من الواجهة الرئيسية
+    if user_data.get('is_active'):
+        keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
+    else:
+        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -2206,93 +1619,63 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """قائمة الإعدادات لكل مستخدم - ديناميكية ومحدثة"""
+    """قائمة الإعدادات لكل مستخدم"""
     if update.effective_user is None:
         return
     
     user_id = update.effective_user.id
+    user_data = user_manager.get_user(user_id)
     
-    # 🔥 إعادة قراءة البيانات المحدثة من قاعدة البيانات
-    from database import db_manager
-    fresh_user_data = db_manager.get_user(user_id)
-    
-    # إذا لم توجد في قاعدة البيانات، جرب user_manager
-    if not fresh_user_data:
-        fresh_user_data = user_manager.get_user(user_id)
-    
-    if not fresh_user_data:
+    if not user_data:
         if update.message is not None:
             await update.message.reply_text("❌ يرجى استخدام /start أولاً")
         return
-    
-    # 🔥 الحصول على نوع السوق من البيانات المحدثة
-    market_type = fresh_user_data.get('market_type', 'spot')
-    logger.info(f"⚙️ settings_menu: user_id={user_id}, market_type={market_type}")
-    logger.info(f"📊 fresh_user_data keys: {list(fresh_user_data.keys())}")
-    logger.info(f"📊 fresh_user_data market_type: {fresh_user_data.get('market_type')}")
-    
-    # 🔥 تأكيد إضافي: قراءة مباشرة من user_settings
-    try:
-        with db_manager.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT market_type FROM user_settings WHERE user_id = ?", (user_id,))
-            result = cursor.fetchone()
-            if result:
-                db_market_type = result['market_type']
-                logger.info(f"🔍 قراءة مباشرة من DB: market_type={db_market_type}")
-                if db_market_type != market_type:
-                    logger.warning(f"⚠️ تضارب! fresh_user_data={market_type}, DB={db_market_type}")
-                    market_type = db_market_type  # استخدام القيمة من DB
-    except Exception as e:
-        logger.error(f"❌ خطأ في القراءة المباشرة: {e}")
     
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")],
+        [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
         [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
     ]
     
-    # 🔥 إضافة زر الرافعة المالية فقط إذا كان نوع السوق فيوتشر
-    if market_type == 'futures':
-        keyboard.insert(3, [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")])
-        logger.info(f"✅ تمت إضافة زر الرافعة المالية للمستخدم {user_id}")
-    
     # إضافة زر تشغيل/إيقاف البوت
-    if fresh_user_data.get('is_active'):
+    if user_data.get('is_active'):
         keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
+    keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # الحصول على معلومات حساب المستخدم
+    market_type = user_data.get('market_type', 'spot')
     account = user_manager.get_user_account(user_id, market_type)
     
     if account:
         account_info = account.get_account_info()
     else:
         account_info = {
-            'balance': fresh_user_data.get('balance', 10000.0),
-            'available_balance': fresh_user_data.get('balance', 10000.0),
+            'balance': user_data.get('balance', 10000.0),
+            'available_balance': user_data.get('balance', 10000.0),
             'margin_locked': 0,
             'unrealized_pnl': 0
         }
     
     # حالة البوت
-    bot_status = "🟢 نشط" if fresh_user_data.get('is_active') else "🔴 متوقف"
+    bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
     
     # التحقق من حالة API مع مؤشر بصري محسن
-    api_key = fresh_user_data.get('api_key')
-    api_secret = fresh_user_data.get('api_secret')
+    api_key = user_data.get('api_key')
+    api_secret = user_data.get('api_secret')
     api_status = get_api_status_indicator(api_key, api_secret)
-    account_type = fresh_user_data.get('account_type', 'demo')
-    trade_amount = fresh_user_data.get('trade_amount', 100.0)
-    leverage = fresh_user_data.get('leverage', 10)
+    account_type = user_data.get('account_type', 'demo')
+    trade_amount = user_data.get('trade_amount', 100.0)
+    leverage = user_data.get('leverage', 10)
     
-    # بناء النص حسب نوع السوق
     settings_text = f"""
 ⚙️ إعدادات البوت الحالية:
 
@@ -2301,13 +1684,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
-👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}"""
-
-    # إضافة الرافعة المالية فقط إذا كان نوع السوق فيوتشر
-    if market_type == 'futures':
-        settings_text += f"\n⚡ الرافعة المالية: {leverage}x"
-
-    settings_text += f"""
+👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}
+⚡ الرافعة المالية: {leverage}x
 
 📊 معلومات الحساب الحالي ({market_type.upper()}):
 💰 الرصيد الكلي: {account_info.get('balance', 0):.2f}
@@ -2400,30 +1778,14 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - نظام ديناميكي ذكي"""
+    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
     try:
-        # 🔥 الحصول على user_id الحالي
-        user_id = update.effective_user.id if update.effective_user else None
-        
-        # 🔥 جمع جميع الصفقات المفتوحة من مصادر متعددة
-        all_positions = {}
-        
-        if user_id:
-            # قراءة من user_manager.user_positions للمستخدم الحالي
-            from user_manager import user_manager
-            user_positions_data = user_manager.user_positions.get(user_id, {})
-            all_positions.update(user_positions_data)
-            logger.info(f"📊 صفقات المستخدم {user_id} من user_manager: {len(user_positions_data)}")
-        
-        # أيضاً قراءة من trading_bot.open_positions (للتوافق مع الكود القديم)
-        all_positions.update(trading_bot.open_positions)
-        
-        logger.info(f"📊 إجمالي الصفقات المفتوحة: {len(all_positions)}")
+        logger.info(f"عرض الصفقات المفتوحة: {len(trading_bot.open_positions)} صفقة مفتوحة")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
         
-        if not all_positions:
+        if not trading_bot.open_positions:
             message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
             if update.callback_query is not None:
                 # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
@@ -2437,9 +1799,9 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         spot_positions = {}
         futures_positions = {}
         
-        for position_id, position_info in all_positions.items():
+        for position_id, position_info in trading_bot.open_positions.items():
             market_type = position_info.get('account_type', 'spot')
-            logger.info(f"📌 الصفقة {position_id}: نوع السوق = {market_type}")
+            logger.info(f"الصفقة {position_id}: نوع السوق = {market_type}")
             if market_type == 'spot':
                 spot_positions[position_id] = position_info
             else:
@@ -2980,43 +2342,25 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # باقي الوظائف تبقى كما هي مع بعض التحديثات...
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة الأزرار المضغوطة - نظام ذكي مع تتبع كامل ومعالجة شاملة للأخطاء"""
-    try:
-        logger.info("🚀 بدء handle_callback")
+    """معالجة الأزرار المضغوطة"""
+    if update.callback_query is None:
+        return
         
-        if update.callback_query is None:
-            logger.warning("⚠️ callback_query is None")
-            return
-            
-        query = update.callback_query
-        logger.info(f"📞 query موجود: {query}")
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data is None:
+        return
         
-        if query.data is None:
-            logger.warning("⚠️ query.data is None")
-            await query.answer()
-            return
-            
-        user_id = update.effective_user.id if update.effective_user else None
-        data = query.data
-        
-        # 🔥 تسجيل ذكي لكل callback
-        logger.info(f"🎯 CALLBACK: user_id={user_id}, data={data}")
-        
-        # إرسال الرد للـ callback أولاً لتجنب timeout
-        try:
-            await query.answer()
-            logger.info("✅ query.answer() نجح")
-        except Exception as e:
-            logger.error(f"❌ خطأ في query.answer: {e}")
-            # لا نوقف التنفيذ بسبب هذا الخطأ
-        
-        # معالجة زر الربط API
-        if data == "link_api":
-            logger.info("🔗 معالجة link_api")
-            if user_id is not None:
-                user_input_state[user_id] = "waiting_for_api_key"
-            if update.callback_query is not None:
-                await update.callback_query.edit_message_text("""
+    user_id = update.effective_user.id if update.effective_user else None
+    data = query.data
+    
+    # معالجة زر الربط API
+    if data == "link_api":
+        if user_id is not None:
+            user_input_state[user_id] = "waiting_for_api_key"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("""
 🔗 ربط API - الخطوة 1
 
 أرسل API_KEY الخاص بك من Bybit
@@ -3025,21 +2369,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • عدم مشاركة المفاتيح مع أي شخص
 • إنشاء مفاتيح API محدودة الصلاحيات
 • يمكنك الحصول على المفاتيح من: https://api.bybit.com
-                """)
-        elif data == "check_api":
-            # فحص حالة API
-            if user_id is not None:
-                user_data = user_manager.get_user(user_id)
-                if user_data and user_data.get('api_key') and user_data.get('api_secret'):
-                    # عرض رسالة فحص
-                    if update.callback_query is not None:
-                        await update.callback_query.edit_message_text("🔄 جاري فحص API...")
-                    
-                    # التحقق من صحة API
-                    is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'])
-                    
-                    if is_valid:
-                        status_message = """
+            """)
+    elif data == "check_api":
+        # فحص حالة API
+        if user_id is not None:
+            user_data = user_manager.get_user(user_id)
+            if user_data and user_data.get('api_key') and user_data.get('api_secret'):
+                # عرض رسالة فحص
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text("🔄 جاري فحص API...")
+                
+                # التحقق من صحة API
+                is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'])
+                
+                if is_valid:
+                    status_message = """
 ✅ API يعمل بشكل صحيح!
 
 🟢 الاتصال: نشط
@@ -3049,8 +2393,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 يمكنك استخدام جميع ميزات البوت
                     """
-                    else:
-                        status_message = """
+                else:
+                    status_message = """
 ❌ مشكلة في API!
 
 🔴 الاتصال: فشل
@@ -3060,50 +2404,50 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 يرجى تحديث API keys
                     """
-                    
-                    keyboard = [
-                        [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
-                        [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    if update.callback_query is not None:
-                        await update.callback_query.message.edit_text(status_message, reply_markup=reply_markup)
-                else:
-                    # لا توجد API keys
-                    keyboard = [
-                        [InlineKeyboardButton("🔗 ربط API", callback_data="link_api")],
-                        [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    if update.callback_query is not None:
-                        await update.callback_query.message.edit_text("""
+                
+                keyboard = [
+                    [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
+                    [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                if update.callback_query is not None:
+                    await update.callback_query.message.edit_text(status_message, reply_markup=reply_markup)
+            else:
+                # لا توجد API keys
+                keyboard = [
+                    [InlineKeyboardButton("🔗 ربط API", callback_data="link_api")],
+                    [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                if update.callback_query is not None:
+                    await update.callback_query.message.edit_text("""
 ❌ لا توجد API keys!
 
 🔴 يجب ربط API أولاً
 🔗 اضغط على "ربط API" للبدء
 
 ⚠️ بدون API keys، البوت يعمل في الوضع التجريبي فقط
-                        """, reply_markup=reply_markup)
-        # معالجة زر تشغيل/إيقاف البوت
-        elif data == "toggle_bot":
-            if user_id is not None:
-                success = user_manager.toggle_user_active(user_id)
-                if success:
-                    user_data = user_manager.get_user(user_id)
-                    is_active = user_data.get('is_active', False)
-                    status_text = "✅ تم تشغيل البوت بنجاح" if is_active else "⏹️ تم إيقاف البوت"
-                    if update.callback_query is not None:
-                        await update.callback_query.edit_message_text(status_text)
-                    # العودة إلى قائمة الإعدادات
-                    await asyncio.sleep(1)
-                    await settings_menu(update, context)
-                else:
-                    if update.callback_query is not None:
-                        await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
-        elif data == "info":
-            info_text = """
+                    """, reply_markup=reply_markup)
+    # معالجة زر تشغيل/إيقاف البوت
+    elif data == "toggle_bot":
+        if user_id is not None:
+            success = user_manager.toggle_user_active(user_id)
+            if success:
+                user_data = user_manager.get_user(user_id)
+                is_active = user_data.get('is_active', False)
+                status_text = "✅ تم تشغيل البوت بنجاح" if is_active else "⏹️ تم إيقاف البوت"
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text(status_text)
+                # العودة إلى قائمة الإعدادات
+                await asyncio.sleep(1)
+                await settings_menu(update, context)
+            else:
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
+    elif data == "info":
+        info_text = """
 ℹ️ معلومات البوت
 
 هذا بوت تداول متعدد المستخدمين يدعم:
@@ -3118,137 +2462,37 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(info_text)
-        elif data == "main_menu":
-            # إعادة تعيين حالة إدخال المستخدم
-            if user_id is not None and user_id in user_input_state:
-                del user_input_state[user_id]
-            await start(update, context)
-        elif data == "settings":
-            # إعادة تعيين حالة إدخال المستخدم
-            if user_id is not None and user_id in user_input_state:
-                del user_input_state[user_id]
-            await settings_menu(update, context)
-    
-        # 🔥🔥🔥 معالجة أزرار نوع السوق - يجب أن تكون في الأعلى! 🔥🔥🔥
-        elif data == "market_spot":
-            # 🔥 تحديث ديناميكي ذكي لنوع السوق
-            logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
-            logger.info("📊 معالجة market_spot - تم الوصول للكود!")
-            try:
-                if user_id is not None:
-                    # تحديث في trading_bot
-                    trading_bot.user_settings['market_type'] = 'spot'
-                    logger.info(f"✓ تحديث trading_bot.user_settings")
-                    
-                    # تحديث في user_manager
-                    from user_manager import user_manager
-                    result1 = user_manager.update_user_setting(user_id, 'market_type', 'spot')
-                    logger.info(f"✓ تحديث user_manager: {result1}")
-                    
-                    # تحديث في قاعدة البيانات
-                    from database import db_manager
-                    result2 = db_manager.update_user_settings(user_id, {'market_type': 'spot'})
-                    logger.info(f"✓ تحديث database: {result2}")
-                    
-                    logger.info(f"✅ تم تغيير نوع السوق إلى SPOT للمستخدم {user_id} بنجاح")
-                    
-                    # إعادة تعيين حالة إدخال المستخدم
-                    if user_id in user_input_state:
-                        del user_input_state[user_id]
-            except Exception as e:
-            logger.error(f"❌ خطأ في تحديث نوع السوق إلى SPOT: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        # 🔥 عرض قائمة الإعدادات المحدثة
+    elif data == "main_menu":
+        # إعادة تعيين حالة إدخال المستخدم
+        if user_id is not None and user_id in user_input_state:
+            del user_input_state[user_id]
+        await start(update, context)
+    elif data == "settings":
+        # إعادة تعيين حالة إدخال المستخدم
+        if user_id is not None and user_id in user_input_state:
+            del user_input_state[user_id]
         await settings_menu(update, context)
-        
-    elif data == "market_futures":
-        # 🔥 تحديث ديناميكي ذكي لنوع السوق
-        logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى FUTURES للمستخدم {user_id}")
-        logger.info("📈 معالجة market_futures - تم الوصول للكود!")
-        try:
-            if user_id is not None:
-                # تحديث في trading_bot
-                trading_bot.user_settings['market_type'] = 'futures'
-                logger.info(f"✓ تحديث trading_bot.user_settings")
-                
-                # تحديث في user_manager
-                from user_manager import user_manager
-                result1 = user_manager.update_user_setting(user_id, 'market_type', 'futures')
-                logger.info(f"✓ تحديث user_manager: {result1}")
-                
-                # تحديث في قاعدة البيانات
-                from database import db_manager
-                result2 = db_manager.update_user_settings(user_id, {'market_type': 'futures'})
-                logger.info(f"✓ تحديث database: {result2}")
-                
-                # 🔥 تأكيد إضافي: قراءة مباشرة للتأكد من التحديث
-                try:
-                    with db_manager.get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT market_type FROM user_settings WHERE user_id = ?", (user_id,))
-                        result = cursor.fetchone()
-                        if result:
-                            actual_market_type = result['market_type']
-                            logger.info(f"🔍 تأكيد من DB: market_type={actual_market_type}")
-                        else:
-                            logger.error(f"❌ لم يتم العثور على user_settings للمستخدم {user_id}")
-                except Exception as e:
-                    logger.error(f"❌ خطأ في التأكيد: {e}")
-                
-                logger.info(f"✅ تم تغيير نوع السوق إلى FUTURES للمستخدم {user_id} بنجاح")
-                logger.info(f"🎯 الآن سيظهر زر الرافعة المالية في الإعدادات")
-                
-                # إعادة تعيين حالة إدخال المستخدم
-                if user_id in user_input_state:
-                    del user_input_state[user_id]
-        except Exception as e:
-            logger.error(f"❌ خطأ في تحديث نوع السوق إلى FUTURES: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        # 🔥 عرض قائمة الإعدادات المحدثة (سيظهر زر الرافعة المالية)
-        await settings_menu(update, context)
-    
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
     elif data == "refresh_positions":
         await open_positions(update, context)
     elif data == "set_amount":
-        logger.info("💰 معالجة set_amount")
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_trade_amount"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
     elif data == "set_market":
-        logger.info("🏪 معالجة set_market")
         # تنفيذ إعداد نوع السوق
         keyboard = [
-            [InlineKeyboardButton("📊 سبوت (Spot)", callback_data="market_spot")],
-            [InlineKeyboardButton("📈 فيوتشر (Futures)", callback_data="market_futures")],
+            [InlineKeyboardButton("-spot", callback_data="market_spot")],
+            [InlineKeyboardButton("futures", callback_data="market_futures")],
             [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        message_text = """
-🏪 اختر نوع السوق:
-
-📊 سبوت (Spot):
-• تداول مباشر بدون رافعة مالية
-• مناسب للمبتدئين
-• أكثر أماناً
-
-📈 فيوتشر (Futures):
-• تداول بالرافعة المالية
-• أرباح وخسائر أعلى
-• يتطلب خبرة
-        """
-        
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
+            await update.callback_query.edit_message_text("اختر نوع السوق:", reply_markup=reply_markup)
     elif data == "set_account":
         # تنفيذ إعداد نوع الحساب
         keyboard = [
@@ -3271,6 +2515,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = "waiting_for_demo_balance"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
+    elif data == "market_spot":
+        trading_bot.user_settings['market_type'] = 'spot'
+        # إعادة تعيين حالة إدخال المستخدم
+        if user_id is not None and user_id in user_input_state:
+            del user_input_state[user_id]
+        await settings_menu(update, context)
+    elif data == "market_futures":
+        trading_bot.user_settings['market_type'] = 'futures'
+        # إعادة تعيين حالة إدخال المستخدم
+        if user_id is not None and user_id in user_input_state:
+            del user_input_state[user_id]
+        await settings_menu(update, context)
     elif data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
         # إعادة تعيين حالة إدخال المستخدم
@@ -3295,85 +2551,46 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_show_followers(update, context)
     elif data == "dev_stats":
         await handle_developer_stats(update, context)
-    elif data.startswith("signal_buy_") or data.startswith("signal_sell_"):
-        # معالجة اختيار نوع العملية (شراء/بيع)
-        if data.startswith("signal_buy_"):
-            action = "buy"
-            symbol = data.replace("signal_buy_", "")
-        else:
-            action = "sell"
-            symbol = data.replace("signal_sell_", "")
-        
-        await handle_signal_amount_input(update, context, symbol, action)
-    
-    elif data.startswith("signal_leverage_"):
-        # معالجة اختيار الرافعة المالية
-        leverage = int(data.replace("signal_leverage_", ""))
-        await confirm_and_send_signal(update, context, leverage)
-    
-    elif data.startswith("confirm_signal_"):
-        # معالجة تأكيد وإرسال الإشارة
-        parts = data.replace("confirm_signal_", "").split("_")
-        if len(parts) >= 5 and user_id:
-            symbol = parts[0]
-            action = parts[1]
-            amount = float(parts[2])
-            leverage = int(parts[3])
-            price = float(parts[4]) if len(parts) > 4 else 0
-            
-            # إرسال الإشارة للمتابعين
-            signal_data = {
-                'symbol': symbol,
-                'action': action,
-                'price': price,
-                'amount': amount,
-                'leverage': leverage
-            }
-            
+    elif data.startswith("dev_signal_"):
+        # معالجة إرسال إشارة سريعة
+        parts = data.replace("dev_signal_", "").split("_")
+        if len(parts) == 2 and user_id:
+            symbol, action = parts
+            # الحصول على السعر الحالي
             try:
-                # حفظ الإشارة في قاعدة البيانات
-                signal_saved = db_manager.save_developer_signal(
+                price_data = trading_bot.get_current_price(symbol)
+                price = price_data.get('price', 0)
+                
+                # إرسال الإشارة
+                signal_data = {
+                    'symbol': symbol,
+                    'action': action,
+                    'price': price,
+                    'amount': 100
+                }
+                
+                result = developer_manager.broadcast_signal_to_followers(
                     developer_id=user_id,
                     signal_data=signal_data
                 )
                 
-                if signal_saved:
-                    # إرسال للمتابعين
-                    await trading_bot.broadcast_signal_to_followers(signal_data, user_id)
-                    
-                    followers_count = len(developer_manager.get_followers(user_id))
-                    action_text = "الشراء" if action == "buy" else "البيع"
-                    
+                if result['success']:
                     message = f"""
 ✅ تم إرسال الإشارة بنجاح!
 
-📊 تفاصيل الإشارة المُرسلة:
-━━━━━━━━━━━━━━━━━
-🔹 الزوج: {symbol}
-🔹 العملية: {action_text}
-🔹 السعر: {price}
-🔹 المبلغ: {amount} USDT
-🔹 الرافعة: {leverage}x
-
-👥 تم الإرسال إلى: {followers_count} متابع
-
-✨ المتابعين سيتلقون الإشارة الآن!
+📊 التفاصيل:
+• الرمز: {symbol}
+• الإجراء: {action}
+• السعر: {price}
+• عدد المستلمين: {result['follower_count']}
                     """
-                    
-                    await update.callback_query.answer("✅ تم إرسال الإشارة!")
-                    await update.callback_query.edit_message_text(message)
+                    await update.callback_query.answer("✅ تم الإرسال!")
+                    await update.callback_query.message.reply_text(message)
                 else:
-                    await update.callback_query.answer("❌ فشل في حفظ الإشارة")
-                    await update.callback_query.edit_message_text("❌ فشل في إرسال الإشارة")
+                    await update.callback_query.answer(f"❌ {result['message']}")
             except Exception as e:
                 logger.error(f"خطأ في إرسال الإشارة: {e}")
                 await update.callback_query.answer("❌ خطأ في الإرسال")
-                await update.callback_query.edit_message_text(f"❌ خطأ في إرسال الإشارة: {str(e)}")
-    
-    elif data.startswith("dev_signal_"):
-        # معالجة إرسال إشارة سريعة (النظام القديم - تم تعطيله)
-        await update.callback_query.answer("⚠️ يرجى استخدام زر 'إرسال إشارة' للنظام الجديد")
-        await show_developer_panel(update, context)
     elif data == "dev_toggle_active":
         if user_id:
             success = developer_manager.toggle_developer_active(user_id)
@@ -3484,23 +2701,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
             await update.callback_query.answer("✅ تم التحديث")
     
-        else:
-            # معالجة أي أزرار أخرى غير محددة
-            logger.warning(f"❓ زر غير مدعوم: {data}")
-            if update.callback_query is not None:
-                await update.callback_query.edit_message_text("❌ زر غير مدعوم")
-    
-    except Exception as e:
-        logger.error(f"❌ خطأ عام في handle_callback: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # محاولة إرسال رسالة خطأ للمستخدم
-        try:
-            if update.callback_query is not None:
-                await update.callback_query.edit_message_text(f"❌ حدث خطأ: {str(e)}")
-        except:
-            pass
+    else:
+        # معالجة أي أزرار أخرى غير محددة
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("❌ زر غير مدعوم")
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
@@ -3807,46 +3011,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 if update.message is not None:
                     await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
-        
-        # معالجة إدخال الزوج للإشارة
-        elif state == "waiting_for_signal_symbol":
-            symbol = text.strip().upper()
-            # التحقق من صحة الزوج
-            if len(symbol) >= 6 and symbol.isalnum():
-                # الانتقال إلى اختيار نوع العملية
-                await handle_signal_action_selection(update, context, symbol)
-                # تنظيف الحالة
-                del user_input_state[user_id]
-            else:
-                await update.message.reply_text("❌ اسم الزوج غير صحيح. مثال: BTCUSDT")
-        
-        # معالجة إدخال المبلغ للإشارة
-        elif state == "waiting_for_signal_amount":
-            try:
-                amount = float(text)
-                if amount > 0:
-                    # الانتقال إلى إدخال الرافعة المالية
-                    await handle_signal_leverage_input(update, context, amount)
-                    # تنظيف الحالة
-                    del user_input_state[user_id]
-                else:
-                    await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
-            except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
-        
-        # معالجة إدخال الرافعة المالية للإشارة
-        elif state == "waiting_for_signal_leverage":
-            try:
-                leverage = int(text)
-                if 1 <= leverage <= 100:
-                    # الانتقال إلى تأكيد الإشارة
-                    await confirm_and_send_signal(update, context, leverage)
-                    # تم تنظيف الحالة في confirm_and_send_signal
-                else:
-                    await update.message.reply_text("❌ يرجى إدخال رافعة مالية بين 1 و 100")
-            except ValueError:
-                if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
                     
         elif state == "waiting_for_demo_balance":
             try:
@@ -3886,11 +3050,14 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not railway_url.startswith('http'):
                 railway_url = f"https://{railway_url}"
             personal_webhook_url = f"{railway_url}/personal/{user_id}/webhook"
+            old_webhook_url = f"{railway_url}/webhook"
         elif render_url:
             personal_webhook_url = f"{render_url}/personal/{user_id}/webhook"
+            old_webhook_url = f"{render_url}/webhook"
         else:
             port = PORT
             personal_webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
+            old_webhook_url = f"http://localhost:{port}/webhook"
         
         message = f"""
 🔗 روابط استقبال الإشارات
@@ -3904,20 +3071,30 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
+🌐 الرابط العام (قديم):
+`{old_webhook_url}`
+
+• يستخدم الإعدادات الافتراضية
+• مشترك بين جميع المستخدمين
+
+━━━━━━━━━━━━━━━━━━━━━━
+
 📋 كيفية الاستخدام في TradingView:
 
 1️⃣ افتح استراتيجيتك في TradingView
 2️⃣ اذهب إلى Settings → Notifications
 3️⃣ أضف Webhook URL
 4️⃣ الصق رابطك الشخصي
-5️⃣ في Message، استخدم الصيغة التالية:
+5️⃣ في Message، استخدم أحد الصيغتين:
 
-📌 الصيغة المطلوبة:
+📌 الصيغة البسيطة (موصى بها):
 ```
-{{
-    "symbol": "BTCUSDT",
-    "action": "buy"
-}}
+{{"symbol": "{{"{{ticker}}"}}", "action": "{{"{{strategy.order.action}}"}}}}
+```
+
+📌 الصيغة مع السعر (اختياري):
+```
+{{"symbol": "{{"{{ticker}}"}}", "action": "{{"{{strategy.order.action}}"}}", "price": {{"{{close}}"}}}}
 ```
 
 💡 الإجراءات المدعومة:
@@ -3927,12 +3104,13 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💡 نصائح:
 • استخدم رابطك الشخصي للحصول على تجربة أفضل
+• السعر اختياري - إذا لم تحدده سيستخدم السعر الحالي
 • يمكنك نسخ الرابط بالضغط عليه
 • الرابط يعمل مع TradingView و أي منصة إشارات أخرى
 
 🔐 الأمان:
 • لا تشارك رابطك الشخصي مع أحد
-• يمكن تعطيل حسابك من الإعدادات إذا لزم الأمر في قسم روابط الاستخدام
+• يمكن تعطيل حسابك من الإعدادات إذا لزم الأمر
         """
         
         keyboard = [
