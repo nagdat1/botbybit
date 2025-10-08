@@ -3162,48 +3162,65 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
     elif data == "market_spot":
         # 🔥 تحديث ديناميكي ذكي لنوع السوق
-        logger.info(f"🏪 تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
-        if user_id is not None:
-            # تحديث في trading_bot
-            trading_bot.user_settings['market_type'] = 'spot'
-            
-            # تحديث في user_manager
-            from user_manager import user_manager
-            user_manager.update_user_setting(user_id, 'market_type', 'spot')
-            
-            # تحديث في قاعدة البيانات
-            from database import db_manager
-            db_manager.update_user_settings(user_id, {'market_type': 'spot'})
-            
-            logger.info(f"✅ تم تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
-            
-            # إعادة تعيين حالة إدخال المستخدم
-            if user_id in user_input_state:
-                del user_input_state[user_id]
+        logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
+        try:
+            if user_id is not None:
+                # تحديث في trading_bot
+                trading_bot.user_settings['market_type'] = 'spot'
+                logger.info(f"✓ تحديث trading_bot.user_settings")
+                
+                # تحديث في user_manager
+                from user_manager import user_manager
+                result1 = user_manager.update_user_setting(user_id, 'market_type', 'spot')
+                logger.info(f"✓ تحديث user_manager: {result1}")
+                
+                # تحديث في قاعدة البيانات
+                from database import db_manager
+                result2 = db_manager.update_user_settings(user_id, {'market_type': 'spot'})
+                logger.info(f"✓ تحديث database: {result2}")
+                
+                logger.info(f"✅ تم تغيير نوع السوق إلى SPOT للمستخدم {user_id} بنجاح")
+                
+                # إعادة تعيين حالة إدخال المستخدم
+                if user_id in user_input_state:
+                    del user_input_state[user_id]
+        except Exception as e:
+            logger.error(f"❌ خطأ في تحديث نوع السوق إلى SPOT: {e}")
+            import traceback
+            traceback.print_exc()
         
         # 🔥 عرض قائمة الإعدادات المحدثة
         await settings_menu(update, context)
         
     elif data == "market_futures":
         # 🔥 تحديث ديناميكي ذكي لنوع السوق
-        logger.info(f"🏪 تغيير نوع السوق إلى FUTURES للمستخدم {user_id}")
-        if user_id is not None:
-            # تحديث في trading_bot
-            trading_bot.user_settings['market_type'] = 'futures'
-            
-            # تحديث في user_manager
-            from user_manager import user_manager
-            user_manager.update_user_setting(user_id, 'market_type', 'futures')
-            
-            # تحديث في قاعدة البيانات
-            from database import db_manager
-            db_manager.update_user_settings(user_id, {'market_type': 'futures'})
-            
-            logger.info(f"✅ تم تغيير نوع السوق إلى FUTURES للمستخدم {user_id}")
-            
-            # إعادة تعيين حالة إدخال المستخدم
-            if user_id in user_input_state:
-                del user_input_state[user_id]
+        logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى FUTURES للمستخدم {user_id}")
+        try:
+            if user_id is not None:
+                # تحديث في trading_bot
+                trading_bot.user_settings['market_type'] = 'futures'
+                logger.info(f"✓ تحديث trading_bot.user_settings")
+                
+                # تحديث في user_manager
+                from user_manager import user_manager
+                result1 = user_manager.update_user_setting(user_id, 'market_type', 'futures')
+                logger.info(f"✓ تحديث user_manager: {result1}")
+                
+                # تحديث في قاعدة البيانات
+                from database import db_manager
+                result2 = db_manager.update_user_settings(user_id, {'market_type': 'futures'})
+                logger.info(f"✓ تحديث database: {result2}")
+                
+                logger.info(f"✅ تم تغيير نوع السوق إلى FUTURES للمستخدم {user_id} بنجاح")
+                logger.info(f"🎯 الآن سيظهر زر الرافعة المالية في الإعدادات")
+                
+                # إعادة تعيين حالة إدخال المستخدم
+                if user_id in user_input_state:
+                    del user_input_state[user_id]
+        except Exception as e:
+            logger.error(f"❌ خطأ في تحديث نوع السوق إلى FUTURES: {e}")
+            import traceback
+            traceback.print_exc()
         
         # 🔥 عرض قائمة الإعدادات المحدثة (سيظهر زر الرافعة المالية)
         await settings_menu(update, context)
