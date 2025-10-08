@@ -777,45 +777,65 @@ class TradingBot:
             
             for follower_id in followers:
                 try:
+                    logger.info(f"🔍 معالجة المتابع {follower_id}...")
+                    
                     # التحقق من وجود المتابع ونشاطه
                     follower_data = user_manager.get_user(follower_id)
                     if not follower_data:
-                        logger.warning(f"⚠️ المتابع {follower_id} غير موجود")
-                        failed_count += 1
-                        continue
+                        logger.warning(f"⚠️ المتابع {follower_id} غير موجود في user_manager")
+                        # محاولة التحميل من قاعدة البيانات
+                        from database import db_manager
+                        follower_data = db_manager.get_user(follower_id)
+                        if follower_data:
+                            logger.info(f"✅ تم تحميل المتابع {follower_id} من قاعدة البيانات")
+                        else:
+                            logger.error(f"❌ المتابع {follower_id} غير موجود في قاعدة البيانات أيضاً")
+                            failed_count += 1
+                            continue
+                    
+                    logger.info(f"📊 المتابع {follower_id}: is_active={follower_data.get('is_active')}, market_type={follower_data.get('market_type')}")
                     
                     if not follower_data.get('is_active', False):
-                        logger.info(f"⏸️ المتابع {follower_id} غير نشط - تم التخطي")
+                        logger.warning(f"⏸️ المتابع {follower_id} غير نشط (is_active=False) - تم التخطي")
                         failed_count += 1
                         continue
                     
                     # إنشاء TradingBot مؤقت للمتابع
+                    logger.info(f"🤖 إنشاء bot للمتابع {follower_id}...")
                     follower_bot = TradingBot()
                     follower_bot.user_id = follower_id
                     
                     # الحصول على إعدادات المتابع
                     follower_settings = user_manager.get_user_settings(follower_id)
                     if follower_settings:
+                        logger.info(f"⚙️ إعدادات المتابع {follower_id}: {follower_settings}")
                         follower_bot.user_settings = follower_settings
                         
                         # تطبيق إعدادات الإشارة (تجاوز إعدادات المستخدم إذا كانت موجودة في الإشارة)
                         if 'market_type' in signal_data:
                             follower_bot.user_settings['market_type'] = signal_data['market_type']
+                            logger.info(f"📊 تطبيق market_type من الإشارة: {signal_data['market_type']}")
                         
                         if 'leverage' in signal_data:
                             follower_bot.user_settings['leverage'] = signal_data['leverage']
+                            logger.info(f"⚡ تطبيق leverage من الإشارة: {signal_data['leverage']}")
                         
                         if 'amount' in signal_data:
                             follower_bot.user_settings['trade_amount'] = signal_data['amount']
+                            logger.info(f"💰 تطبيق trade_amount من الإشارة: {signal_data['amount']}")
+                    else:
+                        logger.warning(f"⚠️ لم يتم العثور على إعدادات للمتابع {follower_id}")
                     
                     # إضافة السعر للإشارة
                     enriched_signal = signal_data.copy()
                     enriched_signal['price'] = price
                     
+                    logger.info(f"📡 إرسال الإشارة للمتابع {follower_id}: {enriched_signal}")
+                    
                     # تنفيذ الإشارة على حساب المتابع
                     await follower_bot.process_signal(enriched_signal)
                     success_count += 1
-                    logger.info(f"✅ تم إرسال الإشارة للمتابع {follower_id} - Market: {follower_bot.user_settings.get('market_type', 'spot')}")
+                    logger.info(f"✅ تم تنفيذ الإشارة بنجاح للمتابع {follower_id} - Market: {follower_bot.user_settings.get('market_type', 'spot')}")
                     
                     # إرسال إشعار للمتابع
                     try:
@@ -2837,12 +2857,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if 'dev_signal_data' in context.user_data:
             signal_data = context.user_data['dev_signal_data']
             
-            # إرسال الإشارة للمتابعين مع فتح صفقات تلقائية
-            await trading_bot.broadcast_signal_to_followers(signal_data, user_id)
-            
-            # رسالة نجاح
+            # الحصول على قائمة المتابعين قبل الإرسال
             followers = developer_manager.get_followers(user_id)
-            success_message = f"""
+            
+            if not followers:
+                if update.callback_query:
+                    await update.callback_query.message.edit_text(
+                        "❌ لا يوجد متابعين لإرسال الإشارة إليهم\n\n"
+                        "يجب أن يكون لديك متابعين نشطين أولاً."
+                    )
+                return
+            
+            # إرسال الإشارة للمتابعين مع فتح صفقات تلقائية
+            try:
+                # استخدام trading_bot instance
+                result = await trading_bot.broadcast_signal_to_followers(signal_data, user_id)
+                
+                # رسالة نجاح مع تفاصيل النتيجة
+                success_count = result.get('sent_to', 0) if isinstance(result, dict) else 0
+                failed_count = result.get('failed', 0) if isinstance(result, dict) else 0
+                
+                success_message = f"""
 ✅ تم إرسال الإشارة بنجاح!
 
 📊 التفاصيل:
@@ -2851,18 +2886,36 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💰 المبلغ: {signal_data['amount']}
 🏪 السوق: {signal_data['market_type'].upper()}
 """
-            if signal_data['market_type'] == 'futures':
-                success_message += f"⚡ الرافعة: {signal_data['leverage']}x\n"
-            
-            success_message += f"\n👥 تم إرسالها إلى {len(followers)} متابع"
-            
-            # حذف البيانات المؤقتة
-            del context.user_data['dev_signal_data']
-            if user_id and user_id in user_input_state:
-                del user_input_state[user_id]
-            
-            if update.callback_query:
-                await update.callback_query.message.edit_text(success_message)
+                if signal_data['market_type'] == 'futures':
+                    success_message += f"⚡ الرافعة: {signal_data['leverage']}x\n"
+                
+                success_message += f"""
+📈 النتائج:
+✅ نجح: {success_count} متابع
+❌ فشل: {failed_count} متابع
+📊 الإجمالي: {len(followers)} متابع
+
+💡 تم فتح الصفقات تلقائياً على حسابات المتابعين النشطين!
+"""
+                
+                # حذف البيانات المؤقتة
+                del context.user_data['dev_signal_data']
+                if user_id and user_id in user_input_state:
+                    del user_input_state[user_id]
+                
+                if update.callback_query:
+                    await update.callback_query.message.edit_text(success_message)
+                    
+            except Exception as e:
+                logger.error(f"خطأ في إرسال الإشارة: {e}")
+                import traceback
+                traceback.print_exc()
+                
+                if update.callback_query:
+                    await update.callback_query.message.edit_text(
+                        f"❌ حدث خطأ في إرسال الإشارة:\n\n{str(e)}\n\n"
+                        "يرجى المحاولة مرة أخرى."
+                    )
     elif data.startswith("dev_signal_"):
         # معالجة إرسال إشارة سريعة
         parts = data.replace("dev_signal_", "").split("_")
