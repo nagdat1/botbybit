@@ -779,7 +779,14 @@ class TradingBot:
                     # الحصول على إعدادات المتابع
                     follower_settings = user_manager.get_user_settings(follower_id)
                     if follower_settings:
-                        follower_bot.user_settings = follower_settings
+                        follower_bot.user_settings = follower_settings.copy()
+                    
+                    # تطبيق المبلغ والرافعة من الإشارة إذا كانت موجودة
+                    if 'amount' in signal_data and signal_data['amount']:
+                        follower_bot.user_settings['trade_amount'] = float(signal_data['amount'])
+                    
+                    if 'leverage' in signal_data and signal_data['leverage']:
+                        follower_bot.user_settings['leverage'] = int(signal_data['leverage'])
                     
                     # تنفيذ الإشارة على حساب المتابع
                     await follower_bot.process_signal(signal_data.copy())
@@ -790,14 +797,22 @@ class TradingBot:
                     try:
                         from telegram import Bot
                         bot = Bot(token=TELEGRAM_TOKEN)
+                        
+                        # الحصول على إعدادات المتابع للعرض
+                        trade_amount = signal_data.get('amount', follower_settings.get('trade_amount', 100))
+                        leverage = signal_data.get('leverage', follower_settings.get('leverage', 10))
+                        price = signal_data.get('price', 0)
+                        
                         notification_message = f"""
 📡 إشارة جديدة من Nagdat!
 
 📊 الرمز: {signal_data.get('symbol', 'N/A')}
 🔄 الإجراء: {signal_data.get('action', 'N/A').upper()}
-💲 السعر: {signal_data.get('price', 'N/A')}
+💲 السعر: {price if price > 0 else 'السعر الحالي'}
+💰 المبلغ: {trade_amount} USDT
+⚡ الرافعة: {leverage}x
 
-⚡ تم تنفيذ الصفقة تلقائياً على حسابك!
+✅ تم تنفيذ الصفقة تلقائياً على حسابك!
                         """
                         await bot.send_message(
                             chat_id=follower_id,
@@ -1448,24 +1463,30 @@ async def handle_signal_leverage_input(update: Update, context: ContextTypes.DEF
 
 🔹 الخطوة 4: تحديد الرافعة المالية
 
-✍️ اكتب الرافعة المالية التي سيستخدمها المتابعين
-أو اختر من الأزرار السريعة أدناه:
+✍️ <b>اكتب الرافعة المالية مباشرة</b>
+📌 أو اختر من الأزرار السريعة:
 
-مثال:
-• <code>1</code> - بدون رافعة (للـ Spot)
-• <code>10</code> - رافعة 10x (للفيوتشر)
-• <code>20</code> - رافعة 20x (للفيوتشر)
+📝 أمثلة للكتابة:
+• اكتب <code>1</code> للتداول بدون رافعة (Spot)
+• اكتب <code>10</code> لرافعة 10x
+• اكتب <code>25</code> لرافعة 25x
+• اكتب <code>75</code> لرافعة 75x
 
-💡 الرافعة 1 مناسبة لتداول Spot
-💡 الرافعات الأعلى للفيوتشر فقط
+💡 نصائح:
+• الرافعة 1 مناسبة لتداول Spot
+• الرافعات من 5-20 مناسبة للمبتدئين
+• الرافعات العالية (50-100) للمحترفين فقط
     """
     
     keyboard = [
-        [InlineKeyboardButton("1x (Spot)", callback_data="signal_leverage_1"),
-         InlineKeyboardButton("5x", callback_data="signal_leverage_5")],
-        [InlineKeyboardButton("10x", callback_data="signal_leverage_10"),
+        [InlineKeyboardButton("1x", callback_data="signal_leverage_1"),
+         InlineKeyboardButton("2x", callback_data="signal_leverage_2"),
+         InlineKeyboardButton("3x", callback_data="signal_leverage_3")],
+        [InlineKeyboardButton("5x", callback_data="signal_leverage_5"),
+         InlineKeyboardButton("10x", callback_data="signal_leverage_10"),
          InlineKeyboardButton("20x", callback_data="signal_leverage_20")],
         [InlineKeyboardButton("50x", callback_data="signal_leverage_50"),
+         InlineKeyboardButton("75x", callback_data="signal_leverage_75"),
          InlineKeyboardButton("100x", callback_data="signal_leverage_100")],
         [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
     ]
@@ -1490,11 +1511,25 @@ async def confirm_and_send_signal(update: Update, context: ContextTypes.DEFAULT_
     action_text = "الشراء" if action == "buy" else "البيع"
     
     # الحصول على السعر الحالي
+    price = 0
     try:
-        price = trading_bot.bybit_api.get_ticker_price(symbol, 'spot')
-        if not price:
-            price = 0
-    except:
+        if trading_bot.bybit_api:
+            price = trading_bot.bybit_api.get_ticker_price(symbol, 'spot')
+            if not price or price == 0:
+                # المحاولة مع الفيوتشر
+                price = trading_bot.bybit_api.get_ticker_price(symbol, 'linear')
+        
+        # إذا فشل، استخدام API مباشرة
+        if not price or price == 0:
+            from pybit.unified_trading import HTTP
+            session = HTTP(testnet=False)
+            ticker = session.get_tickers(category="spot", symbol=symbol)
+            if ticker and ticker.get('retCode') == 0:
+                result = ticker.get('result', {}).get('list', [])
+                if result:
+                    price = float(result[0].get('lastPrice', 0))
+    except Exception as e:
+        logger.error(f"خطأ في الحصول على السعر: {e}")
         price = 0
     
     # عرض رسالة التأكيد
