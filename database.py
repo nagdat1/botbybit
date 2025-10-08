@@ -786,6 +786,34 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على عدد إشارات المطور {developer_id}: {e}")
             return 0
+    
+    def save_developer_signal(self, developer_id: int, signal_data: Dict) -> bool:
+        """حفظ إشارة من المطور في قاعدة البيانات"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # الحصول على قائمة المتابعين
+                cursor.execute("""
+                    SELECT user_id FROM developer_followers 
+                    WHERE developer_id = ?
+                """, (developer_id,))
+                
+                followers = [row['user_id'] for row in cursor.fetchall()]
+                
+                # حفظ الإشارة
+                cursor.execute("""
+                    INSERT INTO developer_signals (developer_id, signal_data, target_followers)
+                    VALUES (?, ?, ?)
+                """, (developer_id, json.dumps(signal_data), json.dumps(followers)))
+                
+                conn.commit()
+                logger.info(f"✅ تم حفظ إشارة المطور {developer_id} بنجاح")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في حفظ إشارة المطور {developer_id}: {e}")
+            return False
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

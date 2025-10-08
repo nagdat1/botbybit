@@ -1448,7 +1448,8 @@ async def handle_signal_leverage_input(update: Update, context: ContextTypes.DEF
 
 🔹 الخطوة 4: تحديد الرافعة المالية
 
-أدخل الرافعة المالية التي سيستخدمها المتابعين:
+✍️ اكتب الرافعة المالية التي سيستخدمها المتابعين
+أو اختر من الأزرار السريعة أدناه:
 
 مثال:
 • <code>1</code> - بدون رافعة (للـ Spot)
@@ -1457,15 +1458,15 @@ async def handle_signal_leverage_input(update: Update, context: ContextTypes.DEF
 
 💡 الرافعة 1 مناسبة لتداول Spot
 💡 الرافعات الأعلى للفيوتشر فقط
-
-اكتب الرافعة الآن:
     """
     
     keyboard = [
-        [InlineKeyboardButton("1x (Spot)", callback_data="signal_leverage_1")],
-        [InlineKeyboardButton("5x", callback_data="signal_leverage_5")],
-        [InlineKeyboardButton("10x", callback_data="signal_leverage_10")],
-        [InlineKeyboardButton("20x", callback_data="signal_leverage_20")],
+        [InlineKeyboardButton("1x (Spot)", callback_data="signal_leverage_1"),
+         InlineKeyboardButton("5x", callback_data="signal_leverage_5")],
+        [InlineKeyboardButton("10x", callback_data="signal_leverage_10"),
+         InlineKeyboardButton("20x", callback_data="signal_leverage_20")],
+        [InlineKeyboardButton("50x", callback_data="signal_leverage_50"),
+         InlineKeyboardButton("100x", callback_data="signal_leverage_100")],
         [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
     ]
     
