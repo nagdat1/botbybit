@@ -1311,7 +1311,7 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.callback_query.message.edit_text(message)
 
 async def handle_send_signal_developer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة إرسال إشارة من المطور"""
+    """معالجة إرسال إشارة من المطور - النظام المحسّن"""
     if update.effective_user is None:
         return
     
@@ -1322,32 +1322,212 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
             await update.message.reply_text("❌ ليس لديك صلاحية لإرسال إشارات")
         return
     
-    # عرض نموذج إرسال الإشارة
+    # تعيين حالة إدخال المستخدم لانتظار اسم الزوج
+    user_input_state[user_id] = "waiting_for_signal_symbol"
+    
+    # عرض نموذج إرسال الإشارة المحسّن
     message = """
 📡 إرسال إشارة للمتابعين
 
-أرسل الإشارة بالصيغة التالية:
+🔹 الخطوة 1: أدخل اسم الزوج
 
-<code>SYMBOL:ACTION:PRICE</code>
+أمثلة:
+• <code>BTCUSDT</code>
+• <code>ETHUSDT</code>
+• <code>SOLUSDT</code>
+• <code>BNBUSDT</code>
 
-مثال:
-<code>BTCUSDT:BUY:50000</code>
+💡 يمكنك إدخال أي زوج متاح على Bybit
 
-أو استخدم الأزرار أدناه:
+اكتب اسم الزوج الآن:
     """
     
     keyboard = [
-        [InlineKeyboardButton("📈 BUY Bitcoin", callback_data="dev_signal_BTCUSDT_BUY")],
-        [InlineKeyboardButton("📉 SELL Bitcoin", callback_data="dev_signal_BTCUSDT_SELL")],
-        [InlineKeyboardButton("📈 BUY Ethereum", callback_data="dev_signal_ETHUSDT_BUY")],
-        [InlineKeyboardButton("📉 SELL Ethereum", callback_data="dev_signal_ETHUSDT_SELL")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.message:
         await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
+
+async def handle_signal_action_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, symbol: str):
+    """عرض خيارات الشراء والبيع للزوج المحدد"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    if not user_id:
+        return
+    
+    message = f"""
+📡 إرسال إشارة: {symbol}
+
+🔹 الخطوة 2: اختر نوع العملية
+
+اختر ما تريد إرساله للمتابعين:
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton(f"📈 شراء {symbol}", callback_data=f"signal_buy_{symbol}")],
+        [InlineKeyboardButton(f"📉 بيع {symbol}", callback_data=f"signal_sell_{symbol}")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup)
+
+async def handle_signal_amount_input(update: Update, context: ContextTypes.DEFAULT_TYPE, symbol: str, action: str):
+    """طلب إدخال المبلغ والرافعة المالية"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    if not user_id:
+        return
+    
+    # تخزين بيانات الإشارة مؤقتاً
+    if user_id not in context.user_data:
+        context.user_data[user_id] = {}
+    
+    context.user_data[user_id]['signal_symbol'] = symbol
+    context.user_data[user_id]['signal_action'] = action
+    
+    # تعيين حالة إدخال المستخدم
+    user_input_state[user_id] = "waiting_for_signal_amount"
+    
+    action_text = "الشراء" if action == "buy" else "البيع"
+    
+    message = f"""
+📡 إرسال إشارة: {symbol}
+📊 العملية: {action_text}
+
+🔹 الخطوة 3: تحديد المبلغ
+
+أدخل المبلغ بالدولار (USDT) الذي سيستخدمه المتابعين:
+
+مثال:
+• <code>100</code> - للتداول بمبلغ 100 دولار
+• <code>500</code> - للتداول بمبلغ 500 دولار
+
+💡 هذا المبلغ سيُطبّق على جميع المتابعين
+
+اكتب المبلغ الآن:
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='HTML')
+    elif update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
+
+async def handle_signal_leverage_input(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: float):
+    """طلب إدخال الرافعة المالية"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    if not user_id or user_id not in context.user_data:
+        return
+    
+    # تخزين المبلغ
+    context.user_data[user_id]['signal_amount'] = amount
+    
+    # تعيين حالة إدخال المستخدم
+    user_input_state[user_id] = "waiting_for_signal_leverage"
+    
+    symbol = context.user_data[user_id].get('signal_symbol', '')
+    action = context.user_data[user_id].get('signal_action', '')
+    action_text = "الشراء" if action == "buy" else "البيع"
+    
+    message = f"""
+📡 إرسال إشارة: {symbol}
+📊 العملية: {action_text}
+💰 المبلغ: {amount} USDT
+
+🔹 الخطوة 4: تحديد الرافعة المالية
+
+أدخل الرافعة المالية التي سيستخدمها المتابعين:
+
+مثال:
+• <code>1</code> - بدون رافعة (للـ Spot)
+• <code>10</code> - رافعة 10x (للفيوتشر)
+• <code>20</code> - رافعة 20x (للفيوتشر)
+
+💡 الرافعة 1 مناسبة لتداول Spot
+💡 الرافعات الأعلى للفيوتشر فقط
+
+اكتب الرافعة الآن:
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("1x (Spot)", callback_data="signal_leverage_1")],
+        [InlineKeyboardButton("5x", callback_data="signal_leverage_5")],
+        [InlineKeyboardButton("10x", callback_data="signal_leverage_10")],
+        [InlineKeyboardButton("20x", callback_data="signal_leverage_20")],
+        [InlineKeyboardButton("🔙 إلغاء", callback_data="developer_panel")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
+
+async def confirm_and_send_signal(update: Update, context: ContextTypes.DEFAULT_TYPE, leverage: int):
+    """تأكيد وإرسال الإشارة للمتابعين"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    if not user_id or user_id not in context.user_data:
+        return
+    
+    # جمع كل البيانات
+    symbol = context.user_data[user_id].get('signal_symbol', '')
+    action = context.user_data[user_id].get('signal_action', '')
+    amount = context.user_data[user_id].get('signal_amount', 100)
+    
+    action_text = "الشراء" if action == "buy" else "البيع"
+    
+    # الحصول على السعر الحالي
+    try:
+        price = trading_bot.bybit_api.get_ticker_price(symbol, 'spot')
+        if not price:
+            price = 0
+    except:
+        price = 0
+    
+    # عرض رسالة التأكيد
+    confirm_message = f"""
+✅ معاينة الإشارة
+
+📊 تفاصيل الإشارة:
+━━━━━━━━━━━━━━━━━
+🔹 الزوج: {symbol}
+🔹 العملية: {action_text}
+🔹 السعر الحالي: {price}
+🔹 المبلغ: {amount} USDT
+🔹 الرافعة: {leverage}x
+
+👥 عدد المتابعين: {len(developer_manager.get_followers(user_id))}
+
+هل تريد إرسال هذه الإشارة؟
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ تأكيد وإرسال", callback_data=f"confirm_signal_{symbol}_{action}_{amount}_{leverage}_{price}")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(confirm_message, reply_markup=reply_markup)
+    elif update.message:
+        await update.message.reply_text(confirm_message, reply_markup=reply_markup)
+    
+    # تنظيف الحالة
+    if user_id in user_input_state:
+        del user_input_state[user_id]
 
 async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض قائمة المتابعين"""
@@ -1465,11 +1645,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         
         # إضافة أزرار إضافية إذا كان المطور نشطاً
-        user_data = user_manager.get_user(user_id)
-        if user_data and user_data.get('is_active'):
-            keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
-        else:
-            keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
+        # تم إزالة زر إيقاف/تشغيل البوت من الواجهة الرئيسية
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
@@ -1553,10 +1729,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
-    if user_data.get('is_active'):
-        keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
-    else:
-        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
+    # تم إزالة زر إيقاف/تشغيل البوت من الواجهة الرئيسية
     
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -1635,19 +1808,20 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")],
-        [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
         [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
     ]
+    
+    # إضافة زر الرافعة المالية فقط إذا كان نوع السوق فيوتشر
+    if market_type == 'futures':
+        keyboard.insert(3, [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")])
     
     # إضافة زر تشغيل/إيقاف البوت
     if user_data.get('is_active'):
         keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
-    
-    keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -1676,6 +1850,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     trade_amount = user_data.get('trade_amount', 100.0)
     leverage = user_data.get('leverage', 10)
     
+    # بناء النص حسب نوع السوق
     settings_text = f"""
 ⚙️ إعدادات البوت الحالية:
 
@@ -1684,8 +1859,13 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
-👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}
-⚡ الرافعة المالية: {leverage}x
+👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}"""
+
+    # إضافة الرافعة المالية فقط إذا كان نوع السوق فيوتشر
+    if market_type == 'futures':
+        settings_text += f"\n⚡ الرافعة المالية: {leverage}x"
+
+    settings_text += f"""
 
 📊 معلومات الحساب الحالي ({market_type.upper()}):
 💰 الرصيد الكلي: {account_info.get('balance', 0):.2f}
@@ -2551,46 +2731,85 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_show_followers(update, context)
     elif data == "dev_stats":
         await handle_developer_stats(update, context)
-    elif data.startswith("dev_signal_"):
-        # معالجة إرسال إشارة سريعة
-        parts = data.replace("dev_signal_", "").split("_")
-        if len(parts) == 2 and user_id:
-            symbol, action = parts
-            # الحصول على السعر الحالي
+    elif data.startswith("signal_buy_") or data.startswith("signal_sell_"):
+        # معالجة اختيار نوع العملية (شراء/بيع)
+        if data.startswith("signal_buy_"):
+            action = "buy"
+            symbol = data.replace("signal_buy_", "")
+        else:
+            action = "sell"
+            symbol = data.replace("signal_sell_", "")
+        
+        await handle_signal_amount_input(update, context, symbol, action)
+    
+    elif data.startswith("signal_leverage_"):
+        # معالجة اختيار الرافعة المالية
+        leverage = int(data.replace("signal_leverage_", ""))
+        await confirm_and_send_signal(update, context, leverage)
+    
+    elif data.startswith("confirm_signal_"):
+        # معالجة تأكيد وإرسال الإشارة
+        parts = data.replace("confirm_signal_", "").split("_")
+        if len(parts) >= 5 and user_id:
+            symbol = parts[0]
+            action = parts[1]
+            amount = float(parts[2])
+            leverage = int(parts[3])
+            price = float(parts[4]) if len(parts) > 4 else 0
+            
+            # إرسال الإشارة للمتابعين
+            signal_data = {
+                'symbol': symbol,
+                'action': action,
+                'price': price,
+                'amount': amount,
+                'leverage': leverage
+            }
+            
             try:
-                price_data = trading_bot.get_current_price(symbol)
-                price = price_data.get('price', 0)
-                
-                # إرسال الإشارة
-                signal_data = {
-                    'symbol': symbol,
-                    'action': action,
-                    'price': price,
-                    'amount': 100
-                }
-                
-                result = developer_manager.broadcast_signal_to_followers(
+                # حفظ الإشارة في قاعدة البيانات
+                signal_saved = db_manager.save_developer_signal(
                     developer_id=user_id,
                     signal_data=signal_data
                 )
                 
-                if result['success']:
+                if signal_saved:
+                    # إرسال للمتابعين
+                    await trading_bot.broadcast_signal_to_followers(signal_data, user_id)
+                    
+                    followers_count = len(developer_manager.get_followers(user_id))
+                    action_text = "الشراء" if action == "buy" else "البيع"
+                    
                     message = f"""
 ✅ تم إرسال الإشارة بنجاح!
 
-📊 التفاصيل:
-• الرمز: {symbol}
-• الإجراء: {action}
-• السعر: {price}
-• عدد المستلمين: {result['follower_count']}
+📊 تفاصيل الإشارة المُرسلة:
+━━━━━━━━━━━━━━━━━
+🔹 الزوج: {symbol}
+🔹 العملية: {action_text}
+🔹 السعر: {price}
+🔹 المبلغ: {amount} USDT
+🔹 الرافعة: {leverage}x
+
+👥 تم الإرسال إلى: {followers_count} متابع
+
+✨ المتابعين سيتلقون الإشارة الآن!
                     """
-                    await update.callback_query.answer("✅ تم الإرسال!")
-                    await update.callback_query.message.reply_text(message)
+                    
+                    await update.callback_query.answer("✅ تم إرسال الإشارة!")
+                    await update.callback_query.edit_message_text(message)
                 else:
-                    await update.callback_query.answer(f"❌ {result['message']}")
+                    await update.callback_query.answer("❌ فشل في حفظ الإشارة")
+                    await update.callback_query.edit_message_text("❌ فشل في إرسال الإشارة")
             except Exception as e:
                 logger.error(f"خطأ في إرسال الإشارة: {e}")
                 await update.callback_query.answer("❌ خطأ في الإرسال")
+                await update.callback_query.edit_message_text(f"❌ خطأ في إرسال الإشارة: {str(e)}")
+    
+    elif data.startswith("dev_signal_"):
+        # معالجة إرسال إشارة سريعة (النظام القديم - تم تعطيله)
+        await update.callback_query.answer("⚠️ يرجى استخدام زر 'إرسال إشارة' للنظام الجديد")
+        await show_developer_panel(update, context)
     elif data == "dev_toggle_active":
         if user_id:
             success = developer_manager.toggle_developer_active(user_id)
@@ -3008,6 +3227,43 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال قيمة بين 1 و 100")
+        
+        # معالجة إدخال الزوج للإشارة
+        elif state == "waiting_for_signal_symbol":
+            symbol = text.strip().upper()
+            # التحقق من صحة الزوج
+            if len(symbol) >= 6 and symbol.isalnum():
+                # الانتقال إلى اختيار نوع العملية
+                await handle_signal_action_selection(update, context, symbol)
+                # تنظيف الحالة
+                del user_input_state[user_id]
+            else:
+                await update.message.reply_text("❌ اسم الزوج غير صحيح. مثال: BTCUSDT")
+        
+        # معالجة إدخال المبلغ للإشارة
+        elif state == "waiting_for_signal_amount":
+            try:
+                amount = float(text)
+                if amount > 0:
+                    # الانتقال إلى إدخال الرافعة المالية
+                    await handle_signal_leverage_input(update, context, amount)
+                    # تنظيف الحالة
+                    del user_input_state[user_id]
+                else:
+                    await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال الرافعة المالية للإشارة
+        elif state == "waiting_for_signal_leverage":
+            try:
+                leverage = int(text)
+                if 1 <= leverage <= 100:
+                    # الانتقال إلى تأكيد الإشارة
+                    await confirm_and_send_signal(update, context, leverage)
+                    # تم تنظيف الحالة في confirm_and_send_signal
+                else:
+                    await update.message.reply_text("❌ يرجى إدخال رافعة مالية بين 1 و 100")
             except ValueError:
                 if update.message is not None:
                     await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
