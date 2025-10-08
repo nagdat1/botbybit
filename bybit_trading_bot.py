@@ -1646,8 +1646,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
-    keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # الحصول على معلومات حساب المستخدم
