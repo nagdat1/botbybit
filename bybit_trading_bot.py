@@ -2584,8 +2584,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📌 الصيغة المطلوبة:
 ```
 {{
-    "symbol": "{{ticker}}",
-    "action": "{{strategy.order.action}}"
+    "symbol": "BTCUSDT",
+    "action": "buy"
 }}
 ```
 
