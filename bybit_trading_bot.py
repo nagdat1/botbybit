@@ -1242,8 +1242,8 @@ class TradingBot:
                     position = account.positions[position_id]
                     
                     if isinstance(position, FuturesPosition):
-                        # حفظ معلومات الصفقة
-                        user_positions[position_id] = {
+                        # 🔥 حفظ معلومات الصفقة بشكل ديناميكي وذكي
+                        position_data = {
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -1254,8 +1254,24 @@ class TradingBot:
                             'liquidation_price': position.liquidation_price,
                             'contracts': position.contracts,
                             'current_price': price,
-                            'pnl_percent': 0.0
+                            'pnl_percent': 0.0,
+                            'category': 'linear'
                         }
+                        
+                        # حفظ في user_positions المحلي
+                        user_positions[position_id] = position_data
+                        
+                        # 🔥 حفظ في open_positions للعرض في قائمة الصفقات المفتوحة
+                        if self.user_id:
+                            # حفظ في trading_bot.open_positions للمستخدم
+                            from user_manager import user_manager
+                            if self.user_id not in user_manager.user_positions:
+                                user_manager.user_positions[self.user_id] = {}
+                            user_manager.user_positions[self.user_id][position_id] = position_data
+                            logger.info(f"💾 تم حفظ الصفقة {position_id} في user_positions للمستخدم {self.user_id}")
+                        else:
+                            # حفظ في الحساب العام
+                            self.open_positions[position_id] = position_data
                         
                         message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
                         if self.user_id:
@@ -1291,16 +1307,32 @@ class TradingBot:
                     position_id = result
                     position = account.positions[position_id]
                     
-                    # حفظ معلومات الصفقة
-                    user_positions[position_id] = {
+                    # 🔥 حفظ معلومات الصفقة بشكل ديناميكي وذكي
+                    position_data = {
                         'symbol': symbol,
                         'entry_price': price,
                         'side': action,
                         'account_type': market_type,
                         'amount': amount_to_trade,
                         'current_price': price,
-                        'pnl_percent': 0.0
+                        'pnl_percent': 0.0,
+                        'category': 'spot'
                     }
+                    
+                    # حفظ في user_positions المحلي
+                    user_positions[position_id] = position_data
+                    
+                    # 🔥 حفظ في open_positions للعرض في قائمة الصفقات المفتوحة
+                    if self.user_id:
+                        # حفظ في trading_bot.open_positions للمستخدم
+                        from user_manager import user_manager
+                        if self.user_id not in user_manager.user_positions:
+                            user_manager.user_positions[self.user_id] = {}
+                        user_manager.user_positions[self.user_id][position_id] = position_data
+                        logger.info(f"💾 تم حفظ الصفقة {position_id} في user_positions للمستخدم {self.user_id}")
+                    else:
+                        # حفظ في الحساب العام
+                        self.open_positions[position_id] = position_data
                     
                     message = f"📊 تم فتح صفقة سبوت تجريبية\n"
                     if self.user_id:
@@ -2342,14 +2374,30 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
+    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - نظام ديناميكي ذكي"""
     try:
-        logger.info(f"عرض الصفقات المفتوحة: {len(trading_bot.open_positions)} صفقة مفتوحة")
+        # 🔥 الحصول على user_id الحالي
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # 🔥 جمع جميع الصفقات المفتوحة من مصادر متعددة
+        all_positions = {}
+        
+        if user_id:
+            # قراءة من user_manager.user_positions للمستخدم الحالي
+            from user_manager import user_manager
+            user_positions_data = user_manager.user_positions.get(user_id, {})
+            all_positions.update(user_positions_data)
+            logger.info(f"📊 صفقات المستخدم {user_id} من user_manager: {len(user_positions_data)}")
+        
+        # أيضاً قراءة من trading_bot.open_positions (للتوافق مع الكود القديم)
+        all_positions.update(trading_bot.open_positions)
+        
+        logger.info(f"📊 إجمالي الصفقات المفتوحة: {len(all_positions)}")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
         
-        if not trading_bot.open_positions:
+        if not all_positions:
             message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
             if update.callback_query is not None:
                 # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
@@ -2363,9 +2411,9 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         spot_positions = {}
         futures_positions = {}
         
-        for position_id, position_info in trading_bot.open_positions.items():
+        for position_id, position_info in all_positions.items():
             market_type = position_info.get('account_type', 'spot')
-            logger.info(f"الصفقة {position_id}: نوع السوق = {market_type}")
+            logger.info(f"📌 الصفقة {position_id}: نوع السوق = {market_type}")
             if market_type == 'spot':
                 spot_positions[position_id] = position_info
             else:
@@ -3080,16 +3128,47 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
     elif data == "market_spot":
-        trading_bot.user_settings['market_type'] = 'spot'
-        # إعادة تعيين حالة إدخال المستخدم
-        if user_id is not None and user_id in user_input_state:
-            del user_input_state[user_id]
+        # 🔥 تحديث ديناميكي ذكي لنوع السوق
+        if user_id is not None:
+            # تحديث في trading_bot
+            trading_bot.user_settings['market_type'] = 'spot'
+            
+            # تحديث في user_manager
+            from user_manager import user_manager
+            user_manager.update_user_setting(user_id, 'market_type', 'spot')
+            
+            # تحديث في قاعدة البيانات
+            from database import db_manager
+            db_manager.update_user_settings(user_id, {'market_type': 'spot'})
+            
+            logger.info(f"✅ تم تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
+            
+            # إعادة تعيين حالة إدخال المستخدم
+            if user_id in user_input_state:
+                del user_input_state[user_id]
+        
         await settings_menu(update, context)
+        
     elif data == "market_futures":
-        trading_bot.user_settings['market_type'] = 'futures'
-        # إعادة تعيين حالة إدخال المستخدم
-        if user_id is not None and user_id in user_input_state:
-            del user_input_state[user_id]
+        # 🔥 تحديث ديناميكي ذكي لنوع السوق
+        if user_id is not None:
+            # تحديث في trading_bot
+            trading_bot.user_settings['market_type'] = 'futures'
+            
+            # تحديث في user_manager
+            from user_manager import user_manager
+            user_manager.update_user_setting(user_id, 'market_type', 'futures')
+            
+            # تحديث في قاعدة البيانات
+            from database import db_manager
+            db_manager.update_user_settings(user_id, {'market_type': 'futures'})
+            
+            logger.info(f"✅ تم تغيير نوع السوق إلى FUTURES للمستخدم {user_id}")
+            
+            # إعادة تعيين حالة إدخال المستخدم
+            if user_id in user_input_state:
+                del user_input_state[user_id]
+        
         await settings_menu(update, context)
     elif data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
