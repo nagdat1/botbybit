@@ -2206,20 +2206,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """قائمة الإعدادات لكل مستخدم"""
+    """قائمة الإعدادات لكل مستخدم - ديناميكية ومحدثة"""
     if update.effective_user is None:
         return
     
     user_id = update.effective_user.id
-    user_data = user_manager.get_user(user_id)
     
-    if not user_data:
+    # 🔥 إعادة قراءة البيانات المحدثة من قاعدة البيانات
+    from database import db_manager
+    fresh_user_data = db_manager.get_user(user_id)
+    
+    # إذا لم توجد في قاعدة البيانات، جرب user_manager
+    if not fresh_user_data:
+        fresh_user_data = user_manager.get_user(user_id)
+    
+    if not fresh_user_data:
         if update.message is not None:
             await update.message.reply_text("❌ يرجى استخدام /start أولاً")
         return
     
-    # الحصول على نوع السوق أولاً
-    market_type = user_data.get('market_type', 'spot')
+    # 🔥 الحصول على نوع السوق من البيانات المحدثة
+    market_type = fresh_user_data.get('market_type', 'spot')
+    logger.info(f"⚙️ settings_menu: user_id={user_id}, market_type={market_type}")
     
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
@@ -2230,12 +2238,13 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
     ]
     
-    # إضافة زر الرافعة المالية فقط إذا كان نوع السوق فيوتشر
+    # 🔥 إضافة زر الرافعة المالية فقط إذا كان نوع السوق فيوتشر
     if market_type == 'futures':
         keyboard.insert(3, [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")])
+        logger.info(f"✅ تمت إضافة زر الرافعة المالية للمستخدم {user_id}")
     
     # إضافة زر تشغيل/إيقاف البوت
-    if user_data.get('is_active'):
+    if fresh_user_data.get('is_active'):
         keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
@@ -2249,22 +2258,22 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         account_info = account.get_account_info()
     else:
         account_info = {
-            'balance': user_data.get('balance', 10000.0),
-            'available_balance': user_data.get('balance', 10000.0),
+            'balance': fresh_user_data.get('balance', 10000.0),
+            'available_balance': fresh_user_data.get('balance', 10000.0),
             'margin_locked': 0,
             'unrealized_pnl': 0
         }
     
     # حالة البوت
-    bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
+    bot_status = "🟢 نشط" if fresh_user_data.get('is_active') else "🔴 متوقف"
     
     # التحقق من حالة API مع مؤشر بصري محسن
-    api_key = user_data.get('api_key')
-    api_secret = user_data.get('api_secret')
+    api_key = fresh_user_data.get('api_key')
+    api_secret = fresh_user_data.get('api_secret')
     api_status = get_api_status_indicator(api_key, api_secret)
-    account_type = user_data.get('account_type', 'demo')
-    trade_amount = user_data.get('trade_amount', 100.0)
-    leverage = user_data.get('leverage', 10)
+    account_type = fresh_user_data.get('account_type', 'demo')
+    trade_amount = fresh_user_data.get('trade_amount', 100.0)
+    leverage = fresh_user_data.get('leverage', 10)
     
     # بناء النص حسب نوع السوق
     settings_text = f"""
