@@ -1548,6 +1548,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
+    # إضافة زر الرجوع لحساب المطور (للمستخدمين العاديين فقط)
+    if user_id != ADMIN_USER_ID:
+        keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
+    
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
     if user_data.get('is_active'):
         keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
@@ -1644,6 +1648,10 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("⚡ متابع لـ Nagdat ✅", callback_data="unfollow_nagdat")])
     else:
         keyboard.append([InlineKeyboardButton("⚡ متابعة Nagdat", callback_data="follow_nagdat")])
+    
+    # إضافة زر الرجوع لحساب المطور (للمستخدمين العاديين فقط)
+    if user_id != ADMIN_USER_ID:
+        keyboard.append([InlineKeyboardButton("🔙 الرجوع لحساب المطور", callback_data="developer_panel")])
     
     # إضافة زر تشغيل/إيقاف البوت
     if user_data.get('is_active'):
