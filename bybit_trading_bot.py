@@ -1549,8 +1549,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
     # إضافة زر الرجوع لحساب المطور (للمستخدمين العاديين فقط)
-    if user_id != ADMIN_USER_ID:
-        keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
+    # يظهر للجميع عدا عندما يكون المطور في وضع المطور
+    keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
     if user_data.get('is_active'):
@@ -1650,8 +1650,8 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("⚡ متابعة Nagdat", callback_data="follow_nagdat")])
     
     # إضافة زر الرجوع لحساب المطور (للمستخدمين العاديين فقط)
-    if user_id != ADMIN_USER_ID:
-        keyboard.append([InlineKeyboardButton("🔙 الرجوع لحساب المطور", callback_data="developer_panel")])
+    # يظهر للجميع عدا عندما يكون المطور في وضع المطور
+    keyboard.append([InlineKeyboardButton("🔙 الرجوع لحساب المطور", callback_data="developer_panel")])
     
     # إضافة زر تشغيل/إيقاف البوت
     if user_data.get('is_active'):
@@ -3026,7 +3026,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         elif text == "🔙 الرجوع لحساب المطور":
             # التحقق من أن المستخدم مطور قبل الرجوع لوضع المطور
-            if developer_manager.is_developer(user_id):
+            if developer_manager.is_developer(user_id) or user_id == ADMIN_USER_ID:
                 await show_developer_panel(update, context)
             else:
                 await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
