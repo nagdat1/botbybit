@@ -3118,44 +3118,44 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(info_text)
-        elif data == "main_menu":
-            # إعادة تعيين حالة إدخال المستخدم
-            if user_id is not None and user_id in user_input_state:
-                del user_input_state[user_id]
-            await start(update, context)
-        elif data == "settings":
-            # إعادة تعيين حالة إدخال المستخدم
-            if user_id is not None and user_id in user_input_state:
-                del user_input_state[user_id]
-            await settings_menu(update, context)
+    elif data == "main_menu":
+        # إعادة تعيين حالة إدخال المستخدم
+        if user_id is not None and user_id in user_input_state:
+            del user_input_state[user_id]
+        await start(update, context)
+    elif data == "settings":
+        # إعادة تعيين حالة إدخال المستخدم
+        if user_id is not None and user_id in user_input_state:
+            del user_input_state[user_id]
+        await settings_menu(update, context)
     
-        # 🔥🔥🔥 معالجة أزرار نوع السوق - يجب أن تكون في الأعلى! 🔥🔥🔥
-        elif data == "market_spot":
-            # 🔥 تحديث ديناميكي ذكي لنوع السوق
-            logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
-            logger.info("📊 معالجة market_spot - تم الوصول للكود!")
-            try:
-                if user_id is not None:
-                    # تحديث في trading_bot
-                    trading_bot.user_settings['market_type'] = 'spot'
-                    logger.info(f"✓ تحديث trading_bot.user_settings")
-                    
-                    # تحديث في user_manager
-                    from user_manager import user_manager
-                    result1 = user_manager.update_user_setting(user_id, 'market_type', 'spot')
-                    logger.info(f"✓ تحديث user_manager: {result1}")
-                    
-                    # تحديث في قاعدة البيانات
-                    from database import db_manager
-                    result2 = db_manager.update_user_settings(user_id, {'market_type': 'spot'})
-                    logger.info(f"✓ تحديث database: {result2}")
-                    
-                    logger.info(f"✅ تم تغيير نوع السوق إلى SPOT للمستخدم {user_id} بنجاح")
-                    
-                    # إعادة تعيين حالة إدخال المستخدم
-                    if user_id in user_input_state:
-                        del user_input_state[user_id]
-            except Exception as e:
+    # 🔥🔥🔥 معالجة أزرار نوع السوق - يجب أن تكون في الأعلى! 🔥🔥🔥
+    elif data == "market_spot":
+        # 🔥 تحديث ديناميكي ذكي لنوع السوق
+        logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
+        logger.info("📊 معالجة market_spot - تم الوصول للكود!")
+        try:
+            if user_id is not None:
+                # تحديث في trading_bot
+                trading_bot.user_settings['market_type'] = 'spot'
+                logger.info(f"✓ تحديث trading_bot.user_settings")
+                
+                # تحديث في user_manager
+                from user_manager import user_manager
+                result1 = user_manager.update_user_setting(user_id, 'market_type', 'spot')
+                logger.info(f"✓ تحديث user_manager: {result1}")
+                
+                # تحديث في قاعدة البيانات
+                from database import db_manager
+                result2 = db_manager.update_user_settings(user_id, {'market_type': 'spot'})
+                logger.info(f"✓ تحديث database: {result2}")
+                
+                logger.info(f"✅ تم تغيير نوع السوق إلى SPOT للمستخدم {user_id} بنجاح")
+                
+                # إعادة تعيين حالة إدخال المستخدم
+                if user_id in user_input_state:
+                    del user_input_state[user_id]
+        except Exception as e:
             logger.error(f"❌ خطأ في تحديث نوع السوق إلى SPOT: {e}")
             import traceback
             traceback.print_exc()
