@@ -1616,6 +1616,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message is not None:
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
+async def safe_settings_menu_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تحديث آمن لقائمة الإعدادات مع تجنب تراكم الرسائل"""
+    try:
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("🔄 جاري تحديث الإعدادات...")
+        await safe_settings_menu_update(update, context)
+    except Exception as e:
+        logger.warning(f"خطأ في تحديث الإعدادات: {e}")
+        if update.callback_query is not None:
+            try:
+                await update.callback_query.message.delete()
+            except:
+                pass
+            await update.callback_query.message.reply_text("⚠️ تم تحديث الإعدادات")
+        await safe_settings_menu_update(update, context)
+
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة الإعدادات لكل مستخدم"""
     if update.effective_user is None:
@@ -1646,7 +1662,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
-    keyboard.append([InlineKeyboardButton("🔙 العودة", callback_data="main_menu")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -1694,7 +1709,17 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     if update.callback_query is not None:
-        await update.callback_query.edit_message_text(settings_text, reply_markup=reply_markup)
+        try:
+            # محاولة تحديث الرسالة الموجودة
+            await update.callback_query.edit_message_text(settings_text, reply_markup=reply_markup)
+        except Exception as e:
+            # إذا فشل التحديث، حذف الرسالة القديمة وإرسال جديدة
+            logger.warning(f"فشل في تحديث رسالة الإعدادات: {e}")
+            try:
+                await update.callback_query.message.delete()
+            except:
+                pass
+            await update.callback_query.message.reply_text(settings_text, reply_markup=reply_markup)
     elif update.message is not None:
         await update.message.reply_text(settings_text, reply_markup=reply_markup)
 
@@ -2441,7 +2466,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.edit_message_text(status_text)
                 # العودة إلى قائمة الإعدادات
                 await asyncio.sleep(1)
-                await settings_menu(update, context)
+                await safe_settings_menu_update(update, context)
             else:
                 if update.callback_query is not None:
                     await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
@@ -2470,7 +2495,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await settings_menu(update, context)
+        await safe_settings_menu_update(update, context)
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
@@ -2519,30 +2544,41 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await settings_menu(update, context)
+        await safe_settings_menu_update(update, context)
     elif data == "market_futures":
         trading_bot.user_settings['market_type'] = 'futures'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await settings_menu(update, context)
+        await safe_settings_menu_update(update, context)
     elif data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await settings_menu(update, context)
+        await safe_settings_menu_update(update, context)
     elif data == "account_demo":
         trading_bot.user_settings['account_type'] = 'demo'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await settings_menu(update, context)
+        await safe_settings_menu_update(update, context)
     elif data == "back_to_settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
-        await settings_menu(update, context)
+        
+        # التأكد من تحديث الرسالة بدلاً من إنشاء رسالة جديدة
+        if update.callback_query is not None:
+            try:
+                await safe_settings_menu_update(update, context)
+            except Exception as e:
+                # إذا فشل التحديث، أرسل رسالة جديدة
+                logger.error(f"خطأ في تحديث رسالة الإعدادات: {e}")
+                await update.callback_query.message.reply_text("⚠️ تم تحديث الإعدادات", reply_markup=InlineKeyboardMarkup([[]]))
+                await safe_settings_menu_update(update, context)
+        else:
+            await safe_settings_menu_update(update, context)
     elif data == "webhook_url":
         # عرض رابط الإشارات الشخصي للمستخدم
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
@@ -3055,7 +3091,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث مبلغ التداول إلى: {amount}")
-                        await settings_menu(update, context)
+                        await safe_settings_menu_update(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -3072,7 +3108,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث الرافعة المالية إلى: {leverage}x")
-                        await settings_menu(update, context)
+                        await safe_settings_menu_update(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال قيمة بين 1 و 100")
@@ -3093,7 +3129,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث رصيد الحساب التجريبي إلى: {balance}")
-                        await settings_menu(update, context)
+                        await safe_settings_menu_update(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال رصيد غير سالب")
@@ -3106,7 +3142,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 del user_input_state[user_id]
     
     elif text == "⚙️ الإعدادات":
-        await settings_menu(update, context)
+        await safe_settings_menu_update(update, context)
     elif text == "📊 حالة الحساب":
         await account_status(update, context)
     elif text == "🔄 الصفقات المفتوحة" or "الصفقات المفتوحة" in text or "🔄" in text:
