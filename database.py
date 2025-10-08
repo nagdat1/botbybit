@@ -275,33 +275,52 @@ class DatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # تحديث إعدادات التداول
-                cursor.execute("""
-                    UPDATE user_settings 
-                    SET market_type = ?, trade_amount = ?, leverage = ?, account_type = ?
-                    WHERE user_id = ?
-                """, (
-                    settings.get('market_type', 'spot'),
-                    settings.get('trade_amount', 100.0),
-                    settings.get('leverage', 10),
-                    settings.get('account_type', 'demo'),
-                    user_id
-                ))
+                # تحديث إعدادات التداول - فقط الحقول الموجودة في settings
+                trading_settings = {}
+                if 'market_type' in settings:
+                    trading_settings['market_type'] = settings['market_type']
+                if 'trade_amount' in settings:
+                    trading_settings['trade_amount'] = settings['trade_amount']
+                if 'leverage' in settings:
+                    trading_settings['leverage'] = settings['leverage']
+                if 'account_type' in settings:
+                    trading_settings['account_type'] = settings['account_type']
                 
-                # تحديث إعدادات المستخدم
-                cursor.execute("""
-                    UPDATE users 
-                    SET partial_percents = ?, tps_percents = ?, notifications = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ?
-                """, (
-                    json.dumps(settings.get('partial_percents', [25, 50, 25])),
-                    json.dumps(settings.get('tps_percents', [1.5, 3.0, 5.0])),
-                    settings.get('notifications', True),
-                    user_id
-                ))
+                # تنفيذ التحديث لإعدادات التداول
+                if trading_settings:
+                    set_clauses = []
+                    values = []
+                    for key, value in trading_settings.items():
+                        set_clauses.append(f"{key} = ?")
+                        values.append(value)
+                    
+                    values.append(user_id)
+                    query = f"UPDATE user_settings SET {', '.join(set_clauses)} WHERE user_id = ?"
+                    cursor.execute(query, values)
+                
+                # تحديث إعدادات المستخدم الأخرى
+                user_settings = {}
+                if 'partial_percents' in settings:
+                    user_settings['partial_percents'] = json.dumps(settings['partial_percents'])
+                if 'tps_percents' in settings:
+                    user_settings['tps_percents'] = json.dumps(settings['tps_percents'])
+                if 'notifications' in settings:
+                    user_settings['notifications'] = settings['notifications']
+                
+                # تنفيذ التحديث لإعدادات المستخدم
+                if user_settings:
+                    set_clauses = ['updated_at = CURRENT_TIMESTAMP']
+                    values = []
+                    for key, value in user_settings.items():
+                        set_clauses.append(f"{key} = ?")
+                        values.append(value)
+                    
+                    values.append(user_id)
+                    query = f"UPDATE users SET {', '.join(set_clauses)} WHERE user_id = ?"
+                    cursor.execute(query, values)
                 
                 conn.commit()
-                return cursor.rowcount > 0
+                return True
                 
         except Exception as e:
             logger.error(f"خطأ في تحديث إعدادات المستخدم {user_id}: {e}")

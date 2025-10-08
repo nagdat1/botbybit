@@ -2499,24 +2499,52 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
     elif data == "market_spot":
         trading_bot.user_settings['market_type'] = 'spot'
+        # حفظ الإعدادات في قاعدة البيانات
+        if user_id is not None:
+            db_manager.update_user_settings(user_id, {'market_type': 'spot'})
+            # تحديث في user_manager
+            user_data = user_manager.get_user(user_id)
+            if user_data:
+                user_data['market_type'] = 'spot'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
     elif data == "market_futures":
         trading_bot.user_settings['market_type'] = 'futures'
+        # حفظ الإعدادات في قاعدة البيانات
+        if user_id is not None:
+            db_manager.update_user_settings(user_id, {'market_type': 'futures'})
+            # تحديث في user_manager
+            user_data = user_manager.get_user(user_id)
+            if user_data:
+                user_data['market_type'] = 'futures'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
     elif data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
+        # حفظ الإعدادات في قاعدة البيانات
+        if user_id is not None:
+            db_manager.update_user_settings(user_id, {'account_type': 'real'})
+            # تحديث في user_manager
+            user_data = user_manager.get_user(user_id)
+            if user_data:
+                user_data['account_type'] = 'real'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
     elif data == "account_demo":
         trading_bot.user_settings['account_type'] = 'demo'
+        # حفظ الإعدادات في قاعدة البيانات
+        if user_id is not None:
+            db_manager.update_user_settings(user_id, {'account_type': 'demo'})
+            # تحديث في user_manager
+            user_data = user_manager.get_user(user_id)
+            if user_data:
+                user_data['account_type'] = 'demo'
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
@@ -3034,6 +3062,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 amount = float(text)
                 if amount > 0:
                     trading_bot.user_settings['trade_amount'] = amount
+                    # حفظ في قاعدة البيانات
+                    db_manager.update_user_settings(user_id, {'trade_amount': amount})
+                    # تحديث في user_manager
+                    user_data = user_manager.get_user(user_id)
+                    if user_data:
+                        user_data['trade_amount'] = amount
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
                     if update.message is not None:
@@ -3051,6 +3085,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 leverage = int(text)
                 if 1 <= leverage <= 100:
                     trading_bot.user_settings['leverage'] = leverage
+                    # حفظ في قاعدة البيانات
+                    db_manager.update_user_settings(user_id, {'leverage': leverage})
+                    # تحديث في user_manager
+                    user_data = user_manager.get_user(user_id)
+                    if user_data:
+                        user_data['leverage'] = leverage
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
                     if update.message is not None:
@@ -3068,10 +3108,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 balance = float(text)
                 if balance >= 0:
                     # تحديث رصيد الحساب التجريبي
-                    if trading_bot.user_settings['market_type'] == 'futures':
-                        trading_bot.demo_account_futures.update_balance(balance)
-                    else:
-                        trading_bot.demo_account_spot.update_balance(balance)
+                    user_data = user_manager.get_user(user_id)
+                    if user_data:
+                        market_type = user_data.get('market_type', 'spot')
+                        # تحديث في حساب المستخدم
+                        account = user_manager.get_user_account(user_id, market_type)
+                        if account:
+                            account.update_balance(balance)
+                        # حفظ في قاعدة البيانات
+                        user_manager.update_user_balance(user_id, balance)
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
                     if update.message is not None:
