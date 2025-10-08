@@ -752,7 +752,10 @@ class TradingBot:
             return "❌ خطأ في الحصول على الأزواج"
     
     async def broadcast_signal_to_followers(self, signal_data: dict, developer_id: int):
-        """إرسال إشارة المطور لجميع المتابعين"""
+        """
+        إرسال إشارة المطور لجميع المتابعين مع فتح صفقات تلقائية
+        يدعم: market_type, leverage, amount من إعدادات الإشارة
+        """
         try:
             # الحصول على قائمة المتابعين
             followers = developer_manager.get_followers(developer_id)
@@ -762,14 +765,28 @@ class TradingBot:
                 return
             
             logger.info(f"📡 إرسال إشارة المطور إلى {len(followers)} متابع")
+            logger.info(f"📊 تفاصيل الإشارة: {signal_data}")
+            
+            # الحصول على السعر الحالي للرمز
+            current_price = self.get_current_price(signal_data.get('symbol', 'BTCUSDT'))
+            price = current_price.get('price', 0) if current_price else 0
             
             # إرسال الإشارة لكل متابع
             success_count = 0
+            failed_count = 0
+            
             for follower_id in followers:
                 try:
-                    # التحقق من وجود المتابع في UserManager
-                    if not user_manager.get_user(follower_id):
+                    # التحقق من وجود المتابع ونشاطه
+                    follower_data = user_manager.get_user(follower_id)
+                    if not follower_data:
                         logger.warning(f"⚠️ المتابع {follower_id} غير موجود")
+                        failed_count += 1
+                        continue
+                    
+                    if not follower_data.get('is_active', False):
+                        logger.info(f"⏸️ المتابع {follower_id} غير نشط - تم التخطي")
+                        failed_count += 1
                         continue
                     
                     # إنشاء TradingBot مؤقت للمتابع
@@ -780,25 +797,48 @@ class TradingBot:
                     follower_settings = user_manager.get_user_settings(follower_id)
                     if follower_settings:
                         follower_bot.user_settings = follower_settings
+                        
+                        # تطبيق إعدادات الإشارة (تجاوز إعدادات المستخدم إذا كانت موجودة في الإشارة)
+                        if 'market_type' in signal_data:
+                            follower_bot.user_settings['market_type'] = signal_data['market_type']
+                        
+                        if 'leverage' in signal_data:
+                            follower_bot.user_settings['leverage'] = signal_data['leverage']
+                        
+                        if 'amount' in signal_data:
+                            follower_bot.user_settings['trade_amount'] = signal_data['amount']
+                    
+                    # إضافة السعر للإشارة
+                    enriched_signal = signal_data.copy()
+                    enriched_signal['price'] = price
                     
                     # تنفيذ الإشارة على حساب المتابع
-                    await follower_bot.process_signal(signal_data.copy())
+                    await follower_bot.process_signal(enriched_signal)
                     success_count += 1
-                    logger.info(f"✅ تم إرسال الإشارة للمتابع {follower_id}")
+                    logger.info(f"✅ تم إرسال الإشارة للمتابع {follower_id} - Market: {follower_bot.user_settings.get('market_type', 'spot')}")
                     
                     # إرسال إشعار للمتابع
                     try:
                         from telegram import Bot
                         bot = Bot(token=TELEGRAM_TOKEN)
+                        
+                        market_emoji = "📈" if signal_data.get('market_type') == 'spot' else "🚀"
+                        action_emoji = "🟢" if signal_data.get('action') == 'buy' else "🔴"
+                        
                         notification_message = f"""
 📡 إشارة جديدة من Nagdat!
 
-📊 الرمز: {signal_data.get('symbol', 'N/A')}
-🔄 الإجراء: {signal_data.get('action', 'N/A').upper()}
-💲 السعر: {signal_data.get('price', 'N/A')}
-
-⚡ تم تنفيذ الصفقة تلقائياً على حسابك!
-                        """
+{action_emoji} الإجراء: {signal_data.get('action', 'N/A').upper()}
+💎 الرمز: {signal_data.get('symbol', 'N/A')}
+💲 السعر: {price:.2f}
+{market_emoji} السوق: {signal_data.get('market_type', 'spot').upper()}
+💰 المبلغ: {signal_data.get('amount', 100)}
+"""
+                        if signal_data.get('market_type') == 'futures':
+                            notification_message += f"⚡ الرافعة: {signal_data.get('leverage', 10)}x\n"
+                        
+                        notification_message += "\n⚡ تم تنفيذ الصفقة تلقائياً على حسابك!"
+                        
                         await bot.send_message(
                             chat_id=follower_id,
                             text=notification_message
@@ -808,26 +848,40 @@ class TradingBot:
                         
                 except Exception as e:
                     logger.error(f"❌ خطأ في إرسال الإشارة للمتابع {follower_id}: {e}")
+                    failed_count += 1
             
-            # إرسال تقرير للمطور
+            # إرسال تقرير مفصل للمطور
+            market_emoji = "📈" if signal_data.get('market_type') == 'spot' else "🚀"
+            
             message = f"""
 📡 تم توزيع الإشارة
 
-✅ تم الإرسال: {success_count} من {len(followers)}
-📊 التفاصيل:
-• الرمز: {signal_data.get('symbol', 'N/A')}
-• الإجراء: {signal_data.get('action', 'N/A').upper()}
-            """
+✅ نجح: {success_count} 
+❌ فشل: {failed_count}
+📊 الإجمالي: {len(followers)} متابع
+
+📊 تفاصيل الإشارة:
+💎 الرمز: {signal_data.get('symbol', 'N/A')}
+{market_emoji} السوق: {signal_data.get('market_type', 'spot').upper()}
+🔄 الإجراء: {signal_data.get('action', 'N/A').upper()}
+💰 المبلغ: {signal_data.get('amount', 100)}
+"""
+            if signal_data.get('market_type') == 'futures':
+                message += f"⚡ الرافعة: {signal_data.get('leverage', 10)}x\n"
+            
             await self.send_message_to_admin(message)
             
             return {
                 'success': True,
                 'sent_to': success_count,
+                'failed': failed_count,
                 'total_followers': len(followers)
             }
             
         except Exception as e:
             logger.error(f"خطأ في broadcast_signal_to_followers: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'success': False,
                 'error': str(e)
@@ -1309,8 +1363,84 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     elif update.callback_query:
         await update.callback_query.message.edit_text(message)
 
+def parse_smart_signal_input(text: str) -> Optional[Dict]:
+    """
+    دالة ذكية لفهم مدخلات المطور للإشارات
+    تدعم صيغ متعددة:
+    - "BTCUSDT buy 100"
+    - "ETH/USDT sell spot 50"  
+    - "BTC short futures 100 10x"
+    - "ETHUSDT long 200 spot"
+    """
+    import re
+    
+    # إزالة المسافات الزائدة وتحويل لأحرف صغيرة للمعالجة
+    text = text.strip()
+    text_lower = text.lower()
+    
+    # استخراج المعلومات
+    result = {
+        'symbol': None,
+        'action': None,
+        'amount': 100.0,  # قيمة افتراضية
+        'market_type': 'spot',  # قيمة افتراضية
+        'leverage': 10  # قيمة افتراضية للفيوتشر
+    }
+    
+    # البحث عن رمز العملة (BTCUSDT, BTC/USDT, BTC-USDT, etc.)
+    symbol_patterns = [
+        r'([A-Z]{2,10}USDT)',  # BTCUSDT
+        r'([A-Z]{2,10})/USDT',  # BTC/USDT
+        r'([A-Z]{2,10})-USDT',  # BTC-USDT
+        r'([A-Z]{2,10})\s+USDT',  # BTC USDT
+    ]
+    
+    for pattern in symbol_patterns:
+        match = re.search(pattern, text.upper())
+        if match:
+            symbol = match.group(1)
+            # تنظيف الرمز وإضافة USDT إن لم يكن موجوداً
+            if not symbol.endswith('USDT'):
+                symbol = symbol + 'USDT'
+            result['symbol'] = symbol
+            break
+    
+    # البحث عن الاتجاه (buy/sell/long/short)
+    if any(word in text_lower for word in ['buy', 'long', 'شراء']):
+        result['action'] = 'buy'
+    elif any(word in text_lower for word in ['sell', 'short', 'بيع']):
+        result['action'] = 'sell'
+    
+    # البحث عن نوع السوق (spot/futures)
+    if any(word in text_lower for word in ['futures', 'future', 'فيوتشر']):
+        result['market_type'] = 'futures'
+    elif any(word in text_lower for word in ['spot', 'سبوت']):
+        result['market_type'] = 'spot'
+    
+    # البحث عن المبلغ (رقم)
+    amount_match = re.search(r'\b(\d+(?:\.\d+)?)\b', text)
+    if amount_match:
+        try:
+            result['amount'] = float(amount_match.group(1))
+        except:
+            pass
+    
+    # البحث عن الرافعة المالية (10x, 20x, etc.)
+    leverage_match = re.search(r'(\d+)x', text_lower)
+    if leverage_match:
+        try:
+            result['leverage'] = int(leverage_match.group(1))
+        except:
+            pass
+    
+    # التحقق من اكتمال البيانات الأساسية
+    if result['symbol'] and result['action']:
+        return result
+    
+    return None
+
 async def handle_send_signal_developer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة إرسال إشارة من المطور"""
+    """معالجة إرسال إشارة من المطور - نظام ذكي تفاعلي"""
     if update.effective_user is None:
         return
     
@@ -1321,25 +1451,36 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
             await update.message.reply_text("❌ ليس لديك صلاحية لإرسال إشارات")
         return
     
-    # عرض نموذج إرسال الإشارة
+    # بدء عملية إرسال إشارة جديدة - حوار تفاعلي
+    if user_id:
+        user_input_state[user_id] = "dev_waiting_for_signal_input"
+    
+    # عرض نموذج إرسال الإشارة مع أمثلة
     message = """
-📡 إرسال إشارة للمتابعين
+📡 إرسال إشارة ذكية للمتابعين
 
-أرسل الإشارة بالصيغة التالية:
+✨ أرسل إشارتك بأي صيغة مريحة:
 
-<code>SYMBOL:ACTION:PRICE</code>
+📝 أمثلة:
+• <code>BTCUSDT buy 100</code>
+• <code>ETH sell spot 50</code>
+• <code>BTC long futures 200 10x</code>
+• <code>SOL/USDT short 150 futures 20x</code>
 
-مثال:
-<code>BTCUSDT:BUY:50000</code>
+🔍 ما يمكنك كتابته:
+• الرمز: BTCUSDT, BTC/USDT, BTC
+• الاتجاه: buy, sell, long, short
+• المبلغ: أي رقم (افتراضي: 100)
+• السوق: spot, futures (افتراضي: spot)
+• الرافعة: 10x, 20x (للفيوتشر، افتراضي: 10x)
 
-أو استخدم الأزرار أدناه:
+💡 النظام ذكي ويفهم مدخلاتك تلقائياً!
+
+أو استخدم زر الإدخال الموجه أدناه:
     """
     
     keyboard = [
-        [InlineKeyboardButton("📈 BUY Bitcoin", callback_data="dev_signal_BTCUSDT_BUY")],
-        [InlineKeyboardButton("📉 SELL Bitcoin", callback_data="dev_signal_BTCUSDT_SELL")],
-        [InlineKeyboardButton("📈 BUY Ethereum", callback_data="dev_signal_ETHUSDT_BUY")],
-        [InlineKeyboardButton("📉 SELL Ethereum", callback_data="dev_signal_ETHUSDT_SELL")],
+        [InlineKeyboardButton("📝 إدخال موجه خطوة بخطوة", callback_data="dev_signal_guided")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
     ]
     
@@ -1347,6 +1488,8 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
     
     if update.message:
         await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
+    elif update.callback_query:
+        await update.callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode='HTML')
 
 async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض قائمة المتابعين"""
@@ -2630,6 +2773,119 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_show_followers(update, context)
     elif data == "dev_stats":
         await handle_developer_stats(update, context)
+    elif data == "dev_signal_guided":
+        # بدء الإدخال الموجه خطوة بخطوة
+        if user_id:
+            user_input_state[user_id] = "dev_guided_step1_symbol"
+            if update.callback_query:
+                await update.callback_query.message.edit_text(
+                    "📝 الخطوة 1 من 5\n\n"
+                    "🔤 أدخل رمز العملة:\n"
+                    "مثال: BTCUSDT أو BTC أو ETH/USDT"
+                )
+    elif data == "dev_action_buy" or data == "dev_action_sell":
+        # الخطوة 2: حفظ الاتجاه
+        action = "buy" if data == "dev_action_buy" else "sell"
+        context.user_data['dev_signal_data']['action'] = action
+        
+        # الانتقال للخطوة 3
+        if user_id:
+            user_input_state[user_id] = "dev_guided_step3_amount"
+        
+        if update.callback_query:
+            await update.callback_query.message.edit_text(
+                f"✅ الاتجاه: {action.upper()}\n\n"
+                f"📝 الخطوة 3 من 5\n\n"
+                f"💰 أدخل المبلغ (بالدولار):\n"
+                f"مثال: 100"
+            )
+    elif data == "dev_market_spot" or data == "dev_market_futures":
+        # الخطوة 4: حفظ نوع السوق
+        market_type = "spot" if data == "dev_market_spot" else "futures"
+        context.user_data['dev_signal_data']['market_type'] = market_type
+        
+        if market_type == "futures":
+            # إذا كان فيوتشر، اطلب الرافعة
+            if user_id:
+                user_input_state[user_id] = "dev_guided_step5_leverage"
+            
+            if update.callback_query:
+                await update.callback_query.message.edit_text(
+                    f"✅ نوع السوق: {market_type.upper()}\n\n"
+                    f"📝 الخطوة 5 من 5\n\n"
+                    f"⚡ أدخل الرافعة المالية (1-100):\n"
+                    f"مثال: 10"
+                )
+        else:
+            # إذا كان سبوت، عرض الملخص مباشرة
+            signal_data = context.user_data['dev_signal_data']
+            signal_data['leverage'] = 1  # لا رافعة في السبوت
+            
+            confirm_message = f"""
+✅ تم تجهيز الإشارة!
+
+📊 الملخص:
+💎 الرمز: {signal_data['symbol']}
+{'🟢' if signal_data['action'] == 'buy' else '🔴'} الاتجاه: {signal_data['action'].upper()}
+💰 المبلغ: {signal_data['amount']}
+🏪 السوق: {signal_data['market_type'].upper()}
+
+❓ هل تريد إرسال هذه الإشارة للمتابعين؟
+"""
+            
+            keyboard = [
+                [InlineKeyboardButton("✅ نعم، إرسال", callback_data="dev_confirm_signal")],
+                [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if user_id and user_id in user_input_state:
+                del user_input_state[user_id]
+            
+            if update.callback_query:
+                await update.callback_query.message.edit_text(confirm_message, reply_markup=reply_markup)
+    elif data == "dev_confirm_signal":
+        # تأكيد إرسال الإشارة
+        if 'dev_signal_data' in context.user_data:
+            signal_data = context.user_data['dev_signal_data']
+            
+            # إرسال الإشارة للمتابعين مع فتح صفقات تلقائية
+            await trading_bot.broadcast_signal_to_followers(signal_data, user_id)
+            
+            # رسالة نجاح
+            followers = developer_manager.get_followers(user_id)
+            success_message = f"""
+✅ تم إرسال الإشارة بنجاح!
+
+📊 التفاصيل:
+💎 الرمز: {signal_data['symbol']}
+📊 الاتجاه: {signal_data['action'].upper()}
+💰 المبلغ: {signal_data['amount']}
+🏪 السوق: {signal_data['market_type'].upper()}
+"""
+            if signal_data['market_type'] == 'futures':
+                success_message += f"⚡ الرافعة: {signal_data['leverage']}x\n"
+            
+            success_message += f"\n👥 تم إرسالها إلى {len(followers)} متابع"
+            
+            # حذف البيانات المؤقتة
+            del context.user_data['dev_signal_data']
+            if user_id and user_id in user_input_state:
+                del user_input_state[user_id]
+            
+            if update.callback_query:
+                await update.callback_query.message.edit_text(success_message)
+    elif data == "dev_edit_signal":
+        # العودة لإعادة الإدخال
+        if user_id:
+            user_input_state[user_id] = "dev_waiting_for_signal_input"
+        
+        if update.callback_query:
+            await update.callback_query.message.edit_text(
+                "✏️ أرسل الإشارة المعدلة:\n\n"
+                "مثال: <code>BTCUSDT buy futures 200 20x</code>",
+                parse_mode='HTML'
+            )
     elif data.startswith("dev_signal_"):
         # معالجة إرسال إشارة سريعة
         parts = data.replace("dev_signal_", "").split("_")
@@ -2951,8 +3207,149 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id is not None and user_id in user_input_state:
         state = user_input_state[user_id]
         
+        # معالجة إدخال الإشارة الذكية
+        if state == "dev_waiting_for_signal_input":
+            # استخدام المحلل الذكي
+            parsed_signal = parse_smart_signal_input(text)
+            
+            if parsed_signal:
+                # حفظ البيانات مؤقتاً للتأكيد
+                if 'dev_signal_data' not in context.user_data:
+                    context.user_data['dev_signal_data'] = {}
+                context.user_data['dev_signal_data'] = parsed_signal
+                
+                # عرض التفاصيل للتأكيد
+                market_emoji = "📈" if parsed_signal['market_type'] == 'spot' else "🚀"
+                action_emoji = "🟢" if parsed_signal['action'] == 'buy' else "🔴"
+                
+                confirm_message = f"""
+✅ تم فهم إشارتك!
+
+{market_emoji} نوع السوق: {parsed_signal['market_type'].upper()}
+{action_emoji} الاتجاه: {parsed_signal['action'].upper()}
+💎 الرمز: {parsed_signal['symbol']}
+💰 المبلغ: {parsed_signal['amount']}
+"""
+                if parsed_signal['market_type'] == 'futures':
+                    confirm_message += f"⚡ الرافعة: {parsed_signal['leverage']}x\n"
+                
+                confirm_message += "\n❓ هل تريد إرسال هذه الإشارة للمتابعين؟"
+                
+                keyboard = [
+                    [InlineKeyboardButton("✅ نعم، إرسال", callback_data="dev_confirm_signal")],
+                    [InlineKeyboardButton("✏️ تعديل", callback_data="dev_edit_signal")],
+                    [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.message.reply_text(confirm_message, reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(
+                    "❌ لم أتمكن من فهم الإشارة.\n\n"
+                    "تأكد من أن تشمل الرمز (مثل BTCUSDT) والاتجاه (buy أو sell).\n\n"
+                    "أو استخدم زر 'إدخال موجه خطوة بخطوة' للمساعدة."
+                )
+            return
+        
+        # معالجة الإدخال الموجه - الخطوة 1: الرمز
+        elif state == "dev_guided_step1_symbol":
+            # حفظ الرمز
+            symbol = text.upper().replace('/', '').replace('-', '').strip()
+            if not symbol.endswith('USDT'):
+                symbol += 'USDT'
+            
+            if 'dev_signal_data' not in context.user_data:
+                context.user_data['dev_signal_data'] = {}
+            context.user_data['dev_signal_data']['symbol'] = symbol
+            
+            # الانتقال للخطوة 2
+            user_input_state[user_id] = "dev_guided_step2_action"
+            
+            keyboard = [
+                [InlineKeyboardButton("🟢 شراء (Buy)", callback_data="dev_action_buy")],
+                [InlineKeyboardButton("🔴 بيع (Sell)", callback_data="dev_action_sell")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                f"✅ الرمز: {symbol}\n\n"
+                f"📝 الخطوة 2 من 5\n\n"
+                f"📊 اختر الاتجاه:",
+                reply_markup=reply_markup
+            )
+            return
+        
+        # معالجة الإدخال الموجه - الخطوة 3: المبلغ
+        elif state == "dev_guided_step3_amount":
+            try:
+                amount = float(text)
+                if amount <= 0:
+                    await update.message.reply_text("❌ المبلغ يجب أن يكون أكبر من صفر")
+                    return
+                
+                context.user_data['dev_signal_data']['amount'] = amount
+                
+                # الانتقال للخطوة 4
+                user_input_state[user_id] = "dev_guided_step4_market"
+                
+                keyboard = [
+                    [InlineKeyboardButton("📈 Spot", callback_data="dev_market_spot")],
+                    [InlineKeyboardButton("🚀 Futures", callback_data="dev_market_futures")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.message.reply_text(
+                    f"✅ المبلغ: {amount}\n\n"
+                    f"📝 الخطوة 4 من 5\n\n"
+                    f"🏪 اختر نوع السوق:",
+                    reply_markup=reply_markup
+                )
+                return
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                return
+        
+        # معالجة الإدخال الموجه - الخطوة 5: الرافعة (للفيوتشر فقط)
+        elif state == "dev_guided_step5_leverage":
+            try:
+                leverage = int(text)
+                if leverage < 1 or leverage > 100:
+                    await update.message.reply_text("❌ الرافعة يجب أن تكون بين 1 و 100")
+                    return
+                
+                context.user_data['dev_signal_data']['leverage'] = leverage
+                
+                # عرض ملخص نهائي
+                signal_data = context.user_data['dev_signal_data']
+                
+                confirm_message = f"""
+✅ تم تجهيز الإشارة!
+
+📊 الملخص:
+💎 الرمز: {signal_data['symbol']}
+{'🟢' if signal_data['action'] == 'buy' else '🔴'} الاتجاه: {signal_data['action'].upper()}
+💰 المبلغ: {signal_data['amount']}
+🏪 السوق: {signal_data['market_type'].upper()}
+⚡ الرافعة: {leverage}x
+
+❓ هل تريد إرسال هذه الإشارة للمتابعين؟
+"""
+                
+                keyboard = [
+                    [InlineKeyboardButton("✅ نعم، إرسال", callback_data="dev_confirm_signal")],
+                    [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                del user_input_state[user_id]
+                await update.message.reply_text(confirm_message, reply_markup=reply_markup)
+                return
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح بين 1 و 100")
+                return
+        
         # معالجة إرسال الإشعار الجماعي من المطور
-        if state == "waiting_for_broadcast_message":
+        elif state == "waiting_for_broadcast_message":
             if developer_manager.is_developer(user_id):
                 broadcast_message = f"""
 📢 إشعار من المطور
