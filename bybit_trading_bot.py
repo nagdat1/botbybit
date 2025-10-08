@@ -1804,6 +1804,9 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ يرجى استخدام /start أولاً")
         return
     
+    # الحصول على نوع السوق أولاً
+    market_type = user_data.get('market_type', 'spot')
+    
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
@@ -1826,7 +1829,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # الحصول على معلومات حساب المستخدم
-    market_type = user_data.get('market_type', 'spot')
     account = user_manager.get_user_account(user_id, market_type)
     
     if account:
