@@ -3009,7 +3009,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"❌ خطأ في query.answer: {e}")
             # لا نوقف التنفيذ بسبب هذا الخطأ
-    
+        
         # معالجة زر الربط API
         if data == "link_api":
             logger.info("🔗 معالجة link_api")
