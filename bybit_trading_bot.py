@@ -1540,16 +1540,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
-    # تحديد زر التشغيل/الإيقاف بناءً على حالة المستخدم
-    is_active = user_data.get('is_active', False)
-    logger.info(f"المستخدم {user_id} حالة is_active: {is_active}")
-    bot_button = "⏹️ إيقاف البوت" if is_active else "▶️ تشغيل البوت"
-    
-    # إضافة زر متابعة Nagdat مع زر البوت في نفس الصف
+    # إضافة زر متابعة Nagdat مع زر الرجوع لحساب المطور في نفس الصف
     is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
     nagdat_button = "⚡ متابع لـ Nagdat ✅" if is_following else "⚡ متابعة Nagdat"
     
-    keyboard.append([KeyboardButton(nagdat_button), KeyboardButton(bot_button)])
+    keyboard.append([KeyboardButton(nagdat_button), KeyboardButton("🔙 الرجوع لحساب المطور")])
     
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -1643,11 +1638,8 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("⚡ متابعة Nagdat", callback_data="follow_nagdat")])
     
     
-    # إضافة زر تشغيل/إيقاف البوت
-    if user_data.get('is_active'):
-        keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
-    else:
-        keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
+    # إضافة زر الرجوع لحساب المطور
+    keyboard.append([InlineKeyboardButton("🔙 الرجوع لحساب المطور", callback_data="developer_panel")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -3014,6 +3006,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
             return
+    
+    # معالجة زر الرجوع لحساب المطور (للجميع)
+    if text == "🔙 الرجوع لحساب المطور":
+        # التحقق من أن المستخدم مطور أو المطور نفسه قبل الرجوع لوضع المطور
+        if developer_manager.is_developer(user_id) or user_id == ADMIN_USER_ID:
+            await show_developer_panel(update, context)
+        else:
+            await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
+        return
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
