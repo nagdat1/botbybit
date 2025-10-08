@@ -1440,7 +1440,7 @@ def parse_smart_signal_input(text: str) -> Optional[Dict]:
     return None
 
 async def handle_send_signal_developer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة إرسال إشارة من المطور - نظام ذكي تفاعلي"""
+    """معالجة إرسال إشارة من المطور - نظام إدخال مرحلي"""
     if update.effective_user is None:
         return
     
@@ -1451,45 +1451,43 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
             await update.message.reply_text("❌ ليس لديك صلاحية لإرسال إشارات")
         return
     
-    # بدء عملية إرسال إشارة جديدة - حوار تفاعلي
+    # بدء عملية إرسال إشارة جديدة - الخطوة الأولى
     if user_id:
-        user_input_state[user_id] = "dev_waiting_for_signal_input"
+        # تهيئة بيانات الإشارة
+        if 'dev_signal_data' not in context.user_data:
+            context.user_data['dev_signal_data'] = {}
+        context.user_data['dev_signal_data'] = {}  # إعادة تعيين
+        
+        # بدء من الخطوة 1: إدخال الرمز
+        user_input_state[user_id] = "dev_guided_step1_symbol"
     
-    # عرض نموذج إرسال الإشارة مع أمثلة
+    # عرض الخطوة الأولى مباشرة
     message = """
-📡 إرسال إشارة ذكية للمتابعين
+📡 إرسال إشارة للمتابعين
 
-✨ أرسل إشارتك بأي صيغة مريحة:
+📝 الخطوة 1 من 5
 
-📝 أمثلة:
-• <code>BTCUSDT buy 100</code>
-• <code>ETH sell spot 50</code>
-• <code>BTC long futures 200 10x</code>
-• <code>SOL/USDT short 150 futures 20x</code>
+🔤 أدخل رمز العملة:
 
-🔍 ما يمكنك كتابته:
-• الرمز: BTCUSDT, BTC/USDT, BTC
-• الاتجاه: buy, sell, long, short
-• المبلغ: أي رقم (افتراضي: 100)
-• السوق: spot, futures (افتراضي: spot)
-• الرافعة: 10x, 20x (للفيوتشر، افتراضي: 10x)
+💡 أمثلة:
+• BTCUSDT
+• BTC
+• ETH/USDT
+• SOLUSDT
 
-💡 النظام ذكي ويفهم مدخلاتك تلقائياً!
-
-أو استخدم زر الإدخال الموجه أدناه:
+أرسل الرمز الآن 👇
     """
     
     keyboard = [
-        [InlineKeyboardButton("📝 إدخال موجه خطوة بخطوة", callback_data="dev_signal_guided")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
+        [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.message:
-        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
+        await update.message.reply_text(message, reply_markup=reply_markup)
     elif update.callback_query:
-        await update.callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode='HTML')
+        await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
 
 async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض قائمة المتابعين"""
@@ -2773,16 +2771,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_show_followers(update, context)
     elif data == "dev_stats":
         await handle_developer_stats(update, context)
-    elif data == "dev_signal_guided":
-        # بدء الإدخال الموجه خطوة بخطوة
-        if user_id:
-            user_input_state[user_id] = "dev_guided_step1_symbol"
-            if update.callback_query:
-                await update.callback_query.message.edit_text(
-                    "📝 الخطوة 1 من 5\n\n"
-                    "🔤 أدخل رمز العملة:\n"
-                    "مثال: BTCUSDT أو BTC أو ETH/USDT"
-                )
     elif data == "dev_action_buy" or data == "dev_action_sell":
         # الخطوة 2: حفظ الاتجاه
         action = "buy" if data == "dev_action_buy" else "sell"
@@ -2875,17 +2863,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if update.callback_query:
                 await update.callback_query.message.edit_text(success_message)
-    elif data == "dev_edit_signal":
-        # العودة لإعادة الإدخال
-        if user_id:
-            user_input_state[user_id] = "dev_waiting_for_signal_input"
-        
-        if update.callback_query:
-            await update.callback_query.message.edit_text(
-                "✏️ أرسل الإشارة المعدلة:\n\n"
-                "مثال: <code>BTCUSDT buy futures 200 20x</code>",
-                parse_mode='HTML'
-            )
     elif data.startswith("dev_signal_"):
         # معالجة إرسال إشارة سريعة
         parts = data.replace("dev_signal_", "").split("_")
@@ -3207,52 +3184,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id is not None and user_id in user_input_state:
         state = user_input_state[user_id]
         
-        # معالجة إدخال الإشارة الذكية
-        if state == "dev_waiting_for_signal_input":
-            # استخدام المحلل الذكي
-            parsed_signal = parse_smart_signal_input(text)
-            
-            if parsed_signal:
-                # حفظ البيانات مؤقتاً للتأكيد
-                if 'dev_signal_data' not in context.user_data:
-                    context.user_data['dev_signal_data'] = {}
-                context.user_data['dev_signal_data'] = parsed_signal
-                
-                # عرض التفاصيل للتأكيد
-                market_emoji = "📈" if parsed_signal['market_type'] == 'spot' else "🚀"
-                action_emoji = "🟢" if parsed_signal['action'] == 'buy' else "🔴"
-                
-                confirm_message = f"""
-✅ تم فهم إشارتك!
-
-{market_emoji} نوع السوق: {parsed_signal['market_type'].upper()}
-{action_emoji} الاتجاه: {parsed_signal['action'].upper()}
-💎 الرمز: {parsed_signal['symbol']}
-💰 المبلغ: {parsed_signal['amount']}
-"""
-                if parsed_signal['market_type'] == 'futures':
-                    confirm_message += f"⚡ الرافعة: {parsed_signal['leverage']}x\n"
-                
-                confirm_message += "\n❓ هل تريد إرسال هذه الإشارة للمتابعين؟"
-                
-                keyboard = [
-                    [InlineKeyboardButton("✅ نعم، إرسال", callback_data="dev_confirm_signal")],
-                    [InlineKeyboardButton("✏️ تعديل", callback_data="dev_edit_signal")],
-                    [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await update.message.reply_text(confirm_message, reply_markup=reply_markup)
-            else:
-                await update.message.reply_text(
-                    "❌ لم أتمكن من فهم الإشارة.\n\n"
-                    "تأكد من أن تشمل الرمز (مثل BTCUSDT) والاتجاه (buy أو sell).\n\n"
-                    "أو استخدم زر 'إدخال موجه خطوة بخطوة' للمساعدة."
-                )
-            return
-        
         # معالجة الإدخال الموجه - الخطوة 1: الرمز
-        elif state == "dev_guided_step1_symbol":
+        if state == "dev_guided_step1_symbol":
             # حفظ الرمز
             symbol = text.upper().replace('/', '').replace('-', '').strip()
             if not symbol.endswith('USDT'):
@@ -3336,7 +3269,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
                 
                 keyboard = [
-                    [InlineKeyboardButton("✅ نعم، إرسال", callback_data="dev_confirm_signal")],
+                    [InlineKeyboardButton("✅ نعم، إرسال الآن", callback_data="dev_confirm_signal")],
                     [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
