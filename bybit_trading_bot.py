@@ -3102,64 +3102,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data.startswith("close_"):
-        position_id = data.replace("close_", "")
-        await close_position(position_id, update, context)
-    elif data == "refresh_positions":
-        await open_positions(update, context)
-    elif data == "set_amount":
-        # تنفيذ إعداد مبلغ التداول
-        if user_id is not None:
-            user_input_state[user_id] = "waiting_for_trade_amount"
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
-    elif data == "set_market":
-        # تنفيذ إعداد نوع السوق
-        keyboard = [
-            [InlineKeyboardButton("📊 سبوت (Spot)", callback_data="market_spot")],
-            [InlineKeyboardButton("📈 فيوتشر (Futures)", callback_data="market_futures")],
-            [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        message_text = """
-🏪 اختر نوع السوق:
-
-📊 سبوت (Spot):
-• تداول مباشر بدون رافعة مالية
-• مناسب للمبتدئين
-• أكثر أماناً
-
-📈 فيوتشر (Futures):
-• تداول بالرافعة المالية
-• أرباح وخسائر أعلى
-• يتطلب خبرة
-        """
-        
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
-    elif data == "set_account":
-        # تنفيذ إعداد نوع الحساب
-        keyboard = [
-            [InlineKeyboardButton("حقيقي", callback_data="account_real")],
-            [InlineKeyboardButton("تجريبي داخلي", callback_data="account_demo")],
-            [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("اختر نوع الحساب:", reply_markup=reply_markup)
-    elif data == "set_leverage":
-        # تنفيذ إعداد الرافعة المالية
-        if user_id is not None:
-            user_input_state[user_id] = "waiting_for_leverage"
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("⚡ أدخل قيمة الرافعة المالية الجديدة (1-100):")
-    elif data == "set_demo_balance":
-        # تنفيذ إعداد رصيد الحساب التجريبي
-        if user_id is not None:
-            user_input_state[user_id] = "waiting_for_demo_balance"
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
+    
+    # 🔥🔥🔥 معالجة أزرار نوع السوق - يجب أن تكون في الأعلى! 🔥🔥🔥
     elif data == "market_spot":
         # 🔥 تحديث ديناميكي ذكي لنوع السوق
         logger.info(f"🏪 >>> بدء تغيير نوع السوق إلى SPOT للمستخدم {user_id}")
@@ -3224,6 +3168,65 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # 🔥 عرض قائمة الإعدادات المحدثة (سيظهر زر الرافعة المالية)
         await settings_menu(update, context)
+    
+    elif data.startswith("close_"):
+        position_id = data.replace("close_", "")
+        await close_position(position_id, update, context)
+    elif data == "refresh_positions":
+        await open_positions(update, context)
+    elif data == "set_amount":
+        # تنفيذ إعداد مبلغ التداول
+        if user_id is not None:
+            user_input_state[user_id] = "waiting_for_trade_amount"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
+    elif data == "set_market":
+        # تنفيذ إعداد نوع السوق
+        keyboard = [
+            [InlineKeyboardButton("📊 سبوت (Spot)", callback_data="market_spot")],
+            [InlineKeyboardButton("📈 فيوتشر (Futures)", callback_data="market_futures")],
+            [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        message_text = """
+🏪 اختر نوع السوق:
+
+📊 سبوت (Spot):
+• تداول مباشر بدون رافعة مالية
+• مناسب للمبتدئين
+• أكثر أماناً
+
+📈 فيوتشر (Futures):
+• تداول بالرافعة المالية
+• أرباح وخسائر أعلى
+• يتطلب خبرة
+        """
+        
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup)
+    elif data == "set_account":
+        # تنفيذ إعداد نوع الحساب
+        keyboard = [
+            [InlineKeyboardButton("حقيقي", callback_data="account_real")],
+            [InlineKeyboardButton("تجريبي داخلي", callback_data="account_demo")],
+            [InlineKeyboardButton("🔙 العودة", callback_data="settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("اختر نوع الحساب:", reply_markup=reply_markup)
+    elif data == "set_leverage":
+        # تنفيذ إعداد الرافعة المالية
+        if user_id is not None:
+            user_input_state[user_id] = "waiting_for_leverage"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("⚡ أدخل قيمة الرافعة المالية الجديدة (1-100):")
+    elif data == "set_demo_balance":
+        # تنفيذ إعداد رصيد الحساب التجريبي
+        if user_id is not None:
+            user_input_state[user_id] = "waiting_for_demo_balance"
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
     elif data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
         # إعادة تعيين حالة إدخال المستخدم
