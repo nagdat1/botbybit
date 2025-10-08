@@ -289,23 +289,47 @@ class DatabaseManager:
             return False
     
     def update_user_settings(self, user_id: int, settings: Dict) -> bool:
-        """تحديث إعدادات المستخدم"""
+        """تحديث إعدادات المستخدم - نظام ذكي يحدث فقط القيم المطلوبة"""
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # تحديث إعدادات التداول
+                # 🔥 الحصول على الإعدادات الحالية أولاً
                 cursor.execute("""
-                    UPDATE user_settings 
-                    SET market_type = ?, trade_amount = ?, leverage = ?, account_type = ?
+                    SELECT market_type, trade_amount, leverage, account_type
+                    FROM user_settings
                     WHERE user_id = ?
-                """, (
-                    settings.get('market_type', 'spot'),
-                    settings.get('trade_amount', 100.0),
-                    settings.get('leverage', 10),
-                    settings.get('account_type', 'demo'),
-                    user_id
-                ))
+                """, (user_id,))
+                
+                current = cursor.fetchone()
+                if current:
+                    # دمج الإعدادات الحالية مع الجديدة
+                    market_type = settings.get('market_type', current['market_type'])
+                    trade_amount = settings.get('trade_amount', current['trade_amount'])
+                    leverage = settings.get('leverage', current['leverage'])
+                    account_type = settings.get('account_type', current['account_type'])
+                    
+                    # تحديث إعدادات التداول
+                    cursor.execute("""
+                        UPDATE user_settings 
+                        SET market_type = ?, trade_amount = ?, leverage = ?, account_type = ?
+                        WHERE user_id = ?
+                    """, (market_type, trade_amount, leverage, account_type, user_id))
+                    
+                    logger.info(f"✅ تم تحديث user_settings في DB: market_type={market_type}")
+                else:
+                    # إنشاء سجل جديد إذا لم يكن موجوداً
+                    market_type = settings.get('market_type', 'spot')
+                    trade_amount = settings.get('trade_amount', 100.0)
+                    leverage = settings.get('leverage', 10)
+                    account_type = settings.get('account_type', 'demo')
+                    
+                    cursor.execute("""
+                        INSERT INTO user_settings (user_id, market_type, trade_amount, leverage, account_type)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (user_id, market_type, trade_amount, leverage, account_type))
+                    
+                    logger.info(f"✅ تم إنشاء user_settings جديد في DB: market_type={market_type}")
                 
                 # تحديث إعدادات المستخدم
                 cursor.execute("""
