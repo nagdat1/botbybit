@@ -1460,7 +1460,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔗 رابط الإشارات")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -1541,8 +1540,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-        [KeyboardButton("🔗 رابط الإشارات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -1554,7 +1552,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
     if user_data.get('is_active'):
-        keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
+        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     else:
         keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     
@@ -1637,6 +1635,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")],
         [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
+        [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
         [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
     ]
@@ -2544,6 +2543,86 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+    elif data == "webhook_url":
+        # عرض رابط الإشارات الشخصي للمستخدم
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        render_url = os.getenv('RENDER_EXTERNAL_URL')
+        
+        if railway_url:
+            if not railway_url.startswith('http'):
+                railway_url = f"https://{railway_url}"
+            personal_webhook_url = f"{railway_url}/personal/{user_id}/webhook"
+            old_webhook_url = f"{railway_url}/webhook"
+        elif render_url:
+            personal_webhook_url = f"{render_url}/personal/{user_id}/webhook"
+            old_webhook_url = f"{render_url}/webhook"
+        else:
+            port = PORT
+            personal_webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
+            old_webhook_url = f"http://localhost:{port}/webhook"
+        
+        message = f"""
+🔗 روابط استقبال الإشارات
+
+📡 رابطك الشخصي (موصى به):
+`{personal_webhook_url}`
+
+• يستخدم إعداداتك الخاصة
+• صفقات منفصلة لحسابك فقط
+• آمن ومخصص لك
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 الرابط العام (قديم):
+`{old_webhook_url}`
+
+• يستخدم الإعدادات الافتراضية
+• مشترك بين جميع المستخدمين
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📋 كيفية الاستخدام في TradingView:
+
+1️⃣ افتح استراتيجيتك في TradingView
+2️⃣ اذهب إلى Settings → Notifications
+3️⃣ أضف Webhook URL
+4️⃣ الصق رابطك الشخصي
+5️⃣ في Message، استخدم أحد الصيغتين:
+
+📌 الصيغة البسيطة (موصى بها):
+```
+{{"symbol": "{{"{{ticker}}"}}", "action": "{{"{{strategy.order.action}}"}}}}
+```
+
+📌 الصيغة مع السعر (اختياري):
+```
+{{"symbol": "{{"{{ticker}}"}}", "action": "{{"{{strategy.order.action}}"}}", "price": {{"{{close}}"}}}}
+```
+
+💡 الإجراءات المدعومة:
+• `buy` - شراء
+• `sell` - بيع  
+• `close` - إغلاق الصفقة
+
+💡 نصائح:
+• استخدم رابطك الشخصي للحصول على تجربة أفضل
+• السعر اختياري - إذا لم تحدده سيستخدم السعر الحالي
+• يمكنك نسخ الرابط بالضغط عليه
+• الرابط يعمل مع TradingView و أي منصة إشارات أخرى
+
+🔐 الأمان:
+• لا تشارك رابطك الشخصي مع أحد
+• يمكن تعطيل حسابك من الإعدادات إذا لزم الأمر
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("📖 شرح مفصل", callback_data="webhook_help")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
     # معالجة أزرار المطور
     elif data == "developer_panel":
         await show_developer_panel(update, context)
@@ -3041,85 +3120,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_menu(update, context)
     elif text == "📊 حالة الحساب":
         await account_status(update, context)
-    elif text == "🔗 رابط الإشارات":
-        # عرض رابط الإشارات الشخصي للمستخدم
-        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
-        render_url = os.getenv('RENDER_EXTERNAL_URL')
-        
-        if railway_url:
-            if not railway_url.startswith('http'):
-                railway_url = f"https://{railway_url}"
-            personal_webhook_url = f"{railway_url}/personal/{user_id}/webhook"
-            old_webhook_url = f"{railway_url}/webhook"
-        elif render_url:
-            personal_webhook_url = f"{render_url}/personal/{user_id}/webhook"
-            old_webhook_url = f"{render_url}/webhook"
-        else:
-            port = PORT
-            personal_webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
-            old_webhook_url = f"http://localhost:{port}/webhook"
-        
-        message = f"""
-🔗 روابط استقبال الإشارات
-
-📡 رابطك الشخصي (موصى به):
-`{personal_webhook_url}`
-
-• يستخدم إعداداتك الخاصة
-• صفقات منفصلة لحسابك فقط
-• آمن ومخصص لك
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-🌐 الرابط العام (قديم):
-`{old_webhook_url}`
-
-• يستخدم الإعدادات الافتراضية
-• مشترك بين جميع المستخدمين
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-📋 كيفية الاستخدام في TradingView:
-
-1️⃣ افتح استراتيجيتك في TradingView
-2️⃣ اذهب إلى Settings → Notifications
-3️⃣ أضف Webhook URL
-4️⃣ الصق رابطك الشخصي
-5️⃣ في Message، استخدم أحد الصيغتين:
-
-📌 الصيغة البسيطة (موصى بها):
-```
-{{"symbol": "{{"{{ticker}}"}}", "action": "{{"{{strategy.order.action}}"}}}}
-```
-
-📌 الصيغة مع السعر (اختياري):
-```
-{{"symbol": "{{"{{ticker}}"}}", "action": "{{"{{strategy.order.action}}"}}", "price": {{"{{close}}"}}}}
-```
-
-💡 الإجراءات المدعومة:
-• `buy` - شراء
-• `sell` - بيع  
-• `close` - إغلاق الصفقة
-
-💡 نصائح:
-• استخدم رابطك الشخصي للحصول على تجربة أفضل
-• السعر اختياري - إذا لم تحدده سيستخدم السعر الحالي
-• يمكنك نسخ الرابط بالضغط عليه
-• الرابط يعمل مع TradingView و أي منصة إشارات أخرى
-
-🔐 الأمان:
-• لا تشارك رابطك الشخصي مع أحد
-• يمكن تعطيل حسابك من الإعدادات إذا لزم الأمر
-        """
-        
-        keyboard = [
-            [InlineKeyboardButton("📖 شرح مفصل", callback_data="webhook_help")],
-            [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
     elif text == "🔄 الصفقات المفتوحة" or "الصفقات المفتوحة" in text or "🔄" in text:
         await open_positions(update, context)
     elif text == "📈 تاريخ التداول":
