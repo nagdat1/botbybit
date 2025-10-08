@@ -1548,13 +1548,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
-    # إضافة زر الرجوع لحساب المطور (للمستخدمين العاديين فقط)
-    # يظهر للجميع عدا عندما يكون المطور في وضع المطور
-    keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
     
     # إضافة أزرار إضافية إذا كان المستخدم نشطاً
     if user_data.get('is_active'):
-        keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
+        keyboard.append([KeyboardButton("⏹️ إيقاف البوت")])
     else:
         keyboard.append([KeyboardButton("▶️ تشغيل البوت")])
     
@@ -1649,9 +1646,6 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("⚡ متابعة Nagdat", callback_data="follow_nagdat")])
     
-    # إضافة زر الرجوع لحساب المطور (للمستخدمين العاديين فقط)
-    # يظهر للجميع عدا عندما يكون المطور في وضع المطور
-    keyboard.append([InlineKeyboardButton("🔙 الرجوع لحساب المطور", callback_data="developer_panel")])
     
     # إضافة زر تشغيل/إيقاف البوت
     if user_data.get('is_active'):
@@ -3024,13 +3018,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
             await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
             return
-        elif text == "🔙 الرجوع لحساب المطور":
-            # التحقق من أن المستخدم مطور قبل الرجوع لوضع المطور
-            if developer_manager.is_developer(user_id) or user_id == ADMIN_USER_ID:
-                await show_developer_panel(update, context)
-            else:
-                await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
-            return
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
@@ -3253,10 +3240,14 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "💰 المحفظة":
         await wallet_overview(update, context)
     elif text == "▶️ تشغيل البوت":
+        if user_id is not None:
+            user_manager.set_user_active(user_id, True)
         trading_bot.is_running = True
         if update.message is not None:
             await update.message.reply_text("✅ تم تشغيل البوت")
     elif text == "⏹️ إيقاف البوت":
+        if user_id is not None:
+            user_manager.set_user_active(user_id, False)
         trading_bot.is_running = False
         if update.message is not None:
             await update.message.reply_text("⏹️ تم إيقاف البوت")

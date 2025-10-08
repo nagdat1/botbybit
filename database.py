@@ -269,6 +269,25 @@ class DatabaseManager:
             logger.error(f"خطأ في تبديل حالة المستخدم {user_id}: {e}")
             return False
     
+    def set_user_active(self, user_id: int, is_active: bool) -> bool:
+        """تحديد حالة تشغيل/إيقاف المستخدم"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE users 
+                    SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (is_active, user_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث حالة المستخدم {user_id}: {e}")
+            return False
+    
     def update_user_settings(self, user_id: int, settings: Dict) -> bool:
         """تحديث إعدادات المستخدم"""
         try:

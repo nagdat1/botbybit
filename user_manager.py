@@ -199,6 +199,30 @@ class UserManager:
             logger.error(f"خطأ في تبديل حالة المستخدم {user_id}: {e}")
             return False
     
+    def set_user_active(self, user_id: int, is_active: bool) -> bool:
+        """تحديد حالة تشغيل/إيقاف المستخدم"""
+        try:
+            # التحقق من الحالة الحالية
+            if user_id in self.users:
+                current_status = self.users[user_id]['is_active']
+                if current_status == is_active:
+                    # الحالة نفسها، لا حاجة للتغيير
+                    return True
+                
+                # تحديث في قاعدة البيانات
+                success = db_manager.set_user_active(user_id, is_active)
+                
+                if success:
+                    # تحديث في الذاكرة
+                    self.users[user_id]['is_active'] = is_active
+                    logger.info(f"تم تحديث حالة المستخدم {user_id} إلى: {is_active}")
+                    return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"خطأ في تحديث حالة المستخدم {user_id}: {e}")
+            return False
+    
     def update_user_balance(self, user_id: int, balance: float) -> bool:
         """تحديث رصيد المستخدم"""
         try:
