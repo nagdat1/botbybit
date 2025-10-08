@@ -121,8 +121,27 @@ class DatabaseManager:
                     )
                 """)
                 
+                # جدول تسجيل الصفقات المفصل (Trade Log)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS trade_logs (
+                        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        symbol TEXT NOT NULL,
+                        action TEXT NOT NULL,
+                        price REAL NOT NULL,
+                        account_type TEXT NOT NULL,
+                        market_type TEXT NOT NULL,
+                        trade_amount REAL NOT NULL,
+                        leverage INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        status TEXT DEFAULT 'executed',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (user_id)
+                    )
+                """)
+                
                 conn.commit()
-                logger.info("تم تهيئة قاعدة البيانات بنجاح")
+                logger.info("✅ تم تهيئة قاعدة البيانات بنجاح")
                 
         except Exception as e:
             logger.error(f"خطأ في تهيئة قاعدة البيانات: {e}")
@@ -814,6 +833,121 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ خطأ في حفظ إشارة المطور {developer_id}: {e}")
             return False
+    
+    def log_trade(self, user_id: int, trade_data: Dict) -> bool:
+        """
+        حفظ سجل صفقة في قاعدة البيانات
+        
+        Args:
+            user_id: معرف المستخدم
+            trade_data: بيانات الصفقة (symbol, action, price, account_type, market_type, trade_amount, leverage, source)
+        
+        Returns:
+            bool: True إذا تم الحفظ بنجاح
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO trade_logs 
+                    (user_id, symbol, action, price, account_type, market_type, 
+                     trade_amount, leverage, source, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id,
+                    trade_data.get('symbol', ''),
+                    trade_data.get('action', ''),
+                    trade_data.get('price', 0),
+                    trade_data.get('account_type', 'demo'),
+                    trade_data.get('market_type', 'spot'),
+                    trade_data.get('trade_amount', 0),
+                    trade_data.get('leverage', 1),
+                    trade_data.get('source', 'direct'),
+                    trade_data.get('status', 'executed')
+                ))
+                
+                conn.commit()
+                logger.info(f"✅ تم حفظ سجل صفقة للمستخدم {user_id}: {trade_data.get('symbol')} {trade_data.get('action')}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في حفظ سجل صفقة للمستخدم {user_id}: {e}")
+            return False
+    
+    def get_user_trade_logs(self, user_id: int, limit: int = 50) -> List[Dict]:
+        """
+        الحصول على سجل صفقات المستخدم
+        
+        Args:
+            user_id: معرف المستخدم
+            limit: عدد السجلات المراد إرجاعها
+        
+        Returns:
+            List[Dict]: قائمة بسجلات الصفقات
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM trade_logs
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (user_id, limit))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على سجل صفقات المستخدم {user_id}: {e}")
+            return []
+    
+    def get_trade_statistics(self, user_id: int) -> Dict:
+        """
+        الحصول على إحصائيات الصفقات للمستخدم
+        
+        Args:
+            user_id: معرف المستخدم
+        
+        Returns:
+            Dict: إحصائيات الصفقات
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # إجمالي الصفقات
+                cursor.execute("""
+                    SELECT COUNT(*) as total_trades,
+                           SUM(CASE WHEN action = 'buy' THEN 1 ELSE 0 END) as buy_trades,
+                           SUM(CASE WHEN action = 'sell' THEN 1 ELSE 0 END) as sell_trades,
+                           SUM(CASE WHEN market_type = 'spot' THEN 1 ELSE 0 END) as spot_trades,
+                           SUM(CASE WHEN market_type = 'futures' THEN 1 ELSE 0 END) as futures_trades,
+                           SUM(CASE WHEN account_type = 'real' THEN 1 ELSE 0 END) as real_trades,
+                           SUM(CASE WHEN account_type = 'demo' THEN 1 ELSE 0 END) as demo_trades
+                    FROM trade_logs
+                    WHERE user_id = ?
+                """, (user_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    return dict(row)
+                else:
+                    return {
+                        'total_trades': 0,
+                        'buy_trades': 0,
+                        'sell_trades': 0,
+                        'spot_trades': 0,
+                        'futures_trades': 0,
+                        'real_trades': 0,
+                        'demo_trades': 0
+                    }
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على إحصائيات الصفقات للمستخدم {user_id}: {e}")
+            return {}
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

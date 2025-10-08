@@ -781,19 +781,33 @@ class TradingBot:
                     if follower_settings:
                         follower_bot.user_settings = follower_settings.copy()
                     
-                    # تطبيق المبلغ والرافعة من الإشارة إذا كانت موجودة
-                    if 'amount' in signal_data and signal_data['amount']:
-                        follower_bot.user_settings['trade_amount'] = float(signal_data['amount'])
+                    # 🔥 استخدام النظام الموحد الجديد - execute_trade_unified
+                    # يتعامل تلقائياً مع جميع أنواع الحسابات والأسواق
+                    symbol = signal_data.get('symbol')
+                    action = signal_data.get('action')
+                    price = signal_data.get('price', 0)
                     
-                    if 'leverage' in signal_data and signal_data['leverage']:
-                        follower_bot.user_settings['leverage'] = int(signal_data['leverage'])
+                    # إذا كان السعر 0، احصل على السعر الحالي
+                    if not price or price == 0:
+                        try:
+                            if trading_bot.bybit_api:
+                                price = trading_bot.bybit_api.get_ticker_price(symbol, 'spot')
+                                if not price:
+                                    price = trading_bot.bybit_api.get_ticker_price(symbol, 'linear')
+                        except:
+                            price = 1  # قيمة افتراضية لتجنب الأخطاء
                     
-                    # تنفيذ الإشارة على حساب المتابع
-                    await follower_bot.process_signal(signal_data.copy())
+                    # تنفيذ الصفقة باستخدام النظام الموحد
+                    await follower_bot.execute_trade_unified(
+                        symbol=symbol,
+                        action=action,
+                        price=price,
+                        signal_data=signal_data  # تمرير بيانات الإشارة الكاملة
+                    )
                     success_count += 1
                     logger.info(f"✅ تم إرسال الإشارة للمتابع {follower_id}")
                     
-                    # إرسال إشعار للمتابع
+                    # إرسال إشعار محسّن للمتابع
                     try:
                         from telegram import Bot
                         bot = Bot(token=TELEGRAM_TOKEN)
@@ -803,23 +817,46 @@ class TradingBot:
                         leverage = signal_data.get('leverage', follower_settings.get('leverage', 10))
                         price = signal_data.get('price', 0)
                         
+                        # تحديد نوع السوق الذي تم التنفيذ عليه
+                        detected_market = follower_bot.detect_market_type_smart(
+                            signal_data.get('symbol'),
+                            follower_settings.get('market_type', 'spot')
+                        )
+                        
+                        # تحديد نوع الحساب
+                        account_type_ar = "حقيقي 🔴" if follower_settings.get('account_type') == 'real' else "تجريبي 🟢"
+                        market_type_ar = "فيوتشر" if detected_market == 'futures' else "سبوت"
+                        
                         notification_message = f"""
 📡 إشارة جديدة من Nagdat!
 
-📊 الرمز: {signal_data.get('symbol', 'N/A')}
-🔄 الإجراء: {signal_data.get('action', 'N/A').upper()}
+━━━━━━━━━━━━━━━━━━━━━━
+📊 تفاصيل الإشارة:
+
+🔹 الرمز: {signal_data.get('symbol', 'N/A')}
+🔹 الإجراء: {signal_data.get('action', 'N/A').upper()}
 💲 السعر: {price if price > 0 else 'السعر الحالي'}
 💰 المبلغ: {trade_amount} USDT
 ⚡ الرافعة: {leverage}x
 
+━━━━━━━━━━━━━━━━━━━━━━
+📋 تفاصيل التنفيذ:
+
+🏪 السوق: {market_type_ar}
+👤 نوع الحساب: {account_type_ar}
+
+━━━━━━━━━━━━━━━━━━━━━━
 ✅ تم تنفيذ الصفقة تلقائياً على حسابك!
+
+💡 ملاحظة: تم تحديد نوع السوق تلقائياً بناءً على توفر الزوج وإعداداتك.
                         """
                         await bot.send_message(
                             chat_id=follower_id,
                             text=notification_message
                         )
+                        logger.info(f"📧 تم إرسال إشعار محسّن للمتابع {follower_id}")
                     except Exception as notify_error:
-                        logger.error(f"خطأ في إرسال الإشعار للمتابع {follower_id}: {notify_error}")
+                        logger.error(f"❌ خطأ في إرسال الإشعار للمتابع {follower_id}: {notify_error}")
                         
                 except Exception as e:
                     logger.error(f"❌ خطأ في إرسال الإشارة للمتابع {follower_id}: {e}")
@@ -978,12 +1015,321 @@ class TradingBot:
             logger.error(f"خطأ في تنفيذ الصفقة الحقيقية: {e}")
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
     
+    def detect_market_type_smart(self, symbol: str, user_preference: str = None) -> str:
+        """
+        معالج ذكي لتحديد نوع السوق تلقائياً
+        
+        يحلل الرمز ويقرر ما إذا كان متاحاً في السبوت أو الفيوتشر
+        الأولوية: تفضيل المستخدم > التحليل الذكي
+        """
+        try:
+            # إذا كان لدى المستخدم تفضيل واضح، استخدمه
+            if user_preference:
+                # تحقق من توفر الرمز في نوع السوق المفضل
+                if user_preference == 'spot' and symbol in self.available_pairs.get('spot', []):
+                    logger.info(f"✅ الرمز {symbol} متاح في SPOT (تفضيل المستخدم)")
+                    return 'spot'
+                elif user_preference == 'futures' and (symbol in self.available_pairs.get('futures', []) or 
+                                                       symbol in self.available_pairs.get('inverse', [])):
+                    logger.info(f"✅ الرمز {symbol} متاح في FUTURES (تفضيل المستخدم)")
+                    return 'futures'
+            
+            # التحليل الذكي: تحقق من توفر الرمز في كل سوق
+            available_in_spot = symbol in self.available_pairs.get('spot', [])
+            available_in_futures = symbol in self.available_pairs.get('futures', []) or \
+                                  symbol in self.available_pairs.get('inverse', [])
+            
+            # قرار ذكي بناءً على التوفر
+            if available_in_spot and not available_in_futures:
+                logger.info(f"🧠 التحليل الذكي: {symbol} متاح في SPOT فقط")
+                return 'spot'
+            elif available_in_futures and not available_in_spot:
+                logger.info(f"🧠 التحليل الذكي: {symbol} متاح في FUTURES فقط")
+                return 'futures'
+            elif available_in_spot and available_in_futures:
+                # متاح في كلا السوقين - استخدم تفضيل المستخدم أو الافتراضي
+                logger.info(f"🧠 التحليل الذكي: {symbol} متاح في كلا السوقين")
+                return user_preference if user_preference else 'spot'
+            else:
+                # غير متاح في أي سوق - استخدم الافتراضي
+                logger.warning(f"⚠️ {symbol} غير متاح في الأسواق المحملة - استخدام {user_preference or 'spot'}")
+                return user_preference if user_preference else 'spot'
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في detect_market_type_smart: {e}")
+            return user_preference if user_preference else 'spot'
+    
+    async def execute_trade_unified(self, symbol: str, action: str, price: float, signal_data: dict = None):
+        """
+        نظام موحد لتنفيذ الصفقات - يدعم جميع أنواع الحسابات والأسواق
+        
+        يحدد تلقائياً:
+        - نوع الحساب (حقيقي/تجريبي) من إعدادات المستخدم
+        - نوع السوق (سبوت/فيوتشر) بذكاء من توفر الرمز وتفضيلات المستخدم
+        - المبلغ والرافعة من الإشارة أو من إعدادات المستخدم
+        """
+        try:
+            # 1. تحديد نوع الحساب (حقيقي/تجريبي)
+            account_type = self.user_settings.get('account_type', 'demo')
+            
+            # 2. تحديد نوع السوق بذكاء (سبوت/فيوتشر)
+            # الأولوية: signal_data > التحليل الذكي > إعدادات المستخدم
+            user_preference = self.user_settings.get('market_type', 'spot')
+            
+            if signal_data and 'market_type' in signal_data:
+                market_type = signal_data['market_type']
+                logger.info(f"📊 استخدام market_type من الإشارة: {market_type}")
+            else:
+                # استخدام المعالج الذكي
+                market_type = self.detect_market_type_smart(symbol, user_preference)
+            
+            # 3. تحديد المبلغ والرافعة
+            if signal_data:
+                trade_amount = signal_data.get('amount', self.user_settings.get('trade_amount', 100))
+                leverage = signal_data.get('leverage', self.user_settings.get('leverage', 10))
+            else:
+                trade_amount = self.user_settings.get('trade_amount', 100)
+                leverage = self.user_settings.get('leverage', 10)
+            
+            # تسجيل متقدم لتتبع الصفقة
+            trade_log = {
+                'timestamp': datetime.now().isoformat(),
+                'user_id': self.user_id,
+                'symbol': symbol,
+                'action': action,
+                'price': price,
+                'account_type': account_type,
+                'market_type': market_type,
+                'trade_amount': trade_amount,
+                'leverage': leverage,
+                'source': 'developer_signal' if signal_data else 'direct'
+            }
+            
+            logger.info(f"""
+            📊 ═══════════════════════════════════════
+            📊 تنفيذ صفقة موحدة - نظام متكامل
+            📊 ═══════════════════════════════════════
+            👤 المستخدم: {self.user_id or 'عام'}
+            📈 الرمز: {symbol}
+            🔄 الإجراء: {action.upper()}
+            💲 السعر: {price}
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            🏦 نوع الحساب: {account_type.upper()} {'🔴' if account_type == 'real' else '🟢'}
+            🏪 نوع السوق: {market_type.upper()}
+            💰 المبلغ: {trade_amount} USDT
+            ⚡ الرافعة: {leverage}x
+            📡 المصدر: {'إشارة مطور' if signal_data else 'مباشر'}
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            """)
+            
+            # 4. توجيه الصفقة للدالة المناسبة
+            if account_type == 'real':
+                # تنفيذ على الحساب الحقيقي
+                await self.execute_real_trade_unified(symbol, action, price, market_type, trade_amount, leverage)
+            else:
+                # تنفيذ على الحساب التجريبي
+                await self.execute_demo_trade_unified(symbol, action, price, market_type, trade_amount, leverage)
+            
+            # 5. حفظ سجل الصفقة في قاعدة البيانات
+            if self.user_id:
+                try:
+                    from database import db_manager
+                    db_manager.log_trade(self.user_id, trade_log)
+                    logger.info(f"💾 تم حفظ سجل الصفقة في قاعدة البيانات للمستخدم {self.user_id}")
+                except Exception as log_error:
+                    logger.error(f"❌ خطأ في حفظ سجل الصفقة: {log_error}")
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في execute_trade_unified: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    async def execute_real_trade_unified(self, symbol: str, action: str, price: float, 
+                                        market_type: str, trade_amount: float, leverage: int):
+        """تنفيذ صفقة على الحساب الحقيقي - موحد لجميع الأنواع"""
+        try:
+            if not self.bybit_api:
+                logger.error("❌ API غير متصل")
+                await self.send_message_to_admin("❌ خطأ: API غير متصل")
+                return
+            
+            # تحديد الفئة بناءً على نوع السوق
+            category = "spot" if market_type == "spot" else "linear"
+            
+            logger.info(f"🔴 تنفيذ صفقة حقيقية: {symbol} {action} على {market_type}")
+            
+            if market_type == 'futures':
+                # صفقة فيوتشر حقيقية
+                response = self.bybit_api.place_futures_order(
+                    symbol=symbol,
+                    side="Buy" if action == "buy" else "Sell",
+                    order_type="Market",
+                    qty=trade_amount / price * leverage,  # حساب الكمية بناءً على المبلغ والرافعة
+                    leverage=leverage
+                )
+            else:
+                # صفقة سبوت حقيقية
+                qty = trade_amount / price  # حساب الكمية
+                response = self.bybit_api.place_spot_order(
+                    symbol=symbol,
+                    side="Buy" if action == "buy" else "Sell",
+                    order_type="Market",
+                    qty=qty
+                )
+            
+            if response and response.get("retCode") == 0:
+                order_id = response.get("result", {}).get("orderId", "N/A")
+                
+                message = f"✅ تم تنفيذ أمر حقيقي {action.upper()}\n"
+                if self.user_id:
+                    message += f"👤 المستخدم: {self.user_id}\n"
+                message += f"📊 الرمز: {symbol}\n"
+                message += f"💰 المبلغ: {trade_amount} USDT\n"
+                message += f"💲 السعر: {price:.6f}\n"
+                message += f"🏪 السوق: {market_type.upper()}\n"
+                if market_type == 'futures':
+                    message += f"⚡ الرافعة: {leverage}x\n"
+                message += f"🆔 رقم الأمر: {order_id}"
+                
+                await self.send_message_to_admin(message)
+            else:
+                error_msg = response.get("retMsg", "خطأ غير محدد") if response else "لا يوجد استجابة"
+                await self.send_message_to_admin(f"❌ فشل في تنفيذ الأمر الحقيقي: {error_msg}")
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في execute_real_trade_unified: {e}")
+            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
+    
+    async def execute_demo_trade_unified(self, symbol: str, action: str, price: float,
+                                        market_type: str, trade_amount: float, leverage: int):
+        """تنفيذ صفقة تجريبية - موحد لجميع الأنواع"""
+        try:
+            logger.info(f"🟢 تنفيذ صفقة تجريبية: {symbol} {action} على {market_type}")
+            
+            # تحديد الحساب والصفقات بناءً على نوع المستخدم
+            if self.user_id:
+                # استخدام حساب المستخدم من user_manager
+                from user_manager import user_manager
+                account = user_manager.get_user_account(self.user_id, market_type)
+                if not account:
+                    logger.error(f"❌ لم يتم العثور على حساب للمستخدم {self.user_id}")
+                    await self.send_message_to_user(self.user_id, f"❌ خطأ: لم يتم العثور على حساب {market_type}")
+                    return
+                user_positions = user_manager.user_positions.get(self.user_id, {})
+                logger.info(f"✅ استخدام حساب المستخدم {self.user_id} لنوع السوق {market_type}")
+            else:
+                # استخدام الحساب العام (للإشارات القديمة)
+                if market_type == 'futures':
+                    account = self.demo_account_futures
+                else:
+                    account = self.demo_account_spot
+                user_positions = self.open_positions
+                logger.info(f"✅ استخدام الحساب العام لنوع السوق {market_type}")
+            
+            # تنفيذ الصفقة بناءً على نوع السوق
+            if market_type == 'futures':
+                # صفقة فيوتشر تجريبية
+                success, result = account.open_futures_position(
+                    symbol=symbol,
+                    side=action,
+                    margin_amount=trade_amount,
+                    price=price,
+                    leverage=leverage
+                )
+                
+                if success:
+                    position_id = result
+                    position = account.positions[position_id]
+                    
+                    if isinstance(position, FuturesPosition):
+                        # حفظ معلومات الصفقة
+                        user_positions[position_id] = {
+                            'symbol': symbol,
+                            'entry_price': price,
+                            'side': action,
+                            'account_type': market_type,
+                            'leverage': leverage,
+                            'margin_amount': trade_amount,
+                            'position_size': position.position_size,
+                            'liquidation_price': position.liquidation_price,
+                            'contracts': position.contracts,
+                            'current_price': price,
+                            'pnl_percent': 0.0
+                        }
+                        
+                        message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
+                        if self.user_id:
+                            message += f"👤 المستخدم: {self.user_id}\n"
+                        message += f"📊 الرمز: {symbol}\n"
+                        message += f"🔄 النوع: {action.upper()}\n"
+                        message += f"💰 الهامش المحجوز: {trade_amount} USDT\n"
+                        message += f"📈 حجم الصفقة: {position.position_size:.2f}\n"
+                        message += f"💲 سعر الدخول: {price:.6f}\n"
+                        message += f"⚡ الرافعة: {leverage}x\n"
+                        message += f"⚠️ سعر التصفية: {position.liquidation_price:.6f}\n"
+                        message += f"🆔 رقم الصفقة: {position_id}\n"
+                        
+                        account_info = account.get_account_info()
+                        message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                        message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
+                        
+                        await self.send_message_to_admin(message)
+                else:
+                    await self.send_message_to_admin(f"❌ فشل في فتح صفقة فيوتشر: {result}")
+            
+            else:
+                # صفقة سبوت تجريبية
+                amount_to_trade = trade_amount
+                success, result = account.open_spot_position(
+                    symbol=symbol,
+                    side=action,
+                    amount=amount_to_trade,
+                    price=price
+                )
+                
+                if success:
+                    position_id = result
+                    position = account.positions[position_id]
+                    
+                    # حفظ معلومات الصفقة
+                    user_positions[position_id] = {
+                        'symbol': symbol,
+                        'entry_price': price,
+                        'side': action,
+                        'account_type': market_type,
+                        'amount': amount_to_trade,
+                        'current_price': price,
+                        'pnl_percent': 0.0
+                    }
+                    
+                    message = f"📊 تم فتح صفقة سبوت تجريبية\n"
+                    if self.user_id:
+                        message += f"👤 المستخدم: {self.user_id}\n"
+                    message += f"📊 الرمز: {symbol}\n"
+                    message += f"🔄 النوع: {action.upper()}\n"
+                    message += f"💰 المبلغ: {amount_to_trade} USDT\n"
+                    message += f"💲 سعر الدخول: {price:.6f}\n"
+                    message += f"🆔 رقم الصفقة: {position_id}\n"
+                    
+                    account_info = account.get_account_info()
+                    message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                    message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
+                    
+                    await self.send_message_to_admin(message)
+                else:
+                    await self.send_message_to_admin(f"❌ فشل في فتح صفقة سبوت: {result}")
+                    
+        except Exception as e:
+            logger.error(f"❌ خطأ في execute_demo_trade_unified: {e}")
+            import traceback
+            traceback.print_exc()
+    
     async def execute_demo_trade(self, symbol: str, action: str, price: float, category: str, market_type: str):
-        """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر"""
+        """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر - DEPRECATED - استخدم execute_trade_unified"""
         try:
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
-            logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}, user_id={self.user_id}")
+            logger.info(f"⚠️ استخدام execute_demo_trade القديم - يُفضل استخدام execute_trade_unified")
             
             # تحديد الحساب والصفقات بناءً على نوع المستخدم
             if self.user_id:
