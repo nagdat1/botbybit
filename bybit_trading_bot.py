@@ -656,12 +656,23 @@ class TradingBot:
     async def update_open_positions_prices(self):
         """تحديث أسعار الصفقات المفتوحة"""
         try:
-            if not self.open_positions:
+            # جمع جميع الصفقات من المصادر المختلفة
+            all_positions = {}
+            
+            # إضافة الصفقات من trading_bot.open_positions
+            all_positions.update(self.open_positions)
+            
+            # إضافة صفقات جميع المستخدمين من user_manager
+            from user_manager import user_manager
+            for user_id, user_positions in user_manager.user_positions.items():
+                all_positions.update(user_positions)
+            
+            if not all_positions:
                 return
             
             # جمع الرموز الفريدة من الصفقات المفتوحة مع نوع السوق
             symbols_to_update = {}  # {symbol: market_type}
-            for position_info in self.open_positions.values():
+            for position_info in all_positions.values():
                 symbol = position_info['symbol']
                 market_type = position_info.get('account_type', 'spot')
                 symbols_to_update[symbol] = market_type
@@ -706,6 +717,25 @@ class TradingBot:
                             pnl_percent = ((entry_price - current_price) / entry_price) * 100
                         
                         position_info['pnl_percent'] = pnl_percent
+                
+                # تحديث صفقات المستخدمين في user_manager
+                for user_id, user_positions in user_manager.user_positions.items():
+                    for position_id, position_info in user_positions.items():
+                        symbol = position_info['symbol']
+                        if symbol in current_prices:
+                            position_info['current_price'] = current_prices[symbol]
+                            
+                            # حساب الربح/الخسارة
+                            entry_price = position_info['entry_price']
+                            current_price = current_prices[symbol]
+                            side = position_info['side']
+                            
+                            if side.lower() == "buy":
+                                pnl_percent = ((current_price - entry_price) / entry_price) * 100
+                            else:
+                                pnl_percent = ((entry_price - current_price) / entry_price) * 100
+                            
+                            position_info['pnl_percent'] = pnl_percent
                         
         except Exception as e:
             logger.error(f"خطأ في تحديث أسعار الصفقات: {e}")
@@ -1053,8 +1083,11 @@ class TradingBot:
                     logger.error(f"لم يتم العثور على حساب للمستخدم {self.user_id}")
                     await self.send_message_to_user(self.user_id, f"❌ خطأ: لم يتم العثور على حساب {user_market_type}")
                     return
-                # استخدام صفقات المستخدم
-                user_positions = user_manager.user_positions.get(self.user_id, {})
+                # استخدام صفقات المستخدم - التأكد من وجود القاموس
+                if self.user_id not in user_manager.user_positions:
+                    user_manager.user_positions[self.user_id] = {}
+                    logger.info(f"تم إنشاء قاموس صفقات جديد للمستخدم {self.user_id}")
+                user_positions = user_manager.user_positions[self.user_id]
                 logger.info(f"استخدام حساب المستخدم {self.user_id} لنوع السوق {user_market_type}")
             else:
                 # استخدام الحساب العام (للإشارات القديمة)
@@ -1923,12 +1956,27 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
     try:
-        logger.info(f"عرض الصفقات المفتوحة: {len(trading_bot.open_positions)} صفقة مفتوحة")
+        # الحصول على معرف المستخدم
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # جمع جميع الصفقات المفتوحة من المصادر المختلفة
+        all_positions = {}
+        
+        # إضافة صفقات المستخدم من user_manager
+        if user_id and user_id in user_manager.user_positions:
+            user_positions = user_manager.user_positions[user_id]
+            all_positions.update(user_positions)
+            logger.info(f"تم العثور على {len(user_positions)} صفقة للمستخدم {user_id} في user_manager")
+        
+        # إضافة الصفقات من trading_bot.open_positions (للإشارات القديمة)
+        all_positions.update(trading_bot.open_positions)
+        
+        logger.info(f"عرض الصفقات المفتوحة: {len(all_positions)} صفقة مفتوحة")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
         
-        if not trading_bot.open_positions:
+        if not all_positions:
             message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
             if update.callback_query is not None:
                 # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
@@ -1942,7 +1990,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         spot_positions = {}
         futures_positions = {}
         
-        for position_id, position_info in trading_bot.open_positions.items():
+        for position_id, position_info in all_positions.items():
             market_type = position_info.get('account_type', 'spot')
             logger.info(f"الصفقة {position_id}: نوع السوق = {market_type}")
             if market_type == 'spot':
@@ -1971,6 +2019,8 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"خطأ في عرض الصفقات المفتوحة: {e}")
+        import traceback
+        logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
         error_message = f"❌ خطأ في عرض الصفقات المفتوحة: {e}"
         if update.callback_query is not None:
             # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
@@ -2194,12 +2244,28 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 async def close_position(position_id: str, update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إغلاق صفقة مع دعم محسن للفيوتشر"""
     try:
-        if position_id not in trading_bot.open_positions:
+        # الحصول على معرف المستخدم
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # البحث عن الصفقة في صفقات المستخدم أو الصفقات العامة
+        position_info = None
+        is_user_position = False
+        
+        if user_id and user_id in user_manager.user_positions:
+            if position_id in user_manager.user_positions[user_id]:
+                position_info = user_manager.user_positions[user_id][position_id]
+                is_user_position = True
+                logger.info(f"تم العثور على الصفقة {position_id} في صفقات المستخدم {user_id}")
+        
+        if not position_info and position_id in trading_bot.open_positions:
+            position_info = trading_bot.open_positions[position_id]
+            logger.info(f"تم العثور على الصفقة {position_id} في الصفقات العامة")
+        
+        if not position_info:
             if update.callback_query is not None:
                 await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
             return
         
-        position_info = trading_bot.open_positions[position_id]
         symbol = position_info['symbol']
         category = position_info.get('category', 'spot')
         market_type = position_info.get('account_type', 'spot')
@@ -2214,12 +2280,19 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
             current_price = position_info['entry_price'] * 1.01  # ربح 1%
         
         if trading_bot.user_settings['account_type'] == 'demo':
-            # تحديد الحساب الصحيح
+            # تحديد الحساب الصحيح - استخدام حساب المستخدم إذا كانت صفقة مستخدم
+            if is_user_position and user_id:
+                account = user_manager.get_user_account(user_id, market_type)
+            else:
+                if market_type == 'spot':
+                    account = trading_bot.demo_account_spot
+                else:
+                    account = trading_bot.demo_account_futures
+            
+            # إغلاق الصفقة
             if market_type == 'spot':
-                account = trading_bot.demo_account_spot
                 success, result = account.close_spot_position(position_id, current_price)
             else:
-                account = trading_bot.demo_account_futures
                 success, result = account.close_futures_position(position_id, current_price)
                 
             if success:
@@ -2303,9 +2376,15 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                     if update.callback_query is not None:
                         await update.callback_query.edit_message_text(message)
                 
-                # حذف الصفقة من القائمة العامة
+                # حذف الصفقة من القائمة المناسبة
+                if is_user_position and user_id and user_id in user_manager.user_positions:
+                    if position_id in user_manager.user_positions[user_id]:
+                        del user_manager.user_positions[user_id][position_id]
+                        logger.info(f"تم حذف الصفقة {position_id} من صفقات المستخدم {user_id}")
+                
                 if position_id in trading_bot.open_positions:
                     del trading_bot.open_positions[position_id]
+                    logger.info(f"تم حذف الصفقة {position_id} من الصفقات العامة")
                 
             else:
                 if update.callback_query is not None:
