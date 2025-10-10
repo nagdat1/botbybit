@@ -2956,17 +2956,26 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     auto_status = "✅" if trade_tools_manager.auto_apply_enabled else "⏸️"
     
+    # الحصول على نوع السوق الحالي
+    market_type = user_data.get('market_type', 'spot')
+    
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
-        [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")],
-        [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
+        [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]
+    ]
+    
+    # إضافة زر الرافعة المالية فقط إذا كان السوق Futures
+    if market_type == 'futures':
+        keyboard.append([InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")])
+    
+    keyboard.extend([
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
         [InlineKeyboardButton(f"🤖 تطبيق تلقائي TP/SL {auto_status}", callback_data="auto_apply_menu")],
         [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
         [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
-    ]
+    ])
     
     # إضافة زر تشغيل/إيقاف البوت
     if user_data.get('is_active'):
@@ -3001,6 +3010,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     trade_amount = user_data.get('trade_amount', 100.0)
     leverage = user_data.get('leverage', 10)
     
+    # بناء نص الإعدادات بشكل ديناميكي
     settings_text = f"""
 ⚙️ إعدادات البوت الحالية:
 
@@ -3009,8 +3019,13 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
-👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}
-⚡ الرافعة المالية: {leverage}x
+👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}"""
+    
+    # إضافة معلومات الرافعة المالية فقط للفيوتشر
+    if market_type == 'futures':
+        settings_text += f"\n⚡ الرافعة المالية: {leverage}x"
+    
+    settings_text += f"""
 
 📊 معلومات الحساب الحالي ({market_type.upper()}):
 💰 الرصيد الكلي: {account_info.get('balance', 0):.2f}
