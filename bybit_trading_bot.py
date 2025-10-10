@@ -3206,9 +3206,11 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     auto_status = "✅" if trade_tools_manager.auto_apply_enabled else "⏸️"
     
-    # الحصول على نوع السوق الحالي
+    # الحصول على نوع السوق ونوع الحساب الحالي
     market_type = user_data.get('market_type', 'spot')
+    account_type = user_data.get('account_type', 'demo')
     
+    # بناء القائمة الأساسية
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
@@ -3219,8 +3221,12 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if market_type == 'futures':
         keyboard.append([InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")])
     
+    # إضافة زر رصيد الحساب التجريبي فقط إذا كان نوع الحساب تجريبي
+    if account_type == 'demo':
+        keyboard.append([InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")])
+    
+    # إضافة باقي الأزرار
     keyboard.extend([
-        [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
         [InlineKeyboardButton(f"🤖 تطبيق تلقائي TP/SL {auto_status}", callback_data="auto_apply_menu")],
         [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
