@@ -901,6 +901,14 @@ class TradeToolsManager:
     
     def __init__(self):
         self.managed_positions: Dict[str, PositionManagement] = {}
+        # الإعدادات الافتراضية التلقائية
+        self.auto_apply_enabled: bool = False
+        self.default_tp_percentages: List[float] = []
+        self.default_tp_close_percentages: List[float] = []
+        self.default_sl_percentage: float = 0
+        self.default_trailing_enabled: bool = False
+        self.default_trailing_distance: float = 2.0
+        self.auto_breakeven_on_tp1: bool = True
         logger.info("✅ تم تهيئة TradeToolsManager")
     
     def create_managed_position(self, position_id: str, symbol: str, side: str,
@@ -1008,6 +1016,110 @@ class TradeToolsManager:
         except Exception as e:
             logger.error(f"خطأ في تعيين المستويات الافتراضية: {e}")
             return False
+    
+    def save_auto_settings(self, tp_percentages: List[float], tp_close_percentages: List[float],
+                          sl_percentage: float, trailing_enabled: bool = False, 
+                          trailing_distance: float = 2.0, breakeven_on_tp1: bool = True) -> bool:
+        """حفظ الإعدادات الافتراضية للتطبيق التلقائي"""
+        try:
+            self.default_tp_percentages = tp_percentages.copy()
+            self.default_tp_close_percentages = tp_close_percentages.copy()
+            self.default_sl_percentage = sl_percentage
+            self.default_trailing_enabled = trailing_enabled
+            self.default_trailing_distance = trailing_distance
+            self.auto_breakeven_on_tp1 = breakeven_on_tp1
+            
+            logger.info(f"✅ تم حفظ الإعدادات التلقائية: TP={tp_percentages}, SL={sl_percentage}%")
+            return True
+        except Exception as e:
+            logger.error(f"خطأ في حفظ الإعدادات التلقائية: {e}")
+            return False
+    
+    def enable_auto_apply(self):
+        """تفعيل التطبيق التلقائي"""
+        self.auto_apply_enabled = True
+        logger.info("✅ تم تفعيل التطبيق التلقائي للإعدادات")
+    
+    def disable_auto_apply(self):
+        """تعطيل التطبيق التلقائي"""
+        self.auto_apply_enabled = False
+        logger.info("⏸️ تم تعطيل التطبيق التلقائي للإعدادات")
+    
+    def apply_auto_settings_to_position(self, position_id: str, symbol: str, side: str,
+                                       entry_price: float, quantity: float, 
+                                       market_type: str, leverage: int = 1) -> bool:
+        """تطبيق الإعدادات التلقائية على صفقة جديدة"""
+        if not self.auto_apply_enabled:
+            return False
+        
+        try:
+            # إنشاء إدارة الصفقة
+            pm = self.create_managed_position(position_id, symbol, side, entry_price, 
+                                             quantity, market_type, leverage)
+            if not pm:
+                return False
+            
+            # تطبيق أهداف الربح
+            if self.default_tp_percentages and self.default_tp_close_percentages:
+                for i, tp_pct in enumerate(self.default_tp_percentages):
+                    if i >= len(self.default_tp_close_percentages):
+                        break
+                    
+                    if side.lower() == "buy":
+                        tp_price = entry_price * (1 + tp_pct / 100)
+                    else:
+                        tp_price = entry_price * (1 - tp_pct / 100)
+                    
+                    pm.add_take_profit(tp_price, self.default_tp_close_percentages[i] / 100)
+            
+            # تطبيق Stop Loss
+            if self.default_sl_percentage > 0:
+                if side.lower() == "buy":
+                    sl_price = entry_price * (1 - self.default_sl_percentage / 100)
+                else:
+                    sl_price = entry_price * (1 + self.default_sl_percentage / 100)
+                
+                pm.set_stop_loss(sl_price, 
+                               is_trailing=self.default_trailing_enabled,
+                               trailing_distance=self.default_trailing_distance)
+            
+            logger.info(f"✅ تم تطبيق الإعدادات التلقائية على الصفقة {position_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطأ في تطبيق الإعدادات التلقائية: {e}")
+            return False
+    
+    def get_auto_settings_summary(self) -> str:
+        """الحصول على ملخص الإعدادات التلقائية"""
+        if not self.auto_apply_enabled:
+            return "⏸️ **التطبيق التلقائي معطل**"
+        
+        summary = "✅ **التطبيق التلقائي مُفعّل**\n\n"
+        
+        if self.default_tp_percentages:
+            summary += "🎯 **أهداف الربح:**\n"
+            for i, (tp, close) in enumerate(zip(self.default_tp_percentages, 
+                                               self.default_tp_close_percentages), 1):
+                summary += f"• TP{i}: +{tp}% → إغلاق {close}%\n"
+        else:
+            summary += "🎯 **أهداف الربح:** غير محددة\n"
+        
+        summary += "\n"
+        
+        if self.default_sl_percentage > 0:
+            sl_type = "⚡ Trailing" if self.default_trailing_enabled else "🛑 ثابت"
+            summary += f"🛑 **Stop Loss:** {sl_type} عند -{self.default_sl_percentage}%\n"
+            
+            if self.default_trailing_enabled:
+                summary += f"   المسافة: {self.default_trailing_distance}%\n"
+        else:
+            summary += "🛑 **Stop Loss:** غير محدد\n"
+        
+        if self.auto_breakeven_on_tp1:
+            summary += "\n🔁 **نقل تلقائي للتعادل** عند تحقيق TP1"
+        
+        return summary
 
 
 class TradingBot:
@@ -1585,6 +1697,15 @@ class TradingBot:
                         message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
                         message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
                         
+                        # تطبيق الإعدادات التلقائية إن كانت مفعلة
+                        if trade_tools_manager.auto_apply_enabled:
+                            auto_applied = trade_tools_manager.apply_auto_settings_to_position(
+                                position_id, symbol, action, price, position.position_size,
+                                user_market_type, leverage
+                            )
+                            if auto_applied:
+                                message += "\n\n🤖 تم تطبيق الإعدادات التلقائية!"
+                        
                         await self.send_message_to_admin(message)
                     else:
                         await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
@@ -1631,6 +1752,15 @@ class TradingBot:
                     # إضافة معلومات الحساب
                     account_info = account.get_account_info()
                     message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
+                    
+                    # تطبيق الإعدادات التلقائية إن كانت مفعلة
+                    if trade_tools_manager.auto_apply_enabled:
+                        auto_applied = trade_tools_manager.apply_auto_settings_to_position(
+                            position_id, symbol, action, price, amount,
+                            user_market_type, 1
+                        )
+                        if auto_applied:
+                            message += "\n\n🤖 تم تطبيق الإعدادات التلقائية!"
                     
                     await self.send_message_to_admin(message)
                 else:
@@ -2230,6 +2360,140 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message is not None:
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
+async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """قائمة إعدادات التطبيق التلقائي"""
+    try:
+        query = update.callback_query if update.callback_query else None
+        
+        if query:
+            await query.answer()
+        
+        summary = trade_tools_manager.get_auto_settings_summary()
+        
+        message = f"""
+⚙️ **إعدادات التطبيق التلقائي**
+
+{summary}
+
+💡 **ما هو التطبيق التلقائي؟**
+عند التفعيل، كل صفقة جديدة تُفتح ستحصل تلقائياً على:
+• أهداف الربح المحددة
+• Stop Loss المحدد
+• Trailing Stop (إن كان مفعلاً)
+
+🎯 هذا يوفر عليك الوقت ويضمن حماية كل صفقاتك!
+        """
+        
+        status_button = "⏸️ تعطيل" if trade_tools_manager.auto_apply_enabled else "✅ تفعيل"
+        
+        keyboard = [
+            [InlineKeyboardButton(
+                f"{status_button} التطبيق التلقائي", 
+                callback_data="toggle_auto_apply"
+            )],
+            [InlineKeyboardButton("⚙️ تعديل الإعدادات", callback_data="edit_auto_settings")],
+            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
+            [InlineKeyboardButton("🗑️ حذف الإعدادات", callback_data="clear_auto_settings")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        elif update.message:
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+            
+    except Exception as e:
+        logger.error(f"خطأ في قائمة التطبيق التلقائي: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تبديل حالة التطبيق التلقائي"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        if trade_tools_manager.auto_apply_enabled:
+            trade_tools_manager.disable_auto_apply()
+            message = "⏸️ تم تعطيل التطبيق التلقائي"
+        else:
+            # التحقق من وجود إعدادات محفوظة
+            if not trade_tools_manager.default_tp_percentages and trade_tools_manager.default_sl_percentage == 0:
+                await query.edit_message_text(
+                    "⚠️ لا توجد إعدادات محفوظة!\n\n"
+                    "يرجى تعديل الإعدادات أولاً قبل التفعيل.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("⚙️ تعديل الإعدادات", callback_data="edit_auto_settings"),
+                        InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
+                    ]])
+                )
+                return
+            
+            trade_tools_manager.enable_auto_apply()
+            message = "✅ تم تفعيل التطبيق التلقائي!\n\nالآن كل صفقة جديدة ستحصل على الإعدادات المحفوظة"
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"خطأ في تبديل التطبيق التلقائي: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع للإعدادات التلقائية"""
+    try:
+        query = update.callback_query
+        await query.answer("⏳ جاري تطبيق الإعداد السريع...")
+        
+        # إعدادات ذكية افتراضية
+        success = trade_tools_manager.save_auto_settings(
+            tp_percentages=[1.5, 3.0, 5.0],
+            tp_close_percentages=[50, 30, 20],
+            sl_percentage=2.0,
+            trailing_enabled=False,
+            trailing_distance=2.0,
+            breakeven_on_tp1=True
+        )
+        
+        if success:
+            trade_tools_manager.enable_auto_apply()
+            
+            message = """
+✅ **تم تطبيق الإعداد السريع بنجاح!**
+
+🎯 **أهداف الربح:**
+• TP1: +1.5% → إغلاق 50%
+• TP2: +3.0% → إغلاق 30%
+• TP3: +5.0% → إغلاق 20%
+
+🛑 **Stop Loss:** -2%
+
+🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
+
+✅ **التطبيق التلقائي مُفعّل**
+
+💡 الآن كل صفقة جديدة ستحصل على هذه الإعدادات تلقائياً!
+            """
+            
+            keyboard = [[
+                InlineKeyboardButton("⚙️ تعديل", callback_data="edit_auto_settings"),
+                InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        else:
+            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            
+    except Exception as e:
+        logger.error(f"خطأ في الإعداد السريع: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة الإعدادات لكل مستخدم"""
     if update.effective_user is None:
@@ -2243,12 +2507,15 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ يرجى استخدام /start أولاً")
         return
     
+    auto_status = "✅" if trade_tools_manager.auto_apply_enabled else "⏸️"
+    
     keyboard = [
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")],
         [InlineKeyboardButton("⚡ الرافعة المالية", callback_data="set_leverage")],
         [InlineKeyboardButton("💳 رصيد الحساب التجريبي", callback_data="set_demo_balance")],
+        [InlineKeyboardButton(f"🤖 تطبيق تلقائي TP/SL {auto_status}", callback_data="auto_apply_menu")],
         [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")],
         [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
         [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
@@ -3954,6 +4221,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await close_position(position_id, update, context)
     elif data == "refresh_positions" or data == "show_positions":
         await open_positions(update, context)
+    elif data == "auto_apply_menu":
+        await auto_apply_settings_menu(update, context)
+    elif data == "toggle_auto_apply":
+        await toggle_auto_apply(update, context)
+    elif data == "quick_auto_setup":
+        await quick_auto_setup(update, context)
     elif data.startswith("manage_"):
         await manage_position_tools(update, context)
     elif data.startswith("tools_guide_"):
