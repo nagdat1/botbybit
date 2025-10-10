@@ -2494,6 +2494,198 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
+async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعديل الإعدادات التلقائية"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        current_settings = ""
+        if trade_tools_manager.default_tp_percentages:
+            current_settings += "🎯 **الأهداف الحالية:**\n"
+            for i, (tp, close) in enumerate(zip(trade_tools_manager.default_tp_percentages,
+                                                trade_tools_manager.default_tp_close_percentages), 1):
+                current_settings += f"• TP{i}: +{tp}% → {close}%\n"
+        else:
+            current_settings += "🎯 لا توجد أهداف محددة\n"
+        
+        current_settings += "\n"
+        
+        if trade_tools_manager.default_sl_percentage > 0:
+            current_settings += f"🛑 **Stop Loss:** -{trade_tools_manager.default_sl_percentage}%\n"
+            if trade_tools_manager.default_trailing_enabled:
+                current_settings += f"⚡ **Trailing:** نعم ({trade_tools_manager.default_trailing_distance}%)\n"
+        else:
+            current_settings += "🛑 لا يوجد Stop Loss\n"
+        
+        message = f"""
+⚙️ **تعديل الإعدادات التلقائية**
+
+{current_settings}
+
+اختر ما تريد تعديله:
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🎯 تعديل أهداف الربح", callback_data="edit_auto_tp")],
+            [InlineKeyboardButton("🛑 تعديل Stop Loss", callback_data="edit_auto_sl")],
+            [InlineKeyboardButton("⚡ تفعيل/تعطيل Trailing", callback_data="toggle_auto_trailing")],
+            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في تعديل الإعدادات: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def edit_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعديل أهداف الربح التلقائية"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id:
+            user_input_state[user_id] = "waiting_auto_tp_input"
+        
+        message = """
+🎯 **تعديل أهداف الربح التلقائية**
+
+أدخل الأهداف بالصيغة التالية (كل هدف في سطر):
+`نسبة_الربح نسبة_الإغلاق`
+
+**مثال:**
+```
+1.5 50
+3 30
+5 20
+```
+
+هذا يعني:
+• TP1: +1.5% إغلاق 50%
+• TP2: +3% إغلاق 30%
+• TP3: +5% إغلاق 20%
+
+💡 يمكنك إضافة حتى 5 أهداف
+        """
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في edit_auto_tp: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def edit_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعديل Stop Loss التلقائي"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id:
+            user_input_state[user_id] = "waiting_auto_sl_input"
+        
+        message = """
+🛑 **تعديل Stop Loss التلقائي**
+
+أدخل نسبة Stop Loss كرقم:
+
+**أمثلة:**
+• `2` → SL عند -2%
+• `3.5` → SL عند -3.5%
+• `1` → SL عند -1% (محافظ)
+• `5` → SL عند -5% (عدواني)
+
+⚠️ **نصيحة:** النسبة الموصى بها هي 2%
+        """
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في edit_auto_sl: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def toggle_auto_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تبديل حالة Trailing Stop التلقائي"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        trade_tools_manager.default_trailing_enabled = not trade_tools_manager.default_trailing_enabled
+        
+        if trade_tools_manager.default_trailing_enabled:
+            message = f"""
+✅ **تم تفعيل Trailing Stop التلقائي**
+
+⚡ المسافة: {trade_tools_manager.default_trailing_distance}%
+
+💡 الآن كل صفقة جديدة ستحصل على Trailing Stop بدلاً من SL الثابت
+
+⚠️ **تحذير:** Trailing Stop يتحرك مع السعر ولا يمكن أن ينخفض
+            """
+        else:
+            message = """
+⏸️ **تم تعطيل Trailing Stop التلقائي**
+
+الصفقات الجديدة ستحصل على Stop Loss ثابت
+            """
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في toggle trailing: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def clear_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """حذف جميع الإعدادات التلقائية"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        # حذف جميع الإعدادات
+        trade_tools_manager.default_tp_percentages = []
+        trade_tools_manager.default_tp_close_percentages = []
+        trade_tools_manager.default_sl_percentage = 0
+        trade_tools_manager.default_trailing_enabled = False
+        trade_tools_manager.disable_auto_apply()
+        
+        message = """
+✅ **تم حذف جميع الإعدادات التلقائية**
+
+⏸️ تم تعطيل التطبيق التلقائي
+
+💡 يمكنك إعداد إعدادات جديدة في أي وقت
+        """
+        
+        keyboard = [[
+            InlineKeyboardButton("🎲 إعداد جديد", callback_data="quick_auto_setup"),
+            InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
+        ]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في حذف الإعدادات: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة الإعدادات لكل مستخدم"""
     if update.effective_user is None:
@@ -4227,6 +4419,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await toggle_auto_apply(update, context)
     elif data == "quick_auto_setup":
         await quick_auto_setup(update, context)
+    elif data == "edit_auto_settings":
+        await edit_auto_settings(update, context)
+    elif data == "edit_auto_tp":
+        await edit_auto_tp(update, context)
+    elif data == "edit_auto_sl":
+        await edit_auto_sl(update, context)
+    elif data == "toggle_auto_trailing":
+        await toggle_auto_trailing(update, context)
+    elif data == "clear_auto_settings":
+        await clear_auto_settings(update, context)
     elif data.startswith("manage_"):
         await manage_position_tools(update, context)
     elif data.startswith("tools_guide_"):
@@ -5386,6 +5588,101 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=reply_markup
                 )
                 
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال أهداف الربح التلقائية
+        elif state == "waiting_auto_tp_input":
+            try:
+                lines = text.strip().split('\n')
+                tp_percentages = []
+                tp_close_percentages = []
+                
+                for line in lines:
+                    parts = line.strip().split()
+                    if len(parts) != 2:
+                        await update.message.reply_text("❌ الصيغة غير صحيحة. كل سطر يجب أن يحتوي على: نسبة_الربح نسبة_الإغلاق")
+                        return
+                    
+                    tp_pct = float(parts[0])
+                    close_pct = float(parts[1])
+                    
+                    if tp_pct <= 0 or tp_pct > 100:
+                        await update.message.reply_text("❌ نسبة الربح يجب أن تكون بين 0.1 و 100")
+                        return
+                    
+                    if close_pct <= 0 or close_pct > 100:
+                        await update.message.reply_text("❌ نسبة الإغلاق يجب أن تكون بين 1 و 100")
+                        return
+                    
+                    tp_percentages.append(tp_pct)
+                    tp_close_percentages.append(close_pct)
+                
+                if len(tp_percentages) > 5:
+                    await update.message.reply_text("❌ الحد الأقصى 5 أهداف")
+                    return
+                
+                # حفظ الإعدادات
+                success = trade_tools_manager.save_auto_settings(
+                    tp_percentages=tp_percentages,
+                    tp_close_percentages=tp_close_percentages,
+                    sl_percentage=trade_tools_manager.default_sl_percentage,
+                    trailing_enabled=trade_tools_manager.default_trailing_enabled,
+                    trailing_distance=trade_tools_manager.default_trailing_distance,
+                    breakeven_on_tp1=True
+                )
+                
+                if success:
+                    del user_input_state[user_id]
+                    
+                    message = "✅ **تم حفظ أهداف الربح!**\n\n🎯 **الأهداف:**\n"
+                    for i, (tp, close) in enumerate(zip(tp_percentages, tp_close_percentages), 1):
+                        message += f"• TP{i}: +{tp}% → إغلاق {close}%\n"
+                    
+                    keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+                else:
+                    await update.message.reply_text("❌ فشل في حفظ الإعدادات")
+                    
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال أرقام صحيحة")
+        
+        # معالجة إدخال Stop Loss التلقائي
+        elif state == "waiting_auto_sl_input":
+            try:
+                sl_percentage = float(text)
+                
+                if sl_percentage <= 0 or sl_percentage > 50:
+                    await update.message.reply_text("❌ نسبة Stop Loss يجب أن تكون بين 0.1 و 50")
+                    return
+                
+                # حفظ الإعدادات
+                success = trade_tools_manager.save_auto_settings(
+                    tp_percentages=trade_tools_manager.default_tp_percentages,
+                    tp_close_percentages=trade_tools_manager.default_tp_close_percentages,
+                    sl_percentage=sl_percentage,
+                    trailing_enabled=trade_tools_manager.default_trailing_enabled,
+                    trailing_distance=trade_tools_manager.default_trailing_distance,
+                    breakeven_on_tp1=True
+                )
+                
+                if success:
+                    del user_input_state[user_id]
+                    
+                    keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await update.message.reply_text(
+                        f"✅ **تم حفظ Stop Loss!**\n\n"
+                        f"🛑 النسبة: -{sl_percentage}%",
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await update.message.reply_text("❌ فشل في حفظ الإعدادات")
+                    
             except ValueError:
                 await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
         
