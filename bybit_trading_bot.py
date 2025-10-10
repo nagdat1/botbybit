@@ -1205,31 +1205,34 @@ class TradeToolsManager:
     def get_auto_settings_summary(self) -> str:
         """الحصول على ملخص الإعدادات التلقائية"""
         if not self.auto_apply_enabled:
-            return "⏸️ **التطبيق التلقائي معطل**"
+            return "🔴 **التطبيق التلقائي معطل**\n\n❌ لن يتم تطبيق أي إعدادات تلقائياً على الصفقات الجديدة"
         
-        summary = "✅ **التطبيق التلقائي مُفعّل**\n\n"
+        summary = "🟢 **التطبيق التلقائي مُفعّل**\n\n"
+        summary += "📊 **الإعدادات المحفوظة:**\n\n"
         
         if self.default_tp_percentages:
             summary += "🎯 **أهداف الربح:**\n"
             for i, (tp, close) in enumerate(zip(self.default_tp_percentages, 
                                                self.default_tp_close_percentages), 1):
-                summary += f"• TP{i}: +{tp}% → إغلاق {close}%\n"
+                summary += f"   • TP{i}: +{tp}% → إغلاق {close}%\n"
         else:
-            summary += "🎯 **أهداف الربح:** غير محددة\n"
+            summary += "🎯 **أهداف الربح:** ❌ غير محددة\n"
         
         summary += "\n"
         
         if self.default_sl_percentage > 0:
             sl_type = "⚡ Trailing" if self.default_trailing_enabled else "🛑 ثابت"
-            summary += f"🛑 **Stop Loss:** {sl_type} عند -{self.default_sl_percentage}%\n"
+            summary += f"🛑 **Stop Loss:** ✅ {sl_type} عند -{self.default_sl_percentage}%\n"
             
             if self.default_trailing_enabled:
-                summary += f"   المسافة: {self.default_trailing_distance}%\n"
+                summary += f"   📏 المسافة: {self.default_trailing_distance}%\n"
         else:
-            summary += "🛑 **Stop Loss:** غير محدد\n"
+            summary += "🛑 **Stop Loss:** ❌ غير محدد\n"
         
         if self.auto_breakeven_on_tp1:
-            summary += "\n🔁 **نقل تلقائي للتعادل** عند تحقيق TP1"
+            summary += "\n🔁 **نقل للتعادل:** 🟢 مُفعّل عند تحقيق TP1"
+        else:
+            summary += "\n🔁 **نقل للتعادل:** 🔴 معطل"
         
         return summary
 
@@ -2620,10 +2623,24 @@ async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT
         
         summary = trade_tools_manager.get_auto_settings_summary()
         
+        # تحديد الحالة الحالية بوضوح
+        if trade_tools_manager.auto_apply_enabled:
+            status_emoji = "🟢"
+            status_text = "**مُفعّل الآن**"
+        else:
+            status_emoji = "🔴"
+            status_text = "**معطل حالياً**"
+        
         message = f"""
 ⚙️ **إعدادات التطبيق التلقائي**
 
+{status_emoji} **الحالة:** {status_text}
+
+━━━━━━━━━━━━━━━━━━━━
+
 {summary}
+
+━━━━━━━━━━━━━━━━━━━━
 
 💡 **ما هو التطبيق التلقائي؟**
 عند التفعيل، كل صفقة جديدة تُفتح ستحصل تلقائياً على:
@@ -2634,15 +2651,28 @@ async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT
 🎯 هذا يوفر عليك الوقت ويضمن حماية كل صفقاتك!
         """
         
-        status_button = "⏸️ تعطيل" if trade_tools_manager.auto_apply_enabled else "✅ تفعيل"
+        # أزرار واضحة مع مؤشرات الحالة
+        if trade_tools_manager.auto_apply_enabled:
+            toggle_button = InlineKeyboardButton(
+                "🔴 تعطيل التطبيق التلقائي", 
+                callback_data="toggle_auto_apply"
+            )
+        else:
+            toggle_button = InlineKeyboardButton(
+                "🟢 تفعيل التطبيق التلقائي", 
+                callback_data="toggle_auto_apply"
+            )
         
         keyboard = [
-            [InlineKeyboardButton(
-                f"{status_button} التطبيق التلقائي", 
-                callback_data="toggle_auto_apply"
-            )],
+            [toggle_button],
             [InlineKeyboardButton("⚙️ تعديل الإعدادات", callback_data="edit_auto_settings")],
-            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
+            [
+                InlineKeyboardButton("🎲 إعداد سريع (محافظ)", callback_data="quick_auto_setup_safe"),
+                InlineKeyboardButton("⚡ إعداد سريع (متوازن)", callback_data="quick_auto_setup")
+            ],
+            [
+                InlineKeyboardButton("🚀 إعداد سريع (عدواني)", callback_data="quick_auto_setup_aggressive")
+            ],
             [InlineKeyboardButton("🗑️ حذف الإعدادات", callback_data="clear_auto_settings")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="settings")]
         ]
@@ -2694,12 +2724,12 @@ async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
 async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع للإعدادات التلقائية"""
+    """إعداد سريع متوازن للإعدادات التلقائية"""
     try:
         query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد السريع...")
+        await query.answer("⏳ جاري تطبيق الإعداد المتوازن...")
         
-        # إعدادات ذكية افتراضية
+        # إعدادات متوازنة
         success = trade_tools_manager.save_auto_settings(
             tp_percentages=[1.5, 3.0, 5.0],
             tp_close_percentages=[50, 30, 20],
@@ -2713,7 +2743,9 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             trade_tools_manager.enable_auto_apply()
             
             message = """
-✅ **تم تطبيق الإعداد السريع بنجاح!**
+✅ **تم تطبيق الإعداد المتوازن بنجاح!**
+
+⚡ **النوع:** متوازن (Risk/Reward: 1:2.5)
 
 🎯 **أهداف الربح:**
 • TP1: +1.5% → إغلاق 50%
@@ -2724,7 +2756,7 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
 
-✅ **التطبيق التلقائي مُفعّل**
+🟢 **التطبيق التلقائي مُفعّل**
 
 💡 الآن كل صفقة جديدة ستحصل على هذه الإعدادات تلقائياً!
             """
@@ -2744,43 +2776,170 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
+async def quick_auto_setup_safe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع محافظ للإعدادات التلقائية"""
+    try:
+        query = update.callback_query
+        await query.answer("⏳ جاري تطبيق الإعداد المحافظ...")
+        
+        # إعدادات محافظة - أهداف قريبة وستوب لوس ضيق
+        success = trade_tools_manager.save_auto_settings(
+            tp_percentages=[1.0, 2.0, 3.0],
+            tp_close_percentages=[60, 30, 10],
+            sl_percentage=1.5,
+            trailing_enabled=True,
+            trailing_distance=1.0,
+            breakeven_on_tp1=True
+        )
+        
+        if success:
+            trade_tools_manager.enable_auto_apply()
+            
+            message = """
+✅ **تم تطبيق الإعداد المحافظ بنجاح!**
+
+🛡️ **النوع:** محافظ (حماية عالية، أهداف قريبة)
+
+🎯 **أهداف الربح:**
+• TP1: +1.0% → إغلاق 60%
+• TP2: +2.0% → إغلاق 30%
+• TP3: +3.0% → إغلاق 10%
+
+🛑 **Stop Loss:** -1.5% (ضيق)
+
+⚡ **Trailing Stop:** مُفعّل (مسافة 1%)
+
+🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
+
+🟢 **التطبيق التلقائي مُفعّل**
+
+💡 هذا الإعداد مناسب للمبتدئين والأسواق المتقلبة!
+            """
+            
+            keyboard = [[
+                InlineKeyboardButton("⚙️ تعديل", callback_data="edit_auto_settings"),
+                InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        else:
+            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            
+    except Exception as e:
+        logger.error(f"خطأ في الإعداد المحافظ: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def quick_auto_setup_aggressive(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع عدواني للإعدادات التلقائية"""
+    try:
+        query = update.callback_query
+        await query.answer("⏳ جاري تطبيق الإعداد العدواني...")
+        
+        # إعدادات عدوانية - أهداف بعيدة وستوب لوس أوسع
+        success = trade_tools_manager.save_auto_settings(
+            tp_percentages=[2.0, 5.0, 10.0],
+            tp_close_percentages=[40, 30, 30],
+            sl_percentage=3.0,
+            trailing_enabled=False,
+            trailing_distance=2.0,
+            breakeven_on_tp1=True
+        )
+        
+        if success:
+            trade_tools_manager.enable_auto_apply()
+            
+            message = """
+✅ **تم تطبيق الإعداد العدواني بنجاح!**
+
+🚀 **النوع:** عدواني (أهداف بعيدة، Risk/Reward: 1:3.3)
+
+🎯 **أهداف الربح:**
+• TP1: +2.0% → إغلاق 40%
+• TP2: +5.0% → إغلاق 30%
+• TP3: +10.0% → إغلاق 30%
+
+🛑 **Stop Loss:** -3.0% (واسع)
+
+🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
+
+🟢 **التطبيق التلقائي مُفعّل**
+
+⚠️ هذا الإعداد مناسب للمتداولين ذوي الخبرة والأسواق الصاعدة!
+            """
+            
+            keyboard = [[
+                InlineKeyboardButton("⚙️ تعديل", callback_data="edit_auto_settings"),
+                InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        else:
+            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            
+    except Exception as e:
+        logger.error(f"خطأ في الإعداد العدواني: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
 async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل الإعدادات التلقائية"""
     try:
         query = update.callback_query
         await query.answer()
         
-        current_settings = ""
+        # بناء عرض واضح للإعدادات الحالية
+        current_settings = "📊 **الإعدادات الحالية:**\n\n"
+        
         if trade_tools_manager.default_tp_percentages:
-            current_settings += "🎯 **الأهداف الحالية:**\n"
+            current_settings += "🎯 **أهداف الربح:**\n"
             for i, (tp, close) in enumerate(zip(trade_tools_manager.default_tp_percentages,
                                                 trade_tools_manager.default_tp_close_percentages), 1):
-                current_settings += f"• TP{i}: +{tp}% → {close}%\n"
+                current_settings += f"   • TP{i}: +{tp}% → إغلاق {close}%\n"
         else:
-            current_settings += "🎯 لا توجد أهداف محددة\n"
+            current_settings += "🎯 **أهداف الربح:** ❌ غير محددة\n"
         
         current_settings += "\n"
         
         if trade_tools_manager.default_sl_percentage > 0:
-            current_settings += f"🛑 **Stop Loss:** -{trade_tools_manager.default_sl_percentage}%\n"
+            sl_status = "✅"
+            current_settings += f"🛑 **Stop Loss:** {sl_status} -{trade_tools_manager.default_sl_percentage}%\n"
+            
             if trade_tools_manager.default_trailing_enabled:
-                current_settings += f"⚡ **Trailing:** نعم ({trade_tools_manager.default_trailing_distance}%)\n"
+                current_settings += f"⚡ **Trailing Stop:** 🟢 مُفعّل (مسافة {trade_tools_manager.default_trailing_distance}%)\n"
+            else:
+                current_settings += f"⚡ **Trailing Stop:** 🔴 معطل\n"
         else:
-            current_settings += "🛑 لا يوجد Stop Loss\n"
+            current_settings += "🛑 **Stop Loss:** ❌ غير محدد\n"
+            current_settings += "⚡ **Trailing Stop:** 🔴 معطل\n"
+        
+        if trade_tools_manager.auto_breakeven_on_tp1:
+            current_settings += "\n🔁 **نقل للتعادل:** 🟢 مُفعّل عند TP1"
         
         message = f"""
 ⚙️ **تعديل الإعدادات التلقائية**
 
 {current_settings}
 
+━━━━━━━━━━━━━━━━━━━━
+
 اختر ما تريد تعديله:
         """
+        
+        # أزرار واضحة مع مؤشرات الحالة
+        trailing_btn_text = "⚡ تعطيل Trailing" if trade_tools_manager.default_trailing_enabled else "⚡ تفعيل Trailing"
         
         keyboard = [
             [InlineKeyboardButton("🎯 تعديل أهداف الربح", callback_data="edit_auto_tp")],
             [InlineKeyboardButton("🛑 تعديل Stop Loss", callback_data="edit_auto_sl")],
-            [InlineKeyboardButton("⚡ تفعيل/تعطيل Trailing", callback_data="toggle_auto_trailing")],
-            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
+            [InlineKeyboardButton(trailing_btn_text, callback_data="toggle_auto_trailing")],
+            [
+                InlineKeyboardButton("🎲 محافظ", callback_data="quick_auto_setup_safe"),
+                InlineKeyboardButton("⚡ متوازن", callback_data="quick_auto_setup"),
+                InlineKeyboardButton("🚀 عدواني", callback_data="quick_auto_setup_aggressive")
+            ],
             [InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3944,7 +4103,9 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
                 )
             ],
             [
-                InlineKeyboardButton("🎲 إعداد سريع (ذكي)", callback_data=f"quick_setup_{position_id}"),
+                InlineKeyboardButton("🎲 إعداد سريع", callback_data=f"quick_setup_menu_{position_id}")
+            ],
+            [
                 InlineKeyboardButton("ℹ️ دليل الأدوات", callback_data=f"tools_guide_{position_id}")
             ],
             [
@@ -4179,38 +4340,80 @@ async def custom_partial_close(update: Update, context: ContextTypes.DEFAULT_TYP
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
-async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع ذكي لجميع الأدوات"""
+async def quick_setup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """قائمة الإعداد السريع للصفقة"""
     try:
         query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد الذكي...")
+        await query.answer()
         
-        position_id = query.data.replace("quick_setup_", "")
+        position_id = query.data.replace("quick_setup_menu_", "")
         
-        # تطبيق الإعدادات الذكية
+        message = """
+🎲 **اختر نوع الإعداد السريع**
+
+اختر الإعداد المناسب لأسلوب تداولك:
+
+🛡️ **محافظ:** أهداف قريبة، حماية عالية
+⚡ **متوازن:** توازن بين الربح والحماية
+🚀 **عدواني:** أهداف بعيدة، مخاطرة أعلى
+
+💡 سيتم تطبيق الإعدادات فوراً على هذه الصفقة
+        """
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("🛡️ محافظ", callback_data=f"quick_setup_safe_{position_id}"),
+                InlineKeyboardButton("⚡ متوازن", callback_data=f"quick_setup_balanced_{position_id}")
+            ],
+            [
+                InlineKeyboardButton("🚀 عدواني", callback_data=f"quick_setup_aggressive_{position_id}")
+            ],
+            [InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في قائمة الإعداد السريع: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def quick_setup_safe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع محافظ للصفقة"""
+    try:
+        query = update.callback_query
+        await query.answer("⏳ جاري تطبيق الإعداد المحافظ...")
+        
+        position_id = query.data.replace("quick_setup_safe_", "")
+        
+        # تطبيق الإعدادات المحافظة
         success = trade_tools_manager.set_default_levels(
             position_id, 
-            tp_percentages=[1.5, 3.0, 5.0],
-            sl_percentage=2.0,
-            trailing=False
+            tp_percentages=[1.0, 2.0, 3.0],
+            sl_percentage=1.5,
+            trailing=True,
+            trailing_distance=1.0
         )
         
         if success:
             message = """
-✅ **تم تطبيق الإعداد الذكي بنجاح!**
+✅ **تم تطبيق الإعداد المحافظ بنجاح!**
+
+🛡️ **النوع:** محافظ (حماية عالية)
 
 🎯 **أهداف الربح:**
-• TP1: +1.5% → إغلاق 50%
-• TP2: +3.0% → إغلاق 30%
-• TP3: +5.0% → إغلاق 20%
+• TP1: +1.0% → إغلاق 60%
+• TP2: +2.0% → إغلاق 30%
+• TP3: +3.0% → إغلاق 10%
 
-🛑 **Stop Loss:** -2%
+🛑 **Stop Loss:** -1.5% (ضيق)
+
+⚡ **Trailing Stop:** مُفعّل (مسافة 1%)
 
 🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
 
-⚖️ **نسبة المخاطرة/العائد:** 1:2.5
-
-💡 هذه إعدادات متوازنة توفر حماية جيدة مع إمكانية ربح معقولة
+💡 هذا الإعداد مناسب للمبتدئين والأسواق المتقلبة!
             """
             
             keyboard = [[
@@ -4224,9 +4427,116 @@ async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
             
     except Exception as e:
-        logger.error(f"خطأ في quick setup: {e}")
+        logger.error(f"خطأ في الإعداد المحافظ: {e}")
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def quick_setup_balanced(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع متوازن للصفقة"""
+    try:
+        query = update.callback_query
+        await query.answer("⏳ جاري تطبيق الإعداد المتوازن...")
+        
+        position_id = query.data.replace("quick_setup_balanced_", "")
+        
+        # تطبيق الإعدادات المتوازنة
+        success = trade_tools_manager.set_default_levels(
+            position_id, 
+            tp_percentages=[1.5, 3.0, 5.0],
+            sl_percentage=2.0,
+            trailing=False
+        )
+        
+        if success:
+            message = """
+✅ **تم تطبيق الإعداد المتوازن بنجاح!**
+
+⚡ **النوع:** متوازن (Risk/Reward: 1:2.5)
+
+🎯 **أهداف الربح:**
+• TP1: +1.5% → إغلاق 50%
+• TP2: +3.0% → إغلاق 30%
+• TP3: +5.0% → إغلاق 20%
+
+🛑 **Stop Loss:** -2%
+
+🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
+
+💡 إعدادات متوازنة توفر حماية جيدة مع إمكانية ربح معقولة!
+            """
+            
+            keyboard = [[
+                InlineKeyboardButton("⚙️ تعديل", callback_data=f"manage_{position_id}"),
+                InlineKeyboardButton("✅ تم", callback_data="show_positions")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        else:
+            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            
+    except Exception as e:
+        logger.error(f"خطأ في الإعداد المتوازن: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def quick_setup_aggressive(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع عدواني للصفقة"""
+    try:
+        query = update.callback_query
+        await query.answer("⏳ جاري تطبيق الإعداد العدواني...")
+        
+        position_id = query.data.replace("quick_setup_aggressive_", "")
+        
+        # تطبيق الإعدادات العدوانية
+        success = trade_tools_manager.set_default_levels(
+            position_id, 
+            tp_percentages=[2.0, 5.0, 10.0],
+            sl_percentage=3.0,
+            trailing=False
+        )
+        
+        if success:
+            message = """
+✅ **تم تطبيق الإعداد العدواني بنجاح!**
+
+🚀 **النوع:** عدواني (Risk/Reward: 1:3.3)
+
+🎯 **أهداف الربح:**
+• TP1: +2.0% → إغلاق 40%
+• TP2: +5.0% → إغلاق 30%
+• TP3: +10.0% → إغلاق 30%
+
+🛑 **Stop Loss:** -3.0% (واسع)
+
+🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
+
+⚠️ هذا الإعداد مناسب للمتداولين ذوي الخبرة والأسواق الصاعدة!
+            """
+            
+            keyboard = [[
+                InlineKeyboardButton("⚙️ تعديل", callback_data=f"manage_{position_id}"),
+                InlineKeyboardButton("✅ تم", callback_data="show_positions")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        else:
+            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            
+    except Exception as e:
+        logger.error(f"خطأ في الإعداد العدواني: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+# الاحتفاظ بالدالة القديمة للتوافق
+async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع ذكي لجميع الأدوات (للتوافق مع الإصدارات السابقة)"""
+    # إعادة توجيه للإعداد المتوازن
+    query = update.callback_query
+    position_id = query.data.replace("quick_setup_", "")
+    query.data = f"quick_setup_balanced_{position_id}"
+    await quick_setup_balanced(update, context)
 
 async def custom_tp_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """طلب إدخال Take Profit مخصص"""
@@ -5152,6 +5462,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await toggle_auto_apply(update, context)
     elif data == "quick_auto_setup":
         await quick_auto_setup(update, context)
+    elif data == "quick_auto_setup_safe":
+        await quick_auto_setup_safe(update, context)
+    elif data == "quick_auto_setup_aggressive":
+        await quick_auto_setup_aggressive(update, context)
     elif data == "edit_auto_settings":
         logger.info(f"🔧 معالجة زر: edit_auto_settings")
         await edit_auto_settings(update, context)
@@ -5259,6 +5573,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trailing_stop_menu(update, context)
     elif data.startswith("partial_custom_"):
         await custom_partial_close(update, context)
+    elif data.startswith("quick_setup_menu_"):
+        await quick_setup_menu(update, context)
+    elif data.startswith("quick_setup_safe_"):
+        await quick_setup_safe(update, context)
+    elif data.startswith("quick_setup_balanced_"):
+        await quick_setup_balanced(update, context)
+    elif data.startswith("quick_setup_aggressive_"):
+        await quick_setup_aggressive(update, context)
     elif data.startswith("quick_setup_"):
         await quick_setup(update, context)
     elif data.startswith("customTP_"):
