@@ -3243,17 +3243,64 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # الحصول على معلومات حساب المستخدم
     market_type = user_data.get('market_type', 'spot')
-    account = user_manager.get_user_account(user_id, market_type)
     
-    if account:
-        account_info = account.get_account_info()
+    # 🔍 التحقق من نوع الحساب وجلب البيانات المناسبة
+    if account_type == 'real' and trading_bot.bybit_api:
+        # 🔴 حساب حقيقي - جلب البيانات من المنصة عبر API
+        logger.info(f"🔴 جلب بيانات الحساب الحقيقي من Bybit للمستخدم {user_id}")
+        
+        try:
+            # جلب رصيد المحفظة من Bybit
+            wallet_response = trading_bot.bybit_api.get_wallet_balance("UNIFIED")
+            
+            if wallet_response and wallet_response.get('list'):
+                wallet_data = wallet_response['list'][0]
+                total_equity = float(wallet_data.get('totalEquity', 0))
+                available_balance = float(wallet_data.get('totalAvailableBalance', 0))
+                total_margin_balance = float(wallet_data.get('totalMarginBalance', 0))
+                total_pnl = float(wallet_data.get('totalPerpUPL', 0))  # Unrealized PnL
+                
+                # حساب الهامش المحجوز
+                margin_locked = total_margin_balance - available_balance if total_margin_balance > available_balance else 0
+                
+                account_info = {
+                    'balance': total_equity,
+                    'available_balance': available_balance,
+                    'margin_locked': margin_locked,
+                    'unrealized_pnl': total_pnl
+                }
+                
+                logger.info(f"✅ تم جلب بيانات المحفظة: الرصيد={total_equity:.2f}, المتاح={available_balance:.2f}")
+            else:
+                logger.warning("⚠️ فشل جلب بيانات المحفظة من Bybit")
+                account_info = {
+                    'balance': 0.0,
+                    'available_balance': 0.0,
+                    'margin_locked': 0.0,
+                    'unrealized_pnl': 0.0
+                }
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب بيانات المحفظة: {e}")
+            account_info = {
+                'balance': 0.0,
+                'available_balance': 0.0,
+                'margin_locked': 0.0,
+                'unrealized_pnl': 0.0
+            }
     else:
-        account_info = {
-            'balance': user_data.get('balance', 10000.0),
-            'available_balance': user_data.get('balance', 10000.0),
-            'margin_locked': 0,
-            'unrealized_pnl': 0
-        }
+        # 🟢 حساب تجريبي - جلب البيانات من الحساب المحلي
+        logger.info(f"🟢 عرض بيانات الحساب التجريبي للمستخدم {user_id}")
+        account = user_manager.get_user_account(user_id, market_type)
+        
+        if account:
+            account_info = account.get_account_info()
+        else:
+            account_info = {
+                'balance': user_data.get('balance', 10000.0),
+                'available_balance': user_data.get('balance', 10000.0),
+                'margin_locked': 0,
+                'unrealized_pnl': 0
+            }
     
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
@@ -3285,10 +3332,14 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📊 معلومات الحساب الحالي ({market_type.upper()}):
 💰 الرصيد الكلي: {account_info.get('balance', 0):.2f}
-💳 الرصيد المتاح: {account_info.get('available_balance', 0):.2f}
-🔒 الهامش المحجوز: {account_info.get('margin_locked', 0):.2f}
-📈 الربح/الخسارة غير المحققة: {account_info.get('unrealized_pnl', 0):.2f}
-    """
+💳 الرصيد المتاح: {account_info.get('available_balance', 0):.2f}"""
+    
+    # إضافة معلومات الهامش المحجوز فقط للفيوتشر
+    if market_type == 'futures':
+        settings_text += f"\n🔒 الهامش المحجوز: {account_info.get('margin_locked', 0):.2f}"
+        settings_text += f"\n📈 الربح/الخسارة غير المحققة: {account_info.get('unrealized_pnl', 0):.2f}"
+    
+    settings_text += "\n    "
     
     if update.callback_query is not None:
         await update.callback_query.edit_message_text(settings_text, reply_markup=reply_markup)
