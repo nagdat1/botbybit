@@ -543,8 +543,52 @@ class BybitAPI:
             logger.error(f"خطأ في التحقق من الرمز: {e}")
             return False
     
-    def place_order(self, symbol: str, side: str, order_type: str, qty: str, price: Optional[str] = None, category: str = "spot") -> dict:
-        """وضع أمر تداول"""
+    def get_open_positions(self, category: str = "spot", symbol: str = None) -> List[dict]:
+        """جلب الصفقات المفتوحة من المنصة"""
+        try:
+            endpoint = "/v5/position/list"
+            api_category = "linear" if category == "futures" else category
+            
+            params = {"category": api_category}
+            if symbol:
+                params["symbol"] = symbol
+            
+            response = self._make_request("GET", endpoint, params)
+            
+            if response.get("retCode") == 0:
+                result = response.get("result", {})
+                positions = result.get("list", [])
+                # فلترة الصفقات المفتوحة فقط (حجم > 0)
+                open_positions = [p for p in positions if float(p.get("size", 0)) > 0]
+                logger.info(f"تم جلب {len(open_positions)} صفقة مفتوحة من المنصة")
+                return open_positions
+            
+            logger.warning(f"فشل جلب الصفقات: {response.get('retMsg')}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"خطأ في جلب الصفقات المفتوحة: {e}")
+            return []
+    
+    def get_wallet_balance(self, account_type: str = "UNIFIED") -> dict:
+        """جلب رصيد المحفظة"""
+        try:
+            endpoint = "/v5/account/wallet-balance"
+            params = {"accountType": account_type}
+            
+            response = self._make_request("GET", endpoint, params)
+            
+            if response.get("retCode") == 0:
+                return response.get("result", {})
+            
+            return {}
+            
+        except Exception as e:
+            logger.error(f"خطأ في جلب الرصيد: {e}")
+            return {}
+    
+    def place_order(self, symbol: str, side: str, order_type: str, qty: str, price: Optional[str] = None, category: str = "spot", stop_loss: Optional[str] = None, take_profit: Optional[str] = None) -> dict:
+        """وضع أمر تداول مع دعم TP/SL"""
         try:
             endpoint = "/v5/order/create"
             
@@ -559,11 +603,79 @@ class BybitAPI:
             if price and order_type.lower() == "limit":
                 params["price"] = price
             
+            # إضافة Stop Loss و Take Profit إن وجدا
+            if stop_loss:
+                params["stopLoss"] = stop_loss
+            if take_profit:
+                params["takeProfit"] = take_profit
+            
             response = self._make_request("POST", endpoint, params)
             return response
             
         except Exception as e:
             logger.error(f"خطأ في وضع الأمر: {e}")
+            return {"retCode": -1, "retMsg": str(e)}
+    
+    def set_trading_stop(self, symbol: str, category: str = "linear", stop_loss: Optional[str] = None, take_profit: Optional[str] = None, trailing_stop: Optional[str] = None, position_idx: int = 0) -> dict:
+        """تعيين Stop Loss / Take Profit / Trailing Stop لصفقة مفتوحة"""
+        try:
+            endpoint = "/v5/position/trading-stop"
+            api_category = "linear" if category == "futures" else category
+            
+            params = {
+                "category": api_category,
+                "symbol": symbol,
+                "positionIdx": position_idx  # 0 = One-Way Mode
+            }
+            
+            if stop_loss:
+                params["stopLoss"] = stop_loss
+            if take_profit:
+                params["takeProfit"] = take_profit
+            if trailing_stop:
+                params["trailingStop"] = trailing_stop
+            
+            response = self._make_request("POST", endpoint, params)
+            return response
+            
+        except Exception as e:
+            logger.error(f"خطأ في تعيين Trading Stop: {e}")
+            return {"retCode": -1, "retMsg": str(e)}
+    
+    def close_position(self, symbol: str, category: str = "linear", qty: Optional[str] = None) -> dict:
+        """إغلاق صفقة (كامل أو جزئي)"""
+        try:
+            # إذا لم يتم تحديد الكمية، سيتم إغلاق الصفقة بالكامل
+            endpoint = "/v5/order/create"
+            api_category = "linear" if category == "futures" else category
+            
+            # الحصول على معلومات الصفقة الحالية لمعرفة الاتجاه
+            positions = self.get_open_positions(category, symbol)
+            if not positions:
+                return {"retCode": -1, "retMsg": "لا توجد صفقة مفتوحة"}
+            
+            position = positions[0]
+            side = position.get("side", "")
+            size = position.get("size", "0")
+            
+            # عكس الاتجاه للإغلاق
+            close_side = "Sell" if side == "Buy" else "Buy"
+            close_qty = qty if qty else size
+            
+            params = {
+                "category": api_category,
+                "symbol": symbol,
+                "side": close_side,
+                "orderType": "Market",
+                "qty": close_qty,
+                "reduceOnly": True  # مهم: للإغلاق فقط وليس فتح صفقة جديدة
+            }
+            
+            response = self._make_request("POST", endpoint, params)
+            return response
+            
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق الصفقة: {e}")
             return {"retCode": -1, "retMsg": str(e)}
     
     def get_account_balance(self, account_type: str = "UNIFIED") -> dict:
@@ -1532,44 +1644,63 @@ class TradingBot:
             bybit_category = "spot" if user_market_type == "spot" else "linear"
             market_type = user_market_type
             
-            # التحقق من وجود الرمز في الفئة المحددة من قبل المستخدم
-            symbol_found = False
+            # 🔍 التحقق من وجود الرمز في منصة Bybit
+            logger.info(f"🔍 التحقق من وجود الرمز {symbol} في Bybit {user_market_type.upper()}")
             
-            if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
-                symbol_found = True
-            elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
-                symbol_found = True
-                # تحديد الفئة الصحيحة للفيوتشر
-                if symbol in self.available_pairs.get('inverse', []):
-                    bybit_category = "inverse"
+            symbol_exists_in_bybit = False
             
-            if not symbol_found:
+            if self.bybit_api:
+                # التحقق المباشر من Bybit API
+                symbol_exists_in_bybit = self.bybit_api.check_symbol_exists(symbol, bybit_category)
+                logger.info(f"نتيجة التحقق من Bybit API: {symbol_exists_in_bybit}")
+            else:
+                # إذا لم يكن API متاحاً، استخدم القائمة المحلية
+                if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
+                    symbol_exists_in_bybit = True
+                elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
+                    symbol_exists_in_bybit = True
+                    if symbol in self.available_pairs.get('inverse', []):
+                        bybit_category = "inverse"
+            
+            # إذا لم يكن الرمز موجوداً في Bybit
+            if not symbol_exists_in_bybit:
                 # جمع الأزواج المتاحة للنوع المحدد
                 available_pairs = self.available_pairs.get(user_market_type, [])
                 if user_market_type == "futures":
-                    # إضافة أزواج inverse أيضاً للفيوتشر
                     available_pairs = self.available_pairs.get('futures', []) + self.available_pairs.get('inverse', [])
                 
-                # عرض أول 20 زوج
                 pairs_list = ", ".join(available_pairs[:20])
-                error_message = f"❌ الرمز {symbol} غير موجود في نوع السوق المحدد ({user_market_type.upper()})!\n\n📋 الأزواج المتاحة:\n{pairs_list}"
+                error_message = f"❌ الرمز {symbol} غير موجود في منصة Bybit!\n\n"
+                error_message += f"🏪 نوع السوق: {user_market_type.upper()}\n"
+                error_message += f"📋 أمثلة للأزواج المتاحة:\n{pairs_list}..."
                 await self.send_message_to_admin(error_message)
+                logger.warning(f"الرمز {symbol} غير موجود في Bybit {user_market_type}")
                 return
+            
+            logger.info(f"✅ الرمز {symbol} موجود في Bybit {user_market_type.upper()}")
             
             # الحصول على السعر الحالي
             if self.bybit_api:
                 current_price = self.bybit_api.get_ticker_price(symbol, bybit_category)
                 if current_price is None:
-                    await self.send_message_to_admin(f"❌ فشل في الحصول على سعر {symbol}")
+                    await self.send_message_to_admin(f"❌ فشل في الحصول على سعر {symbol} من Bybit")
                     return
+                logger.info(f"💲 سعر {symbol} الحالي: {current_price}")
             else:
-                # استخدام سعر وهمي للاختبار
+                # استخدام سعر وهمي للاختبار فقط (عند عدم وجود API)
                 current_price = 100.0
+                logger.warning("استخدام سعر وهمي - API غير متاح")
             
-            # تنفيذ الصفقة حسب نوع الحساب
-            if self.user_settings['account_type'] == 'real':
+            # 🎯 تنفيذ الصفقة بناءً على نوع الحساب
+            account_type = self.user_settings['account_type']
+            
+            if account_type == 'real':
+                # حساب حقيقي - التنفيذ عبر Bybit API
+                logger.info(f"🔴 تنفيذ صفقة حقيقية عبر Bybit API")
                 await self.execute_real_trade(symbol, action, current_price, bybit_category)
             else:
+                # حساب تجريبي - التنفيذ داخل البوت
+                logger.info(f"🟢 تنفيذ صفقة تجريبية داخل البوت")
                 await self.execute_demo_trade(symbol, action, current_price, bybit_category, market_type)
             
         except Exception as e:
@@ -1577,38 +1708,157 @@ class TradingBot:
             await self.send_message_to_admin(f"❌ خطأ في معالجة الإشارة: {e}")
     
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
-        """تنفيذ صفقة حقيقية"""
+        """تنفيذ صفقة حقيقية عبر Bybit API مع تطبيق TP/SL التلقائي"""
         try:
             if not self.bybit_api:
                 await self.send_message_to_admin("❌ API غير متاح للتداول الحقيقي")
+                logger.error("محاولة تنفيذ صفقة حقيقية بدون API")
                 return
-                
-            amount = str(self.user_settings['trade_amount'])
+            
+            user_market_type = self.user_settings['market_type']
             side = "Buy" if action == "buy" else "Sell"
             
-            response = self.bybit_api.place_order(
-                symbol=symbol,
-                side=side,
-                order_type="Market",
-                qty=amount,
-                category=category
-            )
+            logger.info(f"🔴 بدء تنفيذ صفقة حقيقية: {symbol} {side} في {user_market_type.upper()}")
             
-            if response.get("retCode") == 0:
-                order_id = response.get("result", {}).get("orderId", "")
-                message = f"✅ تم تنفيذ أمر {action.upper()} للرمز {symbol}\n"
-                message += f"💰 المبلغ: {amount}\n"
-                message += f"💲 السعر: {price:.6f}\n"
-                message += f"🏪 السوق: {category.upper()}\n"
-                message += f"🆔 رقم الأمر: {order_id}"
+            # 🎯 حساب TP/SL التلقائي إذا كان مفعلاً
+            tp_prices = []
+            sl_price = None
+            
+            if trade_tools_manager.auto_apply_enabled:
+                logger.info("🤖 الإعدادات التلقائية مفعلة - حساب TP/SL...")
                 
-                await self.send_message_to_admin(message)
-            else:
-                error_msg = response.get("retMsg", "خطأ غير محدد")
-                await self.send_message_to_admin(f"❌ فشل في تنفيذ الأمر: {error_msg}")
+                # حساب Take Profit
+                if trade_tools_manager.default_tp_percentages:
+                    for tp_percent, _ in trade_tools_manager.default_tp_percentages:
+                        if action == "buy":
+                            tp_price = price * (1 + tp_percent / 100)
+                        else:  # sell
+                            tp_price = price * (1 - tp_percent / 100)
+                        tp_prices.append(tp_price)
+                        logger.info(f"   🎯 TP: {tp_percent}% = {tp_price:.6f}")
+                
+                # حساب Stop Loss
+                if trade_tools_manager.default_sl_percentage:
+                    sl_percent = trade_tools_manager.default_sl_percentage
+                    if action == "buy":
+                        sl_price = price * (1 - sl_percent / 100)
+                    else:  # sell
+                        sl_price = price * (1 + sl_percent / 100)
+                    logger.info(f"   🛑 SL: {sl_percent}% = {sl_price:.6f}")
+            
+            if user_market_type == 'futures':
+                # ⚡ صفقة فيوتشر حقيقية
+                margin_amount = self.user_settings['trade_amount']
+                leverage = self.user_settings['leverage']
+                
+                # حساب حجم الصفقة بناءً على الرافعة
+                position_size = margin_amount * leverage
+                qty = str(position_size / price)  # عدد العقود
+                
+                logger.info(f"⚡ فيوتشر: الهامش={margin_amount}, الرافعة={leverage}x, حجم الصفقة={position_size:.2f}")
+                
+                # فتح الصفقة مع أول TP/SL (إذا وجد)
+                first_tp = str(tp_prices[0]) if tp_prices else None
+                first_sl = str(sl_price) if sl_price else None
+                
+                response = self.bybit_api.place_order(
+                    symbol=symbol,
+                    side=side,
+                    order_type="Market",
+                    qty=qty,
+                    category=category,
+                    take_profit=first_tp,
+                    stop_loss=first_sl
+                )
+                
+                if response.get("retCode") == 0:
+                    order_id = response.get("result", {}).get("orderId", "")
+                    
+                    # إذا كان هناك أكثر من TP، إضافة الباقي
+                    if len(tp_prices) > 1:
+                        logger.info(f"📝 إضافة {len(tp_prices)-1} أهداف ربح إضافية...")
+                        # ملاحظة: Bybit يدعم TP/SL واحد فقط للفيوتشر
+                        # يمكن استخدام أوامر محددة إضافية إذا لزم الأمر
+                    
+                    message = f"✅ تم تنفيذ صفقة فيوتشر حقيقية\n\n"
+                    if self.user_id:
+                        message += f"👤 المستخدم: {self.user_id}\n"
+                    message += f"📊 الرمز: {symbol}\n"
+                    message += f"🔄 النوع: {side}\n"
+                    message += f"💰 الهامش: {margin_amount}\n"
+                    message += f"⚡ الرافعة: {leverage}x\n"
+                    message += f"📈 حجم الصفقة: {position_size:.2f}\n"
+                    message += f"💲 السعر التقريبي: {price:.6f}\n"
+                    message += f"🏪 السوق: FUTURES\n"
+                    message += f"🆔 رقم الأمر: {order_id}\n"
+                    
+                    if first_tp:
+                        message += f"\n🎯 Take Profit: {float(first_tp):.6f}"
+                    if first_sl:
+                        message += f"\n🛑 Stop Loss: {float(first_sl):.6f}"
+                    
+                    message += f"\n\n⚠️ تحذير: هذه صفقة حقيقية على منصة Bybit!"
+                    
+                    await self.send_message_to_admin(message)
+                    logger.info(f"✅ تم تنفيذ صفقة فيوتشر حقيقية: {order_id}")
+                else:
+                    error_msg = response.get("retMsg", "خطأ غير محدد")
+                    await self.send_message_to_admin(f"❌ فشل في تنفيذ صفقة الفيوتشر: {error_msg}")
+                    logger.error(f"فشل تنفيذ صفقة فيوتشر: {error_msg}")
+                    
+            else:  # spot
+                # 🏪 صفقة سبوت حقيقية
+                amount = self.user_settings['trade_amount']
+                qty = str(amount / price)  # كمية العملة
+                
+                logger.info(f"🏪 سبوت: المبلغ={amount}, الكمية={qty}")
+                
+                # Spot لا يدعم TP/SL مباشرة، يجب استخدام أوامر محددة
+                response = self.bybit_api.place_order(
+                    symbol=symbol,
+                    side=side,
+                    order_type="Market",
+                    qty=qty,
+                    category=category
+                )
+                
+                if response.get("retCode") == 0:
+                    order_id = response.get("result", {}).get("orderId", "")
+                    
+                    # إضافة أوامر TP/SL المحددة للسبوت إذا كانت موجودة
+                    if tp_prices or sl_price:
+                        logger.info("📝 إضافة أوامر TP/SL للسبوت...")
+                        # يمكن إضافة أوامر Limit للسبوت هنا
+                    
+                    message = f"✅ تم تنفيذ صفقة سبوت حقيقية\n\n"
+                    if self.user_id:
+                        message += f"👤 المستخدم: {self.user_id}\n"
+                    message += f"📊 الرمز: {symbol}\n"
+                    message += f"🔄 النوع: {side}\n"
+                    message += f"💰 المبلغ: {amount}\n"
+                    message += f"📦 الكمية: {qty}\n"
+                    message += f"💲 السعر التقريبي: {price:.6f}\n"
+                    message += f"🏪 السوق: SPOT\n"
+                    message += f"🆔 رقم الأمر: {order_id}\n"
+                    
+                    if tp_prices:
+                        message += f"\n🎯 أهداف الربح محسوبة (يتطلب إضافة أوامر يدوية)"
+                    if sl_price:
+                        message += f"\n🛑 Stop Loss محسوب: {sl_price:.6f}"
+                    
+                    message += f"\n\n⚠️ تحذير: هذه صفقة حقيقية على منصة Bybit!"
+                    
+                    await self.send_message_to_admin(message)
+                    logger.info(f"✅ تم تنفيذ صفقة سبوت حقيقية: {order_id}")
+                else:
+                    error_msg = response.get("retMsg", "خطأ غير محدد")
+                    await self.send_message_to_admin(f"❌ فشل في تنفيذ صفقة السبوت: {error_msg}")
+                    logger.error(f"فشل تنفيذ صفقة سبوت: {error_msg}")
                 
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة الحقيقية: {e}")
+            import traceback
+            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
             await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
     
     async def execute_demo_trade(self, symbol: str, action: str, price: float, category: str, market_type: str):
@@ -3126,16 +3376,67 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # جمع جميع الصفقات المفتوحة من المصادر المختلفة
         all_positions = {}
         
-        # إضافة صفقات المستخدم من user_manager
-        if user_id and user_id in user_manager.user_positions:
-            user_positions = user_manager.user_positions[user_id]
-            all_positions.update(user_positions)
-            logger.info(f"تم العثور على {len(user_positions)} صفقة للمستخدم {user_id} في user_manager")
+        # 🔍 التحقق من نوع الحساب
+        user_settings = user_manager.get_user_settings(user_id) if user_id else None
+        account_type = user_settings.get('account_type', 'demo') if user_settings else 'demo'
+        market_type = user_settings.get('market_type', 'spot') if user_settings else 'spot'
         
-        # إضافة الصفقات من trading_bot.open_positions (للإشارات القديمة)
-        all_positions.update(trading_bot.open_positions)
+        logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
         
-        logger.info(f"عرض الصفقات المفتوحة: {len(all_positions)} صفقة مفتوحة")
+        if account_type == 'real' and trading_bot.bybit_api:
+            # 🔴 حساب حقيقي - جلب الصفقات من منصة Bybit
+            logger.info("🔴 جلب الصفقات الحقيقية من منصة Bybit...")
+            
+            try:
+                # تحديد الفئة بناءً على نوع السوق
+                category = "linear" if market_type == 'futures' else market_type
+                
+                # جلب الصفقات من المنصة
+                platform_positions = trading_bot.bybit_api.get_open_positions(category)
+                
+                if platform_positions:
+                    logger.info(f"✅ تم جلب {len(platform_positions)} صفقة من المنصة")
+                    
+                    # تحويل الصفقات من صيغة Bybit إلى صيغة البوت
+                    for idx, bybit_pos in enumerate(platform_positions):
+                        position_id = f"real_{bybit_pos.get('symbol')}_{idx}"
+                        
+                        all_positions[position_id] = {
+                            'symbol': bybit_pos.get('symbol'),
+                            'entry_price': float(bybit_pos.get('avgPrice', 0)),
+                            'side': bybit_pos.get('side', 'Buy').lower(),
+                            'account_type': market_type,
+                            'leverage': int(bybit_pos.get('leverage', 1)),
+                            'category': category,
+                            'position_size': float(bybit_pos.get('size', 0)),
+                            'current_price': float(bybit_pos.get('markPrice', bybit_pos.get('avgPrice', 0))),
+                            'pnl_percent': float(bybit_pos.get('unrealisedPnl', 0)),
+                            'liquidation_price': float(bybit_pos.get('liqPrice', 0)) if market_type == 'futures' else 0,
+                            'is_real_position': True  # علامة للتمييز
+                        }
+                        
+                        logger.info(f"📊 صفقة حقيقية: {bybit_pos.get('symbol')} - {bybit_pos.get('side')}")
+                else:
+                    logger.info("لا توجد صفقات مفتوحة على المنصة")
+                    
+            except Exception as e:
+                logger.error(f"❌ خطأ في جلب الصفقات من المنصة: {e}")
+                await update.message.reply_text(f"⚠️ تعذر جلب الصفقات من المنصة: {e}\n\nسيتم عرض الصفقات المحلية فقط.")
+        
+        else:
+            # 🟢 حساب تجريبي - جلب الصفقات من داخل البوت
+            logger.info("🟢 عرض الصفقات التجريبية من داخل البوت...")
+            
+            # إضافة صفقات المستخدم من user_manager
+            if user_id and user_id in user_manager.user_positions:
+                user_positions = user_manager.user_positions[user_id]
+                all_positions.update(user_positions)
+                logger.info(f"تم العثور على {len(user_positions)} صفقة تجريبية للمستخدم {user_id}")
+            
+            # إضافة الصفقات من trading_bot.open_positions (للإشارات القديمة)
+            all_positions.update(trading_bot.open_positions)
+        
+        logger.info(f"📊 إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
@@ -3409,8 +3710,86 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
     elif update.message is not None:
         await update.message.reply_text(futures_text, reply_markup=futures_reply_markup)
 
+async def apply_tool_to_real_position(position_info: dict, tool_type: str, **kwargs) -> tuple[bool, str]:
+    """تطبيق أداة على صفقة حقيقية عبر Bybit API"""
+    try:
+        if not trading_bot.bybit_api:
+            return False, "❌ API غير متاح"
+        
+        symbol = position_info['symbol']
+        category = position_info.get('category', 'linear')
+        is_real = position_info.get('is_real_position', False)
+        
+        if not is_real:
+            # صفقة تجريبية - لا حاجة لتطبيق عبر API
+            return True, "✅ تم التطبيق محلياً (صفقة تجريبية)"
+        
+        logger.info(f"🔴 تطبيق {tool_type} على صفقة حقيقية: {symbol}")
+        
+        if tool_type == "set_tp":
+            # تطبيق Take Profit
+            tp_price = kwargs.get('tp_price')
+            response = trading_bot.bybit_api.set_trading_stop(
+                symbol=symbol,
+                category=category,
+                take_profit=str(tp_price)
+            )
+            
+        elif tool_type == "set_sl":
+            # تطبيق Stop Loss
+            sl_price = kwargs.get('sl_price')
+            response = trading_bot.bybit_api.set_trading_stop(
+                symbol=symbol,
+                category=category,
+                stop_loss=str(sl_price)
+            )
+            
+        elif tool_type == "set_trailing":
+            # تطبيق Trailing Stop
+            trailing_distance = kwargs.get('trailing_distance')
+            response = trading_bot.bybit_api.set_trading_stop(
+                symbol=symbol,
+                category=category,
+                trailing_stop=str(trailing_distance)
+            )
+            
+        elif tool_type == "partial_close":
+            # إغلاق جزئي
+            close_percentage = kwargs.get('percentage', 50)
+            position_size = position_info.get('position_size', 0)
+            close_qty = str((position_size * close_percentage) / 100)
+            
+            response = trading_bot.bybit_api.close_position(
+                symbol=symbol,
+                category=category,
+                qty=close_qty
+            )
+            
+        elif tool_type == "full_close":
+            # إغلاق كامل
+            response = trading_bot.bybit_api.close_position(
+                symbol=symbol,
+                category=category
+            )
+        
+        else:
+            return False, f"❌ أداة غير مدعومة: {tool_type}"
+        
+        # التحقق من النتيجة
+        if response.get("retCode") == 0:
+            logger.info(f"✅ تم تطبيق {tool_type} بنجاح على {symbol}")
+            return True, f"✅ تم تطبيق {tool_type} على المنصة بنجاح"
+        else:
+            error_msg = response.get("retMsg", "خطأ غير محدد")
+            logger.error(f"❌ فشل تطبيق {tool_type}: {error_msg}")
+            return False, f"❌ فشل: {error_msg}"
+            
+    except Exception as e:
+        logger.error(f"خطأ في apply_tool_to_real_position: {e}")
+        return False, f"❌ خطأ: {e}"
+
 async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض أدوات إدارة الصفقة (TP/SL/Partial Close)"""
+    """عرض أدوات إدارة الصفقة (TP/SL/Partial Close) - يعمل مع الصفقات الحقيقية والتجريبية"""
     try:
         query = update.callback_query
         await query.answer()
@@ -3432,6 +3811,10 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
         if not position_info:
             await query.edit_message_text("❌ الصفقة غير موجودة")
             return
+        
+        # التحقق من نوع الصفقة
+        is_real = position_info.get('is_real_position', False)
+        account_indicator = "🔴 حساب حقيقي" if is_real else "🟢 حساب تجريبي"
         
         symbol = position_info['symbol']
         side = position_info['side']
@@ -3468,6 +3851,9 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
             status_message += f"🔄 النوع: {side.upper()}\n"
             status_message += f"💲 سعر الدخول: {entry_price:.6f}\n"
             status_message += f"💲 السعر الحالي: {current_price:.6f}\n"
+        
+        # إضافة مؤشر نوع الحساب
+        status_message = f"{account_indicator}\n\n" + status_message
         
         # حالة الأدوات النشطة
         has_tp = managed_pos and len(managed_pos.take_profits) > 0
@@ -4089,6 +4475,24 @@ async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_T
             await query.edit_message_text("❌ الصفقة غير موجودة")
             return
         
+        # التحقق من نوع الصفقة
+        is_real = position_info.get('is_real_position', False)
+        
+        if is_real:
+            # 🔴 صفقة حقيقية - تطبيق الإغلاق عبر API
+            success, msg = await apply_tool_to_real_position(
+                position_info,
+                "partial_close",
+                percentage=percentage
+            )
+            
+            if success:
+                await query.edit_message_text(f"✅ تم إغلاق {percentage}% من الصفقة على المنصة\n\n{msg}")
+            else:
+                await query.edit_message_text(f"❌ فشل الإغلاق الجزئي\n\n{msg}")
+            return
+        
+        # 🟢 صفقة تجريبية - الإغلاق داخل البوت
         # الحصول على الحساب المناسب
         market_type = position_info.get('account_type', 'spot')
         if is_user_position and user_id:
@@ -4122,7 +4526,7 @@ async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_T
         
         pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
         message = f"""
-{pnl_emoji} تم إغلاق {percentage}% من الصفقة
+{pnl_emoji} تم إغلاق {percentage}% من الصفقة (تجريبي)
 
 📊 الرمز: {position_info['symbol']}
 🔄 النوع: {side.upper()}
