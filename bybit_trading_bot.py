@@ -4291,6 +4291,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     data = query.data
     
+    logger.info(f"📥 Callback received: {data} from user {user_id}")
+    
     # معالجة زر الربط API
     if data == "link_api":
         if user_id is not None:
@@ -4420,14 +4422,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "quick_auto_setup":
         await quick_auto_setup(update, context)
     elif data == "edit_auto_settings":
+        logger.info(f"🔧 معالجة زر: edit_auto_settings")
         await edit_auto_settings(update, context)
     elif data == "edit_auto_tp":
+        logger.info(f"🔧 معالجة زر: edit_auto_tp")
         await edit_auto_tp(update, context)
     elif data == "edit_auto_sl":
+        logger.info(f"🔧 معالجة زر: edit_auto_sl")
         await edit_auto_sl(update, context)
     elif data == "toggle_auto_trailing":
+        logger.info(f"🔧 معالجة زر: toggle_auto_trailing")
         await toggle_auto_trailing(update, context)
     elif data == "clear_auto_settings":
+        logger.info(f"🔧 معالجة زر: clear_auto_settings")
         await clear_auto_settings(update, context)
     elif data.startswith("manage_"):
         await manage_position_tools(update, context)
@@ -4913,8 +4920,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     else:
         # معالجة أي أزرار أخرى غير محددة
+        logger.warning(f"⚠️ Unsupported button: {data}")
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text("❌ زر غير مدعوم")
+            await update.callback_query.edit_message_text(f"❌ زر غير مدعوم: {data}\n\nيرجى الإبلاغ عن هذا الخطأ")
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
