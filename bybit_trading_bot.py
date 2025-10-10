@@ -3056,6 +3056,206 @@ async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
+async def custom_tp_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """طلب إدخال Take Profit مخصص"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("customTP_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if user_id:
+            user_input_state[user_id] = f"waiting_custom_tp_{position_id}"
+        
+        message = """
+🎯 **إدخال هدف ربح مخصص**
+
+أدخل البيانات بالصيغة التالية:
+`نسبة_الربح نسبة_الإغلاق`
+
+**أمثلة:**
+• `3 50` → هدف عند +3% إغلاق 50%
+• `5.5 30` → هدف عند +5.5% إغلاق 30%
+• `10 100` → هدف عند +10% إغلاق كامل
+
+**نصيحة:** يمكنك إدخال عدة أهداف، كل واحد في رسالة منفصلة
+        """
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"setTP_menu_{position_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في custom TP input: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def custom_sl_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """طلب إدخال Stop Loss مخصص"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("customSL_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if user_id:
+            user_input_state[user_id] = f"waiting_custom_sl_{position_id}"
+        
+        message = """
+🛑 **إدخال Stop Loss مخصص**
+
+أدخل نسبة الخسارة المقبولة كرقم:
+
+**أمثلة:**
+• `2` → SL عند -2%
+• `3.5` → SL عند -3.5%
+• `1` → SL عند -1% (محافظ)
+• `5` → SL عند -5% (عدواني)
+
+⚠️ **تحذير:** نسبة أقل = حماية أفضل، لكن احتمالية خروج مبكر أعلى
+        """
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"setSL_menu_{position_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في custom SL input: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def custom_trailing_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """طلب إدخال مسافة Trailing Stop مخصصة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("customTrailing_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if user_id:
+            user_input_state[user_id] = f"waiting_custom_trailing_{position_id}"
+        
+        message = """
+⚡ **إدخال مسافة Trailing Stop مخصصة**
+
+أدخل المسافة كنسبة مئوية:
+
+**أمثلة:**
+• `1.5` → مسافة 1.5%
+• `2` → مسافة 2% (موصى به)
+• `3` → مسافة 3%
+
+💡 **ملاحظة:**
+- مسافة أصغر = حماية أسرع للأرباح
+- مسافة أكبر = حرية أكثر للسعر
+- الافتراضي: 2%
+
+⚠️ **تحذير:** سيُلغي Stop Loss الثابت
+        """
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"trailing_menu_{position_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في custom trailing input: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def clear_take_profits(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """حذف جميع أهداف الربح"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("clearTP_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        managed_pos.take_profits.clear()
+        
+        await query.edit_message_text(
+            "✅ تم حذف جميع أهداف الربح",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 رجوع", callback_data=f"setTP_menu_{position_id}")
+            ]])
+        )
+        
+    except Exception as e:
+        logger.error(f"خطأ في حذف TP: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def clear_stop_loss(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """حذف Stop Loss"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("clearSL_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        managed_pos.stop_loss = None
+        
+        await query.edit_message_text(
+            "✅ تم حذف Stop Loss\n\n⚠️ تحذير: الصفقة الآن بدون حماية!",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 رجوع", callback_data=f"setSL_menu_{position_id}")
+            ]])
+        )
+        
+    except Exception as e:
+        logger.error(f"خطأ في حذف SL: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def stop_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إيقاف Trailing Stop"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("stopTrailing_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos or not managed_pos.stop_loss:
+            await query.edit_message_text("❌ لا يوجد Stop Loss نشط")
+            return
+        
+        if not managed_pos.stop_loss.is_trailing:
+            await query.edit_message_text("ℹ️ Trailing Stop غير مفعل")
+            return
+        
+        # تحويله إلى SL ثابت
+        managed_pos.stop_loss.is_trailing = False
+        managed_pos.stop_loss.trailing_distance = 0
+        
+        await query.edit_message_text(
+            f"✅ تم تعطيل Trailing Stop\n\n"
+            f"🛑 Stop Loss الحالي ثابت عند: {managed_pos.stop_loss.price:.6f}",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 رجوع", callback_data=f"trailing_menu_{position_id}")
+            ]])
+        )
+        
+    except Exception as e:
+        logger.error(f"خطأ في إيقاف trailing: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
 async def set_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعيين أهداف تلقائية ذكية"""
     try:
@@ -3132,6 +3332,12 @@ async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_T
         
         # استخراج النسبة و position_id
         parts = query.data.split("_")
+        
+        # التحقق من صيغة callback_data
+        if parts[1] == "custom":
+            # هذا زر الإدخال المخصص، وليس للإغلاق المباشر
+            return
+        
         percentage = int(parts[1])
         position_id = "_".join(parts[2:])
         
@@ -3762,6 +3968,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await custom_partial_close(update, context)
     elif data.startswith("quick_setup_"):
         await quick_setup(update, context)
+    elif data.startswith("customTP_"):
+        await custom_tp_input(update, context)
+    elif data.startswith("customSL_"):
+        await custom_sl_input(update, context)
+    elif data.startswith("customTrailing_"):
+        await custom_trailing_input(update, context)
+    elif data.startswith("clearTP_"):
+        await clear_take_profits(update, context)
+    elif data.startswith("clearSL_"):
+        await clear_stop_loss(update, context)
+    elif data.startswith("stopTrailing_"):
+        await stop_trailing(update, context)
     elif data.startswith("autoTP_"):
         await set_auto_tp(update, context)
     elif data.startswith("autoSL_"):
@@ -4663,6 +4881,241 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 if update.message is not None:
                     await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال نسبة الإغلاق الجزئي المخصصة
+        elif state.startswith("waiting_partial_percentage_"):
+            try:
+                percentage = float(text)
+                if 1 <= percentage <= 100:
+                    position_id = state.replace("waiting_partial_percentage_", "")
+                    del user_input_state[user_id]
+                    
+                    # استدعاء دالة الإغلاق الجزئي مع النسبة المخصصة
+                    # تحويل إلى callback query وهمي
+                    from telegram import InlineKeyboardButton
+                    
+                    # البحث عن الصفقة
+                    position_info = None
+                    if user_id in user_manager.user_positions:
+                        position_info = user_manager.user_positions[user_id].get(position_id)
+                    if not position_info:
+                        position_info = trading_bot.open_positions.get(position_id)
+                    
+                    if not position_info:
+                        await update.message.reply_text("❌ الصفقة غير موجودة")
+                        return
+                    
+                    # معالجة الإغلاق
+                    market_type = position_info.get('account_type', 'spot')
+                    is_user_position = user_id in user_manager.user_positions and position_id in user_manager.user_positions[user_id]
+                    
+                    if is_user_position:
+                        account = user_manager.get_user_account(user_id, market_type)
+                    else:
+                        account = trading_bot.demo_account_futures if market_type == 'futures' else trading_bot.demo_account_spot
+                    
+                    current_price = position_info.get('current_price', position_info['entry_price'])
+                    original_amount = position_info.get('amount', position_info.get('margin_amount', 0))
+                    close_amount = original_amount * (percentage / 100)
+                    
+                    entry_price = position_info['entry_price']
+                    side = position_info['side']
+                    
+                    if side.lower() == "buy":
+                        pnl = (current_price - entry_price) * (close_amount / entry_price)
+                    else:
+                        pnl = (entry_price - current_price) * (close_amount / entry_price)
+                    
+                    position_info['amount'] = original_amount - close_amount
+                    
+                    if market_type == 'spot':
+                        account.balance += close_amount + pnl
+                    else:
+                        account.balance += pnl
+                        account.margin_locked -= close_amount
+                    
+                    pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
+                    message = f"""
+{pnl_emoji} تم إغلاق {percentage}% من الصفقة
+
+📊 الرمز: {position_info['symbol']}
+🔄 النوع: {side.upper()}
+💲 سعر الإغلاق: {current_price:.6f}
+💰 المبلغ المغلق: {close_amount:.2f}
+{pnl_emoji} الربح/الخسارة: {pnl:+.2f}
+
+📈 المتبقي: {position_info['amount']:.2f} ({100-percentage}%)
+💰 الرصيد الجديد: {account.balance:.2f}
+                    """
+                    
+                    keyboard = [[
+                        InlineKeyboardButton("🔙 رجوع للإدارة", callback_data=f"manage_{position_id}"),
+                        InlineKeyboardButton("📊 الصفقات المفتوحة", callback_data="show_positions")
+                    ]]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await update.message.reply_text(message, reply_markup=reply_markup)
+                else:
+                    await update.message.reply_text("❌ النسبة يجب أن تكون بين 1 و 100")
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال Take Profit مخصص
+        elif state.startswith("waiting_custom_tp_"):
+            try:
+                position_id = state.replace("waiting_custom_tp_", "")
+                parts = text.split()
+                
+                if len(parts) != 2:
+                    await update.message.reply_text("❌ الصيغة غير صحيحة. استخدم: `نسبة_الربح نسبة_الإغلاق`\nمثال: `3 50`")
+                    return
+                
+                tp_percentage = float(parts[0])
+                close_percentage = float(parts[1])
+                
+                if tp_percentage <= 0 or tp_percentage > 100:
+                    await update.message.reply_text("❌ نسبة الربح يجب أن تكون بين 0.1 و 100")
+                    return
+                
+                if close_percentage <= 0 or close_percentage > 100:
+                    await update.message.reply_text("❌ نسبة الإغلاق يجب أن تكون بين 1 و 100")
+                    return
+                
+                managed_pos = trade_tools_manager.get_managed_position(position_id)
+                if not managed_pos:
+                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    return
+                
+                # حساب سعر الهدف
+                if managed_pos.side.lower() == "buy":
+                    tp_price = managed_pos.entry_price * (1 + tp_percentage / 100)
+                else:
+                    tp_price = managed_pos.entry_price * (1 - tp_percentage / 100)
+                
+                success = managed_pos.add_take_profit(tp_price, close_percentage / 100)
+                
+                if success:
+                    del user_input_state[user_id]
+                    
+                    keyboard = [[
+                        InlineKeyboardButton("➕ إضافة هدف آخر", callback_data=f"customTP_{position_id}"),
+                        InlineKeyboardButton("🔙 رجوع", callback_data=f"setTP_menu_{position_id}")
+                    ]]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await update.message.reply_text(
+                        f"✅ تم إضافة هدف الربح!\n\n"
+                        f"🎯 السعر: {tp_price:.6f} (+{tp_percentage}%)\n"
+                        f"📊 نسبة الإغلاق: {close_percentage}%",
+                        reply_markup=reply_markup
+                    )
+                else:
+                    await update.message.reply_text("❌ فشل في إضافة الهدف")
+                    
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال أرقام صحيحة")
+        
+        # معالجة إدخال Stop Loss مخصص
+        elif state.startswith("waiting_custom_sl_"):
+            try:
+                position_id = state.replace("waiting_custom_sl_", "")
+                sl_percentage = float(text)
+                
+                if sl_percentage <= 0 or sl_percentage > 50:
+                    await update.message.reply_text("❌ نسبة Stop Loss يجب أن تكون بين 0.1 و 50")
+                    return
+                
+                managed_pos = trade_tools_manager.get_managed_position(position_id)
+                if not managed_pos:
+                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    return
+                
+                # حساب سعر SL
+                if managed_pos.side.lower() == "buy":
+                    sl_price = managed_pos.entry_price * (1 - sl_percentage / 100)
+                else:
+                    sl_price = managed_pos.entry_price * (1 + sl_percentage / 100)
+                
+                # التحقق من Trailing Stop نشط
+                if managed_pos.stop_loss and managed_pos.stop_loss.is_trailing:
+                    keyboard = [[
+                        InlineKeyboardButton("نعم، إلغاء Trailing", callback_data=f"confirmSL_{position_id}_{sl_percentage}"),
+                        InlineKeyboardButton("❌ إلغاء", callback_data=f"setSL_menu_{position_id}")
+                    ]]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await update.message.reply_text(
+                        "⚠️ **تحذير:** Trailing Stop نشط حالياً\n\n"
+                        "تعيين SL ثابت سيُلغي Trailing Stop. هل تريد المتابعة؟",
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                    return
+                
+                success = managed_pos.set_stop_loss(sl_price, is_trailing=False)
+                
+                if success:
+                    del user_input_state[user_id]
+                    
+                    keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"setSL_menu_{position_id}")]]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await update.message.reply_text(
+                        f"✅ تم تعيين Stop Loss!\n\n"
+                        f"🛑 السعر: {sl_price:.6f} (-{sl_percentage}%)\n"
+                        f"📉 المخاطرة: {sl_percentage}% من رأس المال",
+                        reply_markup=reply_markup
+                    )
+                else:
+                    await update.message.reply_text("❌ فشل في تعيين Stop Loss")
+                    
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال مسافة Trailing Stop مخصصة
+        elif state.startswith("waiting_custom_trailing_"):
+            try:
+                position_id = state.replace("waiting_custom_trailing_", "")
+                trailing_distance = float(text)
+                
+                if trailing_distance <= 0 or trailing_distance > 20:
+                    await update.message.reply_text("❌ المسافة يجب أن تكون بين 0.1 و 20")
+                    return
+                
+                managed_pos = trade_tools_manager.get_managed_position(position_id)
+                if not managed_pos:
+                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    return
+                
+                # تعيين trailing stop
+                if not managed_pos.stop_loss:
+                    if managed_pos.side.lower() == "buy":
+                        sl_price = managed_pos.entry_price * (1 - trailing_distance / 100)
+                    else:
+                        sl_price = managed_pos.entry_price * (1 + trailing_distance / 100)
+                    
+                    managed_pos.set_stop_loss(sl_price, is_trailing=True, trailing_distance=trailing_distance)
+                else:
+                    # إلغاء SL الثابت إذا كان موجود
+                    managed_pos.stop_loss.is_trailing = True
+                    managed_pos.stop_loss.trailing_distance = trailing_distance
+                
+                del user_input_state[user_id]
+                
+                keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"trailing_menu_{position_id}")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.message.reply_text(
+                    f"✅ تم تفعيل Trailing Stop!\n\n"
+                    f"⚡ المسافة: {trailing_distance}%\n"
+                    f"🔒 السعر الحالي: {managed_pos.stop_loss.price:.6f}\n\n"
+                    f"💡 سيتحرك SL تلقائياً مع تحرك السعر لصالحك",
+                    reply_markup=reply_markup
+                )
+                
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
         else:
             # إعادة تعيين حالة إدخال المستخدم للحالات غير المتوقعة
             if user_id is not None and user_id in user_input_state:
