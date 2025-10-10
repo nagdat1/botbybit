@@ -447,48 +447,84 @@ class BybitAPI:
         self.api_secret = api_secret
         self.base_url = "https://api.bybit.com"
         
-    def _generate_signature(self, params: dict, timestamp: str) -> str:
-        """إنشاء التوقيع للطلبات"""
-        param_str = timestamp + self.api_key + "5000" + urlencode(sorted(params.items()))
-        return hmac.new(
+    def _generate_signature(self, params: dict, timestamp: str, recv_window: str = "5000") -> str:
+        """إنشاء التوقيع للطلبات - متوافق مع Bybit API v5"""
+        # ترتيب المعاملات أبجدياً
+        if params:
+            param_str = urlencode(sorted(params.items()))
+        else:
+            param_str = ""
+        
+        # بناء النص للتوقيع: timestamp + api_key + recv_window + param_str
+        sign_str = timestamp + self.api_key + recv_window + param_str
+        
+        # إنشاء التوقيع باستخدام HMAC SHA256
+        signature = hmac.new(
             self.api_secret.encode('utf-8'),
-            param_str.encode('utf-8'),
+            sign_str.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
+        
+        return signature
     
     def _make_request(self, method: str, endpoint: str, params: Optional[dict] = None) -> dict:
         """إرسال طلب إلى API"""
         try:
             url = f"{self.base_url}{endpoint}"
             timestamp = str(int(time.time() * 1000))
+            recv_window = "5000"
             
             if params is None:
                 params = {}
             
-            signature = self._generate_signature(params, timestamp)
+            # توليد التوقيع
+            signature = self._generate_signature(params, timestamp, recv_window)
             
             headers = {
                 "X-BAPI-API-KEY": self.api_key,
                 "X-BAPI-SIGN": signature,
                 "X-BAPI-SIGN-TYPE": "2",
                 "X-BAPI-TIMESTAMP": timestamp,
-                "X-BAPI-RECV-WINDOW": "5000",
+                "X-BAPI-RECV-WINDOW": recv_window,
                 "Content-Type": "application/json"
             }
+            
+            logger.debug(f"📤 إرسال طلب إلى: {url}")
+            logger.debug(f"📋 المعاملات: {params}")
             
             if method.upper() == "GET":
                 response = requests.get(url, params=params, headers=headers, timeout=10)
             else:
                 response = requests.post(url, json=params, headers=headers, timeout=10)
             
-            response.raise_for_status()
-            return response.json()
+            logger.debug(f"📥 رمز الاستجابة: {response.status_code}")
             
+            # محاولة الحصول على JSON
+            try:
+                result = response.json()
+                logger.debug(f"📊 استجابة API: {result}")
+                return result
+            except ValueError as json_error:
+                logger.error(f"❌ خطأ في تحليل JSON: {json_error}")
+                logger.error(f"📄 محتوى الاستجابة: {response.text[:500]}")
+                return {"retCode": -1, "retMsg": f"خطأ في تحليل الاستجابة: {str(json_error)}"}
+            
+        except requests.Timeout:
+            logger.error("⏱️ انتهت مهلة الطلب")
+            return {"retCode": -1, "retMsg": "انتهت مهلة الاتصال بالسيرفر"}
+        except requests.ConnectionError as e:
+            logger.error(f"🔌 خطأ في الاتصال: {e}")
+            return {"retCode": -1, "retMsg": "فشل الاتصال بسيرفر Bybit"}
+        except requests.HTTPError as e:
+            logger.error(f"🚫 خطأ HTTP: {e}")
+            return {"retCode": -1, "retMsg": f"خطأ HTTP: {e.response.status_code}"}
         except requests.RequestException as e:
-            logger.error(f"خطأ في طلب API: {e}")
+            logger.error(f"❌ خطأ في طلب API: {e}")
             return {"retCode": -1, "retMsg": str(e)}
         except Exception as e:
-            logger.error(f"خطأ غير متوقع في API: {e}")
+            logger.error(f"❌ خطأ غير متوقع في API: {e}")
+            import traceback
+            logger.error(f"تفاصيل: {traceback.format_exc()}")
             return {"retCode": -1, "retMsg": str(e)}
     
     def get_all_symbols(self, category: str = "spot") -> List[dict]:
@@ -2112,22 +2148,44 @@ async def check_api_connection(api_key: str, api_secret: str) -> bool:
     """التحقق من صحة API keys"""
     try:
         if not api_key or not api_secret:
+            logger.warning("❌ API key أو secret فارغ")
+            return False
+        
+        # التحقق من طول المفاتيح
+        if len(api_key) < 10 or len(api_secret) < 10:
+            logger.warning("❌ API key أو secret قصير جداً")
             return False
         
         # إنشاء API مؤقت للتحقق
         temp_api = BybitAPI(api_key, api_secret)
         
-        # محاولة الحصول على معلومات الحساب
-        account_info = await temp_api.get_account_balance()
+        # محاولة الحصول على معلومات الحساب (دالة عادية وليست async)
+        account_info = temp_api.get_account_balance()
+        
+        logger.info(f"📊 استجابة API: {account_info}")
         
         # إذا تم الحصول على معلومات الحساب بنجاح
-        if account_info and 'retCode' in account_info:
-            return account_info['retCode'] == 0
+        if account_info and isinstance(account_info, dict):
+            if 'retCode' in account_info:
+                is_valid = account_info['retCode'] == 0
+                if is_valid:
+                    logger.info("✅ API صحيح ويعمل!")
+                else:
+                    logger.warning(f"❌ API غير صحيح: {account_info.get('retMsg', 'خطأ غير معروف')}")
+                return is_valid
+            else:
+                # في حالة عدم وجود retCode، نحاول التحقق من البيانات
+                if 'result' in account_info:
+                    logger.info("✅ API صحيح (تنسيق بديل)")
+                    return True
         
+        logger.warning("❌ استجابة API غير متوقعة")
         return False
         
     except Exception as e:
-        logger.error(f"خطأ في التحقق من API: {e}")
+        logger.error(f"❌ خطأ في التحقق من API: {e}")
+        import traceback
+        logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
         return False
 
 def get_api_status_indicator(api_key: str, api_secret: str, is_valid: bool = None) -> str:
@@ -6405,22 +6463,47 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # المفاتيح غير صحيحة
                     if update.message is not None:
                         await checking_message.delete()
-                        await update.message.reply_text("""
-❌ API keys غير صحيحة!
+                        
+                        # رسالة خطأ مفصلة
+                        error_message = """
+❌ فشل التحقق من API Keys!
 
-🔴 تأكد من:
-• صحة API_KEY
-• صحة API_SECRET  
-• تفعيل API في حساب Bybit
-• صلاحيات API (قراءة/كتابة)
+🔍 **الأسباب المحتملة:**
 
-🔗 للحصول على مفاتيح جديدة: https://api.bybit.com
+1️⃣ **المفاتيح غير صحيحة**
+   • تأكد من نسخ API Key كاملاً
+   • تأكد من نسخ Secret Key كاملاً
+   • لا تترك مسافات في البداية أو النهاية
 
-استخدم /start للمحاولة مرة أخرى
-                        """)
+2️⃣ **صلاحيات API غير كافية**
+   • يجب تفعيل: Read-Write
+   • يجب تفعيل: Contract Trading
+   • يجب تفعيل: Spot Trading
+
+3️⃣ **قيود IP**
+   • تأكد من عدم تفعيل IP Whitelist
+   • أو أضف IP السيرفر إلى القائمة البيضاء
+
+4️⃣ **API منتهي أو معطل**
+   • تحقق من حالة API في لوحة التحكم
+   • تأكد أن API لم يتم حذفه أو تعطيله
+
+📝 **خطوات الحل:**
+1. اذهب إلى: https://www.bybit.com/app/user/api-management
+2. احذف API القديم وأنشئ واحد جديد
+3. فعّل جميع الصلاحيات المطلوبة
+4. لا تفعّل IP Whitelist
+5. انسخ المفاتيح بعناية وأعد المحاولة
+
+🔄 أرسل API Key مرة أخرى للمحاولة من جديد
+                        """
+                        await update.message.reply_text(error_message)
+                        
                         # مسح البيانات المؤقتة
-                        del context.user_data['temp_api_key']
-                        del user_input_state[user_id]
+                        if 'temp_api_key' in context.user_data:
+                            del context.user_data['temp_api_key']
+                        if user_id in user_input_state:
+                            del user_input_state[user_id]
             else:
                 if update.message is not None:
                     await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
