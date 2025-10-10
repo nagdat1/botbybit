@@ -2642,6 +2642,7 @@ async def set_auto_tp_targets_count(update: Update, context: ContextTypes.DEFAUL
                 InlineKeyboardButton("5%", callback_data="quick_tp_5"),
                 InlineKeyboardButton("10%", callback_data="quick_tp_10")
             ],
+            [InlineKeyboardButton("✏️ إدخال رقم مخصص", callback_data="custom_tp_percent_input")],
             [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2701,6 +2702,7 @@ async def process_tp_target_input(update: Update, context: ContextTypes.DEFAULT_
                 InlineKeyboardButton("75%", callback_data="quick_close_75"),
                 InlineKeyboardButton("100%", callback_data="quick_close_100")
             ],
+            [InlineKeyboardButton("✏️ إدخال رقم مخصص", callback_data="custom_close_percent_input")],
             [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2765,6 +2767,7 @@ async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE,
                     InlineKeyboardButton("5%", callback_data="quick_tp_5"),
                     InlineKeyboardButton("10%", callback_data="quick_tp_10")
                 ],
+                [InlineKeyboardButton("✏️ إدخال رقم مخصص", callback_data="custom_tp_percent_input")],
                 [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
             ]
         else:
@@ -4722,6 +4725,50 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             "🛑 **إدخال Stop Loss مخصص**\n\nأدخل النسبة كرقم (مثال: 2.5):",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_sl")]]),
+            parse_mode='Markdown'
+        )
+    elif data == "custom_tp_percent_input":
+        user_id = update.effective_user.id if update.effective_user else None
+        builder = context.user_data.get('auto_tp_builder', {})
+        current_target = builder.get('current_target', 1)
+        total_count = builder.get('count', 3)
+        
+        if user_id:
+            user_input_state[user_id] = f"building_auto_tp_target_{current_target}_percent"
+        
+        await query.edit_message_text(
+            f"🎯 **هدف الربح رقم {current_target} من {total_count}**\n\n"
+            f"✏️ **إدخال مخصص**\n\n"
+            f"أدخل نسبة الربح كرقم:\n\n"
+            f"**أمثلة:**\n"
+            f"• `2.5` → هدف عند +2.5%\n"
+            f"• `7` → هدف عند +7%\n"
+            f"• `15.5` → هدف عند +15.5%\n\n"
+            f"📊 **النطاق:** 0.1% إلى 100%",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_tp")]]),
+            parse_mode='Markdown'
+        )
+    elif data == "custom_close_percent_input":
+        user_id = update.effective_user.id if update.effective_user else None
+        builder = context.user_data.get('auto_tp_builder', {})
+        current_target = builder.get('current_target', 1)
+        total_count = builder.get('count', 3)
+        tp_pct = builder.get('temp_tp_percent', 0)
+        
+        if user_id:
+            user_input_state[user_id] = f"building_auto_tp_target_{current_target}_close"
+        
+        await query.edit_message_text(
+            f"🎯 **هدف الربح رقم {current_target} من {total_count}**\n\n"
+            f"✅ **نسبة الربح:** +{tp_pct}%\n\n"
+            f"✏️ **إدخال مخصص**\n\n"
+            f"أدخل نسبة الإغلاق كرقم:\n\n"
+            f"**أمثلة:**\n"
+            f"• `40` → إغلاق 40%\n"
+            f"• `60` → إغلاق 60%\n"
+            f"• `85.5` → إغلاق 85.5%\n\n"
+            f"📊 **النطاق:** 1% إلى 100%",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_tp")]]),
             parse_mode='Markdown'
         )
     elif data.startswith("manage_"):
