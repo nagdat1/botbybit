@@ -35,6 +35,9 @@ from user_manager import user_manager
 from developer_manager import developer_manager
 import init_developers
 
+# استيراد أدوات إدارة الصفقات المتقدمة
+from trade_tools import trade_tools_manager, PositionManagement
+
 # إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -2104,10 +2107,12 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
+        # إضافة أزرار إدارة الصفقة
         pnl_display = f"({pnl_value:+.2f})" if current_price else ""
-        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
-        spot_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
+        spot_keyboard.append([
+            InlineKeyboardButton(f"⚙️ إدارة {symbol}", callback_data=f"manage_{position_id}"),
+            InlineKeyboardButton(f"❌ إغلاق {pnl_display}", callback_data=f"close_{position_id}")
+        ])
     
     spot_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     spot_reply_markup = InlineKeyboardMarkup(spot_keyboard)
@@ -2219,10 +2224,12 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 🆔 رقم الصفقة: {position_id}
             """
         
-        # إضافة زر إغلاق الصفقة مع عرض الربح/الخسارة
+        # إضافة أزرار إدارة الصفقة
         pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
-        close_button_text = f"❌ إغلاق {symbol} {pnl_display}"
-        futures_keyboard.append([InlineKeyboardButton(close_button_text, callback_data=f"close_{position_id}")])
+        futures_keyboard.append([
+            InlineKeyboardButton(f"⚙️ إدارة {symbol}", callback_data=f"manage_{position_id}"),
+            InlineKeyboardButton(f"❌ إغلاق {pnl_display}", callback_data=f"close_{position_id}")
+        ])
     
     futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
@@ -2240,6 +2247,335 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
                 raise
     elif update.message is not None:
         await update.message.reply_text(futures_text, reply_markup=futures_reply_markup)
+
+async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض أدوات إدارة الصفقة (TP/SL/Partial Close)"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        # استخراج position_id من callback_data
+        position_id = query.data.replace("manage_", "")
+        
+        # الحصول على معرف المستخدم
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # البحث عن الصفقة
+        position_info = None
+        if user_id and user_id in user_manager.user_positions:
+            position_info = user_manager.user_positions[user_id].get(position_id)
+        
+        if not position_info:
+            position_info = trading_bot.open_positions.get(position_id)
+        
+        if not position_info:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        symbol = position_info['symbol']
+        side = position_info['side']
+        entry_price = position_info['entry_price']
+        current_price = position_info.get('current_price', entry_price)
+        
+        # التحقق من وجود إدارة للصفقة
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos:
+            # إنشاء إدارة جديدة للصفقة
+            quantity = position_info.get('amount', position_info.get('margin_amount', 100))
+            market_type = position_info.get('account_type', 'spot')
+            leverage = position_info.get('leverage', 1)
+            
+            managed_pos = trade_tools_manager.create_managed_position(
+                position_id=position_id,
+                symbol=symbol,
+                side=side,
+                entry_price=entry_price,
+                quantity=quantity,
+                market_type=market_type,
+                leverage=leverage
+            )
+        
+        if managed_pos:
+            status_message = managed_pos.get_status_message(current_price)
+            rr_ratio = managed_pos.calculate_risk_reward_ratio()
+            
+            if rr_ratio > 0:
+                status_message += f"\n⚖️ نسبة المخاطرة/العائد: 1:{rr_ratio:.2f}"
+        else:
+            status_message = f"📊 **إدارة الصفقة: {symbol}**\n\n"
+            status_message += f"🔄 النوع: {side.upper()}\n"
+            status_message += f"💲 سعر الدخول: {entry_price:.6f}\n"
+            status_message += f"💲 السعر الحالي: {current_price:.6f}\n"
+        
+        # إنشاء أزرار الإدارة
+        keyboard = [
+            [
+                InlineKeyboardButton("🎯 تعيين أهداف", callback_data=f"setTP_{position_id}"),
+                InlineKeyboardButton("🛑 تعيين ستوب", callback_data=f"setSL_{position_id}")
+            ],
+            [
+                InlineKeyboardButton("📊 إغلاق 25%", callback_data=f"partial_25_{position_id}"),
+                InlineKeyboardButton("📊 إغلاق 50%", callback_data=f"partial_50_{position_id}"),
+                InlineKeyboardButton("📊 إغلاق 75%", callback_data=f"partial_75_{position_id}")
+            ],
+            [
+                InlineKeyboardButton("🔁 نقل SL للتعادل", callback_data=f"moveBE_{position_id}"),
+                InlineKeyboardButton("⚡ Trailing Stop", callback_data=f"trailing_{position_id}")
+            ],
+            [
+                InlineKeyboardButton("🎲 أهداف تلقائية", callback_data=f"autoTP_{position_id}"),
+                InlineKeyboardButton("🤖 ستوب تلقائي", callback_data=f"autoSL_{position_id}")
+            ],
+            [
+                InlineKeyboardButton("❌ إغلاق كامل", callback_data=f"close_{position_id}"),
+                InlineKeyboardButton("🔙 رجوع", callback_data="show_positions")
+            ]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(status_message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض أدوات إدارة الصفقة: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعيين أهداف تلقائية ذكية"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("autoTP_", "")
+        
+        success = trade_tools_manager.set_default_levels(position_id, tp_percentages=[1.5, 3.0, 5.0])
+        
+        if success:
+            await query.edit_message_text(
+                "✅ تم تعيين أهداف تلقائية:\n\n"
+                "🎯 TP1: 1.5% (إغلاق 50%)\n"
+                "🎯 TP2: 3.0% (إغلاق 30%)\n"
+                "🎯 TP3: 5.0% (إغلاق 20%)\n\n"
+                "سيتم نقل Stop Loss للتعادل عند تحقيق TP1",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
+                ]])
+            )
+        else:
+            await query.edit_message_text("❌ فشل في تعيين الأهداف التلقائية")
+            
+    except Exception as e:
+        logger.error(f"خطأ في تعيين الأهداف التلقائية: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعيين ستوب لوز تلقائي بنسبة 2%"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("autoSL_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos:
+            await query.edit_message_text("❌ الصفقة غير موجودة في النظام المدار")
+            return
+        
+        # تعيين SL بنسبة 2%
+        if managed_pos.side.lower() == "buy":
+            sl_price = managed_pos.entry_price * 0.98  # -2%
+        else:
+            sl_price = managed_pos.entry_price * 1.02  # +2%
+        
+        success = managed_pos.set_stop_loss(sl_price, is_trailing=False)
+        
+        if success:
+            await query.edit_message_text(
+                f"✅ تم تعيين Stop Loss:\n\n"
+                f"🛑 السعر: {sl_price:.6f}\n"
+                f"📉 المخاطرة: 2% من رأس المال\n\n"
+                f"💡 نصيحة: سيتم نقله للتعادل عند تحقيق أول هدف",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
+                ]])
+            )
+        else:
+            await query.edit_message_text("❌ فشل في تعيين Stop Loss")
+            
+    except Exception as e:
+        logger.error(f"خطأ في تعيين Stop Loss التلقائي: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إغلاق جزئي للصفقة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        # استخراج النسبة و position_id
+        parts = query.data.split("_")
+        percentage = int(parts[1])
+        position_id = "_".join(parts[2:])
+        
+        # الحصول على معرف المستخدم
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # البحث عن الصفقة
+        position_info = None
+        is_user_position = False
+        
+        if user_id and user_id in user_manager.user_positions:
+            if position_id in user_manager.user_positions[user_id]:
+                position_info = user_manager.user_positions[user_id][position_id]
+                is_user_position = True
+        
+        if not position_info:
+            position_info = trading_bot.open_positions.get(position_id)
+        
+        if not position_info:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        # الحصول على الحساب المناسب
+        market_type = position_info.get('account_type', 'spot')
+        if is_user_position and user_id:
+            account = user_manager.get_user_account(user_id, market_type)
+        else:
+            account = trading_bot.demo_account_futures if market_type == 'futures' else trading_bot.demo_account_spot
+        
+        # حساب كمية الإغلاق
+        current_price = position_info.get('current_price', position_info['entry_price'])
+        original_amount = position_info.get('amount', position_info.get('margin_amount', 0))
+        close_amount = original_amount * (percentage / 100)
+        
+        # حساب الربح/الخسارة
+        entry_price = position_info['entry_price']
+        side = position_info['side']
+        
+        if side.lower() == "buy":
+            pnl = (current_price - entry_price) * (close_amount / entry_price)
+        else:
+            pnl = (entry_price - current_price) * (close_amount / entry_price)
+        
+        # تحديث الصفقة
+        position_info['amount'] = original_amount - close_amount
+        
+        # تحديث الرصيد
+        if market_type == 'spot':
+            account.balance += close_amount + pnl
+        else:  # futures
+            account.balance += pnl
+            account.margin_locked -= close_amount
+        
+        pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
+        message = f"""
+{pnl_emoji} تم إغلاق {percentage}% من الصفقة
+
+📊 الرمز: {position_info['symbol']}
+🔄 النوع: {side.upper()}
+💲 سعر الإغلاق: {current_price:.6f}
+💰 المبلغ المغلق: {close_amount:.2f}
+{pnl_emoji} الربح/الخسارة: {pnl:+.2f}
+
+📈 المتبقي: {position_info['amount']:.2f} ({100-percentage}%)
+💰 الرصيد الجديد: {account.balance:.2f}
+        """
+        
+        await query.edit_message_text(
+            message,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 رجوع للإدارة", callback_data=f"manage_{position_id}"),
+                InlineKeyboardButton("📊 الصفقات المفتوحة", callback_data="show_positions")
+            ]])
+        )
+        
+    except Exception as e:
+        logger.error(f"خطأ في الإغلاق الجزئي: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def move_sl_to_breakeven(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نقل Stop Loss إلى نقطة التعادل"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("moveBE_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos or not managed_pos.stop_loss:
+            await query.edit_message_text("❌ لا يوجد Stop Loss مُعيّن لهذه الصفقة")
+            return
+        
+        if managed_pos.stop_loss.moved_to_breakeven:
+            await query.edit_message_text("ℹ️ Stop Loss منقول للتعادل بالفعل")
+            return
+        
+        success = managed_pos.stop_loss.move_to_breakeven(managed_pos.entry_price)
+        
+        if success:
+            await query.edit_message_text(
+                f"✅ تم نقل Stop Loss إلى التعادل!\n\n"
+                f"🔒 السعر الجديد: {managed_pos.entry_price:.6f}\n"
+                f"✨ الآن الصفقة محمية من الخسارة",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
+                ]])
+            )
+        else:
+            await query.edit_message_text("❌ فشل في نقل Stop Loss")
+            
+    except Exception as e:
+        logger.error(f"خطأ في نقل SL للتعادل: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def enable_trailing_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تفعيل Trailing Stop"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("trailing_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos:
+            await query.edit_message_text("❌ الصفقة غير موجودة في النظام المدار")
+            return
+        
+        # تعيين trailing stop بمسافة 2%
+        if not managed_pos.stop_loss:
+            if managed_pos.side.lower() == "buy":
+                sl_price = managed_pos.entry_price * 0.98
+            else:
+                sl_price = managed_pos.entry_price * 1.02
+            
+            managed_pos.set_stop_loss(sl_price, is_trailing=True, trailing_distance=2.0)
+        else:
+            managed_pos.stop_loss.is_trailing = True
+            managed_pos.stop_loss.trailing_distance = 2.0
+        
+        await query.edit_message_text(
+            f"✅ تم تفعيل Trailing Stop!\n\n"
+            f"⚡ المسافة: 2%\n"
+            f"🔒 السعر الحالي: {managed_pos.stop_loss.price:.6f}\n\n"
+            f"💡 سيتحرك Stop Loss تلقائياً مع تحرك السعر لصالحك",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
+            ]])
+        )
+            
+    except Exception as e:
+        logger.error(f"خطأ في تفعيل Trailing Stop: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
 async def close_position(position_id: str, update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إغلاق صفقة مع دعم محسن للفيوتشر"""
@@ -2697,8 +3033,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
-    elif data == "refresh_positions":
+    elif data == "refresh_positions" or data == "show_positions":
         await open_positions(update, context)
+    elif data.startswith("manage_"):
+        await manage_position_tools(update, context)
+    elif data.startswith("autoTP_"):
+        await set_auto_tp(update, context)
+    elif data.startswith("autoSL_"):
+        await set_auto_sl(update, context)
+    elif data.startswith("partial_"):
+        await partial_close_position(update, context)
+    elif data.startswith("moveBE_"):
+        await move_sl_to_breakeven(update, context)
+    elif data.startswith("trailing_"):
+        await enable_trailing_stop(update, context)
     elif data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
