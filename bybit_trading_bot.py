@@ -2740,24 +2740,40 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
             status_message += f"💲 سعر الدخول: {entry_price:.6f}\n"
             status_message += f"💲 السعر الحالي: {current_price:.6f}\n"
         
-        # إنشاء أزرار الإدارة
+        # حالة الأدوات النشطة
+        has_tp = managed_pos and len(managed_pos.take_profits) > 0
+        has_sl = managed_pos and managed_pos.stop_loss is not None
+        is_trailing = managed_pos and managed_pos.stop_loss and managed_pos.stop_loss.is_trailing
+        is_breakeven = managed_pos and managed_pos.stop_loss and managed_pos.stop_loss.moved_to_breakeven
+        
+        # إنشاء أزرار الإدارة مع الحالات
         keyboard = [
             [
-                InlineKeyboardButton("🎯 تعيين أهداف", callback_data=f"setTP_{position_id}"),
-                InlineKeyboardButton("🛑 تعيين ستوب", callback_data=f"setSL_{position_id}")
+                InlineKeyboardButton(
+                    f"🎯 أهداف الربح {'✅' if has_tp else '➕'}", 
+                    callback_data=f"setTP_menu_{position_id}"
+                ),
+                InlineKeyboardButton(
+                    f"🛑 وقف الخسارة {'✅' if has_sl else '➕'}", 
+                    callback_data=f"setSL_menu_{position_id}"
+                )
             ],
             [
-                InlineKeyboardButton("📊 إغلاق 25%", callback_data=f"partial_25_{position_id}"),
-                InlineKeyboardButton("📊 إغلاق 50%", callback_data=f"partial_50_{position_id}"),
-                InlineKeyboardButton("📊 إغلاق 75%", callback_data=f"partial_75_{position_id}")
+                InlineKeyboardButton("📊 إغلاق جزئي مخصص", callback_data=f"partial_custom_{position_id}")
             ],
             [
-                InlineKeyboardButton("🔁 نقل SL للتعادل", callback_data=f"moveBE_{position_id}"),
-                InlineKeyboardButton("⚡ Trailing Stop", callback_data=f"trailing_{position_id}")
+                InlineKeyboardButton(
+                    f"🔁 نقل للتعادل {'🔒' if is_breakeven else '⏸️'}", 
+                    callback_data=f"moveBE_{position_id}"
+                ),
+                InlineKeyboardButton(
+                    f"⚡ Trailing Stop {'✅' if is_trailing else '⏸️'}", 
+                    callback_data=f"trailing_menu_{position_id}"
+                )
             ],
             [
-                InlineKeyboardButton("🎲 أهداف تلقائية", callback_data=f"autoTP_{position_id}"),
-                InlineKeyboardButton("🤖 ستوب تلقائي", callback_data=f"autoSL_{position_id}")
+                InlineKeyboardButton("🎲 إعداد سريع (ذكي)", callback_data=f"quick_setup_{position_id}"),
+                InlineKeyboardButton("ℹ️ دليل الأدوات", callback_data=f"tools_guide_{position_id}")
             ],
             [
                 InlineKeyboardButton("❌ إغلاق كامل", callback_data=f"close_{position_id}"),
@@ -2772,6 +2788,271 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
         logger.error(f"خطأ في عرض أدوات إدارة الصفقة: {e}")
         import traceback
         logger.error(traceback.format_exc())
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def show_tools_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل استخدام الأدوات"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("tools_guide_", "")
+        
+        guide_text = """
+📚 **دليل أدوات إدارة الصفقات**
+
+🎯 **أهداف الربح (Take Profit)**
+تحديد مستويات أسعار لإغلاق أجزاء من الصفقة تلقائياً عند الربح
+• يمكن إضافة عدة أهداف بنسب مختلفة
+• مثال: TP1 عند +2% إغلاق 50%
+
+🛑 **وقف الخسارة (Stop Loss)**
+حماية رأس المال بإغلاق الصفقة عند خسارة محددة
+• ⚠️ تحذير: Trailing Stop يُلغي SL الثابت تلقائياً
+• ينصح بتعيينه عند -2% من سعر الدخول
+
+📊 **الإغلاق الجزئي**
+إغلاق نسبة معينة من الصفقة يدوياً
+• يمكن إدخال أي نسبة من 1% إلى 100%
+• مفيد لتأمين الأرباح مع استمرار الصفقة
+
+🔁 **نقل للتعادل (Break-Even)**
+نقل SL إلى سعر الدخول لحماية من الخسارة
+• يحدث تلقائياً عند تحقيق أول هدف
+• يمكن تفعيله يدوياً في أي وقت
+
+⚡ **Trailing Stop (الإيقاف المتحرك)**
+SL يتحرك تلقائياً مع السعر في اتجاه الربح
+• ⚠️ تفعيله يُلغي SL الثابت
+• يحمي الأرباح المتراكمة
+• المسافة الافتراضية: 2%
+
+🎲 **الإعداد السريع**
+تطبيق إعدادات ذكية متوازنة:
+• 3 أهداف: 1.5%, 3%, 5%
+• نسب الإغلاق: 50%, 30%, 20%
+• Stop Loss: -2%
+• نقل تلقائي للتعادل عند TP1
+
+💡 **نصائح ذكية:**
+1. لا تستخدم Trailing Stop و SL الثابت معاً
+2. نقل SL للتعادل بعد تحقيق ربح معقول
+3. نسبة R:R المثالية: 1:2 أو أكثر
+        """
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(guide_text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض الدليل: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_tp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """قائمة تعيين أهداف الربح"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("setTP_menu_", "")
+        
+        message = """
+🎯 **تعيين أهداف الربح**
+
+اختر طريقة التعيين:
+
+**تلقائي:** أهداف ذكية جاهزة
+• TP1: +1.5% (إغلاق 50%)
+• TP2: +3.0% (إغلاق 30%)  
+• TP3: +5.0% (إغلاق 20%)
+
+**مخصص:** أدخل نسبة الربح ونسبة الإغلاق بنفسك
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🎲 تلقائي (ذكي)", callback_data=f"autoTP_{position_id}")],
+            [InlineKeyboardButton("✏️ إدخال مخصص", callback_data=f"customTP_{position_id}")],
+            [InlineKeyboardButton("🗑️ حذف جميع الأهداف", callback_data=f"clearTP_{position_id}")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في قائمة TP: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_sl_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """قائمة تعيين وقف الخسارة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("setSL_menu_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        has_trailing = managed_pos and managed_pos.stop_loss and managed_pos.stop_loss.is_trailing
+        
+        message = f"""
+🛑 **تعيين وقف الخسارة**
+
+{'⚡ **Trailing Stop نشط حالياً**' if has_trailing else ''}
+
+**تلقائي:** SL ثابت عند -2% من سعر الدخول
+
+**مخصص:** أدخل نسبة الخسارة المقبولة
+
+⚠️ **تحذير:** تفعيل Trailing Stop سيُلغي SL الثابت تلقائياً
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🤖 تلقائي (-2%)", callback_data=f"autoSL_{position_id}")],
+            [InlineKeyboardButton("✏️ إدخال مخصص", callback_data=f"customSL_{position_id}")],
+            [InlineKeyboardButton("🗑️ حذف Stop Loss", callback_data=f"clearSL_{position_id}")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في قائمة SL: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def trailing_stop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """قائمة Trailing Stop"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("trailing_menu_", "")
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        is_active = managed_pos and managed_pos.stop_loss and managed_pos.stop_loss.is_trailing
+        
+        message = f"""
+⚡ **Trailing Stop (الإيقاف المتحرك)**
+
+الحالة: {'✅ **نشط**' if is_active else '⏸️ **غير نشط**'}
+
+**كيف يعمل؟**
+يتحرك SL تلقائياً مع السعر في اتجاه الربح، ولا ينخفض أبداً
+
+**المسافة:** النسبة بين السعر الحالي و SL
+
+⚠️ **تحذير:** تفعيله سيُلغي Stop Loss الثابت
+
+**مثال:** 
+سعر الدخول: 100$
+المسافة: 2%
+السعر: 110$ → SL: 107.8$
+السعر: 120$ → SL: 117.6$
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("⚡ تفعيل (2%)", callback_data=f"trailing_{position_id}")],
+            [InlineKeyboardButton("✏️ مسافة مخصصة", callback_data=f"customTrailing_{position_id}")],
+            [InlineKeyboardButton("⏸️ تعطيل", callback_data=f"stopTrailing_{position_id}")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في قائمة Trailing: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def custom_partial_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """طلب إدخال نسبة مخصصة للإغلاق الجزئي"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        position_id = query.data.replace("partial_custom_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if user_id:
+            user_input_state[user_id] = f"waiting_partial_percentage_{position_id}"
+        
+        message = """
+📊 **إغلاق جزئي مخصص**
+
+أدخل النسبة المئوية التي تريد إغلاقها من الصفقة:
+
+**مثال:**
+• 25 (لإغلاق 25%)
+• 50 (لإغلاق 50%)
+• 17.5 (لإغلاق 17.5%)
+
+**النطاق المسموح:** من 1 إلى 100
+
+💡 **نصيحة:** ابق على الأقل 20% من الصفقة مفتوحة للاستفادة من الحركة
+        """
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"manage_{position_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في custom partial: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع ذكي لجميع الأدوات"""
+    try:
+        query = update.callback_query
+        await query.answer("⏳ جاري تطبيق الإعداد الذكي...")
+        
+        position_id = query.data.replace("quick_setup_", "")
+        
+        # تطبيق الإعدادات الذكية
+        success = trade_tools_manager.set_default_levels(
+            position_id, 
+            tp_percentages=[1.5, 3.0, 5.0],
+            sl_percentage=2.0,
+            trailing=False
+        )
+        
+        if success:
+            message = """
+✅ **تم تطبيق الإعداد الذكي بنجاح!**
+
+🎯 **أهداف الربح:**
+• TP1: +1.5% → إغلاق 50%
+• TP2: +3.0% → إغلاق 30%
+• TP3: +5.0% → إغلاق 20%
+
+🛑 **Stop Loss:** -2%
+
+🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
+
+⚖️ **نسبة المخاطرة/العائد:** 1:2.5
+
+💡 هذه إعدادات متوازنة توفر حماية جيدة مع إمكانية ربح معقولة
+            """
+            
+            keyboard = [[
+                InlineKeyboardButton("⚙️ تعديل", callback_data=f"manage_{position_id}"),
+                InlineKeyboardButton("✅ تم", callback_data="show_positions")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        else:
+            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            
+    except Exception as e:
+        logger.error(f"خطأ في quick setup: {e}")
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
@@ -3469,6 +3750,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await open_positions(update, context)
     elif data.startswith("manage_"):
         await manage_position_tools(update, context)
+    elif data.startswith("tools_guide_"):
+        await show_tools_guide(update, context)
+    elif data.startswith("setTP_menu_"):
+        await set_tp_menu(update, context)
+    elif data.startswith("setSL_menu_"):
+        await set_sl_menu(update, context)
+    elif data.startswith("trailing_menu_"):
+        await trailing_stop_menu(update, context)
+    elif data.startswith("partial_custom_"):
+        await custom_partial_close(update, context)
+    elif data.startswith("quick_setup_"):
+        await quick_setup(update, context)
     elif data.startswith("autoTP_"):
         await set_auto_tp(update, context)
     elif data.startswith("autoSL_"):
@@ -3477,7 +3770,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await partial_close_position(update, context)
     elif data.startswith("moveBE_"):
         await move_sl_to_breakeven(update, context)
-    elif data.startswith("trailing_"):
+    elif data.startswith("trailing_") and not data.startswith("trailing_menu_"):
         await enable_trailing_stop(update, context)
     elif data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
