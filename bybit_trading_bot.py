@@ -2543,37 +2543,48 @@ async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
 async def edit_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تعديل أهداف الربح التلقائية"""
+    """تعديل أهداف الربح التلقائية - واجهة تفاعلية"""
     try:
         query = update.callback_query
         await query.answer()
         
         user_id = update.effective_user.id if update.effective_user else None
         if user_id:
-            user_input_state[user_id] = "waiting_auto_tp_input"
+            # حفظ الحالة مع بيانات مؤقتة
+            if 'auto_tp_builder' not in context.user_data:
+                context.user_data['auto_tp_builder'] = {
+                    'targets': [],
+                    'step': 'count'  # count, tp1, tp2, etc.
+                }
+            user_input_state[user_id] = "building_auto_tp_count"
         
         message = """
-🎯 **تعديل أهداف الربح التلقائية**
+🎯 **إعداد أهداف الربح التلقائية**
 
-أدخل الأهداف بالصيغة التالية (كل هدف في سطر):
-`نسبة_الربح نسبة_الإغلاق`
+**الخطوة 1 من 2:** كم هدف تريد إضافة؟
 
-**مثال:**
-```
-1.5 50
-3 30
-5 20
-```
+💡 **أمثلة:**
+• `1` → هدف واحد فقط
+• `2` → هدفين
+• `3` → ثلاثة أهداف (موصى به)
 
-هذا يعني:
-• TP1: +1.5% إغلاق 50%
-• TP2: +3% إغلاق 30%
-• TP3: +5% إغلاق 20%
+📊 **الحد الأقصى:** 5 أهداف
 
-💡 يمكنك إضافة حتى 5 أهداف
+أدخل الرقم:
         """
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]]
+        keyboard = [
+            [
+                InlineKeyboardButton("1️⃣", callback_data="auto_tp_targets_1"),
+                InlineKeyboardButton("2️⃣", callback_data="auto_tp_targets_2"),
+                InlineKeyboardButton("3️⃣", callback_data="auto_tp_targets_3")
+            ],
+            [
+                InlineKeyboardButton("4️⃣", callback_data="auto_tp_targets_4"),
+                InlineKeyboardButton("5️⃣", callback_data="auto_tp_targets_5")
+            ],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -2583,31 +2594,272 @@ async def edit_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
+async def set_auto_tp_targets_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعيين عدد الأهداف"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        # استخراج العدد
+        count = int(query.data.replace("auto_tp_targets_", ""))
+        
+        # حفظ في context
+        if 'auto_tp_builder' not in context.user_data:
+            context.user_data['auto_tp_builder'] = {}
+        
+        context.user_data['auto_tp_builder']['count'] = count
+        context.user_data['auto_tp_builder']['targets'] = []
+        context.user_data['auto_tp_builder']['current_target'] = 1
+        
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id:
+            user_input_state[user_id] = f"building_auto_tp_target_1_percent"
+        
+        message = f"""
+🎯 **هدف الربح رقم 1 من {count}**
+
+**الخطوة 2:** أدخل نسبة الربح لهذا الهدف
+
+💡 **أمثلة:**
+• `1.5` → هدف عند +1.5%
+• `2` → هدف عند +2%
+• `3` → هدف عند +3%
+• `5` → هدف عند +5%
+
+📊 **نطاق مقترح:** 0.5% إلى 20%
+
+أدخل النسبة:
+        """
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("1%", callback_data="quick_tp_1"),
+                InlineKeyboardButton("1.5%", callback_data="quick_tp_1.5"),
+                InlineKeyboardButton("2%", callback_data="quick_tp_2")
+            ],
+            [
+                InlineKeyboardButton("3%", callback_data="quick_tp_3"),
+                InlineKeyboardButton("5%", callback_data="quick_tp_5"),
+                InlineKeyboardButton("10%", callback_data="quick_tp_10")
+            ],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في set_auto_tp_targets_count: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def process_tp_target_input(update: Update, context: ContextTypes.DEFAULT_TYPE, tp_percent: float = None):
+    """معالجة إدخال هدف TP"""
+    try:
+        user_id = update.effective_user.id if update.effective_user else None
+        builder = context.user_data.get('auto_tp_builder', {})
+        
+        current_target = builder.get('current_target', 1)
+        total_count = builder.get('count', 3)
+        
+        # إذا تم توفير النسبة (من زر سريع)
+        if tp_percent is not None:
+            if 'temp_tp_percent' not in builder:
+                builder['temp_tp_percent'] = tp_percent
+        
+        # الانتقال لإدخال نسبة الإغلاق
+        if user_id:
+            user_input_state[user_id] = f"building_auto_tp_target_{current_target}_close"
+        
+        tp_pct = builder.get('temp_tp_percent', 0)
+        
+        message = f"""
+🎯 **هدف الربح رقم {current_target} من {total_count}**
+
+✅ **نسبة الربح:** +{tp_pct}%
+
+**الآن:** أدخل نسبة الإغلاق عند هذا الهدف
+
+💡 **أمثلة:**
+• `25` → إغلاق 25% من الصفقة
+• `33` → إغلاق 33% من الصفقة
+• `50` → إغلاق نصف الصفقة
+• `100` → إغلاق كامل الصفقة
+
+📊 **نطاق مسموح:** 1% إلى 100%
+
+أدخل النسبة:
+        """
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("25%", callback_data="quick_close_25"),
+                InlineKeyboardButton("33%", callback_data="quick_close_33"),
+                InlineKeyboardButton("50%", callback_data="quick_close_50")
+            ],
+            [
+                InlineKeyboardButton("75%", callback_data="quick_close_75"),
+                InlineKeyboardButton("100%", callback_data="quick_close_100")
+            ],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        elif update.message:
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في process_tp_target_input: {e}")
+
+async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE, close_percent: float = None):
+    """إنهاء إدخال هدف واحد والانتقال للتالي أو الحفظ"""
+    try:
+        builder = context.user_data.get('auto_tp_builder', {})
+        
+        tp_pct = builder.get('temp_tp_percent', 0)
+        if close_percent is None:
+            close_percent = 50  # افتراضي
+        
+        # حفظ الهدف
+        if 'targets' not in builder:
+            builder['targets'] = []
+        builder['targets'].append({'tp': tp_pct, 'close': close_percent})
+        
+        current_target = builder.get('current_target', 1)
+        total_count = builder.get('count', 3)
+        
+        # عرض معاينة
+        preview = "📋 **معاينة الأهداف المضافة:**\n\n"
+        for i, target in enumerate(builder['targets'], 1):
+            preview += f"• TP{i}: +{target['tp']}% → إغلاق {target['close']}%\n"
+        
+        if current_target < total_count:
+            # الانتقال للهدف التالي
+            builder['current_target'] = current_target + 1
+            builder['temp_tp_percent'] = None
+            
+            user_id = update.effective_user.id if update.effective_user else None
+            if user_id:
+                user_input_state[user_id] = f"building_auto_tp_target_{current_target + 1}_percent"
+            
+            message = f"""
+✅ **تم إضافة الهدف {current_target}!**
+
+{preview}
+
+➡️ **التالي:** هدف الربح رقم {current_target + 1} من {total_count}
+
+أدخل نسبة الربح:
+            """
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton("1%", callback_data="quick_tp_1"),
+                    InlineKeyboardButton("1.5%", callback_data="quick_tp_1.5"),
+                    InlineKeyboardButton("2%", callback_data="quick_tp_2")
+                ],
+                [
+                    InlineKeyboardButton("3%", callback_data="quick_tp_3"),
+                    InlineKeyboardButton("5%", callback_data="quick_tp_5"),
+                    InlineKeyboardButton("10%", callback_data="quick_tp_10")
+                ],
+                [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+            ]
+        else:
+            # حفظ نهائي
+            tp_percentages = [t['tp'] for t in builder['targets']]
+            tp_close_percentages = [t['close'] for t in builder['targets']]
+            
+            success = trade_tools_manager.save_auto_settings(
+                tp_percentages=tp_percentages,
+                tp_close_percentages=tp_close_percentages,
+                sl_percentage=trade_tools_manager.default_sl_percentage,
+                trailing_enabled=trade_tools_manager.default_trailing_enabled,
+                trailing_distance=trade_tools_manager.default_trailing_distance,
+                breakeven_on_tp1=True
+            )
+            
+            if success:
+                message = f"""
+✅ **تم حفظ جميع الأهداف بنجاح!**
+
+{preview}
+
+💾 **تم الحفظ في الإعدادات التلقائية**
+
+🤖 الآن كل صفقة جديدة ستحصل على هذه الأهداف تلقائياً!
+                """
+                
+                keyboard = [[
+                    InlineKeyboardButton("✅ تفعيل التطبيق التلقائي", callback_data="toggle_auto_apply"),
+                    InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")
+                ]]
+            else:
+                message = "❌ فشل في حفظ الإعدادات"
+                keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]
+            
+            # مسح البيانات المؤقتة
+            if 'auto_tp_builder' in context.user_data:
+                del context.user_data['auto_tp_builder']
+            user_id = update.effective_user.id if update.effective_user else None
+            if user_id and user_id in user_input_state:
+                del user_input_state[user_id]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        elif update.message:
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في finalize_tp_target: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
 async def edit_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تعديل Stop Loss التلقائي"""
+    """تعديل Stop Loss التلقائي - واجهة تفاعلية"""
     try:
         query = update.callback_query
         await query.answer()
         
         user_id = update.effective_user.id if update.effective_user else None
         if user_id:
-            user_input_state[user_id] = "waiting_auto_sl_input"
+            user_input_state[user_id] = "waiting_auto_sl_simple"
         
-        message = """
+        current_sl = trade_tools_manager.default_sl_percentage
+        
+        message = f"""
 🛑 **تعديل Stop Loss التلقائي**
 
-أدخل نسبة Stop Loss كرقم:
+{'✅ **الحالي:** -' + str(current_sl) + '%' if current_sl > 0 else '⏸️ **غير محدد حالياً**'}
 
-**أمثلة:**
-• `2` → SL عند -2%
-• `3.5` → SL عند -3.5%
-• `1` → SL عند -1% (محافظ)
-• `5` → SL عند -5% (عدواني)
+**اختر نسبة Stop Loss:**
 
-⚠️ **نصيحة:** النسبة الموصى بها هي 2%
+💡 **التوصيات:**
+• **محافظ:** 1-2% (حماية قوية)
+• **متوازن:** 2-3% (موصى به)
+• **عدواني:** 3-5% (مجال أكبر)
+
+أو أدخل نسبة مخصصة:
         """
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]]
+        keyboard = [
+            [
+                InlineKeyboardButton("1% 🛡️", callback_data="quick_sl_1"),
+                InlineKeyboardButton("1.5% 🛡️", callback_data="quick_sl_1.5"),
+                InlineKeyboardButton("2% ⭐", callback_data="quick_sl_2")
+            ],
+            [
+                InlineKeyboardButton("2.5%", callback_data="quick_sl_2.5"),
+                InlineKeyboardButton("3%", callback_data="quick_sl_3"),
+                InlineKeyboardButton("5%", callback_data="quick_sl_5")
+            ],
+            [InlineKeyboardButton("✏️ إدخال مخصص", callback_data="custom_sl_input")],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -4436,6 +4688,42 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "clear_auto_settings":
         logger.info(f"🔧 معالجة زر: clear_auto_settings")
         await clear_auto_settings(update, context)
+    elif data.startswith("auto_tp_targets_"):
+        await set_auto_tp_targets_count(update, context)
+    elif data.startswith("quick_tp_"):
+        tp_value = float(query.data.replace("quick_tp_", ""))
+        if 'auto_tp_builder' not in context.user_data:
+            context.user_data['auto_tp_builder'] = {}
+        context.user_data['auto_tp_builder']['temp_tp_percent'] = tp_value
+        await process_tp_target_input(update, context, tp_value)
+    elif data.startswith("quick_close_"):
+        close_value = float(query.data.replace("quick_close_", ""))
+        await finalize_tp_target(update, context, close_value)
+    elif data.startswith("quick_sl_"):
+        sl_value = float(query.data.replace("quick_sl_", ""))
+        success = trade_tools_manager.save_auto_settings(
+            tp_percentages=trade_tools_manager.default_tp_percentages,
+            tp_close_percentages=trade_tools_manager.default_tp_close_percentages,
+            sl_percentage=sl_value,
+            trailing_enabled=trade_tools_manager.default_trailing_enabled,
+            trailing_distance=trade_tools_manager.default_trailing_distance,
+            breakeven_on_tp1=True
+        )
+        if success:
+            await query.edit_message_text(
+                f"✅ **تم حفظ Stop Loss!**\n\n🛑 النسبة: -{sl_value}%",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]),
+                parse_mode='Markdown'
+            )
+    elif data == "custom_sl_input":
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id:
+            user_input_state[user_id] = "waiting_auto_sl_input"
+        await query.edit_message_text(
+            "🛑 **إدخال Stop Loss مخصص**\n\nأدخل النسبة كرقم (مثال: 2.5):",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_sl")]]),
+            parse_mode='Markdown'
+        )
     elif data.startswith("manage_"):
         await manage_position_tools(update, context)
     elif data.startswith("tools_guide_"):
@@ -5691,6 +5979,39 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await update.message.reply_text("❌ فشل في حفظ الإعدادات")
                     
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال نسبة TP في بناء الأهداف
+        elif state.startswith("building_auto_tp_target_") and state.endswith("_percent"):
+            try:
+                tp_percent = float(text)
+                
+                if tp_percent <= 0 or tp_percent > 100:
+                    await update.message.reply_text("❌ النسبة يجب أن تكون بين 0.1 و 100")
+                    return
+                
+                # حفظ وانتقال لإدخال نسبة الإغلاق
+                if 'auto_tp_builder' not in context.user_data:
+                    context.user_data['auto_tp_builder'] = {}
+                context.user_data['auto_tp_builder']['temp_tp_percent'] = tp_percent
+                
+                await process_tp_target_input(update, context, tp_percent)
+                
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال نسبة الإغلاق في بناء الأهداف
+        elif state.startswith("building_auto_tp_target_") and state.endswith("_close"):
+            try:
+                close_percent = float(text)
+                
+                if close_percent <= 0 or close_percent > 100:
+                    await update.message.reply_text("❌ النسبة يجب أن تكون بين 1 و 100")
+                    return
+                
+                await finalize_tp_target(update, context, close_percent)
+                
             except ValueError:
                 await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
         
