@@ -761,41 +761,42 @@ class MEXCAPI:
                 params = {}
             
             headers = {
-                "Content-Type": "application/json",
-                "X-MEXC-APIKEY": self.api_key
+                "X-MEXC-APIKEY": self.api_key,
+                "Content-Type": "application/x-www-form-urlencoded"
             }
             
             # إضافة timestamp للطلبات الموقعة
             if signed:
                 params['timestamp'] = int(time.time() * 1000)
-                params['recvWindow'] = 5000
+                params['recvWindow'] = 60000  # 60 ثانية
                 
                 # توليد التوقيع
                 signature = self._generate_signature(params)
                 params['signature'] = signature
             
-            logger.debug(f"📤 إرسال طلب MEXC إلى: {url}")
-            logger.debug(f"📋 المعاملات: {params}")
+            logger.info(f"📤 إرسال طلب MEXC إلى: {url}")
+            logger.info(f"📋 المعاملات: {params}")
             
             if method.upper() == "GET":
-                response = requests.get(url, params=params, headers=headers, timeout=10)
+                response = requests.get(url, params=params, headers=headers, timeout=30)
             elif method.upper() == "POST":
-                response = requests.post(url, params=params, headers=headers, timeout=10)
+                response = requests.post(url, data=params, headers=headers, timeout=30)
             elif method.upper() == "DELETE":
-                response = requests.delete(url, params=params, headers=headers, timeout=10)
+                response = requests.delete(url, params=params, headers=headers, timeout=30)
             else:
                 return {"code": -1, "msg": f"طريقة غير مدعومة: {method}"}
             
-            logger.debug(f"📥 رمز الاستجابة: {response.status_code}")
+            logger.info(f"📥 رمز الاستجابة MEXC: {response.status_code}")
+            logger.info(f"📄 محتوى الاستجابة: {response.text[:500]}")
             
             # محاولة الحصول على JSON
             try:
                 result = response.json()
-                logger.debug(f"📊 استجابة MEXC: {result}")
+                logger.info(f"📊 استجابة MEXC JSON: {result}")
                 return result
             except ValueError as json_error:
                 logger.error(f"❌ خطأ في تحليل JSON: {json_error}")
-                logger.error(f"📄 محتوى الاستجابة: {response.text[:500]}")
+                logger.error(f"📄 النص الكامل: {response.text}")
                 return {"code": -1, "msg": f"خطأ في تحليل الاستجابة: {str(json_error)}"}
             
         except requests.Timeout:
@@ -943,6 +944,72 @@ class MEXCAPI:
         except Exception as e:
             logger.error(f"خطأ في الحصول على حالة الأمر MEXC: {e}")
             return {"code": -1, "msg": str(e)}
+    
+    def get_wallet_balance(self) -> dict:
+        """الحصول على رصيد المحفظة - متوافق مع Bybit"""
+        try:
+            account_info = self.get_account_info()
+            
+            if 'balances' in account_info:
+                # حساب الرصيد الإجمالي
+                total_balance = 0.0
+                available_balance = 0.0
+                
+                for asset in account_info['balances']:
+                    free = float(asset.get('free', 0))
+                    locked = float(asset.get('locked', 0))
+                    total_balance += (free + locked)
+                    available_balance += free
+                
+                # تنسيق متوافق مع Bybit
+                return {
+                    "retCode": 0,
+                    "retMsg": "OK",
+                    "result": {
+                        "list": [{
+                            "totalEquity": str(total_balance),
+                            "totalAvailableBalance": str(available_balance),
+                            "totalMarginBalance": str(total_balance),
+                            "totalPerpUPL": "0",
+                            "coin": account_info['balances']
+                        }]
+                    }
+                }
+            else:
+                return {"retCode": -1, "retMsg": "Failed to get balance"}
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على رصيد المحفظة MEXC: {e}")
+            return {"retCode": -1, "retMsg": str(e)}
+    
+    def get_positions(self, symbol: str = None) -> List[dict]:
+        """الحصول على الصفقات المفتوحة - للتوافق مع Spot Trading"""
+        try:
+            # في Spot Trading، نحصل على الأوامر المفتوحة
+            open_orders = self.get_open_orders(symbol)
+            
+            # تحويل الأوامر إلى تنسيق الصفقات
+            positions = []
+            for order in open_orders:
+                position = {
+                    "symbol": order.get('symbol', ''),
+                    "side": order.get('side', ''),
+                    "size": order.get('origQty', '0'),
+                    "entryPrice": order.get('price', '0'),
+                    "markPrice": order.get('price', '0'),
+                    "unrealisedPnl": "0",
+                    "leverage": "1",
+                    "positionValue": str(float(order.get('origQty', 0)) * float(order.get('price', 0))),
+                    "orderId": order.get('orderId', ''),
+                    "orderStatus": order.get('status', '')
+                }
+                positions.append(position)
+            
+            return positions
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الصفقات MEXC: {e}")
+            return []
 
 
 # ==================== إدارة أدوات الصفقات المتقدمة ====================
@@ -1494,10 +1561,14 @@ class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
     
     def __init__(self):
-        # إعداد API
+        # إعداد APIs للمنصات المختلفة
         self.bybit_api = None
+        self.mexc_api = None
+        
         if BYBIT_API_KEY and BYBIT_API_SECRET:
             self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
+        
+        # سيتم تهيئة MEXC API عند الحاجة من بيانات المستخدم
         
         # إعداد الحسابات التجريبية
         self.demo_account_spot = TradingAccount(
@@ -1527,6 +1598,37 @@ class TradingBot:
             'inverse': []
         }
         self.last_pairs_update = 0
+    
+    def get_api_for_user(self, user_id: int):
+        """الحصول على API المناسب للمستخدم حسب المنصة المختارة"""
+        try:
+            user_data = user_manager.get_user(user_id)
+            if not user_data:
+                return self.bybit_api
+            
+            platform = user_data.get('exchange_platform', 'bybit')
+            api_key = user_data.get('api_key')
+            api_secret = user_data.get('api_secret')
+            
+            if not api_key or not api_secret:
+                return None
+            
+            if platform == 'mexc':
+                # إنشاء أو إرجاع MEXC API
+                if not self.mexc_api or self.mexc_api.api_key != api_key:
+                    logger.info(f"🟩 إنشاء MEXC API للمستخدم {user_id}")
+                    self.mexc_api = MEXCAPI(api_key, api_secret)
+                return self.mexc_api
+            else:
+                # Bybit
+                if not self.bybit_api or self.bybit_api.api_key != api_key:
+                    logger.info(f"🟦 إنشاء Bybit API للمستخدم {user_id}")
+                    self.bybit_api = BybitAPI(api_key, api_secret)
+                return self.bybit_api
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على API للمستخدم {user_id}: {e}")
+            return self.bybit_api
         
     def get_current_account(self):
         """الحصول على الحساب الحالي حسب نوع السوق"""
@@ -3718,42 +3820,54 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     market_type = user_data.get('market_type', 'spot')
     
     # 🔍 التحقق من نوع الحساب وجلب البيانات المناسبة
-    if account_type == 'real' and trading_bot.bybit_api:
+    if account_type == 'real':
         # 🔴 حساب حقيقي - جلب البيانات من المنصة عبر API
-        logger.info(f"🔴 جلب بيانات الحساب الحقيقي من Bybit للمستخدم {user_id}")
+        user_api = trading_bot.get_api_for_user(user_id)
         
-        try:
-            # جلب رصيد المحفظة من Bybit
-            wallet_response = trading_bot.bybit_api.get_wallet_balance("UNIFIED")
+        if user_api:
+            platform_name = "MEXC" if current_platform == 'mexc' else "Bybit"
+            logger.info(f"🔴 جلب بيانات الحساب الحقيقي من {platform_name} للمستخدم {user_id}")
             
-            if wallet_response and wallet_response.get('list'):
-                wallet_data = wallet_response['list'][0]
-                total_equity = float(wallet_data.get('totalEquity', 0))
-                available_balance = float(wallet_data.get('totalAvailableBalance', 0))
-                total_margin_balance = float(wallet_data.get('totalMarginBalance', 0))
-                total_pnl = float(wallet_data.get('totalPerpUPL', 0))  # Unrealized PnL
+            try:
+                # جلب رصيد المحفظة - متوافق مع كلا المنصتين
+                wallet_response = user_api.get_wallet_balance("UNIFIED") if current_platform == 'bybit' else user_api.get_wallet_balance()
                 
-                # حساب الهامش المحجوز
-                margin_locked = total_margin_balance - available_balance if total_margin_balance > available_balance else 0
-                
-                account_info = {
-                    'balance': total_equity,
-                    'available_balance': available_balance,
-                    'margin_locked': margin_locked,
-                    'unrealized_pnl': total_pnl
-                }
-                
-                logger.info(f"✅ تم جلب بيانات المحفظة: الرصيد={total_equity:.2f}, المتاح={available_balance:.2f}")
-            else:
-                logger.warning("⚠️ فشل جلب بيانات المحفظة من Bybit")
+                if wallet_response and wallet_response.get('list'):
+                    wallet_data = wallet_response['list'][0]
+                    total_equity = float(wallet_data.get('totalEquity', 0))
+                    available_balance = float(wallet_data.get('totalAvailableBalance', 0))
+                    total_margin_balance = float(wallet_data.get('totalMarginBalance', 0))
+                    total_pnl = float(wallet_data.get('totalPerpUPL', 0))  # Unrealized PnL
+                    
+                    # حساب الهامش المحجوز
+                    margin_locked = total_margin_balance - available_balance if total_margin_balance > available_balance else 0
+                    
+                    account_info = {
+                        'balance': total_equity,
+                        'available_balance': available_balance,
+                        'margin_locked': margin_locked,
+                        'unrealized_pnl': total_pnl
+                    }
+                    
+                    logger.info(f"✅ تم جلب بيانات المحفظة: الرصيد={total_equity:.2f}, المتاح={available_balance:.2f}")
+                else:
+                    logger.warning(f"⚠️ فشل جلب بيانات المحفظة من {platform_name}")
+                    account_info = {
+                        'balance': 0.0,
+                        'available_balance': 0.0,
+                        'margin_locked': 0.0,
+                        'unrealized_pnl': 0.0
+                    }
+            except Exception as e:
+                logger.error(f"❌ خطأ في جلب بيانات المحفظة: {e}")
                 account_info = {
                     'balance': 0.0,
                     'available_balance': 0.0,
                     'margin_locked': 0.0,
                     'unrealized_pnl': 0.0
                 }
-        except Exception as e:
-            logger.error(f"❌ خطأ في جلب بيانات المحفظة: {e}")
+        else:
+            logger.warning("⚠️ لم يتم العثور على API للمستخدم")
             account_info = {
                 'balance': 0.0,
                 'available_balance': 0.0,
