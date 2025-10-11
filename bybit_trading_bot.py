@@ -728,6 +728,223 @@ class BybitAPI:
             return {"retCode": -1, "retMsg": str(e)}
 
 
+# ==================== MEXC API ====================
+
+class MEXCAPI:
+    """فئة للتعامل مع MEXC API - Spot Trading فقط"""
+    
+    def __init__(self, api_key: str, api_secret: str):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.base_url = "https://api.mexc.com"
+        
+    def _generate_signature(self, params: dict) -> str:
+        """إنشاء التوقيع للطلبات - متوافق مع MEXC API"""
+        # ترتيب المعاملات أبجدياً وتحويلها إلى query string
+        query_string = urlencode(sorted(params.items()))
+        
+        # إنشاء التوقيع باستخدام HMAC SHA256
+        signature = hmac.new(
+            self.api_secret.encode('utf-8'),
+            query_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return signature
+    
+    def _make_request(self, method: str, endpoint: str, params: Optional[dict] = None, signed: bool = False) -> dict:
+        """إرسال طلب إلى MEXC API"""
+        try:
+            url = f"{self.base_url}{endpoint}"
+            
+            if params is None:
+                params = {}
+            
+            headers = {
+                "Content-Type": "application/json",
+                "X-MEXC-APIKEY": self.api_key
+            }
+            
+            # إضافة timestamp للطلبات الموقعة
+            if signed:
+                params['timestamp'] = int(time.time() * 1000)
+                params['recvWindow'] = 5000
+                
+                # توليد التوقيع
+                signature = self._generate_signature(params)
+                params['signature'] = signature
+            
+            logger.debug(f"📤 إرسال طلب MEXC إلى: {url}")
+            logger.debug(f"📋 المعاملات: {params}")
+            
+            if method.upper() == "GET":
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+            elif method.upper() == "POST":
+                response = requests.post(url, params=params, headers=headers, timeout=10)
+            elif method.upper() == "DELETE":
+                response = requests.delete(url, params=params, headers=headers, timeout=10)
+            else:
+                return {"code": -1, "msg": f"طريقة غير مدعومة: {method}"}
+            
+            logger.debug(f"📥 رمز الاستجابة: {response.status_code}")
+            
+            # محاولة الحصول على JSON
+            try:
+                result = response.json()
+                logger.debug(f"📊 استجابة MEXC: {result}")
+                return result
+            except ValueError as json_error:
+                logger.error(f"❌ خطأ في تحليل JSON: {json_error}")
+                logger.error(f"📄 محتوى الاستجابة: {response.text[:500]}")
+                return {"code": -1, "msg": f"خطأ في تحليل الاستجابة: {str(json_error)}"}
+            
+        except requests.Timeout:
+            logger.error("⏱️ انتهت مهلة طلب MEXC")
+            return {"code": -1, "msg": "انتهت مهلة الاتصال بالسيرفر"}
+        except requests.ConnectionError as e:
+            logger.error(f"🔌 خطأ في الاتصال بـ MEXC: {e}")
+            return {"code": -1, "msg": "فشل الاتصال بسيرفر MEXC"}
+        except Exception as e:
+            logger.error(f"❌ خطأ غير متوقع في MEXC API: {e}")
+            import traceback
+            logger.error(f"تفاصيل: {traceback.format_exc()}")
+            return {"code": -1, "msg": str(e)}
+    
+    def get_account_info(self) -> dict:
+        """الحصول على معلومات الحساب"""
+        try:
+            endpoint = "/api/v3/account"
+            response = self._make_request("GET", endpoint, signed=True)
+            return response
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات الحساب MEXC: {e}")
+            return {"code": -1, "msg": str(e)}
+    
+    def get_balance(self) -> dict:
+        """الحصول على رصيد الحساب"""
+        try:
+            account_info = self.get_account_info()
+            
+            if 'balances' in account_info:
+                # تحويل إلى تنسيق موحد
+                return {
+                    "code": 0,
+                    "msg": "success",
+                    "data": account_info
+                }
+            else:
+                return account_info
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الرصيد MEXC: {e}")
+            return {"code": -1, "msg": str(e)}
+    
+    def get_all_symbols(self) -> List[dict]:
+        """الحصول على جميع أزواج التداول المتاحة"""
+        try:
+            endpoint = "/api/v3/exchangeInfo"
+            response = self._make_request("GET", endpoint)
+            
+            if 'symbols' in response:
+                # تصفية الأزواج النشطة فقط
+                active_symbols = [
+                    s for s in response['symbols'] 
+                    if s.get('status') == 'ENABLED'
+                ]
+                return active_symbols
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الرموز MEXC: {e}")
+            return []
+    
+    def get_ticker_price(self, symbol: str) -> dict:
+        """الحصول على السعر الحالي لزوج تداول"""
+        try:
+            endpoint = "/api/v3/ticker/price"
+            params = {"symbol": symbol}
+            response = self._make_request("GET", endpoint, params)
+            return response
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على السعر MEXC: {e}")
+            return {"code": -1, "msg": str(e)}
+    
+    def place_order(self, symbol: str, side: str, order_type: str, quantity: float, price: float = None) -> dict:
+        """فتح أمر تداول - Spot فقط"""
+        try:
+            endpoint = "/api/v3/order"
+            
+            params = {
+                "symbol": symbol,
+                "side": side.upper(),  # BUY or SELL
+                "type": order_type.upper(),  # LIMIT, MARKET, etc.
+                "quantity": quantity
+            }
+            
+            # إضافة السعر للأوامر المحددة
+            if order_type.upper() == "LIMIT" and price:
+                params["price"] = price
+                params["timeInForce"] = "GTC"  # Good Till Cancel
+            
+            response = self._make_request("POST", endpoint, params, signed=True)
+            return response
+            
+        except Exception as e:
+            logger.error(f"خطأ في فتح أمر MEXC: {e}")
+            return {"code": -1, "msg": str(e)}
+    
+    def cancel_order(self, symbol: str, order_id: str) -> dict:
+        """إلغاء أمر"""
+        try:
+            endpoint = "/api/v3/order"
+            params = {
+                "symbol": symbol,
+                "orderId": order_id
+            }
+            response = self._make_request("DELETE", endpoint, params, signed=True)
+            return response
+        except Exception as e:
+            logger.error(f"خطأ في إلغاء أمر MEXC: {e}")
+            return {"code": -1, "msg": str(e)}
+    
+    def get_open_orders(self, symbol: str = None) -> List[dict]:
+        """الحصول على الأوامر المفتوحة"""
+        try:
+            endpoint = "/api/v3/openOrders"
+            params = {}
+            
+            if symbol:
+                params["symbol"] = symbol
+            
+            response = self._make_request("GET", endpoint, params, signed=True)
+            
+            if isinstance(response, list):
+                return response
+            elif isinstance(response, dict) and 'data' in response:
+                return response['data']
+            else:
+                return []
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الأوامر المفتوحة MEXC: {e}")
+            return []
+    
+    def get_order_status(self, symbol: str, order_id: str) -> dict:
+        """الحصول على حالة أمر محدد"""
+        try:
+            endpoint = "/api/v3/order"
+            params = {
+                "symbol": symbol,
+                "orderId": order_id
+            }
+            response = self._make_request("GET", endpoint, params, signed=True)
+            return response
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على حالة الأمر MEXC: {e}")
+            return {"code": -1, "msg": str(e)}
+
+
 # ==================== إدارة أدوات الصفقات المتقدمة ====================
 
 @dataclass
@@ -2193,8 +2410,19 @@ def get_api_status_indicator(api_key: str, api_secret: str, is_valid: bool = Non
     if not api_key or not api_secret:
         return "🔴 غير مرتبط"
     
+    # إذا لم يتم توفير حالة الصحة، نقوم بالتحقق السريع
     if is_valid is None:
-        return "🟡 جاري التحقق..."
+        try:
+            # محاولة التحقق السريع
+            temp_api = BybitAPI(api_key, api_secret)
+            result = temp_api.get_account_balance()
+            
+            if result and isinstance(result, dict) and result.get('retCode') == 0:
+                return "🟢 مرتبط وصحيح"
+            else:
+                return "🔴 مرتبط ولكن غير صحيح"
+        except:
+            return "🔴 مرتبط ولكن غير صحيح"
     elif is_valid:
         return "🟢 مرتبط وصحيح"
     else:

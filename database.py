@@ -32,6 +32,7 @@ class DatabaseManager:
                         user_id INTEGER PRIMARY KEY,
                         api_key TEXT,
                         api_secret TEXT,
+                        exchange_platform TEXT DEFAULT 'bybit',
                         balance REAL DEFAULT 10000.0,
                         partial_percents TEXT DEFAULT '[25, 50, 25]',
                         tps_percents TEXT DEFAULT '[1.5, 3.0, 5.0]',
@@ -42,6 +43,12 @@ class DatabaseManager:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+                
+                # إضافة حقل exchange_platform إذا لم يكن موجوداً
+                try:
+                    cursor.execute("ALTER TABLE users ADD COLUMN exchange_platform TEXT DEFAULT 'bybit'")
+                except sqlite3.OperationalError:
+                    pass  # الحقل موجود بالفعل
                 
                 # جدول الصفقات
                 cursor.execute("""
@@ -203,7 +210,7 @@ class DatabaseManager:
             logger.error(f"خطأ في الحصول على المستخدم {user_id}: {e}")
             return None
     
-    def update_user_api(self, user_id: int, api_key: str, api_secret: str) -> bool:
+    def update_user_api(self, user_id: int, api_key: str, api_secret: str, exchange_platform: str = 'bybit') -> bool:
         """تحديث API keys للمستخدم"""
         try:
             with self.get_connection() as conn:
@@ -211,15 +218,34 @@ class DatabaseManager:
                 
                 cursor.execute("""
                     UPDATE users 
-                    SET api_key = ?, api_secret = ?, updated_at = CURRENT_TIMESTAMP
+                    SET api_key = ?, api_secret = ?, exchange_platform = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE user_id = ?
-                """, (api_key, api_secret, user_id))
+                """, (api_key, api_secret, exchange_platform, user_id))
                 
                 conn.commit()
                 return cursor.rowcount > 0
                 
         except Exception as e:
             logger.error(f"خطأ في تحديث API للمستخدم {user_id}: {e}")
+            return False
+    
+    def update_exchange_platform(self, user_id: int, platform: str) -> bool:
+        """تحديث منصة التداول للمستخدم"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE users 
+                    SET exchange_platform = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (platform, user_id))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث المنصة للمستخدم {user_id}: {e}")
             return False
     
     def update_user_balance(self, user_id: int, balance: float) -> bool:
