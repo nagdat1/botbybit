@@ -2479,25 +2479,43 @@ async def check_api_connection(api_key: str, api_secret: str, platform: str = 'b
         
         if platform == 'mexc':
             # التحقق من MEXC API
+            logger.info("🟩 بدء التحقق من MEXC API...")
             temp_api = MEXCAPI(api_key, api_secret)
             account_info = temp_api.get_account_info()
             
-            logger.info(f"📊 استجابة MEXC API: {account_info}")
+            logger.info(f"📊 استجابة MEXC API الكاملة: {account_info}")
+            logger.info(f"📊 نوع الاستجابة: {type(account_info)}")
             
             if account_info and isinstance(account_info, dict):
-                # MEXC ترجع 'balances' عند النجاح
+                # فحص جميع الحالات الممكنة
+                
+                # الحالة 1: وجود balances مباشرة (نجاح)
                 if 'balances' in account_info:
-                    logger.info("✅ MEXC API صحيح ويعمل!")
+                    logger.info("✅ MEXC API صحيح - تم العثور على balances!")
                     return True
-                # أو تفحص code
-                elif account_info.get('code') == 0 or account_info.get('code') == 200:
-                    logger.info("✅ MEXC API صحيح ويعمل!")
-                    return True
-                else:
-                    logger.warning(f"❌ MEXC API غير صحيح: {account_info.get('msg', 'خطأ غير معروف')}")
-                    return False
+                
+                # الحالة 2: وجود code = 0 أو 200 (نجاح)
+                if 'code' in account_info:
+                    code = account_info.get('code')
+                    if code == 0 or code == 200 or code == '0' or code == '200':
+                        logger.info(f"✅ MEXC API صحيح - code={code}!")
+                        return True
+                    else:
+                        msg = account_info.get('msg', 'خطأ غير معروف')
+                        logger.warning(f"❌ MEXC API فشل - code={code}, msg={msg}")
+                        return False
+                
+                # الحالة 3: عدم وجود code (قد يكون نجاح)
+                if 'code' not in account_info and 'balances' not in account_info:
+                    # إذا لم يكن هناك خطأ واضح، نعتبره نجاح
+                    if 'msg' not in account_info or account_info.get('msg') == '':
+                        logger.info("✅ MEXC API صحيح - لا توجد أخطاء!")
+                        return True
+                    else:
+                        logger.warning(f"❌ MEXC API فشل: {account_info.get('msg')}")
+                        return False
             
-            logger.warning("❌ استجابة MEXC API غير متوقعة")
+            logger.warning(f"❌ استجابة MEXC API غير متوقعة: {account_info}")
             return False
             
         else:  # bybit
