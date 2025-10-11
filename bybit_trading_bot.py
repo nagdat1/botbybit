@@ -5746,6 +5746,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💡 اضغط على "🔗 ربط API الجديد" للبدء
             """
             
+            # حفظ المنصة في context للاستخدام المباشر
+            if user_id and context:
+                context.user_data['selected_platform'] = platform
+            
             keyboard = [[
                 InlineKeyboardButton("🔗 ربط API الجديد", callback_data="link_api"),
                 InlineKeyboardButton("🔙 رجوع", callback_data="settings")
@@ -5766,9 +5770,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_api_key"
             
-            # الحصول على المنصة المختارة
-            user_data = user_manager.get_user(user_id)
-            current_platform = user_data.get('exchange_platform', 'bybit') if user_data else 'bybit'
+            # الحصول على المنصة المختارة - من context أولاً ثم من قاعدة البيانات
+            current_platform = None
+            if context and 'selected_platform' in context.user_data:
+                current_platform = context.user_data['selected_platform']
+                logger.info(f"🔍 استخدام المنصة من context: {current_platform}")
+            else:
+                user_data = user_manager.get_user(user_id)
+                current_platform = user_data.get('exchange_platform', 'bybit') if user_data else 'bybit'
+                logger.info(f"🔍 استخدام المنصة من قاعدة البيانات: {current_platform}")
             
             # تحديد معلومات المنصة
             if current_platform == 'mexc':
@@ -5792,6 +5802,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Contract Trading ✅
 • Spot Trading ✅
                 """
+            
+            # حفظ المنصة في context لاستخدامها عند حفظ API
+            if context:
+                context.user_data['selected_platform'] = current_platform
+                logger.info(f"✅ تم حفظ المنصة في context: {current_platform}")
             
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(f"""
@@ -6848,9 +6863,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if update.message is not None:
                     checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...")
                 
-                # التحقق من صحة المفاتيح
-                user_data_temp = user_manager.get_user(user_id)
-                platform = user_data_temp.get('exchange_platform', 'bybit') if user_data_temp else 'bybit'
+                # التحقق من صحة المفاتيح - استخدام المنصة من context أو قاعدة البيانات
+                platform = None
+                if 'selected_platform' in context.user_data:
+                    platform = context.user_data['selected_platform']
+                    logger.info(f"🔍 استخدام المنصة من context عند الحفظ: {platform}")
+                else:
+                    user_data_temp = user_manager.get_user(user_id)
+                    platform = user_data_temp.get('exchange_platform', 'bybit') if user_data_temp else 'bybit'
+                    logger.info(f"🔍 استخدام المنصة من قاعدة البيانات عند الحفظ: {platform}")
+                
                 is_valid = await check_api_connection(api_key, api_secret, platform)
                 
                 if is_valid:
@@ -6859,8 +6881,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     if success:
                         # مسح البيانات المؤقتة
-                        del context.user_data['temp_api_key']
-                        del user_input_state[user_id]
+                        if 'temp_api_key' in context.user_data:
+                            del context.user_data['temp_api_key']
+                        if 'selected_platform' in context.user_data:
+                            del context.user_data['selected_platform']
+                        if user_id in user_input_state:
+                            del user_input_state[user_id]
                         
                         # حذف رسالة التحقق
                         if update.message is not None:
