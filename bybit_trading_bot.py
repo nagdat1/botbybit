@@ -738,6 +738,46 @@ class MEXCAPI:
         self.api_secret = api_secret
         self.base_url = "https://api.mexc.com"
         logger.info(f"🟩 تم إنشاء MEXC API client")
+    
+    def test_connection(self) -> dict:
+        """اختبار سريع للاتصال - أخف من get_account_info"""
+        try:
+            logger.info("⚡ MEXC: اختبار سريع للاتصال...")
+            
+            # استخدام endpoint خفيف للتحقق فقط
+            # GET /api/v3/account مع recvWindow قصير
+            endpoint = "/api/v3/account"
+            
+            params = {
+                'timestamp': int(time.time() * 1000),
+                'recvWindow': 5000
+            }
+            
+            signature = self._generate_signature(params)
+            params['signature'] = signature
+            
+            headers = {
+                "X-MEXC-APIKEY": self.api_key
+            }
+            
+            url = f"{self.base_url}{endpoint}"
+            
+            # طلب سريع جداً
+            response = requests.get(url, params=params, headers=headers, timeout=5)
+            
+            if response.status_code == 200:
+                logger.info("✅ MEXC: الاتصال ناجح!")
+                return {"success": True, "code": 200}
+            else:
+                logger.error(f"❌ MEXC: فشل الاتصال - Status {response.status_code}")
+                return {"success": False, "code": response.status_code, "msg": response.text[:200]}
+                
+        except requests.Timeout:
+            logger.error("⏱️ MEXC: Timeout")
+            return {"success": False, "code": -1, "msg": "Timeout"}
+        except Exception as e:
+            logger.error(f"❌ MEXC: خطأ - {e}")
+            return {"success": False, "code": -1, "msg": str(e)}
         
     def _generate_signature(self, params: dict) -> str:
         """إنشاء التوقيع للطلبات - متوافق مع MEXC API"""
@@ -833,19 +873,47 @@ class MEXCAPI:
         """الحصول على معلومات الحساب"""
         try:
             logger.info("🔍 MEXC: طلب معلومات الحساب...")
+            
+            # استخدام endpoint أخف للتحقق السريع
+            # نجرب أولاً GET /api/v3/account
             endpoint = "/api/v3/account"
-            result = self._make_request("GET", endpoint, signed=True)
             
-            if result and isinstance(result, dict):
-                # فحص إذا كانت الاستجابة ناجحة
-                if 'balances' in result:
-                    logger.info("✅ MEXC: تم الحصول على معلومات الحساب بنجاح")
-                elif 'code' in result and result['code'] != 200:
-                    logger.error(f"❌ MEXC: فشل الحصول على معلومات الحساب - {result}")
-                else:
-                    logger.info(f"✅ MEXC: استجابة معلومات الحساب - {result}")
+            # محاولة مع timeout قصير
+            params = {
+                'timestamp': int(time.time() * 1000),
+                'recvWindow': 5000
+            }
             
-            return result
+            signature = self._generate_signature(params)
+            params['signature'] = signature
+            
+            headers = {
+                "X-MEXC-APIKEY": self.api_key
+            }
+            
+            url = f"{self.base_url}{endpoint}"
+            logger.info(f"📤 MEXC Quick Check => {url}")
+            
+            # محاولة سريعة
+            response = requests.get(url, params=params, headers=headers, timeout=8)
+            
+            logger.info(f"📥 MEXC Response Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info("✅ MEXC: تم الحصول على معلومات الحساب بنجاح")
+                return result
+            else:
+                logger.error(f"❌ MEXC Error: Status {response.status_code}")
+                try:
+                    error_data = response.json()
+                    return error_data
+                except:
+                    return {"code": response.status_code, "msg": response.text}
+                    
+        except requests.Timeout:
+            logger.error("⏱️ MEXC Timeout")
+            return {"code": -1, "msg": "Timeout - Server too slow"}
         except Exception as e:
             logger.error(f"❌ خطأ في get_account_info: {e}")
             import traceback
@@ -2515,44 +2583,25 @@ def check_api_connection(api_key: str, api_secret: str, platform: str = 'bybit')
         logger.info(f"🔐 Secret Length: {len(api_secret)}")
         
         if platform == 'mexc':
-            # التحقق من MEXC API
-            logger.info("🟩 بدء التحقق من MEXC API...")
+            # التحقق من MEXC API - استخدام الاختبار السريع
+            logger.info("🟩 بدء التحقق من MEXC API (اختبار سريع)...")
             temp_api = MEXCAPI(api_key, api_secret)
-            account_info = temp_api.get_account_info()
             
-            logger.info(f"📊 استجابة MEXC API الكاملة: {account_info}")
-            logger.info(f"📊 نوع الاستجابة: {type(account_info)}")
+            # استخدام test_connection بدلاً من get_account_info لتسريع التحقق
+            test_result = temp_api.test_connection()
             
-            if account_info and isinstance(account_info, dict):
-                # فحص جميع الحالات الممكنة
-                
-                # الحالة 1: وجود balances مباشرة (نجاح)
-                if 'balances' in account_info:
-                    logger.info("✅ MEXC API صحيح - تم العثور على balances!")
+            logger.info(f"📊 نتيجة الاختبار السريع: {test_result}")
+            
+            if test_result and isinstance(test_result, dict):
+                if test_result.get('success') == True:
+                    logger.info("✅ MEXC API صحيح!")
                     return True
-                
-                # الحالة 2: وجود code = 0 أو 200 (نجاح)
-                if 'code' in account_info:
-                    code = account_info.get('code')
-                    if code == 0 or code == 200 or code == '0' or code == '200':
-                        logger.info(f"✅ MEXC API صحيح - code={code}!")
-                        return True
-                    else:
-                        msg = account_info.get('msg', 'خطأ غير معروف')
-                        logger.warning(f"❌ MEXC API فشل - code={code}, msg={msg}")
-                        return False
-                
-                # الحالة 3: عدم وجود code (قد يكون نجاح)
-                if 'code' not in account_info and 'balances' not in account_info:
-                    # إذا لم يكن هناك خطأ واضح، نعتبره نجاح
-                    if 'msg' not in account_info or account_info.get('msg') == '':
-                        logger.info("✅ MEXC API صحيح - لا توجد أخطاء!")
-                        return True
-                    else:
-                        logger.warning(f"❌ MEXC API فشل: {account_info.get('msg')}")
-                        return False
+                else:
+                    error_msg = test_result.get('msg', 'خطأ غير معروف')
+                    logger.warning(f"❌ MEXC API فشل: {error_msg}")
+                    return False
             
-            logger.warning(f"❌ استجابة MEXC API غير متوقعة: {account_info}")
+            logger.warning(f"❌ استجابة MEXC API غير متوقعة")
             return False
             
         else:  # bybit
@@ -7030,7 +7079,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # التحقق من صحة API keys قبل الحفظ
                 if update.message is not None:
-                    checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...\n⏱️ قد يستغرق 5-10 ثواني...")
+                    checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...\n⚡ اختبار سريع...")
                 
                 # التحقق من صحة المفاتيح - استخدام المنصة من context أو قاعدة البيانات
                 platform = None
@@ -7048,7 +7097,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     loop = asyncio.get_event_loop()
                     is_valid = await asyncio.wait_for(
                         loop.run_in_executor(None, check_api_connection, api_key, api_secret, platform),
-                        timeout=15.0  # تايم آوت إجمالي 15 ثانية
+                        timeout=10.0  # تايم آوت إجمالي 10 ثواني
                     )
                 except asyncio.TimeoutError:
                     logger.error("⏱️ انتهت مهلة التحقق من API")
