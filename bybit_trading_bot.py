@@ -2361,7 +2361,7 @@ user_input_state = {}
 
 # ==================== وظائف التحقق من API ====================
 
-async def check_api_connection(api_key: str, api_secret: str) -> bool:
+async def check_api_connection(api_key: str, api_secret: str, platform: str = 'bybit') -> bool:
     """التحقق من صحة API keys"""
     try:
         if not api_key or not api_secret:
@@ -2373,34 +2373,57 @@ async def check_api_connection(api_key: str, api_secret: str) -> bool:
             logger.warning("❌ API key أو secret قصير جداً")
             return False
         
-        # إنشاء API مؤقت للتحقق
-        temp_api = BybitAPI(api_key, api_secret)
+        logger.info(f"🔍 التحقق من API للمنصة: {platform}")
         
-        # محاولة الحصول على معلومات الحساب (دالة عادية وليست async)
-        account_info = temp_api.get_account_balance()
-        
-        logger.info(f"📊 استجابة API: {account_info}")
-        
-        # إذا تم الحصول على معلومات الحساب بنجاح
-        if account_info and isinstance(account_info, dict):
-            if 'retCode' in account_info:
-                is_valid = account_info['retCode'] == 0
-                if is_valid:
-                    logger.info("✅ API صحيح ويعمل!")
-                else:
-                    logger.warning(f"❌ API غير صحيح: {account_info.get('retMsg', 'خطأ غير معروف')}")
-                return is_valid
-            else:
-                # في حالة عدم وجود retCode، نحاول التحقق من البيانات
-                if 'result' in account_info:
-                    logger.info("✅ API صحيح (تنسيق بديل)")
+        if platform == 'mexc':
+            # التحقق من MEXC API
+            temp_api = MEXCAPI(api_key, api_secret)
+            account_info = temp_api.get_account_info()
+            
+            logger.info(f"📊 استجابة MEXC API: {account_info}")
+            
+            if account_info and isinstance(account_info, dict):
+                # MEXC ترجع 'balances' عند النجاح
+                if 'balances' in account_info:
+                    logger.info("✅ MEXC API صحيح ويعمل!")
                     return True
-        
-        logger.warning("❌ استجابة API غير متوقعة")
-        return False
+                # أو تفحص code
+                elif account_info.get('code') == 0 or account_info.get('code') == 200:
+                    logger.info("✅ MEXC API صحيح ويعمل!")
+                    return True
+                else:
+                    logger.warning(f"❌ MEXC API غير صحيح: {account_info.get('msg', 'خطأ غير معروف')}")
+                    return False
+            
+            logger.warning("❌ استجابة MEXC API غير متوقعة")
+            return False
+            
+        else:  # bybit
+            # التحقق من Bybit API
+            temp_api = BybitAPI(api_key, api_secret)
+            account_info = temp_api.get_account_balance()
+            
+            logger.info(f"📊 استجابة Bybit API: {account_info}")
+            
+            if account_info and isinstance(account_info, dict):
+                if 'retCode' in account_info:
+                    is_valid = account_info['retCode'] == 0
+                    if is_valid:
+                        logger.info("✅ Bybit API صحيح ويعمل!")
+                    else:
+                        logger.warning(f"❌ Bybit API غير صحيح: {account_info.get('retMsg', 'خطأ غير معروف')}")
+                    return is_valid
+                else:
+                    # في حالة عدم وجود retCode، نحاول التحقق من البيانات
+                    if 'result' in account_info:
+                        logger.info("✅ Bybit API صحيح (تنسيق بديل)")
+                        return True
+            
+            logger.warning("❌ استجابة Bybit API غير متوقعة")
+            return False
         
     except Exception as e:
-        logger.error(f"❌ خطأ في التحقق من API: {e}")
+        logger.error(f"❌ خطأ في التحقق من API ({platform}): {e}")
         import traceback
         logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
         return False
@@ -3655,8 +3678,13 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     market_type = user_data.get('market_type', 'spot')
     account_type = user_data.get('account_type', 'demo')
     
+    # الحصول على المنصة الحالية
+    current_platform = user_data.get('exchange_platform', 'bybit')
+    platform_emoji = "🟦" if current_platform == 'bybit' else "🟩"
+    
     # بناء القائمة الأساسية
     keyboard = [
+        [InlineKeyboardButton(f"{platform_emoji} المنصة: {current_platform.upper()}", callback_data="choose_exchange")],
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]
@@ -5620,21 +5648,169 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"📥 Callback received: {data} from user {user_id}")
     
+    # معالجة اختيار المنصة
+    if data == "choose_exchange":
+        user_data = user_manager.get_user(user_id) if user_id else None
+        current_platform = user_data.get('exchange_platform', 'bybit') if user_data else 'bybit'
+        
+        message = f"""
+🏢 **اختيار منصة التداول**
+
+📊 **المنصة الحالية:** {current_platform.upper()}
+
+اختر المنصة التي تريد استخدامها:
+
+🟦 **Bybit**
+• دعم Spot & Futures
+• رافعة مالية تصل إلى 100x
+• واجهة متقدمة
+
+🟩 **MEXC**
+• دعم Spot فقط
+• أزواج تداول متنوعة
+• رسوم منخفضة
+
+💡 **ملاحظة:** بعد تغيير المنصة، يجب عليك ربط API الخاص بالمنصة الجديدة
+        """
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"{'✅ ' if current_platform == 'bybit' else ''}🟦 Bybit", 
+                    callback_data="set_exchange_bybit"
+                ),
+                InlineKeyboardButton(
+                    f"{'✅ ' if current_platform == 'mexc' else ''}🟩 MEXC", 
+                    callback_data="set_exchange_mexc"
+                )
+            ],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="settings")]
+        ]
+        
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(
+                message, 
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+    
+    elif data == "set_exchange_bybit" or data == "set_exchange_mexc":
+        platform = "bybit" if data == "set_exchange_bybit" else "mexc"
+        
+        # تحديث المنصة في قاعدة البيانات
+        from database import db_manager
+        success = db_manager.update_exchange_platform(user_id, platform)
+        
+        if success:
+            # تحديد معلومات المنصة
+            if platform == "bybit":
+                platform_name = "Bybit"
+                platform_emoji = "🟦"
+                platform_url = "https://www.bybit.com/app/user/api-management"
+                platform_features = """
+✅ تداول فوري (Spot)
+✅ عقود آجلة (Futures)
+✅ رافعة مالية حتى 100x
+✅ Stop Loss & Take Profit متقدم
+                """
+            else:  # mexc
+                platform_name = "MEXC"
+                platform_emoji = "🟩"
+                platform_url = "https://www.mexc.com/user/openapi"
+                platform_features = """
+✅ تداول فوري (Spot)
+❌ عقود آجلة (غير مدعومة عبر API)
+✅ أزواج تداول متنوعة
+✅ Stop Loss & Take Profit
+                """
+            
+            message = f"""
+✅ **تم تغيير المنصة بنجاح!**
+
+{platform_emoji} **المنصة الجديدة:** {platform_name}
+
+📊 **الميزات المتاحة:**
+{platform_features}
+
+⚠️ **مهم جداً:**
+يجب عليك الآن ربط API الخاص بمنصة {platform_name}
+
+🔗 **للحصول على API Keys:**
+{platform_url}
+
+📝 **الصلاحيات المطلوبة:**
+• Read-Write ✅
+• Spot Trading ✅
+{'• Contract Trading ✅' if platform == 'bybit' else ''}
+
+💡 اضغط على "🔗 ربط API الجديد" للبدء
+            """
+            
+            keyboard = [[
+                InlineKeyboardButton("🔗 ربط API الجديد", callback_data="link_api"),
+                InlineKeyboardButton("🔙 رجوع", callback_data="settings")
+            ]]
+        else:
+            message = "❌ فشل في تغيير المنصة. حاول مرة أخرى."
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="settings")]]
+        
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+    
     # معالجة زر الربط API
-    if data == "link_api":
+    elif data == "link_api":
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_api_key"
+            
+            # الحصول على المنصة المختارة
+            user_data = user_manager.get_user(user_id)
+            current_platform = user_data.get('exchange_platform', 'bybit') if user_data else 'bybit'
+            
+            # تحديد معلومات المنصة
+            if current_platform == 'mexc':
+                platform_name = "MEXC"
+                platform_emoji = "🟩"
+                platform_url = "https://www.mexc.com/user/openapi"
+                platform_note = """
+📝 **صلاحيات MEXC المطلوبة:**
+• Read Info ✅
+• Spot Trading ✅
+
+⚠️ **ملاحظة:** MEXC يدعم فقط التداول الفوري (Spot)
+                """
+            else:  # bybit
+                platform_name = "Bybit"
+                platform_emoji = "🟦"
+                platform_url = "https://www.bybit.com/app/user/api-management"
+                platform_note = """
+📝 **صلاحيات Bybit المطلوبة:**
+• Read-Write ✅
+• Contract Trading ✅
+• Spot Trading ✅
+                """
+            
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text("""
-🔗 ربط API - الخطوة 1
+            await update.callback_query.edit_message_text(f"""
+🔗 **ربط API - الخطوة 1**
 
-أرسل API_KEY الخاص بك من Bybit
+{platform_emoji} **المنصة:** {platform_name}
 
-⚠️ تأكد من:
+أرسل **API KEY** الخاص بك من {platform_name}
+
+{platform_note}
+
+⚠️ **تأكد من:**
 • عدم مشاركة المفاتيح مع أي شخص
 • إنشاء مفاتيح API محدودة الصلاحيات
-• يمكنك الحصول على المفاتيح من: https://api.bybit.com
-            """)
+• عدم تفعيل IP Whitelist
+
+🔗 **رابط إنشاء API:**
+{platform_url}
+            """, parse_mode='Markdown')
     elif data == "check_api":
         # فحص حالة API
         if user_id is not None:
@@ -5645,7 +5821,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.edit_message_text("🔄 جاري فحص API...")
                 
                 # التحقق من صحة API
-                is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'])
+                platform = user_data.get('exchange_platform', 'bybit')
+                is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'], platform)
                 
                 if is_valid:
                     status_message = """
@@ -6660,7 +6837,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...")
                 
                 # التحقق من صحة المفاتيح
-                is_valid = await check_api_connection(api_key, api_secret)
+                user_data_temp = user_manager.get_user(user_id)
+                platform = user_data_temp.get('exchange_platform', 'bybit') if user_data_temp else 'bybit'
+                is_valid = await check_api_connection(api_key, api_secret, platform)
                 
                 if is_valid:
                     # حفظ المفاتيح في قاعدة البيانات
