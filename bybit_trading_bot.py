@@ -5824,27 +5824,39 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 platform = user_data.get('exchange_platform', 'bybit')
                 is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'], platform)
                 
+                # تحديد معلومات المنصة
+                if platform == 'mexc':
+                    platform_name = "MEXC"
+                    platform_emoji = "🟩"
+                    platform_url = "https://api.mexc.com"
+                else:
+                    platform_name = "Bybit"
+                    platform_emoji = "🟦"
+                    platform_url = "https://api.bybit.com"
+                
                 if is_valid:
-                    status_message = """
-✅ API يعمل بشكل صحيح!
+                    status_message = f"""
+✅ **API يعمل بشكل صحيح!**
 
-🟢 الاتصال: نشط
-🔗 الخادم: https://api.bybit.com
-📊 الصلاحيات: مفعلة
-🔐 الحالة: آمن
+{platform_emoji} **المنصة:** {platform_name}
+🟢 **الاتصال:** نشط
+🔗 **الخادم:** {platform_url}
+📊 **الصلاحيات:** مفعلة
+🔐 **الحالة:** آمن
 
-يمكنك استخدام جميع ميزات البوت
+💡 يمكنك استخدام جميع ميزات البوت
                     """
                 else:
-                    status_message = """
-❌ مشكلة في API!
+                    status_message = f"""
+❌ **مشكلة في API!**
 
-🔴 الاتصال: فشل
-🔗 الخادم: https://api.bybit.com
-📊 الصلاحيات: غير مفعلة أو خطأ في المفاتيح
-🔐 الحالة: غير آمن
+{platform_emoji} **المنصة:** {platform_name}
+🔴 **الاتصال:** فشل
+🔗 **الخادم:** {platform_url}
+📊 **الصلاحيات:** غير مفعلة أو خطأ في المفاتيح
+🔐 **الحالة:** غير آمن
 
-يرجى تحديث API keys
+⚠️ يرجى تحديث API keys
                     """
                 
                 keyboard = [
@@ -5854,7 +5866,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 if update.callback_query is not None:
-                    await update.callback_query.message.edit_text(status_message, reply_markup=reply_markup)
+                    await update.callback_query.message.edit_text(status_message, reply_markup=reply_markup, parse_mode='Markdown')
             else:
                 # لا توجد API keys
                 keyboard = [
@@ -6842,8 +6854,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 is_valid = await check_api_connection(api_key, api_secret, platform)
                 
                 if is_valid:
-                    # حفظ المفاتيح في قاعدة البيانات
-                    success = user_manager.update_user_api(user_id, api_key, api_secret)
+                    # حفظ المفاتيح في قاعدة البيانات مع المنصة
+                    success = user_manager.update_user_api(user_id, api_key, api_secret, platform)
                     
                     if success:
                         # مسح البيانات المؤقتة
@@ -6853,15 +6865,31 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # حذف رسالة التحقق
                         if update.message is not None:
                             await checking_message.delete()
-                            await update.message.reply_text("""
-✅ تم ربط API بنجاح!
+                            
+                            # تحديد معلومات المنصة
+                            if platform == 'mexc':
+                                platform_name = "MEXC"
+                                platform_emoji = "🟩"
+                                platform_url = "https://api.mexc.com"
+                                platform_type = "Spot Trading"
+                            else:
+                                platform_name = "Bybit"
+                                platform_emoji = "🟦"
+                                platform_url = "https://api.bybit.com"
+                                platform_type = "Spot & Futures"
+                            
+                            await update.message.reply_text(f"""
+✅ **تم ربط API بنجاح!**
 
-🟢 الاتصال: https://api.bybit.com (Live)
-📊 يمكنك الآن استخدام جميع ميزات البوت
-🔐 المفاتيح آمنة ومشفرة
+{platform_emoji} **المنصة:** {platform_name}
+🟢 **الاتصال:** {platform_url} (Live)
+📊 **نوع التداول:** {platform_type}
+🔐 **الأمان:** المفاتيح آمنة ومشفرة
+
+💡 يمكنك الآن استخدام جميع ميزات البوت
 
 استخدم /start للعودة إلى القائمة الرئيسية
-                            """)
+                            """, parse_mode='Markdown')
                     else:
                         if update.message is not None:
                             await checking_message.delete()
