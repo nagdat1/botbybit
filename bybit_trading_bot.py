@@ -783,13 +783,13 @@ class MEXCAPI:
             logger.info(f"📋 Parameters: {params}")
             logger.info(f"🔑 Headers: X-MEXC-APIKEY={self.api_key[:10]}...")
             
-            # إرسال الطلب
+            # إرسال الطلب مع تايم آوت قصير
             if method.upper() == "GET":
-                response = requests.get(url, params=params, headers=headers, timeout=30)
+                response = requests.get(url, params=params, headers=headers, timeout=10)
             elif method.upper() == "POST":
-                response = requests.post(url, params=params, headers=headers, timeout=30)
+                response = requests.post(url, params=params, headers=headers, timeout=10)
             elif method.upper() == "DELETE":
-                response = requests.delete(url, params=params, headers=headers, timeout=30)
+                response = requests.delete(url, params=params, headers=headers, timeout=10)
             else:
                 logger.error(f"❌ طريقة غير مدعومة: {method}")
                 return {"code": -1, "msg": f"طريقة غير مدعومة: {method}"}
@@ -2494,8 +2494,12 @@ user_input_state = {}
 
 # ==================== وظائف التحقق من API ====================
 
-async def check_api_connection(api_key: str, api_secret: str, platform: str = 'bybit') -> bool:
+def check_api_connection(api_key: str, api_secret: str, platform: str = 'bybit') -> bool:
     """التحقق من صحة API keys"""
+    logger.info("="*60)
+    logger.info("🔍 بدء التحقق من API Keys")
+    logger.info("="*60)
+    
     try:
         if not api_key or not api_secret:
             logger.warning("❌ API key أو secret فارغ")
@@ -2506,7 +2510,9 @@ async def check_api_connection(api_key: str, api_secret: str, platform: str = 'b
             logger.warning("❌ API key أو secret قصير جداً")
             return False
         
-        logger.info(f"🔍 التحقق من API للمنصة: {platform}")
+        logger.info(f"🟢 المنصة: {platform.upper()}")
+        logger.info(f"🔑 API Key Length: {len(api_key)}")
+        logger.info(f"🔐 Secret Length: {len(api_secret)}")
         
         if platform == 'mexc':
             # التحقق من MEXC API
@@ -7024,7 +7030,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # التحقق من صحة API keys قبل الحفظ
                 if update.message is not None:
-                    checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...")
+                    checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...\n⏱️ قد يستغرق 5-10 ثواني...")
                 
                 # التحقق من صحة المفاتيح - استخدام المنصة من context أو قاعدة البيانات
                 platform = None
@@ -7036,7 +7042,23 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     platform = user_data_temp.get('exchange_platform', 'bybit') if user_data_temp else 'bybit'
                     logger.info(f"🔍 استخدام المنصة من قاعدة البيانات عند الحفظ: {platform}")
                 
-                is_valid = await check_api_connection(api_key, api_secret, platform)
+                # تشغيل التحقق في thread منفصل لتجنب blocking
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    is_valid = await asyncio.wait_for(
+                        loop.run_in_executor(None, check_api_connection, api_key, api_secret, platform),
+                        timeout=15.0  # تايم آوت إجمالي 15 ثانية
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("⏱️ انتهت مهلة التحقق من API")
+                    is_valid = False
+                    if update.message is not None:
+                        await checking_message.delete()
+                        await update.message.reply_text("⏱️ انتهت مهلة التحقق!\n\nالأسباب المحتملة:\n• سيرفر المنصة بطيء\n• مشكلة في الاتصال\n• IP محظور\n\nحاول مرة أخرى بعد قليل.")
+                        if user_id in user_input_state:
+                            del user_input_state[user_id]
+                    return
                 
                 if is_valid:
                     # حفظ المفاتيح في قاعدة البيانات مع المنصة
