@@ -737,11 +737,15 @@ class MEXCAPI:
         self.api_key = api_key
         self.api_secret = api_secret
         self.base_url = "https://api.mexc.com"
+        logger.info(f"🟩 تم إنشاء MEXC API client")
         
     def _generate_signature(self, params: dict) -> str:
         """إنشاء التوقيع للطلبات - متوافق مع MEXC API"""
         # ترتيب المعاملات أبجدياً وتحويلها إلى query string
-        query_string = urlencode(sorted(params.items()))
+        sorted_params = sorted(params.items())
+        query_string = urlencode(sorted_params)
+        
+        logger.debug(f"🔐 Query string قبل التوقيع: {query_string}")
         
         # إنشاء التوقيع باستخدام HMAC SHA256
         signature = hmac.new(
@@ -749,6 +753,8 @@ class MEXCAPI:
             query_string.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
+        
+        logger.debug(f"🔐 التوقيع: {signature}")
         
         return signature
     
@@ -761,64 +767,89 @@ class MEXCAPI:
                 params = {}
             
             headers = {
-                "X-MEXC-APIKEY": self.api_key,
-                "Content-Type": "application/x-www-form-urlencoded"
+                "X-MEXC-APIKEY": self.api_key
             }
             
             # إضافة timestamp للطلبات الموقعة
             if signed:
                 params['timestamp'] = int(time.time() * 1000)
-                params['recvWindow'] = 60000  # 60 ثانية
+                params['recvWindow'] = 5000
                 
                 # توليد التوقيع
                 signature = self._generate_signature(params)
                 params['signature'] = signature
             
-            logger.info(f"📤 إرسال طلب MEXC إلى: {url}")
-            logger.info(f"📋 المعاملات: {params}")
+            logger.info(f"📤 MEXC {method} => {url}")
+            logger.info(f"📋 Parameters: {params}")
+            logger.info(f"🔑 Headers: X-MEXC-APIKEY={self.api_key[:10]}...")
             
+            # إرسال الطلب
             if method.upper() == "GET":
                 response = requests.get(url, params=params, headers=headers, timeout=30)
             elif method.upper() == "POST":
-                response = requests.post(url, data=params, headers=headers, timeout=30)
+                response = requests.post(url, params=params, headers=headers, timeout=30)
             elif method.upper() == "DELETE":
                 response = requests.delete(url, params=params, headers=headers, timeout=30)
             else:
+                logger.error(f"❌ طريقة غير مدعومة: {method}")
                 return {"code": -1, "msg": f"طريقة غير مدعومة: {method}"}
             
-            logger.info(f"📥 رمز الاستجابة MEXC: {response.status_code}")
-            logger.info(f"📄 محتوى الاستجابة: {response.text[:500]}")
+            logger.info(f"📥 Status Code: {response.status_code}")
+            logger.info(f"📄 Response Headers: {dict(response.headers)}")
+            logger.info(f"📄 Response Body (first 1000 chars): {response.text[:1000]}")
             
-            # محاولة الحصول على JSON
-            try:
-                result = response.json()
-                logger.info(f"📊 استجابة MEXC JSON: {result}")
-                return result
-            except ValueError as json_error:
-                logger.error(f"❌ خطأ في تحليل JSON: {json_error}")
-                logger.error(f"📄 النص الكامل: {response.text}")
-                return {"code": -1, "msg": f"خطأ في تحليل الاستجابة: {str(json_error)}"}
+            # التحقق من رمز الحالة
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    logger.info(f"✅ MEXC Response Success: {result}")
+                    return result
+                except ValueError as json_error:
+                    logger.error(f"❌ فشل تحليل JSON: {json_error}")
+                    logger.error(f"📄 النص الكامل: {response.text}")
+                    return {"code": -1, "msg": f"خطأ في تحليل JSON: {str(json_error)}"}
+            else:
+                logger.error(f"❌ MEXC API Error - Status {response.status_code}")
+                logger.error(f"📄 Error Body: {response.text}")
+                try:
+                    error_data = response.json()
+                    return error_data
+                except:
+                    return {"code": response.status_code, "msg": response.text}
             
         except requests.Timeout:
-            logger.error("⏱️ انتهت مهلة طلب MEXC")
-            return {"code": -1, "msg": "انتهت مهلة الاتصال بالسيرفر"}
+            logger.error("⏱️ MEXC Request Timeout")
+            return {"code": -1, "msg": "Timeout"}
         except requests.ConnectionError as e:
-            logger.error(f"🔌 خطأ في الاتصال بـ MEXC: {e}")
-            return {"code": -1, "msg": "فشل الاتصال بسيرفر MEXC"}
+            logger.error(f"🔌 MEXC Connection Error: {e}")
+            return {"code": -1, "msg": f"Connection Error: {str(e)}"}
         except Exception as e:
-            logger.error(f"❌ خطأ غير متوقع في MEXC API: {e}")
+            logger.error(f"❌ MEXC Unexpected Error: {e}")
             import traceback
-            logger.error(f"تفاصيل: {traceback.format_exc()}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {"code": -1, "msg": str(e)}
     
     def get_account_info(self) -> dict:
         """الحصول على معلومات الحساب"""
         try:
+            logger.info("🔍 MEXC: طلب معلومات الحساب...")
             endpoint = "/api/v3/account"
-            response = self._make_request("GET", endpoint, signed=True)
-            return response
+            result = self._make_request("GET", endpoint, signed=True)
+            
+            if result and isinstance(result, dict):
+                # فحص إذا كانت الاستجابة ناجحة
+                if 'balances' in result:
+                    logger.info("✅ MEXC: تم الحصول على معلومات الحساب بنجاح")
+                elif 'code' in result and result['code'] != 200:
+                    logger.error(f"❌ MEXC: فشل الحصول على معلومات الحساب - {result}")
+                else:
+                    logger.info(f"✅ MEXC: استجابة معلومات الحساب - {result}")
+            
+            return result
         except Exception as e:
-            logger.error(f"خطأ في الحصول على معلومات الحساب MEXC: {e}")
+            logger.error(f"❌ خطأ في get_account_info: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {"code": -1, "msg": str(e)}
     
     def get_balance(self) -> dict:
@@ -7057,9 +7088,13 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if update.message is not None:
                         await checking_message.delete()
                         
-                        # رسالة خطأ مفصلة
-                        error_message = """
-❌ فشل التحقق من API Keys!
+                        # رسالة خطأ مفصلة حسب المنصة
+                        platform = context.user_data.get('selected_platform', 
+                                   db_manager.get_user_exchange_platform(user_id))
+                        
+                        if platform == 'mexc':
+                            error_message = """
+❌ فشل التحقق من MEXC API Keys!
 
 🔍 **الأسباب المحتملة:**
 
@@ -7069,9 +7104,43 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
    • لا تترك مسافات في البداية أو النهاية
 
 2️⃣ **صلاحيات API غير كافية**
-   • يجب تفعيل: Read-Write
-   • يجب تفعيل: Contract Trading
-   • يجب تفعيل: Spot Trading
+   • يجب تفعيل: Read ✅
+   • يجب تفعيل: Spot Trading ✅
+
+3️⃣ **قيود IP**
+   • تأكد من عدم تفعيل IP Whitelist
+   • أو أضف IP السيرفر إلى القائمة البيضاء
+
+4️⃣ **API منتهي أو معطل**
+   • تحقق من حالة API في لوحة التحكم
+   • تأكد أن API لم يتم حذفه أو تعطيله
+
+📝 **خطوات الحل:**
+1. اذهب إلى: https://www.mexc.com/user/openapi
+2. احذف API القديم وأنشئ واحد جديد
+3. فعّل الصلاحيات: Read + Spot Trading
+4. لا تفعّل IP Whitelist
+5. انسخ المفاتيح بعناية وأعد المحاولة
+
+💡 **نصيحة:** استخدم ملف الاختبار test_mexc_api.py للتحقق!
+
+🔄 أرسل API Key مرة أخرى للمحاولة من جديد
+                            """
+                        else:  # bybit
+                            error_message = """
+❌ فشل التحقق من Bybit API Keys!
+
+🔍 **الأسباب المحتملة:**
+
+1️⃣ **المفاتيح غير صحيحة**
+   • تأكد من نسخ API Key كاملاً
+   • تأكد من نسخ Secret Key كاملاً
+   • لا تترك مسافات في البداية أو النهاية
+
+2️⃣ **صلاحيات API غير كافية**
+   • يجب تفعيل: Read-Write ✅
+   • يجب تفعيل: Contract Trading ✅
+   • يجب تفعيل: Spot Trading ✅
 
 3️⃣ **قيود IP**
    • تأكد من عدم تفعيل IP Whitelist
@@ -7089,7 +7158,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 5. انسخ المفاتيح بعناية وأعد المحاولة
 
 🔄 أرسل API Key مرة أخرى للمحاولة من جديد
-                        """
+                            """
+                        
                         await update.message.reply_text(error_message)
                         
                         # مسح البيانات المؤقتة
