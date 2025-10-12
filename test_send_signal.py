@@ -47,6 +47,18 @@ def test_send_signal():
     action = "buy" if signal_type == "1" else "sell"
     action_ar = "شراء" if action == "buy" else "بيع"
     
+    # اختيار المنصة
+    print("\n🏦 اختر المنصة:")
+    print("1. Bybit (يدعم Spot و Futures)")
+    print("2. MEXC (يدعم Spot فقط)")
+    exchange_choice = input("اختر (1 أو 2): ").strip()
+    
+    if exchange_choice == "2":
+        exchange = "MEXC"
+        print("   ⚠️ ملاحظة: MEXC تدعم التداول الفوري (Spot) فقط")
+    else:
+        exchange = "BYBIT"
+    
     # اختيار الزوج
     print("\n💱 أدخل الزوج (مثال: BTCUSDT):")
     symbol = input("الزوج: ").strip().upper()
@@ -59,9 +71,9 @@ def test_send_signal():
     signal_data = {
         "action": action,
         "symbol": symbol,
-        "price": "{{close}}",  # سيتم استبداله بالسعر الحالي من Bybit
+        "price": "{{close}}",  # سيتم استبداله بالسعر الحالي من المنصة
         "time": "{{time}}",
-        "exchange": "BYBIT"
+        "exchange": exchange
     }
     
     # إنشاء URL الشخصي
