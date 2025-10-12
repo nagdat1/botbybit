@@ -2583,7 +2583,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # التحقق من حالة API مع مؤشر بصري محسن
     api_key = user_data.get('api_key')
     api_secret = user_data.get('api_secret')
-    api_status = get_api_status_indicator(api_key, api_secret)
+    
+    # التحقق الفعلي من حالة API
+    if api_key and api_secret:
+        is_valid = await check_api_connection(api_key, api_secret)
+        api_status = get_api_status_indicator(api_key, api_secret, is_valid)
+    else:
+        api_status = get_api_status_indicator(api_key, api_secret, None)
     
     # إنشاء رابط webhook الشخصي للمستخدم
     railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
@@ -3319,7 +3325,14 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # التحقق من حالة API مع مؤشر بصري محسن
     api_key = user_data.get('api_key')
     api_secret = user_data.get('api_secret')
-    api_status = get_api_status_indicator(api_key, api_secret)
+    
+    # التحقق الفعلي من حالة API
+    if api_key and api_secret:
+        is_valid = await check_api_connection(api_key, api_secret)
+        api_status = get_api_status_indicator(api_key, api_secret, is_valid)
+    else:
+        api_status = get_api_status_indicator(api_key, api_secret, None)
+    
     account_type = user_data.get('account_type', 'demo')
     trade_amount = user_data.get('trade_amount', 100.0)
     leverage = user_data.get('leverage', 10)
