@@ -7136,27 +7136,39 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # التحقق من صحة API keys قبل الحفظ
                 checking_message = None
-                if update.message is not None:
-                    checking_message = await update.message.reply_text(
-                        f"🔄 **جاري التحقق من {platform_name} API...**\n\n"
-                        f"{platform_emoji} الاتصال بالمنصة...\n"
-                        f"⏳ يرجى الانتظار (3-5 ثواني)",
-                        parse_mode='Markdown'
-                    )
+                try:
+                    if update.message is not None:
+                        checking_message = await update.message.reply_text(
+                            f"🔄 **جاري التحقق من {platform_name} API...**\n\n"
+                            f"{platform_emoji} الاتصال بالمنصة...\n"
+                            f"⏳ يرجى الانتظار (3-5 ثواني)",
+                            parse_mode='Markdown'
+                        )
+                        logger.info(f"✅ تم إرسال رسالة التحقق للمستخدم {user_id}")
+                except Exception as e:
+                    logger.error(f"❌ خطأ في إرسال رسالة التحقق: {e}")
                 
                 # تشغيل التحقق في thread منفصل لتجنب blocking
                 import asyncio
+                is_valid = False
                 try:
+                    logger.info(f"🔍 بدء التحقق من API للمنصة: {platform}")
                     loop = asyncio.get_event_loop()
                     is_valid = await asyncio.wait_for(
                         loop.run_in_executor(None, check_api_connection, api_key, api_secret, platform),
                         timeout=8.0  # تايم آوت إجمالي 8 ثواني (تم تقليله من 10)
                     )
+                    logger.info(f"✅ نتيجة التحقق: {is_valid}")
                 except asyncio.TimeoutError:
                     logger.error("⏱️ انتهت مهلة التحقق من API")
                     is_valid = False
-                    if update.message is not None and checking_message is not None:
-                        await checking_message.delete()
+                    if update.message is not None:
+                        try:
+                            if checking_message is not None:
+                                await checking_message.delete()
+                        except Exception as e:
+                            logger.error(f"خطأ في حذف رسالة التحقق: {e}")
+                        
                         await update.message.reply_text(
                             f"⏱️ **انتهت مهلة التحقق من {platform_name}!**\n\n"
                             f"🔍 **الأسباب المحتملة:**\n"
@@ -7169,22 +7181,47 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"• تحقق من إعدادات IP Whitelist",
                             parse_mode='Markdown'
                         )
-                        if user_id in user_input_state:
-                            del user_input_state[user_id]
+                    if user_id in user_input_state:
+                        del user_input_state[user_id]
+                    return
+                except Exception as e:
+                    logger.error(f"❌ خطأ غير متوقع في التحقق: {e}")
+                    is_valid = False
+                    if update.message is not None:
+                        try:
+                            if checking_message is not None:
+                                await checking_message.delete()
+                        except:
+                            pass
+                        await update.message.reply_text(
+                            f"❌ **حدث خطأ في التحقق!**\n\n"
+                            f"خطأ: {str(e)}\n\n"
+                            f"🔄 يرجى المحاولة مرة أخرى",
+                            parse_mode='Markdown'
+                        )
+                    if user_id in user_input_state:
+                        del user_input_state[user_id]
                     return
                 
                 if is_valid:
+                    logger.info(f"✅ API صحيح للمستخدم {user_id} - المنصة: {platform}")
                     # تحديث رسالة التحقق لتظهر النجاح
                     if update.message is not None and checking_message is not None:
-                        await checking_message.edit_text(
-                            f"✅ **تم التحقق بنجاح!**\n\n"
-                            f"{platform_emoji} {platform_name} API صحيح\n"
-                            f"💾 جاري حفظ البيانات...",
-                            parse_mode='Markdown'
-                        )
+                        try:
+                            await checking_message.edit_text(
+                                f"✅ **تم التحقق بنجاح!**\n\n"
+                                f"{platform_emoji} {platform_name} API صحيح\n"
+                                f"💾 جاري حفظ البيانات...",
+                                parse_mode='Markdown'
+                            )
+                            logger.info("✅ تم تحديث رسالة التحقق للنجاح")
+                        except Exception as e:
+                            logger.error(f"خطأ في تحديث رسالة التحقق: {e}")
                     
                     # حفظ المفاتيح في قاعدة البيانات مع المنصة
+                    logger.info(f"💾 جاري حفظ API keys للمستخدم {user_id}")
                     success = user_manager.update_user_api(user_id, api_key, api_secret, platform)
+                    logger.info(f"💾 نتيجة الحفظ: {success}")
                     
                     if success:
                         # مسح البيانات المؤقتة
@@ -7195,9 +7232,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         if user_id in user_input_state:
                             del user_input_state[user_id]
                         
+                        logger.info("🗑️ تم مسح البيانات المؤقتة")
+                        
                         # حذف رسالة التحقق وعرض رسالة النجاح النهائية
-                        if update.message is not None and checking_message is not None:
-                            await checking_message.delete()
+                        if update.message is not None:
+                            if checking_message is not None:
+                                try:
+                                    await checking_message.delete()
+                                    logger.info("🗑️ تم حذف رسالة التحقق")
+                                except Exception as e:
+                                    logger.error(f"خطأ في حذف رسالة التحقق: {e}")
                             
                             # تحديد معلومات المنصة
                             if platform == 'mexc':
@@ -7211,7 +7255,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 platform_url = "api.bybit.com"
                                 platform_type = "Spot & Futures"
                             
-                            await update.message.reply_text(
+                            try:
+                                await update.message.reply_text(
 f"""✅ **تم الربط بنجاح!**
 
 {platform_emoji} **المنصة:** {platform_name}
@@ -7229,11 +7274,19 @@ f"""✅ **تم الربط بنجاح!**
 
 استخدم /start للبدء!
 """,
-                                parse_mode='Markdown'
-                            )
+                                    parse_mode='Markdown'
+                                )
+                                logger.info("✅ تم إرسال رسالة النجاح النهائية")
+                            except Exception as e:
+                                logger.error(f"❌ خطأ في إرسال رسالة النجاح: {e}")
                     else:
-                        if update.message is not None and checking_message is not None:
-                            await checking_message.delete()
+                        logger.error(f"❌ فشل حفظ API للمستخدم {user_id}")
+                        if update.message is not None:
+                            if checking_message is not None:
+                                try:
+                                    await checking_message.delete()
+                                except:
+                                    pass
                             await update.message.reply_text(
                                 "❌ **فشل في حفظ البيانات!**\n\n"
                                 "حدث خطأ أثناء حفظ مفاتيح API في قاعدة البيانات.\n\n"
@@ -7242,8 +7295,14 @@ f"""✅ **تم الربط بنجاح!**
                             )
                 else:
                     # المفاتيح غير صحيحة
+                    logger.error(f"❌ API غير صحيح للمستخدم {user_id} - المنصة: {platform}")
                     if update.message is not None:
-                        await checking_message.delete()
+                        if checking_message is not None:
+                            try:
+                                await checking_message.delete()
+                                logger.info("🗑️ تم حذف رسالة التحقق")
+                            except Exception as e:
+                                logger.error(f"خطأ في حذف رسالة التحقق: {e}")
                         
                         # رسالة خطأ مفصلة حسب المنصة
                         platform = context.user_data.get('selected_platform', 
