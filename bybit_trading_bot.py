@@ -489,42 +489,45 @@ class BybitAPI:
                 "Content-Type": "application/json"
             }
             
-            logger.debug(f"📤 إرسال طلب إلى: {url}")
-            logger.debug(f"📋 المعاملات: {params}")
+            logger.debug(f"📤 Bybit: إرسال طلب {method} إلى: {url}")
+            logger.debug(f"📋 Bybit: المعاملات: {params}")
+            
+            # تقليل timeout من 10 إلى 5 ثواني للتحقق السريع
+            timeout = 5 if endpoint == "/v5/account/wallet-balance" else 10
             
             if method.upper() == "GET":
-                response = requests.get(url, params=params, headers=headers, timeout=10)
+                response = requests.get(url, params=params, headers=headers, timeout=timeout)
             else:
-                response = requests.post(url, json=params, headers=headers, timeout=10)
+                response = requests.post(url, json=params, headers=headers, timeout=timeout)
             
-            logger.debug(f"📥 رمز الاستجابة: {response.status_code}")
+            logger.debug(f"📥 Bybit: رمز الاستجابة: {response.status_code}")
             
             # محاولة الحصول على JSON
             try:
                 result = response.json()
-                logger.debug(f"📊 استجابة API: {result}")
+                logger.debug(f"📊 Bybit: استجابة API: {result}")
                 return result
             except ValueError as json_error:
-                logger.error(f"❌ خطأ في تحليل JSON: {json_error}")
-                logger.error(f"📄 محتوى الاستجابة: {response.text[:500]}")
+                logger.error(f"❌ Bybit: خطأ في تحليل JSON: {json_error}")
+                logger.error(f"📄 Bybit: محتوى الاستجابة: {response.text[:500]}")
                 return {"retCode": -1, "retMsg": f"خطأ في تحليل الاستجابة: {str(json_error)}"}
             
-        except requests.Timeout:
-            logger.error("⏱️ انتهت مهلة الطلب")
+        except requests.exceptions.Timeout:
+            logger.error("⏱️ Bybit: انتهت مهلة الطلب")
             return {"retCode": -1, "retMsg": "انتهت مهلة الاتصال بالسيرفر"}
-        except requests.ConnectionError as e:
-            logger.error(f"🔌 خطأ في الاتصال: {e}")
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"🔌 Bybit: خطأ في الاتصال: {e}")
             return {"retCode": -1, "retMsg": "فشل الاتصال بسيرفر Bybit"}
-        except requests.HTTPError as e:
-            logger.error(f"🚫 خطأ HTTP: {e}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"🚫 Bybit: خطأ HTTP: {e}")
             return {"retCode": -1, "retMsg": f"خطأ HTTP: {e.response.status_code}"}
-        except requests.RequestException as e:
-            logger.error(f"❌ خطأ في طلب API: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Bybit: خطأ في طلب API: {e}")
             return {"retCode": -1, "retMsg": str(e)}
         except Exception as e:
-            logger.error(f"❌ خطأ غير متوقع في API: {e}")
+            logger.error(f"❌ Bybit: خطأ غير متوقع في API: {e}")
             import traceback
-            logger.error(f"تفاصيل: {traceback.format_exc()}")
+            logger.error(f"Bybit: تفاصيل: {traceback.format_exc()}")
             return {"retCode": -1, "retMsg": str(e)}
     
     def get_all_symbols(self, category: str = "spot") -> List[dict]:
@@ -750,33 +753,45 @@ class MEXCAPI:
             
             params = {
                 'timestamp': int(time.time() * 1000),
-                'recvWindow': 5000
+                'recvWindow': 3000  # تقليل الوقت من 5000 إلى 3000
             }
             
             signature = self._generate_signature(params)
             params['signature'] = signature
             
             headers = {
-                "X-MEXC-APIKEY": self.api_key
+                "X-MEXC-APIKEY": self.api_key,
+                "Content-Type": "application/json"
             }
             
             url = f"{self.base_url}{endpoint}"
             
-            # طلب سريع جداً
-            response = requests.get(url, params=params, headers=headers, timeout=5)
+            logger.info(f"📡 MEXC: جاري الاتصال بـ {url}")
+            
+            # طلب سريع جداً مع timeout أقل
+            response = requests.get(url, params=params, headers=headers, timeout=3)
+            
+            logger.info(f"📡 MEXC: استجابة الخادم - Status Code: {response.status_code}")
             
             if response.status_code == 200:
                 logger.info("✅ MEXC: الاتصال ناجح!")
-                return {"success": True, "code": 200}
+                return {"success": True, "code": 200, "msg": "تم التحقق بنجاح"}
             else:
+                error_text = response.text[:200] if response.text else "لا توجد رسالة خطأ"
                 logger.error(f"❌ MEXC: فشل الاتصال - Status {response.status_code}")
-                return {"success": False, "code": response.status_code, "msg": response.text[:200]}
+                logger.error(f"❌ MEXC: رسالة الخطأ: {error_text}")
+                return {"success": False, "code": response.status_code, "msg": error_text}
                 
-        except requests.Timeout:
-            logger.error("⏱️ MEXC: Timeout")
-            return {"success": False, "code": -1, "msg": "Timeout"}
+        except requests.exceptions.Timeout:
+            logger.error("⏱️ MEXC: انتهت مهلة الاتصال (Timeout)")
+            return {"success": False, "code": -1, "msg": "انتهت مهلة الاتصال"}
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"🌐 MEXC: خطأ في الاتصال - {e}")
+            return {"success": False, "code": -1, "msg": "خطأ في الاتصال بالشبكة"}
         except Exception as e:
-            logger.error(f"❌ MEXC: خطأ - {e}")
+            logger.error(f"❌ MEXC: خطأ غير متوقع - {e}")
+            import traceback
+            logger.error(f"❌ MEXC: تفاصيل الخطأ: {traceback.format_exc()}")
             return {"success": False, "code": -1, "msg": str(e)}
         
     def _generate_signature(self, params: dict) -> str:
@@ -807,13 +822,14 @@ class MEXCAPI:
                 params = {}
             
             headers = {
-                "X-MEXC-APIKEY": self.api_key
+                "X-MEXC-APIKEY": self.api_key,
+                "Content-Type": "application/json"
             }
             
             # إضافة timestamp للطلبات الموقعة
             if signed:
                 params['timestamp'] = int(time.time() * 1000)
-                params['recvWindow'] = 5000
+                params['recvWindow'] = 3000  # تقليل من 5000 إلى 3000
                 
                 # توليد التوقيع
                 signature = self._generate_signature(params)
@@ -823,50 +839,56 @@ class MEXCAPI:
             logger.info(f"📋 Parameters: {params}")
             logger.info(f"🔑 Headers: X-MEXC-APIKEY={self.api_key[:10]}...")
             
-            # إرسال الطلب مع تايم آوت قصير
+            # تقليل timeout من 10 إلى 5 ثواني
+            timeout = 5
+            
+            # إرسال الطلب
             if method.upper() == "GET":
-                response = requests.get(url, params=params, headers=headers, timeout=10)
+                response = requests.get(url, params=params, headers=headers, timeout=timeout)
             elif method.upper() == "POST":
-                response = requests.post(url, params=params, headers=headers, timeout=10)
+                response = requests.post(url, params=params, headers=headers, timeout=timeout)
             elif method.upper() == "DELETE":
-                response = requests.delete(url, params=params, headers=headers, timeout=10)
+                response = requests.delete(url, params=params, headers=headers, timeout=timeout)
             else:
-                logger.error(f"❌ طريقة غير مدعومة: {method}")
+                logger.error(f"❌ MEXC: طريقة غير مدعومة: {method}")
                 return {"code": -1, "msg": f"طريقة غير مدعومة: {method}"}
             
-            logger.info(f"📥 Status Code: {response.status_code}")
-            logger.info(f"📄 Response Headers: {dict(response.headers)}")
-            logger.info(f"📄 Response Body (first 1000 chars): {response.text[:1000]}")
+            logger.info(f"📥 MEXC: Status Code: {response.status_code}")
+            logger.debug(f"📄 MEXC: Response Headers: {dict(response.headers)}")
+            logger.debug(f"📄 MEXC: Response Body (first 500 chars): {response.text[:500]}")
             
             # التحقق من رمز الحالة
             if response.status_code == 200:
                 try:
                     result = response.json()
-                    logger.info(f"✅ MEXC Response Success: {result}")
+                    logger.info(f"✅ MEXC: استجابة ناجحة")
                     return result
                 except ValueError as json_error:
-                    logger.error(f"❌ فشل تحليل JSON: {json_error}")
-                    logger.error(f"📄 النص الكامل: {response.text}")
+                    logger.error(f"❌ MEXC: فشل تحليل JSON: {json_error}")
+                    logger.error(f"📄 MEXC: النص الكامل: {response.text}")
                     return {"code": -1, "msg": f"خطأ في تحليل JSON: {str(json_error)}"}
             else:
-                logger.error(f"❌ MEXC API Error - Status {response.status_code}")
-                logger.error(f"📄 Error Body: {response.text}")
+                logger.error(f"❌ MEXC: API Error - Status {response.status_code}")
+                logger.error(f"📄 MEXC: Error Body: {response.text[:200]}")
                 try:
                     error_data = response.json()
                     return error_data
                 except:
-                    return {"code": response.status_code, "msg": response.text}
+                    return {"code": response.status_code, "msg": response.text[:200]}
             
-        except requests.Timeout:
-            logger.error("⏱️ MEXC Request Timeout")
-            return {"code": -1, "msg": "Timeout"}
-        except requests.ConnectionError as e:
-            logger.error(f"🔌 MEXC Connection Error: {e}")
-            return {"code": -1, "msg": f"Connection Error: {str(e)}"}
+        except requests.exceptions.Timeout:
+            logger.error("⏱️ MEXC: Request Timeout")
+            return {"code": -1, "msg": "انتهت مهلة الاتصال"}
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"🔌 MEXC: Connection Error: {e}")
+            return {"code": -1, "msg": "خطأ في الاتصال"}
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ MEXC: Request Error: {e}")
+            return {"code": -1, "msg": str(e)}
         except Exception as e:
-            logger.error(f"❌ MEXC Unexpected Error: {e}")
+            logger.error(f"❌ MEXC: Unexpected Error: {e}")
             import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.error(f"MEXC: Traceback: {traceback.format_exc()}")
             return {"code": -1, "msg": str(e)}
     
     def get_account_info(self) -> dict:
@@ -2585,48 +2607,69 @@ def check_api_connection(api_key: str, api_secret: str, platform: str = 'bybit')
         if platform == 'mexc':
             # التحقق من MEXC API - استخدام الاختبار السريع
             logger.info("🟩 بدء التحقق من MEXC API (اختبار سريع)...")
-            temp_api = MEXCAPI(api_key, api_secret)
-            
-            # استخدام test_connection بدلاً من get_account_info لتسريع التحقق
-            test_result = temp_api.test_connection()
-            
-            logger.info(f"📊 نتيجة الاختبار السريع: {test_result}")
-            
-            if test_result and isinstance(test_result, dict):
-                if test_result.get('success') == True:
-                    logger.info("✅ MEXC API صحيح!")
-                    return True
-                else:
-                    error_msg = test_result.get('msg', 'خطأ غير معروف')
-                    logger.warning(f"❌ MEXC API فشل: {error_msg}")
-                    return False
-            
-            logger.warning(f"❌ استجابة MEXC API غير متوقعة")
-            return False
+            try:
+                temp_api = MEXCAPI(api_key, api_secret)
+                
+                # استخدام test_connection بدلاً من get_account_info لتسريع التحقق
+                test_result = temp_api.test_connection()
+                
+                logger.info(f"📊 نتيجة الاختبار السريع: {test_result}")
+                
+                if test_result and isinstance(test_result, dict):
+                    if test_result.get('success') == True:
+                        logger.info("✅ MEXC API صحيح!")
+                        return True
+                    else:
+                        error_msg = test_result.get('msg', 'خطأ غير معروف')
+                        logger.warning(f"❌ MEXC API فشل: {error_msg}")
+                        return False
+                
+                logger.warning(f"❌ استجابة MEXC API غير متوقعة")
+                return False
+            except requests.exceptions.Timeout:
+                logger.error("⏱️ MEXC: انتهت مهلة الاتصال")
+                return False
+            except requests.exceptions.ConnectionError:
+                logger.error("🌐 MEXC: خطأ في الاتصال بالشبكة")
+                return False
+            except Exception as e:
+                logger.error(f"❌ MEXC: خطأ غير متوقع - {e}")
+                return False
             
         else:  # bybit
             # التحقق من Bybit API
-            temp_api = BybitAPI(api_key, api_secret)
-            account_info = temp_api.get_account_balance()
-            
-            logger.info(f"📊 استجابة Bybit API: {account_info}")
-            
-            if account_info and isinstance(account_info, dict):
-                if 'retCode' in account_info:
-                    is_valid = account_info['retCode'] == 0
-                    if is_valid:
-                        logger.info("✅ Bybit API صحيح ويعمل!")
+            logger.info("🟦 بدء التحقق من Bybit API...")
+            try:
+                temp_api = BybitAPI(api_key, api_secret)
+                account_info = temp_api.get_account_balance()
+                
+                logger.info(f"📊 استجابة Bybit API: {account_info}")
+                
+                if account_info and isinstance(account_info, dict):
+                    if 'retCode' in account_info:
+                        is_valid = account_info['retCode'] == 0
+                        if is_valid:
+                            logger.info("✅ Bybit API صحيح ويعمل!")
+                        else:
+                            logger.warning(f"❌ Bybit API غير صحيح: {account_info.get('retMsg', 'خطأ غير معروف')}")
+                        return is_valid
                     else:
-                        logger.warning(f"❌ Bybit API غير صحيح: {account_info.get('retMsg', 'خطأ غير معروف')}")
-                    return is_valid
-                else:
-                    # في حالة عدم وجود retCode، نحاول التحقق من البيانات
-                    if 'result' in account_info:
-                        logger.info("✅ Bybit API صحيح (تنسيق بديل)")
-                        return True
-            
-            logger.warning("❌ استجابة Bybit API غير متوقعة")
-            return False
+                        # في حالة عدم وجود retCode، نحاول التحقق من البيانات
+                        if 'result' in account_info:
+                            logger.info("✅ Bybit API صحيح (تنسيق بديل)")
+                            return True
+                
+                logger.warning("❌ استجابة Bybit API غير متوقعة")
+                return False
+            except requests.exceptions.Timeout:
+                logger.error("⏱️ Bybit: انتهت مهلة الاتصال")
+                return False
+            except requests.exceptions.ConnectionError:
+                logger.error("🌐 Bybit: خطأ في الاتصال بالشبكة")
+                return False
+            except Exception as e:
+                logger.error(f"❌ Bybit: خطأ غير متوقع - {e}")
+                return False
         
     except Exception as e:
         logger.error(f"❌ خطأ في التحقق من API ({platform}): {e}")
@@ -7077,10 +7120,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 api_key = context.user_data['temp_api_key']
                 api_secret = text
                 
-                # التحقق من صحة API keys قبل الحفظ
-                if update.message is not None:
-                    checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...\n⚡ اختبار سريع...")
-                
                 # التحقق من صحة المفاتيح - استخدام المنصة من context أو قاعدة البيانات
                 platform = None
                 if 'selected_platform' in context.user_data:
@@ -7091,25 +7130,59 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     platform = user_data_temp.get('exchange_platform', 'bybit') if user_data_temp else 'bybit'
                     logger.info(f"🔍 استخدام المنصة من قاعدة البيانات عند الحفظ: {platform}")
                 
+                # عرض رسالة التحقق مع اسم المنصة
+                platform_name = "MEXC" if platform == 'mexc' else "Bybit"
+                platform_emoji = "🟩" if platform == 'mexc' else "🟦"
+                
+                # التحقق من صحة API keys قبل الحفظ
+                checking_message = None
+                if update.message is not None:
+                    checking_message = await update.message.reply_text(
+                        f"🔄 **جاري التحقق من {platform_name} API...**\n\n"
+                        f"{platform_emoji} الاتصال بالمنصة...\n"
+                        f"⏳ يرجى الانتظار (3-5 ثواني)",
+                        parse_mode='Markdown'
+                    )
+                
                 # تشغيل التحقق في thread منفصل لتجنب blocking
                 import asyncio
                 try:
                     loop = asyncio.get_event_loop()
                     is_valid = await asyncio.wait_for(
                         loop.run_in_executor(None, check_api_connection, api_key, api_secret, platform),
-                        timeout=10.0  # تايم آوت إجمالي 10 ثواني
+                        timeout=8.0  # تايم آوت إجمالي 8 ثواني (تم تقليله من 10)
                     )
                 except asyncio.TimeoutError:
                     logger.error("⏱️ انتهت مهلة التحقق من API")
                     is_valid = False
-                    if update.message is not None:
+                    if update.message is not None and checking_message is not None:
                         await checking_message.delete()
-                        await update.message.reply_text("⏱️ انتهت مهلة التحقق!\n\nالأسباب المحتملة:\n• سيرفر المنصة بطيء\n• مشكلة في الاتصال\n• IP محظور\n\nحاول مرة أخرى بعد قليل.")
+                        await update.message.reply_text(
+                            f"⏱️ **انتهت مهلة التحقق من {platform_name}!**\n\n"
+                            f"🔍 **الأسباب المحتملة:**\n"
+                            f"• سيرفر المنصة بطيء حالياً\n"
+                            f"• مشكلة مؤقتة في الاتصال\n"
+                            f"• IP محظور أو مقيد\n\n"
+                            f"💡 **الحل:**\n"
+                            f"• حاول مرة أخرى بعد 30 ثانية\n"
+                            f"• تأكد من اتصالك بالإنترنت\n"
+                            f"• تحقق من إعدادات IP Whitelist",
+                            parse_mode='Markdown'
+                        )
                         if user_id in user_input_state:
                             del user_input_state[user_id]
                     return
                 
                 if is_valid:
+                    # تحديث رسالة التحقق لتظهر النجاح
+                    if update.message is not None and checking_message is not None:
+                        await checking_message.edit_text(
+                            f"✅ **تم التحقق بنجاح!**\n\n"
+                            f"{platform_emoji} {platform_name} API صحيح\n"
+                            f"💾 جاري حفظ البيانات...",
+                            parse_mode='Markdown'
+                        )
+                    
                     # حفظ المفاتيح في قاعدة البيانات مع المنصة
                     success = user_manager.update_user_api(user_id, api_key, api_secret, platform)
                     
@@ -7122,38 +7195,51 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         if user_id in user_input_state:
                             del user_input_state[user_id]
                         
-                        # حذف رسالة التحقق
-                        if update.message is not None:
+                        # حذف رسالة التحقق وعرض رسالة النجاح النهائية
+                        if update.message is not None and checking_message is not None:
                             await checking_message.delete()
                             
                             # تحديد معلومات المنصة
                             if platform == 'mexc':
                                 platform_name = "MEXC"
                                 platform_emoji = "🟩"
-                                platform_url = "https://api.mexc.com"
+                                platform_url = "api.mexc.com"
                                 platform_type = "Spot Trading"
                             else:
                                 platform_name = "Bybit"
                                 platform_emoji = "🟦"
-                                platform_url = "https://api.bybit.com"
+                                platform_url = "api.bybit.com"
                                 platform_type = "Spot & Futures"
                             
-                            await update.message.reply_text(f"""
-✅ **تم ربط API بنجاح!**
+                            await update.message.reply_text(
+f"""✅ **تم الربط بنجاح!**
 
 {platform_emoji} **المنصة:** {platform_name}
-🟢 **الاتصال:** {platform_url} (Live)
-📊 **نوع التداول:** {platform_type}
-🔐 **الأمان:** المفاتيح آمنة ومشفرة
+🟢 **الحالة:** متصل ويعمل
+🌐 **API:** {platform_url}
+📊 **التداول:** {platform_type}
+🔐 **الأمان:** مشفر ✓
 
-💡 يمكنك الآن استخدام جميع ميزات البوت
+━━━━━━━━━━━━━━━━━━━━
+🎉 **يمكنك الآن:**
+• استقبال وتنفيذ إشارات التداول
+• إدارة الصفقات المفتوحة
+• متابعة الأرباح والخسائر
+• استخدام جميع أدوات البوت
 
-استخدم /start للعودة إلى القائمة الرئيسية
-                            """, parse_mode='Markdown')
+استخدم /start للبدء!
+""",
+                                parse_mode='Markdown'
+                            )
                     else:
-                        if update.message is not None:
+                        if update.message is not None and checking_message is not None:
                             await checking_message.delete()
-                            await update.message.reply_text("❌ فشل في حفظ مفاتيح API. حاول مرة أخرى.")
+                            await update.message.reply_text(
+                                "❌ **فشل في حفظ البيانات!**\n\n"
+                                "حدث خطأ أثناء حفظ مفاتيح API في قاعدة البيانات.\n\n"
+                                "🔄 يرجى المحاولة مرة أخرى باستخدام /start",
+                                parse_mode='Markdown'
+                            )
                 else:
                     # المفاتيح غير صحيحة
                     if update.message is not None:
