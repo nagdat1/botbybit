@@ -447,87 +447,48 @@ class BybitAPI:
         self.api_secret = api_secret
         self.base_url = "https://api.bybit.com"
         
-    def _generate_signature(self, params: dict, timestamp: str, recv_window: str = "5000") -> str:
-        """إنشاء التوقيع للطلبات - متوافق مع Bybit API v5"""
-        # ترتيب المعاملات أبجدياً
-        if params:
-            param_str = urlencode(sorted(params.items()))
-        else:
-            param_str = ""
-        
-        # بناء النص للتوقيع: timestamp + api_key + recv_window + param_str
-        sign_str = timestamp + self.api_key + recv_window + param_str
-        
-        # إنشاء التوقيع باستخدام HMAC SHA256
-        signature = hmac.new(
+    def _generate_signature(self, params: dict, timestamp: str) -> str:
+        """إنشاء التوقيع للطلبات"""
+        param_str = timestamp + self.api_key + "5000" + urlencode(sorted(params.items()))
+        return hmac.new(
             self.api_secret.encode('utf-8'),
-            sign_str.encode('utf-8'),
+            param_str.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
-        
-        return signature
     
     def _make_request(self, method: str, endpoint: str, params: Optional[dict] = None) -> dict:
         """إرسال طلب إلى API"""
         try:
             url = f"{self.base_url}{endpoint}"
             timestamp = str(int(time.time() * 1000))
-            recv_window = "5000"
             
             if params is None:
                 params = {}
             
-            # توليد التوقيع
-            signature = self._generate_signature(params, timestamp, recv_window)
+            signature = self._generate_signature(params, timestamp)
             
             headers = {
                 "X-BAPI-API-KEY": self.api_key,
                 "X-BAPI-SIGN": signature,
                 "X-BAPI-SIGN-TYPE": "2",
                 "X-BAPI-TIMESTAMP": timestamp,
-                "X-BAPI-RECV-WINDOW": recv_window,
+                "X-BAPI-RECV-WINDOW": "5000",
                 "Content-Type": "application/json"
             }
             
-            logger.debug(f"📤 Bybit: إرسال طلب {method} إلى: {url}")
-            logger.debug(f"📋 Bybit: المعاملات: {params}")
-            
-            # تقليل timeout من 10 إلى 5 ثواني للتحقق السريع
-            timeout = 5 if endpoint == "/v5/account/wallet-balance" else 10
-            
             if method.upper() == "GET":
-                response = requests.get(url, params=params, headers=headers, timeout=timeout)
+                response = requests.get(url, params=params, headers=headers, timeout=10)
             else:
-                response = requests.post(url, json=params, headers=headers, timeout=timeout)
+                response = requests.post(url, json=params, headers=headers, timeout=10)
             
-            logger.debug(f"📥 Bybit: رمز الاستجابة: {response.status_code}")
+            response.raise_for_status()
+            return response.json()
             
-            # محاولة الحصول على JSON
-            try:
-                result = response.json()
-                logger.debug(f"📊 Bybit: استجابة API: {result}")
-                return result
-            except ValueError as json_error:
-                logger.error(f"❌ Bybit: خطأ في تحليل JSON: {json_error}")
-                logger.error(f"📄 Bybit: محتوى الاستجابة: {response.text[:500]}")
-                return {"retCode": -1, "retMsg": f"خطأ في تحليل الاستجابة: {str(json_error)}"}
-            
-        except requests.exceptions.Timeout:
-            logger.error("⏱️ Bybit: انتهت مهلة الطلب")
-            return {"retCode": -1, "retMsg": "انتهت مهلة الاتصال بالسيرفر"}
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"🔌 Bybit: خطأ في الاتصال: {e}")
-            return {"retCode": -1, "retMsg": "فشل الاتصال بسيرفر Bybit"}
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"🚫 Bybit: خطأ HTTP: {e}")
-            return {"retCode": -1, "retMsg": f"خطأ HTTP: {e.response.status_code}"}
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Bybit: خطأ في طلب API: {e}")
+        except requests.RequestException as e:
+            logger.error(f"خطأ في طلب API: {e}")
             return {"retCode": -1, "retMsg": str(e)}
         except Exception as e:
-            logger.error(f"❌ Bybit: خطأ غير متوقع في API: {e}")
-            import traceback
-            logger.error(f"Bybit: تفاصيل: {traceback.format_exc()}")
+            logger.error(f"خطأ غير متوقع في API: {e}")
             return {"retCode": -1, "retMsg": str(e)}
     
     def get_all_symbols(self, category: str = "spot") -> List[dict]:
@@ -729,408 +690,6 @@ class BybitAPI:
         except Exception as e:
             logger.error(f"خطأ في الحصول على الرصيد: {e}")
             return {"retCode": -1, "retMsg": str(e)}
-
-
-# ==================== MEXC API ====================
-
-class MEXCAPI:
-    """فئة للتعامل مع MEXC API - Spot Trading فقط"""
-    
-    def __init__(self, api_key: str, api_secret: str):
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.base_url = "https://api.mexc.com"
-        logger.info(f"🟩 تم إنشاء MEXC API client")
-    
-    def test_connection(self) -> dict:
-        """اختبار سريع للاتصال - أخف من get_account_info"""
-        try:
-            logger.info("⚡ MEXC: اختبار سريع للاتصال...")
-            
-            # استخدام endpoint خفيف للتحقق فقط
-            # GET /api/v3/account مع recvWindow قصير
-            endpoint = "/api/v3/account"
-            
-            params = {
-                'timestamp': int(time.time() * 1000),
-                'recvWindow': 3000  # تقليل الوقت من 5000 إلى 3000
-            }
-            
-            signature = self._generate_signature(params)
-            params['signature'] = signature
-            
-            headers = {
-                "X-MEXC-APIKEY": self.api_key,
-                "Content-Type": "application/json"
-            }
-            
-            url = f"{self.base_url}{endpoint}"
-            
-            logger.info(f"📡 MEXC: جاري الاتصال بـ {url}")
-            
-            # طلب سريع جداً مع timeout أقل
-            response = requests.get(url, params=params, headers=headers, timeout=3)
-            
-            logger.info(f"📡 MEXC: استجابة الخادم - Status Code: {response.status_code}")
-            
-            if response.status_code == 200:
-                logger.info("✅ MEXC: الاتصال ناجح!")
-                return {"success": True, "code": 200, "msg": "تم التحقق بنجاح"}
-            else:
-                error_text = response.text[:200] if response.text else "لا توجد رسالة خطأ"
-                logger.error(f"❌ MEXC: فشل الاتصال - Status {response.status_code}")
-                logger.error(f"❌ MEXC: رسالة الخطأ: {error_text}")
-                return {"success": False, "code": response.status_code, "msg": error_text}
-                
-        except requests.exceptions.Timeout:
-            logger.error("⏱️ MEXC: انتهت مهلة الاتصال (Timeout)")
-            return {"success": False, "code": -1, "msg": "انتهت مهلة الاتصال"}
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"🌐 MEXC: خطأ في الاتصال - {e}")
-            return {"success": False, "code": -1, "msg": "خطأ في الاتصال بالشبكة"}
-        except Exception as e:
-            logger.error(f"❌ MEXC: خطأ غير متوقع - {e}")
-            import traceback
-            logger.error(f"❌ MEXC: تفاصيل الخطأ: {traceback.format_exc()}")
-            return {"success": False, "code": -1, "msg": str(e)}
-        
-    def _generate_signature(self, params: dict) -> str:
-        """إنشاء التوقيع للطلبات - متوافق مع MEXC API"""
-        # ترتيب المعاملات أبجدياً وتحويلها إلى query string
-        sorted_params = sorted(params.items())
-        query_string = urlencode(sorted_params)
-        
-        logger.debug(f"🔐 Query string قبل التوقيع: {query_string}")
-        
-        # إنشاء التوقيع باستخدام HMAC SHA256
-        signature = hmac.new(
-            self.api_secret.encode('utf-8'),
-            query_string.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        
-        logger.debug(f"🔐 التوقيع: {signature}")
-        
-        return signature
-    
-    def _make_request(self, method: str, endpoint: str, params: Optional[dict] = None, signed: bool = False) -> dict:
-        """إرسال طلب إلى MEXC API"""
-        try:
-            url = f"{self.base_url}{endpoint}"
-            
-            if params is None:
-                params = {}
-            
-            headers = {
-                "X-MEXC-APIKEY": self.api_key,
-                "Content-Type": "application/json"
-            }
-            
-            # إضافة timestamp للطلبات الموقعة
-            if signed:
-                params['timestamp'] = int(time.time() * 1000)
-                params['recvWindow'] = 3000  # تقليل من 5000 إلى 3000
-                
-                # توليد التوقيع
-                signature = self._generate_signature(params)
-                params['signature'] = signature
-            
-            logger.info(f"📤 MEXC {method} => {url}")
-            logger.info(f"📋 Parameters: {params}")
-            logger.info(f"🔑 Headers: X-MEXC-APIKEY={self.api_key[:10]}...")
-            
-            # تقليل timeout من 10 إلى 5 ثواني
-            timeout = 5
-            
-            # إرسال الطلب
-            if method.upper() == "GET":
-                response = requests.get(url, params=params, headers=headers, timeout=timeout)
-            elif method.upper() == "POST":
-                response = requests.post(url, params=params, headers=headers, timeout=timeout)
-            elif method.upper() == "DELETE":
-                response = requests.delete(url, params=params, headers=headers, timeout=timeout)
-            else:
-                logger.error(f"❌ MEXC: طريقة غير مدعومة: {method}")
-                return {"code": -1, "msg": f"طريقة غير مدعومة: {method}"}
-            
-            logger.info(f"📥 MEXC: Status Code: {response.status_code}")
-            logger.debug(f"📄 MEXC: Response Headers: {dict(response.headers)}")
-            logger.debug(f"📄 MEXC: Response Body (first 500 chars): {response.text[:500]}")
-            
-            # التحقق من رمز الحالة
-            if response.status_code == 200:
-                try:
-                    result = response.json()
-                    logger.info(f"✅ MEXC: استجابة ناجحة")
-                    return result
-                except ValueError as json_error:
-                    logger.error(f"❌ MEXC: فشل تحليل JSON: {json_error}")
-                    logger.error(f"📄 MEXC: النص الكامل: {response.text}")
-                    return {"code": -1, "msg": f"خطأ في تحليل JSON: {str(json_error)}"}
-            else:
-                logger.error(f"❌ MEXC: API Error - Status {response.status_code}")
-                logger.error(f"📄 MEXC: Error Body: {response.text[:200]}")
-                try:
-                    error_data = response.json()
-                    return error_data
-                except:
-                    return {"code": response.status_code, "msg": response.text[:200]}
-            
-        except requests.exceptions.Timeout:
-            logger.error("⏱️ MEXC: Request Timeout")
-            return {"code": -1, "msg": "انتهت مهلة الاتصال"}
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"🔌 MEXC: Connection Error: {e}")
-            return {"code": -1, "msg": "خطأ في الاتصال"}
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ MEXC: Request Error: {e}")
-            return {"code": -1, "msg": str(e)}
-        except Exception as e:
-            logger.error(f"❌ MEXC: Unexpected Error: {e}")
-            import traceback
-            logger.error(f"MEXC: Traceback: {traceback.format_exc()}")
-            return {"code": -1, "msg": str(e)}
-    
-    def get_account_info(self) -> dict:
-        """الحصول على معلومات الحساب"""
-        try:
-            logger.info("🔍 MEXC: طلب معلومات الحساب...")
-            
-            # استخدام endpoint أخف للتحقق السريع
-            # نجرب أولاً GET /api/v3/account
-            endpoint = "/api/v3/account"
-            
-            # محاولة مع timeout قصير
-            params = {
-                'timestamp': int(time.time() * 1000),
-                'recvWindow': 5000
-            }
-            
-            signature = self._generate_signature(params)
-            params['signature'] = signature
-            
-            headers = {
-                "X-MEXC-APIKEY": self.api_key
-            }
-            
-            url = f"{self.base_url}{endpoint}"
-            logger.info(f"📤 MEXC Quick Check => {url}")
-            
-            # محاولة سريعة
-            response = requests.get(url, params=params, headers=headers, timeout=8)
-            
-            logger.info(f"📥 MEXC Response Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                logger.info("✅ MEXC: تم الحصول على معلومات الحساب بنجاح")
-                return result
-            else:
-                logger.error(f"❌ MEXC Error: Status {response.status_code}")
-                try:
-                    error_data = response.json()
-                    return error_data
-                except:
-                    return {"code": response.status_code, "msg": response.text}
-                    
-        except requests.Timeout:
-            logger.error("⏱️ MEXC Timeout")
-            return {"code": -1, "msg": "Timeout - Server too slow"}
-        except Exception as e:
-            logger.error(f"❌ خطأ في get_account_info: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return {"code": -1, "msg": str(e)}
-    
-    def get_balance(self) -> dict:
-        """الحصول على رصيد الحساب"""
-        try:
-            account_info = self.get_account_info()
-            
-            if 'balances' in account_info:
-                # تحويل إلى تنسيق موحد
-                return {
-                    "code": 0,
-                    "msg": "success",
-                    "data": account_info
-                }
-            else:
-                return account_info
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على الرصيد MEXC: {e}")
-            return {"code": -1, "msg": str(e)}
-    
-    def get_all_symbols(self) -> List[dict]:
-        """الحصول على جميع أزواج التداول المتاحة"""
-        try:
-            endpoint = "/api/v3/exchangeInfo"
-            response = self._make_request("GET", endpoint)
-            
-            if 'symbols' in response:
-                # تصفية الأزواج النشطة فقط
-                active_symbols = [
-                    s for s in response['symbols'] 
-                    if s.get('status') == 'ENABLED'
-                ]
-                return active_symbols
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على الرموز MEXC: {e}")
-            return []
-    
-    def get_ticker_price(self, symbol: str) -> dict:
-        """الحصول على السعر الحالي لزوج تداول"""
-        try:
-            endpoint = "/api/v3/ticker/price"
-            params = {"symbol": symbol}
-            response = self._make_request("GET", endpoint, params)
-            return response
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على السعر MEXC: {e}")
-            return {"code": -1, "msg": str(e)}
-    
-    def place_order(self, symbol: str, side: str, order_type: str, quantity: float, price: float = None) -> dict:
-        """فتح أمر تداول - Spot فقط"""
-        try:
-            endpoint = "/api/v3/order"
-            
-            params = {
-                "symbol": symbol,
-                "side": side.upper(),  # BUY or SELL
-                "type": order_type.upper(),  # LIMIT, MARKET, etc.
-                "quantity": quantity
-            }
-            
-            # إضافة السعر للأوامر المحددة
-            if order_type.upper() == "LIMIT" and price:
-                params["price"] = price
-                params["timeInForce"] = "GTC"  # Good Till Cancel
-            
-            response = self._make_request("POST", endpoint, params, signed=True)
-            return response
-            
-        except Exception as e:
-            logger.error(f"خطأ في فتح أمر MEXC: {e}")
-            return {"code": -1, "msg": str(e)}
-    
-    def cancel_order(self, symbol: str, order_id: str) -> dict:
-        """إلغاء أمر"""
-        try:
-            endpoint = "/api/v3/order"
-            params = {
-                "symbol": symbol,
-                "orderId": order_id
-            }
-            response = self._make_request("DELETE", endpoint, params, signed=True)
-            return response
-        except Exception as e:
-            logger.error(f"خطأ في إلغاء أمر MEXC: {e}")
-            return {"code": -1, "msg": str(e)}
-    
-    def get_open_orders(self, symbol: str = None) -> List[dict]:
-        """الحصول على الأوامر المفتوحة"""
-        try:
-            endpoint = "/api/v3/openOrders"
-            params = {}
-            
-            if symbol:
-                params["symbol"] = symbol
-            
-            response = self._make_request("GET", endpoint, params, signed=True)
-            
-            if isinstance(response, list):
-                return response
-            elif isinstance(response, dict) and 'data' in response:
-                return response['data']
-            else:
-                return []
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على الأوامر المفتوحة MEXC: {e}")
-            return []
-    
-    def get_order_status(self, symbol: str, order_id: str) -> dict:
-        """الحصول على حالة أمر محدد"""
-        try:
-            endpoint = "/api/v3/order"
-            params = {
-                "symbol": symbol,
-                "orderId": order_id
-            }
-            response = self._make_request("GET", endpoint, params, signed=True)
-            return response
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على حالة الأمر MEXC: {e}")
-            return {"code": -1, "msg": str(e)}
-    
-    def get_wallet_balance(self) -> dict:
-        """الحصول على رصيد المحفظة - متوافق مع Bybit"""
-        try:
-            account_info = self.get_account_info()
-            
-            if 'balances' in account_info:
-                # حساب الرصيد الإجمالي
-                total_balance = 0.0
-                available_balance = 0.0
-                
-                for asset in account_info['balances']:
-                    free = float(asset.get('free', 0))
-                    locked = float(asset.get('locked', 0))
-                    total_balance += (free + locked)
-                    available_balance += free
-                
-                # تنسيق متوافق مع Bybit
-                return {
-                    "retCode": 0,
-                    "retMsg": "OK",
-                    "result": {
-                        "list": [{
-                            "totalEquity": str(total_balance),
-                            "totalAvailableBalance": str(available_balance),
-                            "totalMarginBalance": str(total_balance),
-                            "totalPerpUPL": "0",
-                            "coin": account_info['balances']
-                        }]
-                    }
-                }
-            else:
-                return {"retCode": -1, "retMsg": "Failed to get balance"}
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على رصيد المحفظة MEXC: {e}")
-            return {"retCode": -1, "retMsg": str(e)}
-    
-    def get_positions(self, symbol: str = None) -> List[dict]:
-        """الحصول على الصفقات المفتوحة - للتوافق مع Spot Trading"""
-        try:
-            # في Spot Trading، نحصل على الأوامر المفتوحة
-            open_orders = self.get_open_orders(symbol)
-            
-            # تحويل الأوامر إلى تنسيق الصفقات
-            positions = []
-            for order in open_orders:
-                position = {
-                    "symbol": order.get('symbol', ''),
-                    "side": order.get('side', ''),
-                    "size": order.get('origQty', '0'),
-                    "entryPrice": order.get('price', '0'),
-                    "markPrice": order.get('price', '0'),
-                    "unrealisedPnl": "0",
-                    "leverage": "1",
-                    "positionValue": str(float(order.get('origQty', 0)) * float(order.get('price', 0))),
-                    "orderId": order.get('orderId', ''),
-                    "orderStatus": order.get('status', '')
-                }
-                positions.append(position)
-            
-            return positions
-            
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على الصفقات MEXC: {e}")
-            return []
 
 
 # ==================== إدارة أدوات الصفقات المتقدمة ====================
@@ -1646,34 +1205,31 @@ class TradeToolsManager:
     def get_auto_settings_summary(self) -> str:
         """الحصول على ملخص الإعدادات التلقائية"""
         if not self.auto_apply_enabled:
-            return "🔴 **التطبيق التلقائي معطل**\n\n❌ لن يتم تطبيق أي إعدادات تلقائياً على الصفقات الجديدة"
+            return "⏸️ **التطبيق التلقائي معطل**"
         
-        summary = "🟢 **التطبيق التلقائي مُفعّل**\n\n"
-        summary += "📊 **الإعدادات المحفوظة:**\n\n"
+        summary = "✅ **التطبيق التلقائي مُفعّل**\n\n"
         
         if self.default_tp_percentages:
             summary += "🎯 **أهداف الربح:**\n"
             for i, (tp, close) in enumerate(zip(self.default_tp_percentages, 
                                                self.default_tp_close_percentages), 1):
-                summary += f"   • TP{i}: +{tp}% → إغلاق {close}%\n"
+                summary += f"• TP{i}: +{tp}% → إغلاق {close}%\n"
         else:
-            summary += "🎯 **أهداف الربح:** ❌ غير محددة\n"
+            summary += "🎯 **أهداف الربح:** غير محددة\n"
         
         summary += "\n"
         
         if self.default_sl_percentage > 0:
             sl_type = "⚡ Trailing" if self.default_trailing_enabled else "🛑 ثابت"
-            summary += f"🛑 **Stop Loss:** ✅ {sl_type} عند -{self.default_sl_percentage}%\n"
+            summary += f"🛑 **Stop Loss:** {sl_type} عند -{self.default_sl_percentage}%\n"
             
             if self.default_trailing_enabled:
-                summary += f"   📏 المسافة: {self.default_trailing_distance}%\n"
+                summary += f"   المسافة: {self.default_trailing_distance}%\n"
         else:
-            summary += "🛑 **Stop Loss:** ❌ غير محدد\n"
+            summary += "🛑 **Stop Loss:** غير محدد\n"
         
         if self.auto_breakeven_on_tp1:
-            summary += "\n🔁 **نقل للتعادل:** 🟢 مُفعّل عند تحقيق TP1"
-        else:
-            summary += "\n🔁 **نقل للتعادل:** 🔴 معطل"
+            summary += "\n🔁 **نقل تلقائي للتعادل** عند تحقيق TP1"
         
         return summary
 
@@ -1682,14 +1238,10 @@ class TradingBot:
     """فئة البوت الرئيسية مع دعم محسن للفيوتشر"""
     
     def __init__(self):
-        # إعداد APIs للمنصات المختلفة
+        # إعداد API
         self.bybit_api = None
-        self.mexc_api = None
-        
         if BYBIT_API_KEY and BYBIT_API_SECRET:
             self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
-        
-        # سيتم تهيئة MEXC API عند الحاجة من بيانات المستخدم
         
         # إعداد الحسابات التجريبية
         self.demo_account_spot = TradingAccount(
@@ -1719,37 +1271,6 @@ class TradingBot:
             'inverse': []
         }
         self.last_pairs_update = 0
-    
-    def get_api_for_user(self, user_id: int):
-        """الحصول على API المناسب للمستخدم حسب المنصة المختارة"""
-        try:
-            user_data = user_manager.get_user(user_id)
-            if not user_data:
-                return self.bybit_api
-            
-            platform = user_data.get('exchange_platform', 'bybit')
-            api_key = user_data.get('api_key')
-            api_secret = user_data.get('api_secret')
-            
-            if not api_key or not api_secret:
-                return None
-            
-            if platform == 'mexc':
-                # إنشاء أو إرجاع MEXC API
-                if not self.mexc_api or self.mexc_api.api_key != api_key:
-                    logger.info(f"🟩 إنشاء MEXC API للمستخدم {user_id}")
-                    self.mexc_api = MEXCAPI(api_key, api_secret)
-                return self.mexc_api
-            else:
-                # Bybit
-                if not self.bybit_api or self.bybit_api.api_key != api_key:
-                    logger.info(f"🟦 إنشاء Bybit API للمستخدم {user_id}")
-                    self.bybit_api = BybitAPI(api_key, api_secret)
-                return self.bybit_api
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على API للمستخدم {user_id}: {e}")
-            return self.bybit_api
         
     def get_current_account(self):
         """الحصول على الحساب الحالي حسب نوع السوق"""
@@ -2584,97 +2105,26 @@ user_input_state = {}
 
 # ==================== وظائف التحقق من API ====================
 
-def check_api_connection(api_key: str, api_secret: str, platform: str = 'bybit') -> bool:
+async def check_api_connection(api_key: str, api_secret: str) -> bool:
     """التحقق من صحة API keys"""
-    logger.info("="*60)
-    logger.info("🔍 بدء التحقق من API Keys")
-    logger.info("="*60)
-    
     try:
         if not api_key or not api_secret:
-            logger.warning("❌ API key أو secret فارغ")
             return False
         
-        # التحقق من طول المفاتيح
-        if len(api_key) < 10 or len(api_secret) < 10:
-            logger.warning("❌ API key أو secret قصير جداً")
-            return False
+        # إنشاء API مؤقت للتحقق
+        temp_api = BybitAPI(api_key, api_secret)
         
-        logger.info(f"🟢 المنصة: {platform.upper()}")
-        logger.info(f"🔑 API Key Length: {len(api_key)}")
-        logger.info(f"🔐 Secret Length: {len(api_secret)}")
+        # محاولة الحصول على معلومات الحساب
+        account_info = await temp_api.get_account_balance()
         
-        if platform == 'mexc':
-            # التحقق من MEXC API - استخدام الاختبار السريع
-            logger.info("🟩 بدء التحقق من MEXC API (اختبار سريع)...")
-            try:
-                temp_api = MEXCAPI(api_key, api_secret)
-                
-                # استخدام test_connection بدلاً من get_account_info لتسريع التحقق
-                test_result = temp_api.test_connection()
-                
-                logger.info(f"📊 نتيجة الاختبار السريع: {test_result}")
-                
-                if test_result and isinstance(test_result, dict):
-                    if test_result.get('success') == True:
-                        logger.info("✅ MEXC API صحيح!")
-                        return True
-                    else:
-                        error_msg = test_result.get('msg', 'خطأ غير معروف')
-                        logger.warning(f"❌ MEXC API فشل: {error_msg}")
-                        return False
-                
-                logger.warning(f"❌ استجابة MEXC API غير متوقعة")
-                return False
-            except requests.exceptions.Timeout:
-                logger.error("⏱️ MEXC: انتهت مهلة الاتصال")
-                return False
-            except requests.exceptions.ConnectionError:
-                logger.error("🌐 MEXC: خطأ في الاتصال بالشبكة")
-                return False
-            except Exception as e:
-                logger.error(f"❌ MEXC: خطأ غير متوقع - {e}")
-                return False
-            
-        else:  # bybit
-            # التحقق من Bybit API
-            logger.info("🟦 بدء التحقق من Bybit API...")
-            try:
-                temp_api = BybitAPI(api_key, api_secret)
-                account_info = temp_api.get_account_balance()
-                
-                logger.info(f"📊 استجابة Bybit API: {account_info}")
-                
-                if account_info and isinstance(account_info, dict):
-                    if 'retCode' in account_info:
-                        is_valid = account_info['retCode'] == 0
-                        if is_valid:
-                            logger.info("✅ Bybit API صحيح ويعمل!")
-                        else:
-                            logger.warning(f"❌ Bybit API غير صحيح: {account_info.get('retMsg', 'خطأ غير معروف')}")
-                        return is_valid
-                    else:
-                        # في حالة عدم وجود retCode، نحاول التحقق من البيانات
-                        if 'result' in account_info:
-                            logger.info("✅ Bybit API صحيح (تنسيق بديل)")
-                            return True
-                
-                logger.warning("❌ استجابة Bybit API غير متوقعة")
-                return False
-            except requests.exceptions.Timeout:
-                logger.error("⏱️ Bybit: انتهت مهلة الاتصال")
-                return False
-            except requests.exceptions.ConnectionError:
-                logger.error("🌐 Bybit: خطأ في الاتصال بالشبكة")
-                return False
-            except Exception as e:
-                logger.error(f"❌ Bybit: خطأ غير متوقع - {e}")
-                return False
+        # إذا تم الحصول على معلومات الحساب بنجاح
+        if account_info and 'retCode' in account_info:
+            return account_info['retCode'] == 0
+        
+        return False
         
     except Exception as e:
-        logger.error(f"❌ خطأ في التحقق من API ({platform}): {e}")
-        import traceback
-        logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
+        logger.error(f"خطأ في التحقق من API: {e}")
         return False
 
 def get_api_status_indicator(api_key: str, api_secret: str, is_valid: bool = None) -> str:
@@ -2682,19 +2132,8 @@ def get_api_status_indicator(api_key: str, api_secret: str, is_valid: bool = Non
     if not api_key or not api_secret:
         return "🔴 غير مرتبط"
     
-    # إذا لم يتم توفير حالة الصحة، نقوم بالتحقق السريع
     if is_valid is None:
-        try:
-            # محاولة التحقق السريع
-            temp_api = BybitAPI(api_key, api_secret)
-            result = temp_api.get_account_balance()
-            
-            if result and isinstance(result, dict) and result.get('retCode') == 0:
-                return "🟢 مرتبط وصحيح"
-            else:
-                return "🔴 مرتبط ولكن غير صحيح"
-        except:
-            return "🔴 مرتبط ولكن غير صحيح"
+        return "🟡 جاري التحقق..."
     elif is_valid:
         return "🟢 مرتبط وصحيح"
     else:
@@ -3181,24 +2620,10 @@ async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT
         
         summary = trade_tools_manager.get_auto_settings_summary()
         
-        # تحديد الحالة الحالية بوضوح
-        if trade_tools_manager.auto_apply_enabled:
-            status_emoji = "🟢"
-            status_text = "**مُفعّل الآن**"
-        else:
-            status_emoji = "🔴"
-            status_text = "**معطل حالياً**"
-        
         message = f"""
 ⚙️ **إعدادات التطبيق التلقائي**
 
-{status_emoji} **الحالة:** {status_text}
-
-━━━━━━━━━━━━━━━━━━━━
-
 {summary}
-
-━━━━━━━━━━━━━━━━━━━━
 
 💡 **ما هو التطبيق التلقائي؟**
 عند التفعيل، كل صفقة جديدة تُفتح ستحصل تلقائياً على:
@@ -3209,28 +2634,15 @@ async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT
 🎯 هذا يوفر عليك الوقت ويضمن حماية كل صفقاتك!
         """
         
-        # أزرار واضحة مع مؤشرات الحالة
-        if trade_tools_manager.auto_apply_enabled:
-            toggle_button = InlineKeyboardButton(
-                "🔴 تعطيل التطبيق التلقائي", 
-                callback_data="toggle_auto_apply"
-            )
-        else:
-            toggle_button = InlineKeyboardButton(
-                "🟢 تفعيل التطبيق التلقائي", 
-                callback_data="toggle_auto_apply"
-            )
+        status_button = "⏸️ تعطيل" if trade_tools_manager.auto_apply_enabled else "✅ تفعيل"
         
         keyboard = [
-            [toggle_button],
+            [InlineKeyboardButton(
+                f"{status_button} التطبيق التلقائي", 
+                callback_data="toggle_auto_apply"
+            )],
             [InlineKeyboardButton("⚙️ تعديل الإعدادات", callback_data="edit_auto_settings")],
-            [
-                InlineKeyboardButton("🎲 إعداد سريع (محافظ)", callback_data="quick_auto_setup_safe"),
-                InlineKeyboardButton("⚡ إعداد سريع (متوازن)", callback_data="quick_auto_setup")
-            ],
-            [
-                InlineKeyboardButton("🚀 إعداد سريع (عدواني)", callback_data="quick_auto_setup_aggressive")
-            ],
+            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
             [InlineKeyboardButton("🗑️ حذف الإعدادات", callback_data="clear_auto_settings")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="settings")]
         ]
@@ -3282,12 +2694,12 @@ async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
 async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع متوازن للإعدادات التلقائية"""
+    """إعداد سريع للإعدادات التلقائية"""
     try:
         query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد المتوازن...")
+        await query.answer("⏳ جاري تطبيق الإعداد السريع...")
         
-        # إعدادات متوازنة
+        # إعدادات ذكية افتراضية
         success = trade_tools_manager.save_auto_settings(
             tp_percentages=[1.5, 3.0, 5.0],
             tp_close_percentages=[50, 30, 20],
@@ -3301,9 +2713,7 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             trade_tools_manager.enable_auto_apply()
             
             message = """
-✅ **تم تطبيق الإعداد المتوازن بنجاح!**
-
-⚡ **النوع:** متوازن (Risk/Reward: 1:2.5)
+✅ **تم تطبيق الإعداد السريع بنجاح!**
 
 🎯 **أهداف الربح:**
 • TP1: +1.5% → إغلاق 50%
@@ -3314,7 +2724,7 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
 
-🟢 **التطبيق التلقائي مُفعّل**
+✅ **التطبيق التلقائي مُفعّل**
 
 💡 الآن كل صفقة جديدة ستحصل على هذه الإعدادات تلقائياً!
             """
@@ -3334,170 +2744,43 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
-async def quick_auto_setup_safe(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع محافظ للإعدادات التلقائية"""
-    try:
-        query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد المحافظ...")
-        
-        # إعدادات محافظة - أهداف قريبة وستوب لوس ضيق
-        success = trade_tools_manager.save_auto_settings(
-            tp_percentages=[1.0, 2.0, 3.0],
-            tp_close_percentages=[60, 30, 10],
-            sl_percentage=1.5,
-            trailing_enabled=True,
-            trailing_distance=1.0,
-            breakeven_on_tp1=True
-        )
-        
-        if success:
-            trade_tools_manager.enable_auto_apply()
-            
-            message = """
-✅ **تم تطبيق الإعداد المحافظ بنجاح!**
-
-🛡️ **النوع:** محافظ (حماية عالية، أهداف قريبة)
-
-🎯 **أهداف الربح:**
-• TP1: +1.0% → إغلاق 60%
-• TP2: +2.0% → إغلاق 30%
-• TP3: +3.0% → إغلاق 10%
-
-🛑 **Stop Loss:** -1.5% (ضيق)
-
-⚡ **Trailing Stop:** مُفعّل (مسافة 1%)
-
-🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
-
-🟢 **التطبيق التلقائي مُفعّل**
-
-💡 هذا الإعداد مناسب للمبتدئين والأسواق المتقلبة!
-            """
-            
-            keyboard = [[
-                InlineKeyboardButton("⚙️ تعديل", callback_data="edit_auto_settings"),
-                InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
-            ]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        else:
-            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
-            
-    except Exception as e:
-        logger.error(f"خطأ في الإعداد المحافظ: {e}")
-        if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
-async def quick_auto_setup_aggressive(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع عدواني للإعدادات التلقائية"""
-    try:
-        query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد العدواني...")
-        
-        # إعدادات عدوانية - أهداف بعيدة وستوب لوس أوسع
-        success = trade_tools_manager.save_auto_settings(
-            tp_percentages=[2.0, 5.0, 10.0],
-            tp_close_percentages=[40, 30, 30],
-            sl_percentage=3.0,
-            trailing_enabled=False,
-            trailing_distance=2.0,
-            breakeven_on_tp1=True
-        )
-        
-        if success:
-            trade_tools_manager.enable_auto_apply()
-            
-            message = """
-✅ **تم تطبيق الإعداد العدواني بنجاح!**
-
-🚀 **النوع:** عدواني (أهداف بعيدة، Risk/Reward: 1:3.3)
-
-🎯 **أهداف الربح:**
-• TP1: +2.0% → إغلاق 40%
-• TP2: +5.0% → إغلاق 30%
-• TP3: +10.0% → إغلاق 30%
-
-🛑 **Stop Loss:** -3.0% (واسع)
-
-🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
-
-🟢 **التطبيق التلقائي مُفعّل**
-
-⚠️ هذا الإعداد مناسب للمتداولين ذوي الخبرة والأسواق الصاعدة!
-            """
-            
-            keyboard = [[
-                InlineKeyboardButton("⚙️ تعديل", callback_data="edit_auto_settings"),
-                InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
-            ]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        else:
-            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
-            
-    except Exception as e:
-        logger.error(f"خطأ في الإعداد العدواني: {e}")
-        if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
 async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل الإعدادات التلقائية"""
     try:
         query = update.callback_query
         await query.answer()
         
-        # بناء عرض واضح للإعدادات الحالية
-        current_settings = "📊 **الإعدادات الحالية:**\n\n"
-        
+        current_settings = ""
         if trade_tools_manager.default_tp_percentages:
-            current_settings += "🎯 **أهداف الربح:**\n"
+            current_settings += "🎯 **الأهداف الحالية:**\n"
             for i, (tp, close) in enumerate(zip(trade_tools_manager.default_tp_percentages,
                                                 trade_tools_manager.default_tp_close_percentages), 1):
-                current_settings += f"   • TP{i}: +{tp}% → إغلاق {close}%\n"
+                current_settings += f"• TP{i}: +{tp}% → {close}%\n"
         else:
-            current_settings += "🎯 **أهداف الربح:** ❌ غير محددة\n"
+            current_settings += "🎯 لا توجد أهداف محددة\n"
         
         current_settings += "\n"
         
         if trade_tools_manager.default_sl_percentage > 0:
-            sl_status = "✅"
-            current_settings += f"🛑 **Stop Loss:** {sl_status} -{trade_tools_manager.default_sl_percentage}%\n"
-            
+            current_settings += f"🛑 **Stop Loss:** -{trade_tools_manager.default_sl_percentage}%\n"
             if trade_tools_manager.default_trailing_enabled:
-                current_settings += f"⚡ **Trailing Stop:** 🟢 مُفعّل (مسافة {trade_tools_manager.default_trailing_distance}%)\n"
-            else:
-                current_settings += f"⚡ **Trailing Stop:** 🔴 معطل\n"
+                current_settings += f"⚡ **Trailing:** نعم ({trade_tools_manager.default_trailing_distance}%)\n"
         else:
-            current_settings += "🛑 **Stop Loss:** ❌ غير محدد\n"
-            current_settings += "⚡ **Trailing Stop:** 🔴 معطل\n"
-        
-        if trade_tools_manager.auto_breakeven_on_tp1:
-            current_settings += "\n🔁 **نقل للتعادل:** 🟢 مُفعّل عند TP1"
+            current_settings += "🛑 لا يوجد Stop Loss\n"
         
         message = f"""
 ⚙️ **تعديل الإعدادات التلقائية**
 
 {current_settings}
 
-━━━━━━━━━━━━━━━━━━━━
-
 اختر ما تريد تعديله:
         """
-        
-        # أزرار واضحة مع مؤشرات الحالة
-        trailing_btn_text = "⚡ تعطيل Trailing" if trade_tools_manager.default_trailing_enabled else "⚡ تفعيل Trailing"
         
         keyboard = [
             [InlineKeyboardButton("🎯 تعديل أهداف الربح", callback_data="edit_auto_tp")],
             [InlineKeyboardButton("🛑 تعديل Stop Loss", callback_data="edit_auto_sl")],
-            [InlineKeyboardButton(trailing_btn_text, callback_data="toggle_auto_trailing")],
-            [
-                InlineKeyboardButton("🎲 محافظ", callback_data="quick_auto_setup_safe"),
-                InlineKeyboardButton("⚡ متوازن", callback_data="quick_auto_setup"),
-                InlineKeyboardButton("🚀 عدواني", callback_data="quick_auto_setup_aggressive")
-            ],
+            [InlineKeyboardButton("⚡ تفعيل/تعطيل Trailing", callback_data="toggle_auto_trailing")],
+            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3927,13 +3210,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     market_type = user_data.get('market_type', 'spot')
     account_type = user_data.get('account_type', 'demo')
     
-    # الحصول على المنصة الحالية
-    current_platform = user_data.get('exchange_platform', 'bybit')
-    platform_emoji = "🟦" if current_platform == 'bybit' else "🟩"
-    
     # بناء القائمة الأساسية
     keyboard = [
-        [InlineKeyboardButton(f"{platform_emoji} المنصة: {current_platform.upper()}", callback_data="choose_exchange")],
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]
@@ -3967,54 +3245,42 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     market_type = user_data.get('market_type', 'spot')
     
     # 🔍 التحقق من نوع الحساب وجلب البيانات المناسبة
-    if account_type == 'real':
+    if account_type == 'real' and trading_bot.bybit_api:
         # 🔴 حساب حقيقي - جلب البيانات من المنصة عبر API
-        user_api = trading_bot.get_api_for_user(user_id)
+        logger.info(f"🔴 جلب بيانات الحساب الحقيقي من Bybit للمستخدم {user_id}")
         
-        if user_api:
-            platform_name = "MEXC" if current_platform == 'mexc' else "Bybit"
-            logger.info(f"🔴 جلب بيانات الحساب الحقيقي من {platform_name} للمستخدم {user_id}")
+        try:
+            # جلب رصيد المحفظة من Bybit
+            wallet_response = trading_bot.bybit_api.get_wallet_balance("UNIFIED")
             
-            try:
-                # جلب رصيد المحفظة - متوافق مع كلا المنصتين
-                wallet_response = user_api.get_wallet_balance("UNIFIED") if current_platform == 'bybit' else user_api.get_wallet_balance()
+            if wallet_response and wallet_response.get('list'):
+                wallet_data = wallet_response['list'][0]
+                total_equity = float(wallet_data.get('totalEquity', 0))
+                available_balance = float(wallet_data.get('totalAvailableBalance', 0))
+                total_margin_balance = float(wallet_data.get('totalMarginBalance', 0))
+                total_pnl = float(wallet_data.get('totalPerpUPL', 0))  # Unrealized PnL
                 
-                if wallet_response and wallet_response.get('list'):
-                    wallet_data = wallet_response['list'][0]
-                    total_equity = float(wallet_data.get('totalEquity', 0))
-                    available_balance = float(wallet_data.get('totalAvailableBalance', 0))
-                    total_margin_balance = float(wallet_data.get('totalMarginBalance', 0))
-                    total_pnl = float(wallet_data.get('totalPerpUPL', 0))  # Unrealized PnL
-                    
-                    # حساب الهامش المحجوز
-                    margin_locked = total_margin_balance - available_balance if total_margin_balance > available_balance else 0
-                    
-                    account_info = {
-                        'balance': total_equity,
-                        'available_balance': available_balance,
-                        'margin_locked': margin_locked,
-                        'unrealized_pnl': total_pnl
-                    }
-                    
-                    logger.info(f"✅ تم جلب بيانات المحفظة: الرصيد={total_equity:.2f}, المتاح={available_balance:.2f}")
-                else:
-                    logger.warning(f"⚠️ فشل جلب بيانات المحفظة من {platform_name}")
-                    account_info = {
-                        'balance': 0.0,
-                        'available_balance': 0.0,
-                        'margin_locked': 0.0,
-                        'unrealized_pnl': 0.0
-                    }
-            except Exception as e:
-                logger.error(f"❌ خطأ في جلب بيانات المحفظة: {e}")
+                # حساب الهامش المحجوز
+                margin_locked = total_margin_balance - available_balance if total_margin_balance > available_balance else 0
+                
+                account_info = {
+                    'balance': total_equity,
+                    'available_balance': available_balance,
+                    'margin_locked': margin_locked,
+                    'unrealized_pnl': total_pnl
+                }
+                
+                logger.info(f"✅ تم جلب بيانات المحفظة: الرصيد={total_equity:.2f}, المتاح={available_balance:.2f}")
+            else:
+                logger.warning("⚠️ فشل جلب بيانات المحفظة من Bybit")
                 account_info = {
                     'balance': 0.0,
                     'available_balance': 0.0,
                     'margin_locked': 0.0,
                     'unrealized_pnl': 0.0
                 }
-        else:
-            logger.warning("⚠️ لم يتم العثور على API للمستخدم")
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب بيانات المحفظة: {e}")
             account_info = {
                 'balance': 0.0,
                 'available_balance': 0.0,
@@ -4678,9 +3944,7 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
                 )
             ],
             [
-                InlineKeyboardButton("🎲 إعداد سريع", callback_data=f"quick_setup_menu_{position_id}")
-            ],
-            [
+                InlineKeyboardButton("🎲 إعداد سريع (ذكي)", callback_data=f"quick_setup_{position_id}"),
                 InlineKeyboardButton("ℹ️ دليل الأدوات", callback_data=f"tools_guide_{position_id}")
             ],
             [
@@ -4915,106 +4179,15 @@ async def custom_partial_close(update: Update, context: ContextTypes.DEFAULT_TYP
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
-async def quick_setup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """قائمة الإعداد السريع للصفقة"""
+async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعداد سريع ذكي لجميع الأدوات"""
     try:
         query = update.callback_query
-        await query.answer()
+        await query.answer("⏳ جاري تطبيق الإعداد الذكي...")
         
-        position_id = query.data.replace("quick_setup_menu_", "")
+        position_id = query.data.replace("quick_setup_", "")
         
-        message = """
-🎲 **اختر نوع الإعداد السريع**
-
-اختر الإعداد المناسب لأسلوب تداولك:
-
-🛡️ **محافظ:** أهداف قريبة، حماية عالية
-⚡ **متوازن:** توازن بين الربح والحماية
-🚀 **عدواني:** أهداف بعيدة، مخاطرة أعلى
-
-💡 سيتم تطبيق الإعدادات فوراً على هذه الصفقة
-        """
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("🛡️ محافظ", callback_data=f"quick_setup_safe_{position_id}"),
-                InlineKeyboardButton("⚡ متوازن", callback_data=f"quick_setup_balanced_{position_id}")
-            ],
-            [
-                InlineKeyboardButton("🚀 عدواني", callback_data=f"quick_setup_aggressive_{position_id}")
-            ],
-            [InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"خطأ في قائمة الإعداد السريع: {e}")
-        if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
-async def quick_setup_safe(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع محافظ للصفقة"""
-    try:
-        query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد المحافظ...")
-        
-        position_id = query.data.replace("quick_setup_safe_", "")
-        
-        # تطبيق الإعدادات المحافظة
-        success = trade_tools_manager.set_default_levels(
-            position_id, 
-            tp_percentages=[1.0, 2.0, 3.0],
-            sl_percentage=1.5,
-            trailing=True,
-            trailing_distance=1.0
-        )
-        
-        if success:
-            message = """
-✅ **تم تطبيق الإعداد المحافظ بنجاح!**
-
-🛡️ **النوع:** محافظ (حماية عالية)
-
-🎯 **أهداف الربح:**
-• TP1: +1.0% → إغلاق 60%
-• TP2: +2.0% → إغلاق 30%
-• TP3: +3.0% → إغلاق 10%
-
-🛑 **Stop Loss:** -1.5% (ضيق)
-
-⚡ **Trailing Stop:** مُفعّل (مسافة 1%)
-
-🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
-
-💡 هذا الإعداد مناسب للمبتدئين والأسواق المتقلبة!
-            """
-            
-            keyboard = [[
-                InlineKeyboardButton("⚙️ تعديل", callback_data=f"manage_{position_id}"),
-                InlineKeyboardButton("✅ تم", callback_data="show_positions")
-            ]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        else:
-            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
-            
-    except Exception as e:
-        logger.error(f"خطأ في الإعداد المحافظ: {e}")
-        if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
-async def quick_setup_balanced(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع متوازن للصفقة"""
-    try:
-        query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد المتوازن...")
-        
-        position_id = query.data.replace("quick_setup_balanced_", "")
-        
-        # تطبيق الإعدادات المتوازنة
+        # تطبيق الإعدادات الذكية
         success = trade_tools_manager.set_default_levels(
             position_id, 
             tp_percentages=[1.5, 3.0, 5.0],
@@ -5024,9 +4197,7 @@ async def quick_setup_balanced(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if success:
             message = """
-✅ **تم تطبيق الإعداد المتوازن بنجاح!**
-
-⚡ **النوع:** متوازن (Risk/Reward: 1:2.5)
+✅ **تم تطبيق الإعداد الذكي بنجاح!**
 
 🎯 **أهداف الربح:**
 • TP1: +1.5% → إغلاق 50%
@@ -5037,7 +4208,9 @@ async def quick_setup_balanced(update: Update, context: ContextTypes.DEFAULT_TYP
 
 🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
 
-💡 إعدادات متوازنة توفر حماية جيدة مع إمكانية ربح معقولة!
+⚖️ **نسبة المخاطرة/العائد:** 1:2.5
+
+💡 هذه إعدادات متوازنة توفر حماية جيدة مع إمكانية ربح معقولة
             """
             
             keyboard = [[
@@ -5051,67 +4224,9 @@ async def quick_setup_balanced(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
             
     except Exception as e:
-        logger.error(f"خطأ في الإعداد المتوازن: {e}")
+        logger.error(f"خطأ في quick setup: {e}")
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
-async def quick_setup_aggressive(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع عدواني للصفقة"""
-    try:
-        query = update.callback_query
-        await query.answer("⏳ جاري تطبيق الإعداد العدواني...")
-        
-        position_id = query.data.replace("quick_setup_aggressive_", "")
-        
-        # تطبيق الإعدادات العدوانية
-        success = trade_tools_manager.set_default_levels(
-            position_id, 
-            tp_percentages=[2.0, 5.0, 10.0],
-            sl_percentage=3.0,
-            trailing=False
-        )
-        
-        if success:
-            message = """
-✅ **تم تطبيق الإعداد العدواني بنجاح!**
-
-🚀 **النوع:** عدواني (Risk/Reward: 1:3.3)
-
-🎯 **أهداف الربح:**
-• TP1: +2.0% → إغلاق 40%
-• TP2: +5.0% → إغلاق 30%
-• TP3: +10.0% → إغلاق 30%
-
-🛑 **Stop Loss:** -3.0% (واسع)
-
-🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
-
-⚠️ هذا الإعداد مناسب للمتداولين ذوي الخبرة والأسواق الصاعدة!
-            """
-            
-            keyboard = [[
-                InlineKeyboardButton("⚙️ تعديل", callback_data=f"manage_{position_id}"),
-                InlineKeyboardButton("✅ تم", callback_data="show_positions")
-            ]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        else:
-            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
-            
-    except Exception as e:
-        logger.error(f"خطأ في الإعداد العدواني: {e}")
-        if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
-
-# الاحتفاظ بالدالة القديمة للتوافق
-async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """إعداد سريع ذكي لجميع الأدوات (للتوافق مع الإصدارات السابقة)"""
-    # إعادة توجيه للإعداد المتوازن
-    query = update.callback_query
-    position_id = query.data.replace("quick_setup_", "")
-    query.data = f"quick_setup_balanced_{position_id}"
-    await quick_setup_balanced(update, context)
 
 async def custom_tp_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """طلب إدخال Take Profit مخصص"""
@@ -5909,184 +5024,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"📥 Callback received: {data} from user {user_id}")
     
-    # معالجة اختيار المنصة
-    if data == "choose_exchange":
-        user_data = user_manager.get_user(user_id) if user_id else None
-        current_platform = user_data.get('exchange_platform', 'bybit') if user_data else 'bybit'
-        
-        message = f"""
-🏢 **اختيار منصة التداول**
-
-📊 **المنصة الحالية:** {current_platform.upper()}
-
-اختر المنصة التي تريد استخدامها:
-
-🟦 **Bybit**
-• دعم Spot & Futures
-• رافعة مالية تصل إلى 100x
-• واجهة متقدمة
-
-🟩 **MEXC**
-• دعم Spot فقط
-• أزواج تداول متنوعة
-• رسوم منخفضة
-
-💡 **ملاحظة:** بعد تغيير المنصة، يجب عليك ربط API الخاص بالمنصة الجديدة
-        """
-        
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    f"{'✅ ' if current_platform == 'bybit' else ''}🟦 Bybit", 
-                    callback_data="set_exchange_bybit"
-                ),
-                InlineKeyboardButton(
-                    f"{'✅ ' if current_platform == 'mexc' else ''}🟩 MEXC", 
-                    callback_data="set_exchange_mexc"
-                )
-            ],
-            [InlineKeyboardButton("🔙 رجوع", callback_data="settings")]
-        ]
-        
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(
-                message, 
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
-    
-    elif data == "set_exchange_bybit" or data == "set_exchange_mexc":
-        platform = "bybit" if data == "set_exchange_bybit" else "mexc"
-        
-        # تحديث المنصة في قاعدة البيانات
-        from database import db_manager
-        success = db_manager.update_exchange_platform(user_id, platform)
-        
-        if success:
-            # تحديد معلومات المنصة
-            if platform == "bybit":
-                platform_name = "Bybit"
-                platform_emoji = "🟦"
-                platform_url = "https://www.bybit.com/app/user/api-management"
-                platform_features = """
-✅ تداول فوري (Spot)
-✅ عقود آجلة (Futures)
-✅ رافعة مالية حتى 100x
-✅ Stop Loss & Take Profit متقدم
-                """
-            else:  # mexc
-                platform_name = "MEXC"
-                platform_emoji = "🟩"
-                platform_url = "https://www.mexc.com/user/openapi"
-                platform_features = """
-✅ تداول فوري (Spot)
-❌ عقود آجلة (غير مدعومة عبر API)
-✅ أزواج تداول متنوعة
-✅ Stop Loss & Take Profit
-                """
-            
-            message = f"""
-✅ **تم تغيير المنصة بنجاح!**
-
-{platform_emoji} **المنصة الجديدة:** {platform_name}
-
-📊 **الميزات المتاحة:**
-{platform_features}
-
-⚠️ **مهم جداً:**
-يجب عليك الآن ربط API الخاص بمنصة {platform_name}
-
-🔗 **للحصول على API Keys:**
-{platform_url}
-
-📝 **الصلاحيات المطلوبة:**
-• Read-Write ✅
-• Spot Trading ✅
-{'• Contract Trading ✅' if platform == 'bybit' else ''}
-
-💡 اضغط على "🔗 ربط API الجديد" للبدء
-            """
-            
-            # حفظ المنصة في context للاستخدام المباشر
-            if user_id and context:
-                context.user_data['selected_platform'] = platform
-            
-            keyboard = [[
-                InlineKeyboardButton("🔗 ربط API الجديد", callback_data="link_api"),
-                InlineKeyboardButton("🔙 رجوع", callback_data="settings")
-            ]]
-        else:
-            message = "❌ فشل في تغيير المنصة. حاول مرة أخرى."
-            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="settings")]]
-        
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(
-                message,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
-    
     # معالجة زر الربط API
-    elif data == "link_api":
+    if data == "link_api":
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_api_key"
-            
-            # الحصول على المنصة المختارة - من context أولاً ثم من قاعدة البيانات
-            current_platform = None
-            if context and 'selected_platform' in context.user_data:
-                current_platform = context.user_data['selected_platform']
-                logger.info(f"🔍 استخدام المنصة من context: {current_platform}")
-            else:
-                user_data = user_manager.get_user(user_id)
-                current_platform = user_data.get('exchange_platform', 'bybit') if user_data else 'bybit'
-                logger.info(f"🔍 استخدام المنصة من قاعدة البيانات: {current_platform}")
-            
-            # تحديد معلومات المنصة
-            if current_platform == 'mexc':
-                platform_name = "MEXC"
-                platform_emoji = "🟩"
-                platform_url = "https://www.mexc.com/user/openapi"
-                platform_note = """
-📝 **صلاحيات MEXC المطلوبة:**
-• Read Info ✅
-• Spot Trading ✅
-
-⚠️ **ملاحظة:** MEXC يدعم فقط التداول الفوري (Spot)
-                """
-            else:  # bybit
-                platform_name = "Bybit"
-                platform_emoji = "🟦"
-                platform_url = "https://www.bybit.com/app/user/api-management"
-                platform_note = """
-📝 **صلاحيات Bybit المطلوبة:**
-• Read-Write ✅
-• Contract Trading ✅
-• Spot Trading ✅
-                """
-            
-            # حفظ المنصة في context لاستخدامها عند حفظ API
-            if context:
-                context.user_data['selected_platform'] = current_platform
-                logger.info(f"✅ تم حفظ المنصة في context: {current_platform}")
-            
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text(f"""
-🔗 **ربط API - الخطوة 1**
+            await update.callback_query.edit_message_text("""
+🔗 ربط API - الخطوة 1
 
-{platform_emoji} **المنصة:** {platform_name}
+أرسل API_KEY الخاص بك من Bybit
 
-أرسل **API KEY** الخاص بك من {platform_name}
-
-{platform_note}
-
-⚠️ **تأكد من:**
+⚠️ تأكد من:
 • عدم مشاركة المفاتيح مع أي شخص
 • إنشاء مفاتيح API محدودة الصلاحيات
-• عدم تفعيل IP Whitelist
-
-🔗 **رابط إنشاء API:**
-{platform_url}
-            """, parse_mode='Markdown')
+• يمكنك الحصول على المفاتيح من: https://api.bybit.com
+            """)
     elif data == "check_api":
         # فحص حالة API
         if user_id is not None:
@@ -6097,42 +5049,29 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.edit_message_text("🔄 جاري فحص API...")
                 
                 # التحقق من صحة API
-                platform = user_data.get('exchange_platform', 'bybit')
-                is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'], platform)
-                
-                # تحديد معلومات المنصة
-                if platform == 'mexc':
-                    platform_name = "MEXC"
-                    platform_emoji = "🟩"
-                    platform_url = "https://api.mexc.com"
-                else:
-                    platform_name = "Bybit"
-                    platform_emoji = "🟦"
-                    platform_url = "https://api.bybit.com"
+                is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'])
                 
                 if is_valid:
-                    status_message = f"""
-✅ **API يعمل بشكل صحيح!**
+                    status_message = """
+✅ API يعمل بشكل صحيح!
 
-{platform_emoji} **المنصة:** {platform_name}
-🟢 **الاتصال:** نشط
-🔗 **الخادم:** {platform_url}
-📊 **الصلاحيات:** مفعلة
-🔐 **الحالة:** آمن
+🟢 الاتصال: نشط
+🔗 الخادم: https://api.bybit.com
+📊 الصلاحيات: مفعلة
+🔐 الحالة: آمن
 
-💡 يمكنك استخدام جميع ميزات البوت
+يمكنك استخدام جميع ميزات البوت
                     """
                 else:
-                    status_message = f"""
-❌ **مشكلة في API!**
+                    status_message = """
+❌ مشكلة في API!
 
-{platform_emoji} **المنصة:** {platform_name}
-🔴 **الاتصال:** فشل
-🔗 **الخادم:** {platform_url}
-📊 **الصلاحيات:** غير مفعلة أو خطأ في المفاتيح
-🔐 **الحالة:** غير آمن
+🔴 الاتصال: فشل
+🔗 الخادم: https://api.bybit.com
+📊 الصلاحيات: غير مفعلة أو خطأ في المفاتيح
+🔐 الحالة: غير آمن
 
-⚠️ يرجى تحديث API keys
+يرجى تحديث API keys
                     """
                 
                 keyboard = [
@@ -6142,7 +5081,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 if update.callback_query is not None:
-                    await update.callback_query.message.edit_text(status_message, reply_markup=reply_markup, parse_mode='Markdown')
+                    await update.callback_query.message.edit_text(status_message, reply_markup=reply_markup)
             else:
                 # لا توجد API keys
                 keyboard = [
@@ -6213,10 +5152,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await toggle_auto_apply(update, context)
     elif data == "quick_auto_setup":
         await quick_auto_setup(update, context)
-    elif data == "quick_auto_setup_safe":
-        await quick_auto_setup_safe(update, context)
-    elif data == "quick_auto_setup_aggressive":
-        await quick_auto_setup_aggressive(update, context)
     elif data == "edit_auto_settings":
         logger.info(f"🔧 معالجة زر: edit_auto_settings")
         await edit_auto_settings(update, context)
@@ -6324,14 +5259,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trailing_stop_menu(update, context)
     elif data.startswith("partial_custom_"):
         await custom_partial_close(update, context)
-    elif data.startswith("quick_setup_menu_"):
-        await quick_setup_menu(update, context)
-    elif data.startswith("quick_setup_safe_"):
-        await quick_setup_safe(update, context)
-    elif data.startswith("quick_setup_balanced_"):
-        await quick_setup_balanced(update, context)
-    elif data.startswith("quick_setup_aggressive_"):
-        await quick_setup_aggressive(update, context)
     elif data.startswith("quick_setup_"):
         await quick_setup(update, context)
     elif data.startswith("customTP_"):
@@ -7120,269 +6047,58 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 api_key = context.user_data['temp_api_key']
                 api_secret = text
                 
-                # التحقق من صحة المفاتيح - استخدام المنصة من context أو قاعدة البيانات
-                platform = None
-                if 'selected_platform' in context.user_data:
-                    platform = context.user_data['selected_platform']
-                    logger.info(f"🔍 استخدام المنصة من context عند الحفظ: {platform}")
-                else:
-                    user_data_temp = user_manager.get_user(user_id)
-                    platform = user_data_temp.get('exchange_platform', 'bybit') if user_data_temp else 'bybit'
-                    logger.info(f"🔍 استخدام المنصة من قاعدة البيانات عند الحفظ: {platform}")
-                
-                # عرض رسالة التحقق مع اسم المنصة
-                platform_name = "MEXC" if platform == 'mexc' else "Bybit"
-                platform_emoji = "🟩" if platform == 'mexc' else "🟦"
-                
                 # التحقق من صحة API keys قبل الحفظ
-                checking_message = None
-                try:
-                    if update.message is not None:
-                        checking_message = await update.message.reply_text(
-                            f"🔄 **جاري التحقق من {platform_name} API...**\n\n"
-                            f"{platform_emoji} الاتصال بالمنصة...\n"
-                            f"⏳ يرجى الانتظار (3-5 ثواني)",
-                            parse_mode='Markdown'
-                        )
-                        logger.info(f"✅ تم إرسال رسالة التحقق للمستخدم {user_id}")
-                except Exception as e:
-                    logger.error(f"❌ خطأ في إرسال رسالة التحقق: {e}")
+                if update.message is not None:
+                    checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...")
                 
-                # تشغيل التحقق في thread منفصل لتجنب blocking
-                import asyncio
-                is_valid = False
-                try:
-                    logger.info(f"🔍 بدء التحقق من API للمنصة: {platform}")
-                    loop = asyncio.get_event_loop()
-                    is_valid = await asyncio.wait_for(
-                        loop.run_in_executor(None, check_api_connection, api_key, api_secret, platform),
-                        timeout=8.0  # تايم آوت إجمالي 8 ثواني (تم تقليله من 10)
-                    )
-                    logger.info(f"✅ نتيجة التحقق: {is_valid}")
-                except asyncio.TimeoutError:
-                    logger.error("⏱️ انتهت مهلة التحقق من API")
-                    is_valid = False
-                    if update.message is not None:
-                        try:
-                            if checking_message is not None:
-                                await checking_message.delete()
-                        except Exception as e:
-                            logger.error(f"خطأ في حذف رسالة التحقق: {e}")
-                        
-                        await update.message.reply_text(
-                            f"⏱️ **انتهت مهلة التحقق من {platform_name}!**\n\n"
-                            f"🔍 **الأسباب المحتملة:**\n"
-                            f"• سيرفر المنصة بطيء حالياً\n"
-                            f"• مشكلة مؤقتة في الاتصال\n"
-                            f"• IP محظور أو مقيد\n\n"
-                            f"💡 **الحل:**\n"
-                            f"• حاول مرة أخرى بعد 30 ثانية\n"
-                            f"• تأكد من اتصالك بالإنترنت\n"
-                            f"• تحقق من إعدادات IP Whitelist",
-                            parse_mode='Markdown'
-                        )
-                    if user_id in user_input_state:
-                        del user_input_state[user_id]
-                    return
-                except Exception as e:
-                    logger.error(f"❌ خطأ غير متوقع في التحقق: {e}")
-                    is_valid = False
-                    if update.message is not None:
-                        try:
-                            if checking_message is not None:
-                                await checking_message.delete()
-                        except:
-                            pass
-                        await update.message.reply_text(
-                            f"❌ **حدث خطأ في التحقق!**\n\n"
-                            f"خطأ: {str(e)}\n\n"
-                            f"🔄 يرجى المحاولة مرة أخرى",
-                            parse_mode='Markdown'
-                        )
-                    if user_id in user_input_state:
-                        del user_input_state[user_id]
-                    return
+                # التحقق من صحة المفاتيح
+                is_valid = await check_api_connection(api_key, api_secret)
                 
                 if is_valid:
-                    logger.info(f"✅ API صحيح للمستخدم {user_id} - المنصة: {platform}")
-                    # تحديث رسالة التحقق لتظهر النجاح
-                    if update.message is not None and checking_message is not None:
-                        try:
-                            await checking_message.edit_text(
-                                f"✅ **تم التحقق بنجاح!**\n\n"
-                                f"{platform_emoji} {platform_name} API صحيح\n"
-                                f"💾 جاري حفظ البيانات...",
-                                parse_mode='Markdown'
-                            )
-                            logger.info("✅ تم تحديث رسالة التحقق للنجاح")
-                        except Exception as e:
-                            logger.error(f"خطأ في تحديث رسالة التحقق: {e}")
-                    
-                    # حفظ المفاتيح في قاعدة البيانات مع المنصة
-                    logger.info(f"💾 جاري حفظ API keys للمستخدم {user_id}")
-                    success = user_manager.update_user_api(user_id, api_key, api_secret, platform)
-                    logger.info(f"💾 نتيجة الحفظ: {success}")
+                    # حفظ المفاتيح في قاعدة البيانات
+                    success = user_manager.update_user_api(user_id, api_key, api_secret)
                     
                     if success:
                         # مسح البيانات المؤقتة
-                        if 'temp_api_key' in context.user_data:
-                            del context.user_data['temp_api_key']
-                        if 'selected_platform' in context.user_data:
-                            del context.user_data['selected_platform']
-                        if user_id in user_input_state:
-                            del user_input_state[user_id]
+                        del context.user_data['temp_api_key']
+                        del user_input_state[user_id]
                         
-                        logger.info("🗑️ تم مسح البيانات المؤقتة")
-                        
-                        # حذف رسالة التحقق وعرض رسالة النجاح النهائية
+                        # حذف رسالة التحقق
                         if update.message is not None:
-                            if checking_message is not None:
-                                try:
-                                    await checking_message.delete()
-                                    logger.info("🗑️ تم حذف رسالة التحقق")
-                                except Exception as e:
-                                    logger.error(f"خطأ في حذف رسالة التحقق: {e}")
-                            
-                            # تحديد معلومات المنصة
-                            if platform == 'mexc':
-                                platform_name = "MEXC"
-                                platform_emoji = "🟩"
-                                platform_url = "api.mexc.com"
-                                platform_type = "Spot Trading"
-                            else:
-                                platform_name = "Bybit"
-                                platform_emoji = "🟦"
-                                platform_url = "api.bybit.com"
-                                platform_type = "Spot & Futures"
-                            
-                            try:
-                                await update.message.reply_text(
-f"""✅ **تم الربط بنجاح!**
+                            await checking_message.delete()
+                            await update.message.reply_text("""
+✅ تم ربط API بنجاح!
 
-{platform_emoji} **المنصة:** {platform_name}
-🟢 **الحالة:** متصل ويعمل
-🌐 **API:** {platform_url}
-📊 **التداول:** {platform_type}
-🔐 **الأمان:** مشفر ✓
+🟢 الاتصال: https://api.bybit.com (Live)
+📊 يمكنك الآن استخدام جميع ميزات البوت
+🔐 المفاتيح آمنة ومشفرة
 
-━━━━━━━━━━━━━━━━━━━━
-🎉 **يمكنك الآن:**
-• استقبال وتنفيذ إشارات التداول
-• إدارة الصفقات المفتوحة
-• متابعة الأرباح والخسائر
-• استخدام جميع أدوات البوت
-
-استخدم /start للبدء!
-""",
-                                    parse_mode='Markdown'
-                                )
-                                logger.info("✅ تم إرسال رسالة النجاح النهائية")
-                            except Exception as e:
-                                logger.error(f"❌ خطأ في إرسال رسالة النجاح: {e}")
+استخدم /start للعودة إلى القائمة الرئيسية
+                            """)
                     else:
-                        logger.error(f"❌ فشل حفظ API للمستخدم {user_id}")
                         if update.message is not None:
-                            if checking_message is not None:
-                                try:
-                                    await checking_message.delete()
-                                except:
-                                    pass
-                            await update.message.reply_text(
-                                "❌ **فشل في حفظ البيانات!**\n\n"
-                                "حدث خطأ أثناء حفظ مفاتيح API في قاعدة البيانات.\n\n"
-                                "🔄 يرجى المحاولة مرة أخرى باستخدام /start",
-                                parse_mode='Markdown'
-                            )
+                            await checking_message.delete()
+                            await update.message.reply_text("❌ فشل في حفظ مفاتيح API. حاول مرة أخرى.")
                 else:
                     # المفاتيح غير صحيحة
-                    logger.error(f"❌ API غير صحيح للمستخدم {user_id} - المنصة: {platform}")
                     if update.message is not None:
-                        if checking_message is not None:
-                            try:
-                                await checking_message.delete()
-                                logger.info("🗑️ تم حذف رسالة التحقق")
-                            except Exception as e:
-                                logger.error(f"خطأ في حذف رسالة التحقق: {e}")
-                        
-                        # رسالة خطأ مفصلة حسب المنصة
-                        platform = context.user_data.get('selected_platform', 
-                                   db_manager.get_user_exchange_platform(user_id))
-                        
-                        if platform == 'mexc':
-                            error_message = """
-❌ فشل التحقق من MEXC API Keys!
+                        await checking_message.delete()
+                        await update.message.reply_text("""
+❌ API keys غير صحيحة!
 
-🔍 **الأسباب المحتملة:**
+🔴 تأكد من:
+• صحة API_KEY
+• صحة API_SECRET  
+• تفعيل API في حساب Bybit
+• صلاحيات API (قراءة/كتابة)
 
-1️⃣ **المفاتيح غير صحيحة**
-   • تأكد من نسخ API Key كاملاً
-   • تأكد من نسخ Secret Key كاملاً
-   • لا تترك مسافات في البداية أو النهاية
+🔗 للحصول على مفاتيح جديدة: https://api.bybit.com
 
-2️⃣ **صلاحيات API غير كافية**
-   • يجب تفعيل: Read ✅
-   • يجب تفعيل: Spot Trading ✅
-
-3️⃣ **قيود IP**
-   • تأكد من عدم تفعيل IP Whitelist
-   • أو أضف IP السيرفر إلى القائمة البيضاء
-
-4️⃣ **API منتهي أو معطل**
-   • تحقق من حالة API في لوحة التحكم
-   • تأكد أن API لم يتم حذفه أو تعطيله
-
-📝 **خطوات الحل:**
-1. اذهب إلى: https://www.mexc.com/user/openapi
-2. احذف API القديم وأنشئ واحد جديد
-3. فعّل الصلاحيات: Read + Spot Trading
-4. لا تفعّل IP Whitelist
-5. انسخ المفاتيح بعناية وأعد المحاولة
-
-💡 **نصيحة:** استخدم ملف الاختبار test_mexc_api.py للتحقق!
-
-🔄 أرسل API Key مرة أخرى للمحاولة من جديد
-                            """
-                        else:  # bybit
-                            error_message = """
-❌ فشل التحقق من Bybit API Keys!
-
-🔍 **الأسباب المحتملة:**
-
-1️⃣ **المفاتيح غير صحيحة**
-   • تأكد من نسخ API Key كاملاً
-   • تأكد من نسخ Secret Key كاملاً
-   • لا تترك مسافات في البداية أو النهاية
-
-2️⃣ **صلاحيات API غير كافية**
-   • يجب تفعيل: Read-Write ✅
-   • يجب تفعيل: Contract Trading ✅
-   • يجب تفعيل: Spot Trading ✅
-
-3️⃣ **قيود IP**
-   • تأكد من عدم تفعيل IP Whitelist
-   • أو أضف IP السيرفر إلى القائمة البيضاء
-
-4️⃣ **API منتهي أو معطل**
-   • تحقق من حالة API في لوحة التحكم
-   • تأكد أن API لم يتم حذفه أو تعطيله
-
-📝 **خطوات الحل:**
-1. اذهب إلى: https://www.bybit.com/app/user/api-management
-2. احذف API القديم وأنشئ واحد جديد
-3. فعّل جميع الصلاحيات المطلوبة
-4. لا تفعّل IP Whitelist
-5. انسخ المفاتيح بعناية وأعد المحاولة
-
-🔄 أرسل API Key مرة أخرى للمحاولة من جديد
-                            """
-                        
-                        await update.message.reply_text(error_message)
-                        
+استخدم /start للمحاولة مرة أخرى
+                        """)
                         # مسح البيانات المؤقتة
-                        if 'temp_api_key' in context.user_data:
-                            del context.user_data['temp_api_key']
-                        if user_id in user_input_state:
-                            del user_input_state[user_id]
+                        del context.user_data['temp_api_key']
+                        del user_input_state[user_id]
             else:
                 if update.message is not None:
                     await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
