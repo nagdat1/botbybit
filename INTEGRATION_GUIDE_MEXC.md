@@ -8,8 +8,8 @@
 
 ```env
 # مفاتيح MEXC API
-MEXC_API_KEY=mx0vglBqh6abc123xyz
-MEXC_API_SECRET=abc123xyz456def789ghi
+MEXC_API_KEY=
+MEXC_API_SECRET=
 ```
 
 ### الخطوة 2: تعديل ملف web_server.py
