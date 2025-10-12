@@ -2552,7 +2552,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+        [KeyboardButton("🏦 اختيار المنصة")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -5929,6 +5930,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await update.message.reply_text("❌ فشل في المتابعة")
             return
+    
+    # معالجة زر اختيار المنصة
+    if text == "🏦 اختيار المنصة":
+        from exchange_commands import cmd_select_exchange
+        await cmd_select_exchange(update, context)
+        return
     
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:

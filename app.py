@@ -216,6 +216,14 @@ def start_bot():
             application.add_handler(CallbackQueryHandler(handle_callback))
             application.add_error_handler(error_handler)
             
+            # إضافة معالجات أوامر المنصات (Bybit & MEXC)
+            try:
+                from exchange_commands import register_exchange_handlers
+                register_exchange_handlers(application)
+                print("✅ تم تسجيل معالجات أوامر المنصات")
+            except Exception as e:
+                print(f"⚠️ خطأ في تسجيل معالجات المنصات: {e}")
+            
             # تحديث الأزواج عند البدء
             try:
                 loop = asyncio.new_event_loop()
