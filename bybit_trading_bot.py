@@ -2109,22 +2109,33 @@ async def check_api_connection(api_key: str, api_secret: str) -> bool:
     """التحقق من صحة API keys"""
     try:
         if not api_key or not api_secret:
+            logger.warning("API key أو secret فارغ")
             return False
         
         # إنشاء API مؤقت للتحقق
         temp_api = BybitAPI(api_key, api_secret)
         
-        # محاولة الحصول على معلومات الحساب
-        account_info = await temp_api.get_account_balance()
+        # محاولة الحصول على معلومات الحساب (دالة عادية وليست async)
+        account_info = temp_api.get_account_balance()
+        
+        logger.info(f"نتيجة التحقق من API: {account_info}")
         
         # إذا تم الحصول على معلومات الحساب بنجاح
         if account_info and 'retCode' in account_info:
-            return account_info['retCode'] == 0
+            if account_info['retCode'] == 0:
+                logger.info("✅ API keys صحيحة")
+                return True
+            else:
+                logger.warning(f"❌ API keys غير صحيحة: {account_info.get('retMsg', 'Unknown error')}")
+                return False
         
+        logger.warning("❌ فشل في التحقق من API - استجابة غير صالحة")
         return False
         
     except Exception as e:
-        logger.error(f"خطأ في التحقق من API: {e}")
+        logger.error(f"❌ خطأ في التحقق من API: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def get_api_status_indicator(api_key: str, api_secret: str, is_valid: bool = None) -> str:
@@ -5030,14 +5041,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = "waiting_for_api_key"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("""
-🔗 ربط API - الخطوة 1
+🔗 ربط API - الخطوة 1 من 2
 
-أرسل API_KEY الخاص بك من Bybit
+📝 أرسل API_KEY الخاص بك من Bybit
 
 ⚠️ تأكد من:
 • عدم مشاركة المفاتيح مع أي شخص
 • إنشاء مفاتيح API محدودة الصلاحيات
-• يمكنك الحصول على المفاتيح من: https://api.bybit.com
+• تفعيل صلاحيات القراءة والكتابة والتداول
+
+📌 للحصول على المفاتيح:
+1. افتح https://www.bybit.com
+2. اذهب إلى Account & Security
+3. API Management
+4. Create New Key
+5. فعّل صلاحيات: Read, Write, Trade
+
+🔐 المفاتيح ستُحفظ بشكل آمن ومشفر
             """)
     elif data == "check_api":
         # فحص حالة API
@@ -6035,11 +6055,18 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = "waiting_for_api_secret"
             if update.message is not None:
                 await update.message.reply_text("""
-🔗 ربط API - الخطوة 2
+🔗 ربط API - الخطوة 2 من 2
 
-الآن أرسل API_SECRET الخاص بك
+✅ تم حفظ API_KEY بنجاح!
 
-⚠️ ملاحظة: سيتم تشفير المفاتيح وتخزينها بشكل آمن
+📝 الآن أرسل API_SECRET الخاص بك
+
+⚠️ ملاحظات مهمة:
+• سيتم التحقق من صحة المفاتيح تلقائياً
+• المفاتيح ستُشفر وتُحفظ بشكل آمن
+• لن يتمكن أحد من رؤية مفاتيحك
+
+🔐 جاري انتظار API_SECRET...
                 """)
         elif state == "waiting_for_api_secret":
             # الحصول على API_KEY المحفوظ مؤقتاً
@@ -6065,40 +6092,77 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         # حذف رسالة التحقق
                         if update.message is not None:
-                            await checking_message.delete()
+                            try:
+                                await checking_message.delete()
+                            except:
+                                pass
+                            
                             await update.message.reply_text("""
 ✅ تم ربط API بنجاح!
 
-🟢 الاتصال: https://api.bybit.com (Live)
-📊 يمكنك الآن استخدام جميع ميزات البوت
-🔐 المفاتيح آمنة ومشفرة
+🎉 مبروك! تم التحقق من صحة المفاتيح
 
-استخدم /start للعودة إلى القائمة الرئيسية
+🟢 الاتصال: متصل بـ Bybit
+🔗 الخادم: https://api.bybit.com
+📊 الوضع: حساب حقيقي (Live)
+🔐 الأمان: المفاتيح مشفرة ومحمية
+
+✨ يمكنك الآن:
+• تنفيذ صفقات حقيقية
+• متابعة حسابك مباشرة
+• استخدام جميع ميزات البوت
+
+📱 استخدم /start للعودة إلى القائمة الرئيسية
                             """)
                     else:
                         if update.message is not None:
-                            await checking_message.delete()
-                            await update.message.reply_text("❌ فشل في حفظ مفاتيح API. حاول مرة أخرى.")
+                            try:
+                                await checking_message.delete()
+                            except:
+                                pass
+                            await update.message.reply_text("""
+❌ فشل في حفظ مفاتيح API!
+
+🔴 حدث خطأ أثناء حفظ المفاتيح في قاعدة البيانات
+
+💡 الحلول المقترحة:
+• حاول مرة أخرى بعد قليل
+• تأكد من اتصالك بالإنترنت
+• تواصل مع الدعم إذا استمرت المشكلة
+
+📱 استخدم /start للمحاولة مرة أخرى
+                            """)
                 else:
                     # المفاتيح غير صحيحة
                     if update.message is not None:
-                        await checking_message.delete()
+                        try:
+                            await checking_message.delete()
+                        except:
+                            pass
                         await update.message.reply_text("""
-❌ API keys غير صحيحة!
+❌ فشل التحقق من API keys!
 
-🔴 تأكد من:
-• صحة API_KEY
-• صحة API_SECRET  
-• تفعيل API في حساب Bybit
-• صلاحيات API (قراءة/كتابة)
+🔴 الأسباب المحتملة:
+• API_KEY أو API_SECRET غير صحيحة
+• المفاتيح منتهية الصلاحية
+• لم يتم تفعيل API في حساب Bybit
+• صلاحيات API غير كافية (يجب تفعيل: Read, Write, Trade)
+• قيود IP (تأكد من عدم تفعيل IP Whitelist أو أضف IP الخادم)
 
-🔗 للحصول على مفاتيح جديدة: https://api.bybit.com
+💡 الحلول:
+1. تحقق من نسخ المفاتيح بشكل صحيح (بدون مسافات)
+2. تأكد من تفعيل الصلاحيات المطلوبة
+3. جرب إنشاء مفاتيح جديدة
 
-استخدم /start للمحاولة مرة أخرى
+🔗 إدارة API: https://www.bybit.com/app/user/api-management
+
+📱 استخدم /start للمحاولة مرة أخرى
                         """)
                         # مسح البيانات المؤقتة
-                        del context.user_data['temp_api_key']
-                        del user_input_state[user_id]
+                        if 'temp_api_key' in context.user_data:
+                            del context.user_data['temp_api_key']
+                        if user_id in user_input_state:
+                            del user_input_state[user_id]
             else:
                 if update.message is not None:
                     await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
