@@ -3261,34 +3261,38 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     market_type = user_data.get('market_type', 'spot')
     
     # 🔍 التحقق من نوع الحساب وجلب البيانات المناسبة
-    if account_type == 'real' and trading_bot.bybit_api:
-        # 🔴 حساب حقيقي - جلب البيانات من المنصة عبر API
-        logger.info(f"🔴 جلب بيانات الحساب الحقيقي من Bybit للمستخدم {user_id}")
+    if account_type == 'real':
+        # 🔴 حساب حقيقي - جلب البيانات من المنصة عبر real_account_manager
+        exchange = user_data.get('exchange', 'bybit')
+        logger.info(f"🔴 جلب بيانات الحساب الحقيقي من {exchange.upper()} للمستخدم {user_id}")
         
         try:
-            # جلب رصيد المحفظة من Bybit
-            wallet_response = trading_bot.bybit_api.get_wallet_balance("UNIFIED")
+            from real_account_manager import real_account_manager
             
-            if wallet_response and wallet_response.get('list'):
-                wallet_data = wallet_response['list'][0]
-                total_equity = float(wallet_data.get('totalEquity', 0))
-                available_balance = float(wallet_data.get('totalAvailableBalance', 0))
-                total_margin_balance = float(wallet_data.get('totalMarginBalance', 0))
-                total_pnl = float(wallet_data.get('totalPerpUPL', 0))  # Unrealized PnL
+            real_account = real_account_manager.get_account(user_id)
+            
+            if real_account:
+                balance = real_account.get_wallet_balance()
                 
-                # حساب الهامش المحجوز
-                margin_locked = total_margin_balance - available_balance if total_margin_balance > available_balance else 0
-                
-                account_info = {
-                    'balance': total_equity,
-                    'available_balance': available_balance,
-                    'margin_locked': margin_locked,
-                    'unrealized_pnl': total_pnl
-                }
-                
-                logger.info(f"✅ تم جلب بيانات المحفظة: الرصيد={total_equity:.2f}, المتاح={available_balance:.2f}")
+                if balance:
+                    account_info = {
+                        'balance': balance.get('total_equity', 0),
+                        'available_balance': balance.get('available_balance', 0),
+                        'margin_locked': balance.get('total_wallet_balance', 0) - balance.get('available_balance', 0),
+                        'unrealized_pnl': balance.get('unrealized_pnl', 0)
+                    }
+                    
+                    logger.info(f"✅ تم جلب بيانات المحفظة من {exchange}: الرصيد={account_info['balance']:.2f}, المتاح={account_info['available_balance']:.2f}")
+                else:
+                    logger.warning(f"⚠️ فشل جلب بيانات المحفظة من {exchange}")
+                    account_info = {
+                        'balance': 0.0,
+                        'available_balance': 0.0,
+                        'margin_locked': 0.0,
+                        'unrealized_pnl': 0.0
+                    }
             else:
-                logger.warning("⚠️ فشل جلب بيانات المحفظة من Bybit")
+                logger.warning(f"⚠️ الحساب الحقيقي غير مهيأ للمستخدم {user_id}")
                 account_info = {
                     'balance': 0.0,
                     'available_balance': 0.0,
@@ -3297,6 +3301,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
         except Exception as e:
             logger.error(f"❌ خطأ في جلب بيانات المحفظة: {e}")
+            import traceback
+            traceback.print_exc()
             account_info = {
                 'balance': 0.0,
                 'available_balance': 0.0,
@@ -3321,18 +3327,30 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # حالة البوت
     bot_status = "🟢 نشط" if user_data.get('is_active') else "🔴 متوقف"
     
-    # التحقق من حالة API مع مؤشر بصري محسن
-    api_key = user_data.get('api_key')
-    api_secret = user_data.get('api_secret')
+    # التحقق من حالة API حسب المنصة
+    exchange = user_data.get('exchange', 'bybit')
     
-    # التحقق الفعلي من حالة API
-    if api_key and api_secret:
-        is_valid = await check_api_connection(api_key, api_secret)
-        api_status = get_api_status_indicator(api_key, api_secret, is_valid)
+    if exchange == 'bybit':
+        api_key = user_data.get('bybit_api_key', '')
+        api_secret = user_data.get('bybit_api_secret', '')
+        from config import BYBIT_API_KEY
+        default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
+        is_linked = api_key and api_key != default_key and len(api_key) > 10
+    elif exchange == 'mexc':
+        api_key = user_data.get('mexc_api_key', '')
+        api_secret = user_data.get('mexc_api_secret', '')
+        is_linked = api_key and api_key != '' and len(api_key) > 10
     else:
-        api_status = get_api_status_indicator(api_key, api_secret, None)
+        is_linked = False
     
-    account_type = user_data.get('account_type', 'demo')
+    # تحديد حالة API
+    if account_type == 'real' and is_linked:
+        api_status = f"🟢 مرتبط ({exchange.upper()})"
+    elif is_linked:
+        api_status = f"🔗 مرتبط ({exchange.upper()}) - غير مفعّل"
+    else:
+        api_status = "🔴 غير مرتبط"
+    
     trade_amount = user_data.get('trade_amount', 100.0)
     leverage = user_data.get('leverage', 10)
     
