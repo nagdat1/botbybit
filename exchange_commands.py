@@ -108,17 +108,23 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         [InlineKeyboardButton(
             "🔑 ربط/تحديث Bybit API Keys",
             callback_data="exchange_setup_bybit"
-        )],
-        [InlineKeyboardButton(
-            "✅ تفعيل Bybit" if not has_bybit_keys else "✅ استخدام Bybit",
-            callback_data="exchange_activate_bybit"
-        )],
-        [InlineKeyboardButton(
-            "📊 اختبار الاتصال بـ Bybit",
-            callback_data="exchange_test_bybit"
-        )],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")]
+        )]
     ]
+    
+    # إضافة الأزرار الأخرى فقط إذا تم ربط API
+    if has_bybit_keys:
+        keyboard.extend([
+            [InlineKeyboardButton(
+                "✅ استخدام Bybit",
+                callback_data="exchange_activate_bybit"
+            )],
+            [InlineKeyboardButton(
+                "📊 اختبار الاتصال بـ Bybit",
+                callback_data="exchange_test_bybit"
+            )]
+        ])
+    
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     status_icon = "✅" if has_bybit_keys else "⚠️"
@@ -169,17 +175,23 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(
             "🔑 ربط/تحديث MEXC API Keys",
             callback_data="exchange_setup_mexc"
-        )],
-        [InlineKeyboardButton(
-            "✅ تفعيل MEXC" if not has_mexc_keys else "✅ استخدام MEXC",
-            callback_data="exchange_activate_mexc"
-        )],
-        [InlineKeyboardButton(
-            "📊 اختبار الاتصال بـ MEXC",
-            callback_data="exchange_test_mexc"
-        )],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")]
+        )]
     ]
+    
+    # إضافة الأزرار الأخرى فقط إذا تم ربط API
+    if has_mexc_keys:
+        keyboard.extend([
+            [InlineKeyboardButton(
+                "✅ استخدام MEXC",
+                callback_data="exchange_activate_mexc"
+            )],
+            [InlineKeyboardButton(
+                "📊 اختبار الاتصال بـ MEXC",
+                callback_data="exchange_test_mexc"
+            )]
+        ])
+    
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     status_icon = "✅" if has_mexc_keys else "⚠️"
@@ -385,38 +397,160 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
             )
 
 async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
-    """اختبار وحفظ مفاتيح Bybit"""
+    """اختبار وحفظ مفاتيح Bybit - اختبار حقيقي 100%"""
     try:
-        # اختبار الاتصال (يمكن إضافة اختبار حقيقي هنا)
-        # من bybit_trading_bot import BybitAPI
-        # test = BybitAPI(api_key, api_secret)
-        # if not test.test_connection():
-        #     return False
+        import hmac
+        import hashlib
+        import time
+        import requests
+        from urllib.parse import urlencode
         
-        from user_manager import user_manager
+        # اختبار الاتصال الحقيقي مع Bybit
+        base_url = "https://api.bybit.com"
+        endpoint = "/v5/user/query-api"
         
-        # حفظ المفاتيح
-        user_data = user_manager.get_user(user_id)
-        if user_data:
-            user_data['bybit_api_key'] = api_key
-            user_data['bybit_api_secret'] = api_secret
-            user_data['exchange'] = 'bybit'
+        # بناء التوقيع
+        timestamp = str(int(time.time() * 1000))
+        params = {
+            'api_key': api_key,
+            'timestamp': timestamp
+        }
+        
+        param_str = urlencode(sorted(params.items()))
+        signature = hmac.new(
+            api_secret.encode('utf-8'),
+            param_str.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        # إرسال الطلب
+        headers = {
+            'X-BAPI-API-KEY': api_key,
+            'X-BAPI-SIGN': signature,
+            'X-BAPI-TIMESTAMP': timestamp,
+            'Content-Type': 'application/json'
+        }
+        
+        try:
+            response = requests.get(
+                f"{base_url}{endpoint}",
+                headers=headers,
+                params={'timestamp': timestamp},
+                timeout=10
+            )
             
-            # حفظ في قاعدة البيانات
+            if response.status_code != 200:
+                await update.message.reply_text(
+                    f"❌ **فشل الاتصال بـ Bybit**\n\n"
+                    f"كود الخطأ: {response.status_code}\n\n"
+                    f"تحقق من:\n"
+                    f"• صحة API Key و Secret\n"
+                    f"• تفعيل API في حسابك\n"
+                    f"• الصلاحيات المطلوبة"
+                )
+                return False
+            
+            result = response.json()
+            
+            if result.get('retCode') != 0:
+                await update.message.reply_text(
+                    f"❌ **خطأ من Bybit**\n\n"
+                    f"{result.get('retMsg', 'خطأ غير معروف')}\n\n"
+                    f"تحقق من صحة المفاتيح"
+                )
+                return False
+            
+            # نجح الاتصال! الآن جلب معلومات الحساب
+            wallet_endpoint = "/v5/account/wallet-balance"
+            wallet_params = {
+                'accountType': 'UNIFIED',
+                'timestamp': str(int(time.time() * 1000))
+            }
+            
+            wallet_param_str = urlencode(sorted(wallet_params.items()))
+            wallet_signature = hmac.new(
+                api_secret.encode('utf-8'),
+                wallet_param_str.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            wallet_headers = {
+                'X-BAPI-API-KEY': api_key,
+                'X-BAPI-SIGN': wallet_signature,
+                'X-BAPI-TIMESTAMP': wallet_params['timestamp'],
+                'Content-Type': 'application/json'
+            }
+            
+            wallet_response = requests.get(
+                f"{base_url}{wallet_endpoint}",
+                headers=wallet_headers,
+                params=wallet_params,
+                timeout=10
+            )
+            
+            balance_info = ""
+            if wallet_response.status_code == 200:
+                wallet_data = wallet_response.json()
+                if wallet_data.get('retCode') == 0:
+                    coins = wallet_data.get('result', {}).get('list', [{}])[0].get('coin', [])
+                    balance_info = "\n\n💰 **الرصيد المتاح:**\n"
+                    found_balance = False
+                    for coin in coins[:5]:  # أول 5 عملات
+                        equity = float(coin.get('equity', 0))
+                        if equity > 0:
+                            balance_info += f"• {coin.get('coin')}: {equity:.4f}\n"
+                            found_balance = True
+                    
+                    if not found_balance:
+                        balance_info += "• لا يوجد رصيد حالياً\n"
+            
+            # حفظ المفاتيح
+            from user_manager import user_manager
             from database import db_manager
-            db_manager.update_user_settings(user_id, {
-                'bybit_api_key': api_key,
-                'bybit_api_secret': api_secret,
-                'exchange': 'bybit'
-            })
             
-            logger.info(f"تم حفظ مفاتيح Bybit للمستخدم {user_id}")
-            return True
-        
-        return False
+            user_data = user_manager.get_user(user_id)
+            if user_data:
+                user_data['bybit_api_key'] = api_key
+                user_data['bybit_api_secret'] = api_secret
+                user_data['exchange'] = 'bybit'
+                user_data['account_type'] = 'real'  # حساب حقيقي
+                
+                # حفظ في قاعدة البيانات
+                db_manager.update_user_settings(user_id, {
+                    'bybit_api_key': api_key,
+                    'bybit_api_secret': api_secret,
+                    'exchange': 'bybit',
+                    'account_type': 'real'
+                })
+                
+                # إرسال رسالة نجاح مع معلومات الحساب
+                await update.message.reply_text(
+                    f"✅ **تم الاتصال بـ Bybit بنجاح!**\n\n"
+                    f"🔐 API مرتبط ويعمل\n"
+                    f"📊 نوع الحساب: حقيقي{balance_info}",
+                    parse_mode='Markdown'
+                )
+                
+                logger.info(f"تم حفظ مفاتيح Bybit الحقيقية للمستخدم {user_id}")
+                return True
+            
+            return False
+            
+        except requests.exceptions.RequestException as e:
+            await update.message.reply_text(
+                f"❌ **خطأ في الاتصال**\n\n"
+                f"تحقق من الاتصال بالإنترنت\n"
+                f"الخطأ: {str(e)}"
+            )
+            return False
     
     except Exception as e:
         logger.error(f"خطأ في اختبار/حفظ مفاتيح Bybit: {e}")
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text(
+            f"❌ **خطأ:**\n{str(e)}"
+        )
         return False
 
 async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
@@ -438,13 +572,32 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
         
         from user_manager import user_manager
         
+        # جلب معلومات الرصيد
+        balance = test_bot.get_account_balance()
+        balance_info = ""
+        
+        if balance and 'balances' in balance:
+            balance_info = "\n\n💰 **الرصيد المتاح:**\n"
+            found_balance = False
+            count = 0
+            for asset, info in balance['balances'].items():
+                if info['total'] > 0 and count < 5:
+                    balance_info += f"• {asset}: {info['total']:.4f}\n"
+                    found_balance = True
+                    count += 1
+            
+            if not found_balance:
+                balance_info += "• لا يوجد رصيد حالياً\n"
+        
         # حفظ المفاتيح
+        from user_manager import user_manager
         user_data = user_manager.get_user(user_id)
         if user_data:
             user_data['mexc_api_key'] = api_key
             user_data['mexc_api_secret'] = api_secret
             user_data['exchange'] = 'mexc'
             user_data['market_type'] = 'spot'  # MEXC تدعم Spot فقط
+            user_data['account_type'] = 'real'  # حساب حقيقي
             
             # حفظ في قاعدة البيانات
             from database import db_manager
@@ -452,10 +605,19 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
                 'mexc_api_key': api_key,
                 'mexc_api_secret': api_secret,
                 'exchange': 'mexc',
-                'market_type': 'spot'
+                'market_type': 'spot',
+                'account_type': 'real'
             })
             
-            logger.info(f"تم حفظ مفاتيح MEXC للمستخدم {user_id}")
+            # إرسال رسالة نجاح مع معلومات الحساب
+            await update.message.reply_text(
+                f"✅ **تم الاتصال بـ MEXC بنجاح!**\n\n"
+                f"🔐 API مرتبط ويعمل\n"
+                f"📊 نوع الحساب: حقيقي (Spot فقط){balance_info}",
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"تم حفظ مفاتيح MEXC الحقيقية للمستخدم {user_id}")
             return True
         
         return False
