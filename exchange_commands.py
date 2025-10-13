@@ -22,19 +22,34 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
     from user_manager import user_manager
     user_data = user_manager.get_user(user_id)
     
-    # تحديد المنصة الحالية
-    current_exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
+    # تحديد المنصة الحالية والتحقق من الربط
+    current_exchange = user_data.get('exchange', '') if user_data else ''
+    
+    # التحقق من وجود API Keys مربوطة
+    bybit_linked = False
+    mexc_linked = False
+    
+    if user_data:
+        bybit_key = user_data.get('bybit_api_key', BYBIT_API_KEY)
+        bybit_linked = bybit_key and bybit_key != BYBIT_API_KEY
+        
+        mexc_key = user_data.get('mexc_api_key', '')
+        mexc_linked = mexc_key and mexc_key != ''
+    
+    # بناء الأزرار مع الحالة الصحيحة
+    bybit_icon = "✅" if (current_exchange == 'bybit' and bybit_linked) else ("🔗" if bybit_linked else "⚪")
+    mexc_icon = "✅" if (current_exchange == 'mexc' and mexc_linked) else ("🔗" if mexc_linked else "⚪")
     
     keyboard = [
         [
             InlineKeyboardButton(
-                f"{'✅' if current_exchange == 'bybit' else '⚪'} Bybit", 
+                f"{bybit_icon} Bybit", 
                 callback_data="exchange_select_bybit"
             )
         ],
         [
             InlineKeyboardButton(
-                f"{'✅' if current_exchange == 'mexc' else '⚪'} MEXC (Spot فقط)", 
+                f"{mexc_icon} MEXC (Spot فقط)", 
                 callback_data="exchange_select_mexc"
             )
         ],
@@ -42,12 +57,23 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # تحديد حالة المنصة
+    if current_exchange and (bybit_linked or mexc_linked):
+        status_text = f"**{current_exchange.upper()}** {'✅ (مفعّلة)' if (current_exchange == 'bybit' and bybit_linked) or (current_exchange == 'mexc' and mexc_linked) else ''}"
+    else:
+        status_text = "**لم يتم اختيار منصة**"
+    
     message = f"""
 🏦 **اختيار منصة التداول**
 
-المنصة الحالية: **{current_exchange.upper()}**
+المنصة الحالية: {status_text}
 
 اختر المنصة التي تريد استخدامها:
+
+**الرموز:**
+⚪ = غير مربوط
+🔗 = مربوط (غير مفعّل)
+✅ = مربوط ومفعّل
 
 🔹 **Bybit**
    • يدعم Spot و Futures
