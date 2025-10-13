@@ -5973,6 +5973,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("❌ فشل في المتابعة")
             return
     
+    # معالجة إدخال مفاتيح المنصات (Bybit/MEXC)
+    if context.user_data.get('awaiting_exchange_keys'):
+        from exchange_commands import handle_api_keys_input
+        await handle_api_keys_input(update, context)
+        return
+    
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:
         state = user_input_state[user_id]

@@ -251,7 +251,6 @@ abc123xyz456:def789ghi012jkl345
     
     # حفظ حالة انتظار مفاتيح Bybit
     context.user_data['awaiting_exchange_keys'] = 'bybit'
-    return ENTERING_BYBIT_KEYS
 
 async def start_mexc_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """بدء عملية ربط MEXC API"""
@@ -291,7 +290,6 @@ mx0vglBqh6abc123:xyz456def789ghi012
     
     # حفظ حالة انتظار مفاتيح MEXC
     context.user_data['awaiting_exchange_keys'] = 'mexc'
-    return ENTERING_MEXC_KEYS
 
 async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة إدخال مفاتيح API"""
@@ -301,7 +299,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
     exchange_type = context.user_data.get('awaiting_exchange_keys')
     
     if not exchange_type:
-        return ConversationHandler.END
+        return
     
     # التحقق من الصيغة
     if ':' not in text:
@@ -311,7 +309,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
             "أرسل المفاتيح مرة أخرى أو استخدم /cancel للإلغاء",
             parse_mode='Markdown'
         )
-        return ENTERING_BYBIT_KEYS if exchange_type == 'bybit' else ENTERING_MEXC_KEYS
+        return
     
     try:
         api_key, api_secret = text.split(':', 1)
@@ -323,7 +321,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
                 "❌ **المفاتيح فارغة!**\n\n"
                 "تأكد من إدخال API Key و Secret بشكل صحيح"
             )
-            return ENTERING_BYBIT_KEYS if exchange_type == 'bybit' else ENTERING_MEXC_KEYS
+            return
         
         # اختبار المفاتيح
         await update.message.reply_text("🔄 جاري اختبار الاتصال...")
@@ -345,7 +343,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
                 f"يمكنك الآن استخدام المنصة للتداول",
                 reply_markup=reply_markup
             )
-            return ConversationHandler.END
+            return
         else:
             keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange_type}")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -355,7 +353,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
                 "يمكنك المحاولة مرة أخرى أو الرجوع",
                 reply_markup=reply_markup
             )
-            return ConversationHandler.END
+            return
     
     except Exception as e:
         logger.error(f"خطأ في معالجة مفاتيح API: {e}")
@@ -363,7 +361,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
             f"❌ **خطأ:** {str(e)}\n\n"
             "حاول مرة أخرى أو استخدم /cancel للإلغاء"
         )
-        return ENTERING_BYBIT_KEYS if exchange_type == 'bybit' else ENTERING_MEXC_KEYS
+        return
 
 async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
     """اختبار وحفظ مفاتيح Bybit"""
@@ -553,46 +551,20 @@ async def cancel_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إلغاء عملية الإعداد"""
     context.user_data.pop('awaiting_exchange_keys', None)
     await update.message.reply_text("❌ تم إلغاء العملية")
-    return ConversationHandler.END
+    return
 
 # دالة للتسجيل في التطبيق الرئيسي
 def register_exchange_handlers(application):
     """تسجيل معالجات أوامر المنصات"""
-    from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
+    from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters
     
     # أمر اختيار المنصة
     application.add_handler(CommandHandler("exchange", cmd_select_exchange))
     application.add_handler(CommandHandler("منصة", cmd_select_exchange))
+    application.add_handler(CommandHandler("cancel", cancel_setup))
     
-    # معالجات الأزرار
-    application.add_handler(CallbackQueryHandler(cmd_select_exchange, pattern="^exchange_menu$"))
-    application.add_handler(CallbackQueryHandler(handle_exchange_selection, pattern="^exchange_select_(bybit|mexc)$"))
-    application.add_handler(CallbackQueryHandler(start_bybit_setup, pattern="^exchange_setup_bybit$"))
-    application.add_handler(CallbackQueryHandler(start_mexc_setup, pattern="^exchange_setup_mexc$"))
-    application.add_handler(CallbackQueryHandler(activate_exchange, pattern="^exchange_activate_(bybit|mexc)$"))
-    application.add_handler(CallbackQueryHandler(test_exchange_connection, pattern="^exchange_test_(bybit|mexc)$"))
-    
-    # معالج إدخال المفاتيح
-    conv_handler = ConversationHandler(
-        entry_points=[
-            CallbackQueryHandler(start_bybit_setup, pattern="^exchange_setup_bybit$"),
-            CallbackQueryHandler(start_mexc_setup, pattern="^exchange_setup_mexc$")
-        ],
-        states={
-            ENTERING_BYBIT_KEYS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_api_keys_input)
-            ],
-            ENTERING_MEXC_KEYS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_api_keys_input)
-            ]
-        },
-        fallbacks=[
-            CommandHandler("cancel", cancel_setup),
-            CallbackQueryHandler(cmd_select_exchange, pattern="^exchange_select_(bybit|mexc)$")
-        ]
-    )
-    
-    application.add_handler(conv_handler)
+    # معالجات الأزرار - تم نقلها إلى bybit_trading_bot.py
+    # معالج إدخال المفاتيح - سيتم التعامل معه عبر context.user_data
     
     logger.info("✅ تم تسجيل معالجات أوامر المنصات")
 
