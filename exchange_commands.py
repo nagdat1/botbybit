@@ -215,7 +215,7 @@ MEXC تدعم التداول الفوري فقط - لا يوجد دعم للفي
     )
 
 async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """بدء عملية ربط Bybit API"""
+    """بدء عملية ربط Bybit API - الخطوة 1: API Key"""
     query = update.callback_query
     await query.answer()
     
@@ -223,24 +223,22 @@ async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message = """
-🔑 **ربط Bybit API Keys**
+🔑 **ربط Bybit API - الخطوة 1 من 2**
 
-أرسل المفاتيح بالصيغة التالية:
-```
-API_KEY:API_SECRET
-```
+📝 أرسل **API Key** الخاص بك
 
 **مثال:**
 ```
-abc123xyz456:def789ghi012jkl345
+abc123xyz456def789
 ```
 
-⚠️ **تأكد من:**
-• تفعيل صلاحية Read (القراءة)
-• تفعيل صلاحية Trade (التداول)
-• عدم تفعيل صلاحية Withdrawal (السحب) إلا إذا كنت تحتاجها
+💡 **للحصول على API Key:**
+1. اذهب إلى Bybit.com
+2. Account → API Management
+3. Create New Key
+4. انسخ API Key
 
-📝 أرسل المفاتيح الآن أو اضغط إلغاء
+📝 أرسل API Key الآن
 """
     
     await query.edit_message_text(
@@ -249,11 +247,11 @@ abc123xyz456:def789ghi012jkl345
         parse_mode='Markdown'
     )
     
-    # حفظ حالة انتظار مفاتيح Bybit
-    context.user_data['awaiting_exchange_keys'] = 'bybit'
+    # حفظ حالة انتظار API Key لـ Bybit
+    context.user_data['awaiting_exchange_keys'] = 'bybit_step1'
 
 async def start_mexc_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """بدء عملية ربط MEXC API"""
+    """بدء عملية ربط MEXC API - الخطوة 1: API Key"""
     query = update.callback_query
     await query.answer()
     
@@ -261,25 +259,24 @@ async def start_mexc_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message = """
-🔑 **ربط MEXC API Keys**
+🔑 **ربط MEXC API - الخطوة 1 من 2**
 
-أرسل المفاتيح بالصيغة التالية:
-```
-API_KEY:API_SECRET
-```
+📝 أرسل **API Key** الخاص بك
 
 **مثال:**
 ```
-mx0vglBqh6abc123:xyz456def789ghi012
+mx0vglBqh6abc123xyz456
 ```
 
-⚠️ **تأكد من:**
-• تفعيل صلاحية Spot Trading فقط
-• عدم تفعيل صلاحية Withdrawal (السحب)
+💡 **للحصول على API Key:**
+1. اذهب إلى MEXC.com
+2. Account → API Management
+3. Create New API Key
+4. انسخ API Key
 
-⚠️ **ملاحظة:** MEXC تدعم Spot فقط - لا فيوتشر
+⚠️ **ملاحظة:** MEXC تدعم Spot فقط
 
-📝 أرسل المفاتيح الآن أو اضغط إلغاء
+📝 أرسل API Key الآن
 """
     
     await query.edit_message_text(
@@ -288,80 +285,104 @@ mx0vglBqh6abc123:xyz456def789ghi012
         parse_mode='Markdown'
     )
     
-    # حفظ حالة انتظار مفاتيح MEXC
-    context.user_data['awaiting_exchange_keys'] = 'mexc'
+    # حفظ حالة انتظار API Key لـ MEXC
+    context.user_data['awaiting_exchange_keys'] = 'mexc_step1'
 
 async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة إدخال مفاتيح API"""
+    """معالجة إدخال مفاتيح API - خطوة بخطوة"""
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
-    exchange_type = context.user_data.get('awaiting_exchange_keys')
+    state = context.user_data.get('awaiting_exchange_keys')
     
-    if not exchange_type:
+    if not state:
         return
     
-    # التحقق من الصيغة
-    if ':' not in text:
+    # الخطوة 1: استقبال API Key
+    if state in ['bybit_step1', 'mexc_step1']:
+        exchange = 'bybit' if 'bybit' in state else 'mexc'
+        
+        if not text:
+            await update.message.reply_text("❌ API Key فارغ! أرسله مرة أخرى")
+            return
+        
+        # حفظ API Key
+        context.user_data['temp_api_key'] = text
+        context.user_data['awaiting_exchange_keys'] = f'{exchange}_step2'
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"exchange_select_{exchange}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
         await update.message.reply_text(
-            "❌ **صيغة خاطئة!**\n\n"
-            "استخدم الصيغة: `API_KEY:API_SECRET`\n\n"
-            "أرسل المفاتيح مرة أخرى أو استخدم /cancel للإلغاء",
+            f"✅ **تم حفظ API Key**\n\n"
+            f"🔑 **الخطوة 2 من 2**\n\n"
+            f"📝 الآن أرسل **API Secret**",
+            reply_markup=reply_markup,
             parse_mode='Markdown'
         )
         return
     
-    try:
-        api_key, api_secret = text.split(':', 1)
-        api_key = api_key.strip()
-        api_secret = api_secret.strip()
+    # الخطوة 2: استقبال API Secret
+    elif state in ['bybit_step2', 'mexc_step2']:
+        exchange = 'bybit' if 'bybit' in state else 'mexc'
         
-        if not api_key or not api_secret:
+        if not text:
+            await update.message.reply_text("❌ API Secret فارغ! أرسله مرة أخرى")
+            return
+        
+        api_key = context.user_data.get('temp_api_key')
+        api_secret = text
+        
+        if not api_key:
             await update.message.reply_text(
-                "❌ **المفاتيح فارغة!**\n\n"
-                "تأكد من إدخال API Key و Secret بشكل صحيح"
+                "❌ حدث خطأ! ابدأ من جديد",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange}")
+                ]])
             )
+            context.user_data.pop('awaiting_exchange_keys', None)
+            context.user_data.pop('temp_api_key', None)
             return
         
         # اختبار المفاتيح
         await update.message.reply_text("🔄 جاري اختبار الاتصال...")
         
-        if exchange_type == 'bybit':
+        if exchange == 'bybit':
             success = await test_and_save_bybit_keys(user_id, api_key, api_secret, update)
         else:  # mexc
             success = await test_and_save_mexc_keys(user_id, api_key, api_secret, update)
         
+        # مسح البيانات المؤقتة
+        context.user_data.pop('awaiting_exchange_keys', None)
+        context.user_data.pop('temp_api_key', None)
+        
         if success:
-            # العودة إلى قائمة المنصة
-            context.user_data.pop('awaiting_exchange_keys', None)
-            
-            keyboard = [[InlineKeyboardButton("✅ العودة للإعدادات", callback_data=f"exchange_select_{exchange_type}")]]
+            keyboard = [[InlineKeyboardButton("✅ العودة للإعدادات", callback_data=f"exchange_select_{exchange}")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                f"✅ **تم ربط {exchange_type.upper()} بنجاح!**\n\n"
-                f"يمكنك الآن استخدام المنصة للتداول",
-                reply_markup=reply_markup
+                f"✅ **تم ربط {exchange.upper()} بنجاح!**\n\n"
+                f"🎉 يمكنك الآن:\n"
+                f"• استقبال إشارات التداول\n"
+                f"• التداول على {exchange.upper()}\n"
+                f"• اختبار الاتصال\n\n"
+                f"اضغط الزر للعودة للإعدادات",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
-            return
         else:
-            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange_type}")]]
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange}")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
                 "❌ **فشل الاتصال!**\n\n"
-                "يمكنك المحاولة مرة أخرى أو الرجوع",
+                "تحقق من:\n"
+                "• صحة المفاتيح\n"
+                "• الصلاحيات المطلوبة\n"
+                "• تفعيل API في حسابك\n\n"
+                "يمكنك المحاولة مرة أخرى",
                 reply_markup=reply_markup
             )
-            return
-    
-    except Exception as e:
-        logger.error(f"خطأ في معالجة مفاتيح API: {e}")
-        await update.message.reply_text(
-            f"❌ **خطأ:** {str(e)}\n\n"
-            "حاول مرة أخرى أو استخدم /cancel للإلغاء"
-        )
-        return
 
 async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
     """اختبار وحفظ مفاتيح Bybit"""
