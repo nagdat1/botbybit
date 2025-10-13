@@ -5039,6 +5039,9 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         if info.get('equity', 0) > 0:
                             coins_text += f"\n💎 {coin}: {info['equity']:.4f}"
                     
+                    if not coins_text:
+                        coins_text = "\n• لا يوجد رصيد"
+                    
                     wallet_message = f"""
 💰 **محفظة {exchange.upper()} الحقيقية**
 
@@ -5049,7 +5052,7 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💳 الرصيد المتاح: ${available_balance:,.2f}
 📈 الربح/الخسارة غير المحققة: ${unrealized_pnl:,.2f}
 
-💎 **الأرصدة:**{coins_text if coins_text else "\n• لا يوجد رصيد"}
+💎 **الأرصدة:**{coins_text}
 
 ⚡ **البيانات مباشرة من المنصة**
 """
