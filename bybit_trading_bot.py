@@ -3372,31 +3372,72 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض حالة الحساب مع معلومات مفصلة للفيوتشر"""
     try:
-        if trading_bot.user_settings['account_type'] == 'real':
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
+        
+        # التحقق من نوع الحساب
+        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+        exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
+        market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
+        
+        if account_type == 'real':
             # الحصول على معلومات الحساب الحقيقي
-            if trading_bot.bybit_api:
-                balance_response = trading_bot.bybit_api.get_account_balance()
+            from real_account_manager import real_account_manager
+            
+            real_account = real_account_manager.get_account(user_id)
+            
+            if real_account:
+                balance = real_account.get_wallet_balance()
                 
-                if balance_response.get("retCode") == 0:
-                    balance_info = balance_response.get("result", {}).get("list", [])
-                    if balance_info:
-                        total_equity = balance_info[0].get("totalEquity", "0")
-                        available_balance = balance_info[0].get("availableBalance", "0")
-                        
-                        status_text = f"""
-📊 حالة الحساب الحقيقي:
+                if balance:
+                    total_equity = balance.get('total_equity', 0)
+                    available_balance = balance.get('available_balance', 0)
+                    unrealized_pnl = balance.get('unrealized_pnl', 0)
+                    
+                    pnl_emoji = "🟢" if unrealized_pnl >= 0 else "🔴"
+                    
+                    # الحصول على الصفقات المفتوحة
+                    open_positions = []
+                    if exchange == 'bybit' and hasattr(real_account, 'get_open_positions'):
+                        open_positions = real_account.get_open_positions()
+                    
+                    status_text = f"""
+🔐 **حالة الحساب الحقيقي**
 
-💰 إجمالي الأسهم: {total_equity}
-💳 الرصيد المتاح: {available_balance}
-🏪 نوع السوق: {trading_bot.user_settings['market_type'].upper()}
-                        """
-                    else:
-                        status_text = "❌ لا توجد معلومات رصيد متاحة"
+🏦 **المنصة:** {exchange.upper()} ✅
+📊 **نوع السوق:** {market_type.upper()}
+⚡ **الحالة:** متصل ونشط
+
+💰 **المحفظة:**
+• القيمة الإجمالية: ${total_equity:,.2f}
+• الرصيد المتاح: ${available_balance:,.2f}
+• {pnl_emoji} PnL غير محقق: ${unrealized_pnl:,.2f}
+
+📈 **الصفقات:**
+• صفقات مفتوحة: {len(open_positions)}
+
+⚡ **البيانات مباشرة من المنصة**
+                    """
                 else:
-                    error_msg = balance_response.get("retMsg", "خطأ غير محدد")
-                    status_text = f"❌ خطأ في الحصول على الرصيد: {error_msg}"
+                    status_text = f"""
+🔐 **حالة الحساب الحقيقي**
+
+🏦 **المنصة:** {exchange.upper()} ✅
+📊 **نوع السوق:** {market_type.upper()}
+❌ **لا توجد معلومات رصيد متاحة**
+                    """
             else:
-                status_text = "❌ API غير متاح للحساب الحقيقي"
+                status_text = f"""
+⚠️ **حساب حقيقي غير مفعّل**
+
+🏦 **المنصة المحددة:** {exchange.upper()}
+📊 **نوع السوق:** {market_type.upper()}
+
+💡 **لتفعيل الحساب الحقيقي:**
+1. اذهب إلى الإعدادات
+2. اضغط "🏦 اختيار المنصة"
+3. اضغط "✅ استخدام المنصة"
+                """
         else:
             # الحصول على معلومات الحساب التجريبي الداخلي
             account = trading_bot.get_current_account()
@@ -3463,39 +3504,50 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
         
-        if account_type == 'real' and trading_bot.bybit_api:
-            # 🔴 حساب حقيقي - جلب الصفقات من منصة Bybit
-            logger.info("🔴 جلب الصفقات الحقيقية من منصة Bybit...")
+        if account_type == 'real':
+            # 🔴 حساب حقيقي - جلب الصفقات من المنصة
+            from real_account_manager import real_account_manager
+            
+            real_account = real_account_manager.get_account(user_id)
+            user_data = user_manager.get_user(user_id)
+            exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
+            
+            logger.info(f"🔴 جلب الصفقات الحقيقية من منصة {exchange.upper()}...")
             
             try:
-                # تحديد الفئة بناءً على نوع السوق
-                category = "linear" if market_type == 'futures' else market_type
+                platform_positions = []
                 
-                # جلب الصفقات من المنصة
-                platform_positions = trading_bot.bybit_api.get_open_positions(category)
+                if real_account:
+                    if exchange == 'bybit' and hasattr(real_account, 'get_open_positions'):
+                        # تحديد الفئة بناءً على نوع السوق
+                        category = "linear" if market_type == 'futures' else "spot"
+                        platform_positions = real_account.get_open_positions(category)
+                    elif exchange == 'mexc' and hasattr(real_account, 'get_open_orders'):
+                        # MEXC تدعم Spot فقط - جلب الأوامر المفتوحة
+                        platform_positions = real_account.get_open_orders()
                 
                 if platform_positions:
                     logger.info(f"✅ تم جلب {len(platform_positions)} صفقة من المنصة")
                     
-                    # تحويل الصفقات من صيغة Bybit إلى صيغة البوت
-                    for idx, bybit_pos in enumerate(platform_positions):
-                        position_id = f"real_{bybit_pos.get('symbol')}_{idx}"
+                    # تحويل الصفقات من صيغة المنصة إلى صيغة البوت
+                    for idx, pos in enumerate(platform_positions):
+                        position_id = f"real_{pos.get('symbol')}_{idx}"
                         
                         all_positions[position_id] = {
-                            'symbol': bybit_pos.get('symbol'),
-                            'entry_price': float(bybit_pos.get('avgPrice', 0)),
-                            'side': bybit_pos.get('side', 'Buy').lower(),
+                            'symbol': pos.get('symbol'),
+                            'entry_price': float(pos.get('entry_price', pos.get('avgPrice', pos.get('price', 0)))),
+                            'side': pos.get('side', 'Buy').lower(),
                             'account_type': market_type,
-                            'leverage': int(bybit_pos.get('leverage', 1)),
-                            'category': category,
-                            'position_size': float(bybit_pos.get('size', 0)),
-                            'current_price': float(bybit_pos.get('markPrice', bybit_pos.get('avgPrice', 0))),
-                            'pnl_percent': float(bybit_pos.get('unrealisedPnl', 0)),
-                            'liquidation_price': float(bybit_pos.get('liqPrice', 0)) if market_type == 'futures' else 0,
+                            'leverage': int(pos.get('leverage', 1)),
+                            'exchange': exchange,
+                            'position_size': float(pos.get('size', 0)),
+                            'current_price': float(pos.get('mark_price', pos.get('markPrice', pos.get('avgPrice', 0)))),
+                            'pnl_percent': float(pos.get('unrealized_pnl', pos.get('unrealisedPnl', 0))),
+                            'liquidation_price': float(pos.get('liquidation_price', pos.get('liqPrice', 0))) if market_type == 'futures' else 0,
                             'is_real_position': True  # علامة للتمييز
                         }
                         
-                        logger.info(f"📊 صفقة حقيقية: {bybit_pos.get('symbol')} - {bybit_pos.get('side')}")
+                        logger.info(f"📊 صفقة حقيقية: {pos.get('symbol')} - {pos.get('side')}")
                 else:
                     logger.info("لا توجد صفقات مفتوحة على المنصة")
                     
@@ -4958,7 +5010,57 @@ exampleInputEmail: {time_str}
 async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض معلومات المحفظة مع تفاصيل الفيوتشر"""
     try:
-        # الحصول على معلومات الحسابات التجريبية
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
+        
+        # التحقق من نوع الحساب
+        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+        exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
+        
+        # إذا كان حساب حقيقي، جلب البيانات من المنصة
+        if account_type == 'real' and exchange:
+            from real_account_manager import real_account_manager
+            
+            real_account = real_account_manager.get_account(user_id)
+            
+            if real_account:
+                balance = real_account.get_wallet_balance()
+                
+                if balance:
+                    # عرض المحفظة الحقيقية
+                    total_equity = balance.get('total_equity', 0)
+                    available_balance = balance.get('available_balance', 0)
+                    unrealized_pnl = balance.get('unrealized_pnl', 0)
+                    
+                    pnl_emoji = "🟢💰" if unrealized_pnl >= 0 else "🔴💸"
+                    
+                    coins_text = ""
+                    for coin, info in balance.get('coins', {}).items():
+                        if info.get('equity', 0) > 0:
+                            coins_text += f"\n💎 {coin}: {info['equity']:.4f}"
+                    
+                    wallet_message = f"""
+💰 **محفظة {exchange.upper()} الحقيقية**
+
+🔐 **نوع الحساب:** حقيقي ✅
+
+📊 **الملخص:**
+{pnl_emoji} القيمة الإجمالية: ${total_equity:,.2f}
+💳 الرصيد المتاح: ${available_balance:,.2f}
+📈 الربح/الخسارة غير المحققة: ${unrealized_pnl:,.2f}
+
+💎 **الأرصدة:**{coins_text if coins_text else "\n• لا يوجد رصيد"}
+
+⚡ **البيانات مباشرة من المنصة**
+"""
+                    
+                    if update.message:
+                        await update.message.reply_text(wallet_message, parse_mode='Markdown')
+                    else:
+                        await update.callback_query.message.reply_text(wallet_message, parse_mode='Markdown')
+                    return
+        
+        # إذا كان حساب تجريبي، استخدم البيانات التجريبية
         spot_account = trading_bot.demo_account_spot
         futures_account = trading_bot.demo_account_futures
         

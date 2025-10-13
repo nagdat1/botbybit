@@ -211,12 +211,37 @@ class WebServer:
                         'data': data
                     })
                     
-                    # معالجة الإشارة باستخدام نفس دالة البوت
+                    # معالجة الإشارة - استخدام signal_executor للحسابات الحقيقية
                     def process_signal_async():
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:
-                            loop.run_until_complete(self.trading_bot.process_signal(data))
+                            # التحقق من نوع الحساب
+                            if user_data.get('account_type') == 'real':
+                                # تنفيذ على الحساب الحقيقي
+                                from signal_executor import signal_executor
+                                result = loop.run_until_complete(
+                                    signal_executor.execute_signal(user_id, data, user_data)
+                                )
+                                print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
+                                
+                                # إرسال إشعار بالنتيجة
+                                if result.get('success'):
+                                    self.send_telegram_notification(
+                                        f"✅ تم تنفيذ الإشارة على الحساب الحقيقي\n\n"
+                                        f"المنصة: {user_data.get('exchange', 'N/A').upper()}\n"
+                                        f"{result.get('message', '')}",
+                                        data
+                                    )
+                                else:
+                                    self.send_telegram_notification(
+                                        f"❌ فشل تنفيذ الإشارة\n\n"
+                                        f"{result.get('message', 'خطأ غير معروف')}",
+                                        data
+                                    )
+                            else:
+                                # معالجة الحساب التجريبي بالطريقة العادية
+                                loop.run_until_complete(self.trading_bot.process_signal(data))
                         finally:
                             # استعادة الإعدادات الأصلية
                             self.trading_bot.user_settings.update(original_settings)
