@@ -433,19 +433,24 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
         
         # اختبار الاتصال الحقيقي مع Bybit
         base_url = "https://api.bybit.com"
-        endpoint = "/v5/user/query-api"
         
-        # بناء التوقيع
+        # استخدام endpoint بسيط لاختبار الاتصال
+        endpoint = "/v5/account/wallet-balance"
+        
+        # بناء التوقيع بالطريقة الصحيحة لـ Bybit V5
         timestamp = str(int(time.time() * 1000))
-        params = {
-            'api_key': api_key,
-            'timestamp': timestamp
-        }
+        recv_window = "5000"
         
-        param_str = urlencode(sorted(params.items()))
+        # بناء query string
+        params_str = f"accountType=UNIFIED&timestamp={timestamp}"
+        
+        # بناء الـ signature string حسب توثيق Bybit V5
+        # صيغة: timestamp + api_key + recv_window + params
+        sign_str = timestamp + api_key + recv_window + params_str
+        
         signature = hmac.new(
             api_secret.encode('utf-8'),
-            param_str.encode('utf-8'),
+            sign_str.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
         
@@ -454,14 +459,14 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             'X-BAPI-API-KEY': api_key,
             'X-BAPI-SIGN': signature,
             'X-BAPI-TIMESTAMP': timestamp,
+            'X-BAPI-RECV-WINDOW': recv_window,
             'Content-Type': 'application/json'
         }
         
         try:
             response = requests.get(
-                f"{base_url}{endpoint}",
+                f"{base_url}{endpoint}?{params_str}",
                 headers=headers,
-                params={'timestamp': timestamp},
                 timeout=10
             )
             
@@ -486,37 +491,10 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 )
                 return False
             
-            # نجح الاتصال! الآن جلب معلومات الحساب
-            wallet_endpoint = "/v5/account/wallet-balance"
-            wallet_params = {
-                'accountType': 'UNIFIED',
-                'timestamp': str(int(time.time() * 1000))
-            }
-            
-            wallet_param_str = urlencode(sorted(wallet_params.items()))
-            wallet_signature = hmac.new(
-                api_secret.encode('utf-8'),
-                wallet_param_str.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            
-            wallet_headers = {
-                'X-BAPI-API-KEY': api_key,
-                'X-BAPI-SIGN': wallet_signature,
-                'X-BAPI-TIMESTAMP': wallet_params['timestamp'],
-                'Content-Type': 'application/json'
-            }
-            
-            wallet_response = requests.get(
-                f"{base_url}{wallet_endpoint}",
-                headers=wallet_headers,
-                params=wallet_params,
-                timeout=10
-            )
-            
+            # نجح الاتصال! معالجة معلومات الرصيد
             balance_info = ""
-            if wallet_response.status_code == 200:
-                wallet_data = wallet_response.json()
+            if response.status_code == 200:
+                wallet_data = response.json()
                 if wallet_data.get('retCode') == 0:
                     coins = wallet_data.get('result', {}).get('list', [{}])[0].get('coin', [])
                     balance_info = "\n\n💰 **الرصيد المتاح:**\n"

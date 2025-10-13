@@ -3246,9 +3246,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # إضافة باقي الأزرار
     keyboard.extend([
         [InlineKeyboardButton(f"🤖 تطبيق تلقائي TP/SL {auto_status}", callback_data="auto_apply_menu")],
-        [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")],
-        [InlineKeyboardButton("🔗 تحديث API", callback_data="link_api")],
-        [InlineKeyboardButton("🔍 فحص API", callback_data="check_api")]
+        [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")]
     ])
     
     # إضافة زر تشغيل/إيقاف البوت
