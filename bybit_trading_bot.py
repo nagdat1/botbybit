@@ -5110,8 +5110,7 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             real_account = real_account_manager.get_account(user_id)
             
             if real_account:
-                # جلب الرصيد حسب نوع السوق المختار
-                balance = real_account.get_wallet_balance(market_type)
+                balance = real_account.get_wallet_balance()
                 
                 if balance:
                     # عرض المحفظة الحقيقية
@@ -5133,9 +5132,8 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💰 **محفظة {exchange.upper()} الحقيقية**
 
 🔐 **نوع الحساب:** حقيقي ✅
-📊 **نوع السوق:** {market_type.upper()}
 
-📊 **ملخص محفظة {market_type.upper()}:**
+📊 **الملخص:**
 {pnl_emoji} القيمة الإجمالية: ${total_equity:,.2f}
 💳 الرصيد المتاح: ${available_balance:,.2f}
 📈 الربح/الخسارة غير المحققة: ${unrealized_pnl:,.2f}
