@@ -117,7 +117,7 @@ async def handle_exchange_selection(update: Update, context: ContextTypes.DEFAUL
         await show_mexc_options(update, context)
 
 async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض خيارات إعداد Bybit"""
+    """عرض خيارات إعداد Bybit مع معلومات الحساب"""
     query = update.callback_query
     user_id = update.effective_user.id
     
@@ -127,8 +127,14 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # التحقق من وجود API Keys
     has_bybit_keys = False
     if user_data:
-        bybit_key = user_data.get('bybit_api_key', BYBIT_API_KEY)
-        has_bybit_keys = bybit_key and bybit_key != BYBIT_API_KEY
+        bybit_key = user_data.get('bybit_api_key', '')
+        default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
+        has_bybit_keys = bybit_key and bybit_key != default_key and len(bybit_key) > 10
+    
+    # التحقق من التفعيل
+    current_exchange = user_data.get('exchange', '') if user_data else ''
+    account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+    is_active = current_exchange == 'bybit' and account_type == 'real'
     
     keyboard = [
         [InlineKeyboardButton(
@@ -153,13 +159,35 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    status_icon = "✅" if has_bybit_keys else "⚠️"
-    status_text = "مربوط" if has_bybit_keys else "غير مربوط"
+    # تحديد حالة API
+    if is_active and has_bybit_keys:
+        status_icon = "🟢"
+        status_text = "مرتبط ومفعّل"
+    elif has_bybit_keys:
+        status_icon = "🔗"
+        status_text = "مرتبط (غير مفعّل)"
+    else:
+        status_icon = "🔴"
+        status_text = "غير مرتبط"
+    
+    # جلب معلومات الرصيد إذا كان مفعّل
+    balance_text = ""
+    if is_active and has_bybit_keys:
+        from real_account_manager import real_account_manager
+        real_account = real_account_manager.get_account(user_id)
+        if real_account:
+            try:
+                balance = real_account.get_wallet_balance()
+                if balance:
+                    total_equity = balance.get('total_equity', 0)
+                    balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
+            except Exception as e:
+                logger.error(f"خطأ في جلب الرصيد: {e}")
     
     message = f"""
 🏦 **إعداد منصة Bybit**
 
-الحالة: {status_icon} **{status_text}**
+📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
 
 📋 **المميزات:**
 • التداول الفوري (Spot)
@@ -184,7 +212,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض خيارات إعداد MEXC"""
+    """عرض خيارات إعداد MEXC مع معلومات الحساب"""
     query = update.callback_query
     user_id = update.effective_user.id
     
@@ -194,8 +222,13 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # التحقق من وجود API Keys
     has_mexc_keys = False
     if user_data:
-        mexc_key = user_data.get('mexc_api_key')
-        has_mexc_keys = mexc_key and mexc_key != ""
+        mexc_key = user_data.get('mexc_api_key', '')
+        has_mexc_keys = mexc_key and mexc_key != "" and len(mexc_key) > 10
+    
+    # التحقق من التفعيل
+    current_exchange = user_data.get('exchange', '') if user_data else ''
+    account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+    is_active = current_exchange == 'mexc' and account_type == 'real'
     
     keyboard = [
         [InlineKeyboardButton(
@@ -220,13 +253,35 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    status_icon = "✅" if has_mexc_keys else "⚠️"
-    status_text = "مربوط" if has_mexc_keys else "غير مربوط"
+    # تحديد حالة API
+    if is_active and has_mexc_keys:
+        status_icon = "🟢"
+        status_text = "مرتبط ومفعّل"
+    elif has_mexc_keys:
+        status_icon = "🔗"
+        status_text = "مرتبط (غير مفعّل)"
+    else:
+        status_icon = "🔴"
+        status_text = "غير مرتبط"
+    
+    # جلب معلومات الرصيد إذا كان مفعّل
+    balance_text = ""
+    if is_active and has_mexc_keys:
+        from real_account_manager import real_account_manager
+        real_account = real_account_manager.get_account(user_id)
+        if real_account:
+            try:
+                balance = real_account.get_wallet_balance()
+                if balance:
+                    total_equity = balance.get('total_equity', 0)
+                    balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
+            except Exception as e:
+                logger.error(f"خطأ في جلب الرصيد: {e}")
     
     message = f"""
 🏦 **إعداد منصة MEXC**
 
-الحالة: {status_icon} **{status_text}**
+📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
 
 📋 **المميزات:**
 • التداول الفوري (Spot) فقط
