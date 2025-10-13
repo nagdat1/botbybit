@@ -1,0 +1,335 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+مدير الحسابات الحقيقية - تكامل كامل مع المنصات
+يدير الاتصال الحقيقي مع Bybit و MEXC
+"""
+
+import logging
+import hmac
+import hashlib
+import time
+import requests
+from typing import Dict, Optional, List, Any
+from urllib.parse import urlencode
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+class BybitRealAccount:
+    """إدارة الحساب الحقيقي على Bybit"""
+    
+    def __init__(self, api_key: str, api_secret: str):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.base_url = "https://api.bybit.com"
+        
+    def _generate_signature(self, timestamp: str, recv_window: str, params_str: str) -> str:
+        """توليد التوقيع لـ Bybit V5"""
+        sign_str = timestamp + self.api_key + recv_window + params_str
+        signature = hmac.new(
+            self.api_secret.encode('utf-8'),
+            sign_str.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        return signature
+    
+    def _make_request(self, method: str, endpoint: str, params: Dict = None) -> Optional[Dict]:
+        """إرسال طلب إلى Bybit API"""
+        if params is None:
+            params = {}
+        
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+        
+        # بناء query string
+        params_str = urlencode(sorted(params.items())) if params else ""
+        
+        # توليد التوقيع
+        signature = self._generate_signature(timestamp, recv_window, params_str)
+        
+        # Headers
+        headers = {
+            'X-BAPI-API-KEY': self.api_key,
+            'X-BAPI-SIGN': signature,
+            'X-BAPI-TIMESTAMP': timestamp,
+            'X-BAPI-RECV-WINDOW': recv_window,
+            'Content-Type': 'application/json'
+        }
+        
+        url = f"{self.base_url}{endpoint}"
+        if params_str:
+            url += f"?{params_str}"
+        
+        try:
+            if method == 'GET':
+                response = requests.get(url, headers=headers, timeout=10)
+            elif method == 'POST':
+                response = requests.post(url, headers=headers, json=params, timeout=10)
+            else:
+                return None
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('retCode') == 0:
+                    return result.get('result')
+            
+            logger.error(f"Bybit API Error: {response.text}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"خطأ في طلب Bybit: {e}")
+            return None
+    
+    def get_wallet_balance(self) -> Optional[Dict]:
+        """الحصول على رصيد المحفظة الحقيقي"""
+        result = self._make_request('GET', '/v5/account/wallet-balance', {
+            'accountType': 'UNIFIED'
+        })
+        
+        if result and 'list' in result:
+            account = result['list'][0] if result['list'] else {}
+            coins = account.get('coin', [])
+            
+            balance_data = {
+                'total_equity': float(account.get('totalEquity', 0)),
+                'available_balance': float(account.get('totalAvailableBalance', 0)),
+                'total_wallet_balance': float(account.get('totalWalletBalance', 0)),
+                'unrealized_pnl': float(account.get('totalPerpUPL', 0)),
+                'coins': {}
+            }
+            
+            for coin in coins:
+                coin_name = coin.get('coin')
+                equity = float(coin.get('equity', 0))
+                if equity > 0:
+                    balance_data['coins'][coin_name] = {
+                        'equity': equity,
+                        'available': float(coin.get('availableToWithdraw', 0)),
+                        'wallet_balance': float(coin.get('walletBalance', 0)),
+                        'unrealized_pnl': float(coin.get('unrealisedPnl', 0))
+                    }
+            
+            return balance_data
+        
+        return None
+    
+    def get_open_positions(self, category: str = 'linear') -> List[Dict]:
+        """الحصول على الصفقات المفتوحة الحقيقية"""
+        result = self._make_request('GET', '/v5/position/list', {
+            'category': category,
+            'settleCoin': 'USDT'
+        })
+        
+        positions = []
+        if result and 'list' in result:
+            for pos in result['list']:
+                size = float(pos.get('size', 0))
+                if size > 0:
+                    positions.append({
+                        'symbol': pos.get('symbol'),
+                        'side': pos.get('side'),
+                        'size': size,
+                        'entry_price': float(pos.get('avgPrice', 0)),
+                        'mark_price': float(pos.get('markPrice', 0)),
+                        'unrealized_pnl': float(pos.get('unrealisedPnl', 0)),
+                        'leverage': pos.get('leverage'),
+                        'liquidation_price': float(pos.get('liqPrice', 0)),
+                        'take_profit': float(pos.get('takeProfit', 0)),
+                        'stop_loss': float(pos.get('stopLoss', 0)),
+                        'created_time': pos.get('createdTime')
+                    })
+        
+        return positions
+    
+    def place_order(self, category: str, symbol: str, side: str, order_type: str,
+                   qty: float, price: float = None, leverage: int = None,
+                   take_profit: float = None, stop_loss: float = None) -> Optional[Dict]:
+        """وضع أمر تداول حقيقي"""
+        
+        params = {
+            'category': category,
+            'symbol': symbol,
+            'side': side.capitalize(),
+            'orderType': order_type.capitalize(),
+            'qty': str(qty)
+        }
+        
+        if price and order_type.lower() == 'limit':
+            params['price'] = str(price)
+        
+        if take_profit:
+            params['takeProfit'] = str(take_profit)
+        
+        if stop_loss:
+            params['stopLoss'] = str(stop_loss)
+        
+        # تعيين الرافعة المالية أولاً إذا كانت محددة
+        if leverage and category in ['linear', 'inverse']:
+            self.set_leverage(category, symbol, leverage)
+        
+        result = self._make_request('POST', '/v5/order/create', params)
+        
+        if result:
+            return {
+                'order_id': result.get('orderId'),
+                'order_link_id': result.get('orderLinkId'),
+                'symbol': symbol,
+                'side': side,
+                'type': order_type,
+                'qty': qty,
+                'price': price
+            }
+        
+        return None
+    
+    def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
+        """تعيين الرافعة المالية على المنصة"""
+        params = {
+            'category': category,
+            'symbol': symbol,
+            'buyLeverage': str(leverage),
+            'sellLeverage': str(leverage)
+        }
+        
+        result = self._make_request('POST', '/v5/position/set-leverage', params)
+        return result is not None
+    
+    def set_trading_stop(self, category: str, symbol: str, position_idx: int,
+                        take_profit: float = None, stop_loss: float = None) -> bool:
+        """تعيين TP/SL للصفقة المفتوحة"""
+        params = {
+            'category': category,
+            'symbol': symbol,
+            'positionIdx': position_idx
+        }
+        
+        if take_profit:
+            params['takeProfit'] = str(take_profit)
+        
+        if stop_loss:
+            params['stopLoss'] = str(stop_loss)
+        
+        result = self._make_request('POST', '/v5/position/trading-stop', params)
+        return result is not None
+    
+    def close_position(self, category: str, symbol: str, side: str) -> Optional[Dict]:
+        """إغلاق صفقة مفتوحة"""
+        # الحصول على حجم الصفقة أولاً
+        positions = self.get_open_positions(category)
+        position = next((p for p in positions if p['symbol'] == symbol), None)
+        
+        if not position:
+            return None
+        
+        # عكس الجهة للإغلاق
+        close_side = 'Sell' if side.lower() == 'buy' else 'Buy'
+        
+        return self.place_order(
+            category=category,
+            symbol=symbol,
+            side=close_side,
+            order_type='Market',
+            qty=position['size']
+        )
+    
+    def get_order_history(self, category: str = 'linear', limit: int = 50) -> List[Dict]:
+        """الحصول على سجل الأوامر"""
+        result = self._make_request('GET', '/v5/order/history', {
+            'category': category,
+            'limit': limit
+        })
+        
+        orders = []
+        if result and 'list' in result:
+            for order in result['list']:
+                orders.append({
+                    'order_id': order.get('orderId'),
+                    'symbol': order.get('symbol'),
+                    'side': order.get('side'),
+                    'type': order.get('orderType'),
+                    'qty': float(order.get('qty', 0)),
+                    'price': float(order.get('price', 0)),
+                    'avg_price': float(order.get('avgPrice', 0)),
+                    'status': order.get('orderStatus'),
+                    'created_time': order.get('createdTime'),
+                    'updated_time': order.get('updatedTime')
+                })
+        
+        return orders
+
+
+class MEXCRealAccount:
+    """إدارة الحساب الحقيقي على MEXC"""
+    
+    def __init__(self, api_key: str, api_secret: str):
+        from mexc_trading_bot import create_mexc_bot
+        self.bot = create_mexc_bot(api_key, api_secret)
+    
+    def get_wallet_balance(self) -> Optional[Dict]:
+        """الحصول على رصيد المحفظة الحقيقي"""
+        balance = self.bot.get_account_balance()
+        
+        if balance and 'balances' in balance:
+            total_usdt = 0
+            coins_data = {}
+            
+            for asset, info in balance['balances'].items():
+                if info['total'] > 0:
+                    coins_data[asset] = info
+                    # تقدير تقريبي بـ USDT (يمكن تحسينه)
+                    if asset == 'USDT':
+                        total_usdt += info['total']
+            
+            return {
+                'total_equity': total_usdt,
+                'available_balance': balance.get('balances', {}).get('USDT', {}).get('free', 0),
+                'coins': coins_data
+            }
+        
+        return None
+    
+    def get_open_orders(self, symbol: str = None) -> List[Dict]:
+        """الحصول على الأوامر المفتوحة"""
+        orders = self.bot.get_open_orders(symbol)
+        return orders if orders else []
+    
+    def place_order(self, symbol: str, side: str, quantity: float,
+                   order_type: str = 'MARKET', price: float = None) -> Optional[Dict]:
+        """وضع أمر تداول حقيقي"""
+        return self.bot.place_spot_order(symbol, side, quantity, order_type, price)
+    
+    def get_trade_history(self, symbol: str, limit: int = 50) -> List[Dict]:
+        """الحصول على سجل التداولات"""
+        return self.bot.get_trade_history(symbol, limit)
+
+
+class RealAccountManager:
+    """مدير الحسابات الحقيقية - الواجهة الموحدة"""
+    
+    def __init__(self):
+        self.accounts = {}  # {user_id: account_object}
+    
+    def initialize_account(self, user_id: int, exchange: str, api_key: str, api_secret: str):
+        """تهيئة حساب حقيقي للمستخدم"""
+        if exchange.lower() == 'bybit':
+            self.accounts[user_id] = BybitRealAccount(api_key, api_secret)
+        elif exchange.lower() == 'mexc':
+            self.accounts[user_id] = MEXCRealAccount(api_key, api_secret)
+        
+        logger.info(f"تم تهيئة حساب {exchange} حقيقي للمستخدم {user_id}")
+    
+    def get_account(self, user_id: int):
+        """الحصول على حساب المستخدم"""
+        return self.accounts.get(user_id)
+    
+    def remove_account(self, user_id: int):
+        """إزالة حساب المستخدم"""
+        if user_id in self.accounts:
+            del self.accounts[user_id]
+            logger.info(f"تم إزالة الحساب الحقيقي للمستخدم {user_id}")
+
+
+# مثيل عام للمدير
+real_account_manager = RealAccountManager()
+

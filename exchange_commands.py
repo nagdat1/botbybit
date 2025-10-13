@@ -632,9 +632,9 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
         return False
 
 async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تفعيل المنصة المختارة"""
+    """تفعيل المنصة المختارة - تهيئة الحساب الحقيقي"""
     query = update.callback_query
-    await query.answer()
+    await query.answer("جاري التفعيل...")
     
     user_id = update.effective_user.id
     exchange = query.data.replace('exchange_activate_', '')
@@ -648,9 +648,13 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # التحقق من وجود المفاتيح
     if exchange == 'bybit':
-        has_keys = user_data.get('bybit_api_key') and user_data.get('bybit_api_key') != BYBIT_API_KEY
+        api_key = user_data.get('bybit_api_key')
+        api_secret = user_data.get('bybit_api_secret')
+        has_keys = api_key and api_key != BYBIT_API_KEY
     else:  # mexc
-        has_keys = user_data.get('mexc_api_key') and user_data.get('mexc_api_key') != ""
+        api_key = user_data.get('mexc_api_key')
+        api_secret = user_data.get('mexc_api_secret')
+        has_keys = api_key and api_key != ""
     
     if not has_keys:
         await query.edit_message_text(
@@ -660,23 +664,56 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # تفعيل المنصة
-    user_data['exchange'] = exchange
-    if exchange == 'mexc':
-        user_data['market_type'] = 'spot'  # MEXC تدعم Spot فقط
-    
-    from database import db_manager
-    db_manager.update_user_settings(user_id, {
-        'exchange': exchange,
-        'market_type': user_data.get('market_type', 'spot')
-    })
-    
-    await query.edit_message_text(
-        f"✅ **تم تفعيل {exchange.upper()} بنجاح!**\n\n"
-        f"المنصة النشطة الآن: **{exchange.upper()}**\n\n"
-        f"يمكنك الآن استقبال الإشارات والتداول",
-        parse_mode='Markdown'
-    )
+    # تهيئة الحساب الحقيقي
+    from real_account_manager import real_account_manager
+    try:
+        real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+        
+        # تفعيل المنصة
+        user_data['exchange'] = exchange
+        user_data['account_type'] = 'real'  # حساب حقيقي
+        
+        if exchange == 'mexc':
+            user_data['market_type'] = 'spot'  # MEXC تدعم Spot فقط
+        
+        from database import db_manager
+        db_manager.update_user_settings(user_id, {
+            'exchange': exchange,
+            'account_type': 'real',
+            'market_type': user_data.get('market_type', 'spot'),
+            'is_active': True
+        })
+        
+        # جلب معلومات الحساب
+        account = real_account_manager.get_account(user_id)
+        balance_info = ""
+        
+        if account:
+            balance = account.get_wallet_balance()
+            if balance:
+                balance_info = f"\n\n💰 **الرصيد الإجمالي:** ${balance.get('total_equity', 0):,.2f}"
+        
+        await query.edit_message_text(
+            f"✅ **تم تفعيل {exchange.upper()} بنجاح!**\n\n"
+            f"🔐 **الحساب:** حقيقي ونشط\n"
+            f"🏦 **المنصة:** {exchange.upper()}\n"
+            f"📊 **الحالة:** متصل ويعمل{balance_info}\n\n"
+            f"🎉 **يمكنك الآن:**\n"
+            f"• استقبال إشارات التداول\n"
+            f"• التداول الحقيقي على المنصة\n"
+            f"• عرض الرصيد والصفقات الفعلية\n"
+            f"• تنفيذ الأوامر على المنصة",
+            parse_mode='Markdown'
+        )
+        
+        logger.info(f"تم تفعيل {exchange} الحقيقي للمستخدم {user_id}")
+        
+    except Exception as e:
+        logger.error(f"خطأ في تفعيل المنصة: {e}")
+        await query.edit_message_text(
+            f"❌ **خطأ في التفعيل**\n\n"
+            f"حاول مرة أخرى أو تحقق من المفاتيح"
+        )
 
 async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """اختبار الاتصال بالمنصة"""
