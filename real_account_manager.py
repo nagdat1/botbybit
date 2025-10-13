@@ -81,30 +81,43 @@ class BybitRealAccount:
             logger.error(f"خطأ في طلب Bybit: {e}")
             return None
     
-    def get_wallet_balance(self) -> Optional[Dict]:
-        """الحصول على رصيد المحفظة الحقيقي"""
+    def get_wallet_balance(self, market_type: str = 'unified') -> Optional[Dict]:
+        """
+        الحصول على رصيد المحفظة الحقيقي
+        market_type: 'unified' للحساب الموحد، 'spot' للسبوت، 'contract' للفيوتشر
+        """
+        # دالة مساعدة لتحويل القيم بأمان
+        def safe_float(value, default=0.0):
+            try:
+                if value is None or value == '':
+                    return default
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+        
+        # تحديد نوع الحساب حسب نوع السوق
+        if market_type == 'spot':
+            account_type = 'SPOT'
+        elif market_type == 'futures':
+            account_type = 'CONTRACT'
+        else:
+            account_type = 'UNIFIED'
+        
         result = self._make_request('GET', '/v5/account/wallet-balance', {
-            'accountType': 'UNIFIED'
+            'accountType': account_type
         })
         
         if result and 'list' in result:
             account = result['list'][0] if result['list'] else {}
             coins = account.get('coin', [])
             
-            # دالة مساعدة لتحويل القيم بأمان
-            def safe_float(value, default=0.0):
-                try:
-                    if value is None or value == '':
-                        return default
-                    return float(value)
-                except (ValueError, TypeError):
-                    return default
-            
             balance_data = {
                 'total_equity': safe_float(account.get('totalEquity', 0)),
                 'available_balance': safe_float(account.get('totalAvailableBalance', 0)),
                 'total_wallet_balance': safe_float(account.get('totalWalletBalance', 0)),
                 'unrealized_pnl': safe_float(account.get('totalPerpUPL', 0)),
+                'account_type': account_type,
+                'market_type': market_type,
                 'coins': {}
             }
             

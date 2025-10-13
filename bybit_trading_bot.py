@@ -3298,7 +3298,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             real_account = real_account_manager.get_account(user_id)
             
             if real_account:
-                balance = real_account.get_wallet_balance()
+                # تمرير نوع السوق لجلب الرصيد الصحيح (spot أو futures)
+                balance = real_account.get_wallet_balance(market_type)
                 
                 if balance:
                     account_info = {
@@ -3308,7 +3309,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         'unrealized_pnl': balance.get('unrealized_pnl', 0)
                     }
                     
-                    logger.info(f"✅ تم جلب بيانات المحفظة من {exchange}: الرصيد={account_info['balance']:.2f}, المتاح={account_info['available_balance']:.2f}")
+                    logger.info(f"✅ تم جلب بيانات المحفظة من {exchange} ({market_type}): الرصيد={account_info['balance']:.2f}, المتاح={account_info['available_balance']:.2f}")
                 else:
                     logger.warning(f"⚠️ فشل جلب بيانات المحفظة من {exchange}")
                     account_info = {
@@ -3431,7 +3432,8 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             real_account = real_account_manager.get_account(user_id)
             
             if real_account:
-                balance = real_account.get_wallet_balance()
+                # جلب الرصيد حسب نوع السوق
+                balance = real_account.get_wallet_balance(market_type)
                 
                 if balance:
                     total_equity = balance.get('total_equity', 0)
@@ -3443,7 +3445,8 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # الحصول على الصفقات المفتوحة
                     open_positions = []
                     if exchange == 'bybit' and hasattr(real_account, 'get_open_positions'):
-                        open_positions = real_account.get_open_positions()
+                        category = 'linear' if market_type == 'futures' else 'spot'
+                        open_positions = real_account.get_open_positions(category)
                     
                     status_text = f"""
 🔐 **حالة الحساب الحقيقي**
@@ -3452,7 +3455,7 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📊 **نوع السوق:** {market_type.upper()}
 ⚡ **الحالة:** متصل ونشط
 
-💰 **المحفظة:**
+💰 **محفظة {market_type.upper()}:**
 • القيمة الإجمالية: ${total_equity:,.2f}
 • الرصيد المتاح: ${available_balance:,.2f}
 • {pnl_emoji} PnL غير محقق: ${unrealized_pnl:,.2f}
@@ -5107,7 +5110,8 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             real_account = real_account_manager.get_account(user_id)
             
             if real_account:
-                balance = real_account.get_wallet_balance()
+                # جلب الرصيد حسب نوع السوق المختار
+                balance = real_account.get_wallet_balance(market_type)
                 
                 if balance:
                     # عرض المحفظة الحقيقية
@@ -5129,8 +5133,9 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💰 **محفظة {exchange.upper()} الحقيقية**
 
 🔐 **نوع الحساب:** حقيقي ✅
+📊 **نوع السوق:** {market_type.upper()}
 
-📊 **الملخص:**
+📊 **ملخص محفظة {market_type.upper()}:**
 {pnl_emoji} القيمة الإجمالية: ${total_equity:,.2f}
 💳 الرصيد المتاح: ${available_balance:,.2f}
 📈 الربح/الخسارة غير المحققة: ${unrealized_pnl:,.2f}
