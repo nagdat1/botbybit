@@ -91,23 +91,32 @@ class BybitRealAccount:
             account = result['list'][0] if result['list'] else {}
             coins = account.get('coin', [])
             
+            # دالة مساعدة لتحويل القيم بأمان
+            def safe_float(value, default=0.0):
+                try:
+                    if value is None or value == '':
+                        return default
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
+            
             balance_data = {
-                'total_equity': float(account.get('totalEquity', 0)),
-                'available_balance': float(account.get('totalAvailableBalance', 0)),
-                'total_wallet_balance': float(account.get('totalWalletBalance', 0)),
-                'unrealized_pnl': float(account.get('totalPerpUPL', 0)),
+                'total_equity': safe_float(account.get('totalEquity', 0)),
+                'available_balance': safe_float(account.get('totalAvailableBalance', 0)),
+                'total_wallet_balance': safe_float(account.get('totalWalletBalance', 0)),
+                'unrealized_pnl': safe_float(account.get('totalPerpUPL', 0)),
                 'coins': {}
             }
             
             for coin in coins:
                 coin_name = coin.get('coin')
-                equity = float(coin.get('equity', 0))
+                equity = safe_float(coin.get('equity', 0))
                 if equity > 0:
                     balance_data['coins'][coin_name] = {
                         'equity': equity,
-                        'available': float(coin.get('availableToWithdraw', 0)),
-                        'wallet_balance': float(coin.get('walletBalance', 0)),
-                        'unrealized_pnl': float(coin.get('unrealisedPnl', 0))
+                        'available': safe_float(coin.get('availableToWithdraw', 0)),
+                        'wallet_balance': safe_float(coin.get('walletBalance', 0)),
+                        'unrealized_pnl': safe_float(coin.get('unrealisedPnl', 0))
                     }
             
             return balance_data
@@ -121,22 +130,31 @@ class BybitRealAccount:
             'settleCoin': 'USDT'
         })
         
+        # دالة مساعدة لتحويل القيم بأمان
+        def safe_float(value, default=0.0):
+            try:
+                if value is None or value == '':
+                    return default
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+        
         positions = []
         if result and 'list' in result:
             for pos in result['list']:
-                size = float(pos.get('size', 0))
+                size = safe_float(pos.get('size', 0))
                 if size > 0:
                     positions.append({
                         'symbol': pos.get('symbol'),
                         'side': pos.get('side'),
                         'size': size,
-                        'entry_price': float(pos.get('avgPrice', 0)),
-                        'mark_price': float(pos.get('markPrice', 0)),
-                        'unrealized_pnl': float(pos.get('unrealisedPnl', 0)),
-                        'leverage': pos.get('leverage'),
-                        'liquidation_price': float(pos.get('liqPrice', 0)),
-                        'take_profit': float(pos.get('takeProfit', 0)),
-                        'stop_loss': float(pos.get('stopLoss', 0)),
+                        'entry_price': safe_float(pos.get('avgPrice', 0)),
+                        'mark_price': safe_float(pos.get('markPrice', 0)),
+                        'unrealized_pnl': safe_float(pos.get('unrealisedPnl', 0)),
+                        'leverage': pos.get('leverage', '1'),
+                        'liquidation_price': safe_float(pos.get('liqPrice', 0)),
+                        'take_profit': safe_float(pos.get('takeProfit', 0)),
+                        'stop_loss': safe_float(pos.get('stopLoss', 0)),
                         'created_time': pos.get('createdTime')
                     })
         
@@ -240,6 +258,15 @@ class BybitRealAccount:
             'limit': limit
         })
         
+        # دالة مساعدة لتحويل القيم بأمان
+        def safe_float(value, default=0.0):
+            try:
+                if value is None or value == '':
+                    return default
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+        
         orders = []
         if result and 'list' in result:
             for order in result['list']:
@@ -248,9 +275,9 @@ class BybitRealAccount:
                     'symbol': order.get('symbol'),
                     'side': order.get('side'),
                     'type': order.get('orderType'),
-                    'qty': float(order.get('qty', 0)),
-                    'price': float(order.get('price', 0)),
-                    'avg_price': float(order.get('avgPrice', 0)),
+                    'qty': safe_float(order.get('qty', 0)),
+                    'price': safe_float(order.get('price', 0)),
+                    'avg_price': safe_float(order.get('avgPrice', 0)),
                     'status': order.get('orderStatus'),
                     'created_time': order.get('createdTime'),
                     'updated_time': order.get('updatedTime')

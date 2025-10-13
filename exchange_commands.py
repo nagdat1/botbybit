@@ -634,7 +634,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
 async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تفعيل المنصة المختارة - تهيئة الحساب الحقيقي"""
     query = update.callback_query
-    await query.answer("جاري التفعيل...")
+    await query.answer("جاري التحقق...")
     
     user_id = update.effective_user.id
     exchange = query.data.replace('exchange_activate_', '')
@@ -663,6 +663,25 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⚠️ **لم يتم ربط {exchange.upper()} API**\n\n"
             f"يجب ربط API أولاً قبل التفعيل\n\n"
             f"اضغط على \"🔗 ربط API\" أولاً",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # التحقق من أن المنصة مفعّلة بالفعل
+    current_exchange = user_data.get('exchange', '')
+    account_type = user_data.get('account_type', 'demo')
+    
+    if current_exchange == exchange and account_type == 'real':
+        # المنصة مفعّلة بالفعل
+        await query.edit_message_text(
+            f"✅ **{exchange.upper()} مفعّلة بالفعل!**\n\n"
+            f"🔐 الحساب الحقيقي نشط ويعمل\n"
+            f"🏦 المنصة: {exchange.upper()}\n\n"
+            f"💡 يمكنك:\n"
+            f"• عرض المحفظة من القائمة الرئيسية\n"
+            f"• عرض الصفقات المفتوحة\n"
+            f"• استقبال إشارات التداول\n\n"
+            f"📊 لعرض التفاصيل، اذهب للقائمة الرئيسية",
             parse_mode='Markdown'
         )
         return
