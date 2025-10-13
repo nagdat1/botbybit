@@ -4966,12 +4966,51 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
 async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض تاريخ التداول مع تفاصيل محسنة للفيوتشر"""
     try:
-        # الحصول على تاريخ الصفقات من الحسابات التجريبية
-        spot_history = trading_bot.demo_account_spot.trade_history
-        futures_history = trading_bot.demo_account_futures.trade_history
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
         
-        # دمج التاريخ
-        all_history = spot_history + futures_history
+        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+        exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
+        market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
+        
+        all_history = []
+        
+        # إذا كان حساب حقيقي، جلب التاريخ من المنصة
+        if account_type == 'real':
+            from real_account_manager import real_account_manager
+            
+            real_account = real_account_manager.get_account(user_id)
+            
+            if real_account and hasattr(real_account, 'get_order_history'):
+                try:
+                    category = 'linear' if market_type == 'futures' else 'spot'
+                    orders = real_account.get_order_history(category, limit=20)
+                    
+                    # تحويل الأوامر إلى صيغة التاريخ
+                    for order in orders:
+                        if order.get('status') in ['Filled', 'PartiallyFilled']:
+                            all_history.append({
+                                'symbol': order.get('symbol'),
+                                'side': order.get('side'),
+                                'entry_price': order.get('avg_price', order.get('price', 0)),
+                                'closing_price': order.get('avg_price', order.get('price', 0)),
+                                'pnl': 0,  # يحتاج حساب من الصفقات المغلقة
+                                'market_type': market_type,
+                                'timestamp': datetime.fromtimestamp(int(order.get('created_time', 0)) / 1000) if order.get('created_time') else datetime.now(),
+                                'position_size': order.get('qty', 0),
+                                'is_real': True
+                            })
+                    
+                    logger.info(f"✅ تم جلب {len(all_history)} أمر من {exchange}")
+                except Exception as e:
+                    logger.error(f"❌ خطأ في جلب تاريخ الأوامر: {e}")
+        else:
+            # الحصول على تاريخ الصفقات من الحسابات التجريبية
+            spot_history = trading_bot.demo_account_spot.trade_history
+            futures_history = trading_bot.demo_account_futures.trade_history
+            
+            # دمج التاريخ
+            all_history = spot_history + futures_history
         
         # فرز حسب التاريخ (الأحدث أولاً)
         all_history.sort(key=lambda x: x.get('close_timestamp', x.get('timestamp', datetime.min)), reverse=True)
@@ -5236,6 +5275,62 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "exchange_menu":
         from exchange_commands import cmd_select_exchange
         await cmd_select_exchange(update, context)
+        return
+    
+    # معالجة أزرار إدارة الصفقات (TP/SL/Close)
+    if data.startswith("set_tp_") or data.startswith("set_sl_") or data.startswith("set_tpsl_"):
+        from position_manager import position_manager
+        symbol = data.split("_", 2)[2]
+        
+        if data.startswith("set_tp_"):
+            await position_manager.set_take_profit(update, context, symbol)
+        elif data.startswith("set_sl_"):
+            await position_manager.set_stop_loss(update, context, symbol)
+        return
+    
+    if data.startswith("close_position_"):
+        from position_manager import position_manager
+        symbol = data.replace("close_position_", "")
+        user_id = update.effective_user.id
+        
+        # تأكيد الإغلاق
+        keyboard = [
+            [InlineKeyboardButton("✅ نعم، أغلق الصفقة", callback_data=f"confirm_close_{symbol}")],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="open_positions")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"⚠️ **تأكيد إغلاق الصفقة**\n\n"
+            f"هل أنت متأكد من إغلاق صفقة {symbol}؟\n\n"
+            f"سيتم تنفيذ الإغلاق على المنصة الحقيقية!",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return
+    
+    if data.startswith("confirm_close_"):
+        from position_manager import position_manager
+        symbol = data.replace("confirm_close_", "")
+        user_id = update.effective_user.id
+        
+        await query.answer("جاري الإغلاق...")
+        
+        result = await position_manager.close_position(user_id, symbol)
+        
+        if result:
+            await query.edit_message_text(
+                f"✅ **تم إغلاق الصفقة بنجاح!**\n\n"
+                f"💎 الرمز: {symbol}\n"
+                f"⚡ تم التنفيذ على المنصة الحقيقية",
+                parse_mode='Markdown'
+            )
+        else:
+            await query.edit_message_text(
+                f"❌ **فشل إغلاق الصفقة**\n\n"
+                f"حاول مرة أخرى أو تحقق من الاتصال",
+                parse_mode='Markdown'
+            )
         return
     
     # معالجة زر الربط API
@@ -6125,6 +6220,61 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from exchange_commands import handle_api_keys_input
         await handle_api_keys_input(update, context)
         return
+    
+    # معالجة إدخال TP/SL
+    if context.user_data.get('awaiting_tp_price'):
+        try:
+            price = float(text)
+            symbol = context.user_data.get('pending_tp_symbol')
+            
+            from position_manager import position_manager
+            result = await position_manager.apply_tp_sl(user_id, symbol, take_profit=price)
+            
+            if result:
+                await update.message.reply_text(
+                    f"✅ **تم تعيين Take Profit بنجاح!**\n\n"
+                    f"💎 الرمز: {symbol}\n"
+                    f"🎯 السعر المستهدف: ${price:,.2f}\n"
+                    f"⚡ تم التطبيق على المنصة الحقيقية",
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text("❌ فشل تعيين Take Profit")
+            
+            # مسح الحالة
+            context.user_data.pop('awaiting_tp_price', None)
+            context.user_data.pop('pending_tp_symbol', None)
+            return
+        except ValueError:
+            await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+            return
+    
+    if context.user_data.get('awaiting_sl_price'):
+        try:
+            price = float(text)
+            symbol = context.user_data.get('pending_sl_symbol')
+            
+            from position_manager import position_manager
+            result = await position_manager.apply_tp_sl(user_id, symbol, stop_loss=price)
+            
+            if result:
+                await update.message.reply_text(
+                    f"✅ **تم تعيين Stop Loss بنجاح!**\n\n"
+                    f"💎 الرمز: {symbol}\n"
+                    f"🛡️ سعر وقف الخسارة: ${price:,.2f}\n"
+                    f"⚡ تم التطبيق على المنصة الحقيقية",
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text("❌ فشل تعيين Stop Loss")
+            
+            # مسح الحالة
+            context.user_data.pop('awaiting_sl_price', None)
+            context.user_data.pop('pending_sl_symbol', None)
+            return
+        except ValueError:
+            await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+            return
     
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:
