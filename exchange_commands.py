@@ -648,18 +648,21 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # التحقق من وجود المفاتيح
     if exchange == 'bybit':
-        api_key = user_data.get('bybit_api_key')
-        api_secret = user_data.get('bybit_api_secret')
-        has_keys = api_key and api_key != BYBIT_API_KEY
+        api_key = user_data.get('bybit_api_key', '')
+        api_secret = user_data.get('bybit_api_secret', '')
+        # التحقق من أن المفاتيح موجودة وليست القيم الافتراضية
+        default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
+        has_keys = api_key and api_secret and api_key != default_key and len(api_key) > 10
     else:  # mexc
-        api_key = user_data.get('mexc_api_key')
-        api_secret = user_data.get('mexc_api_secret')
-        has_keys = api_key and api_key != ""
+        api_key = user_data.get('mexc_api_key', '')
+        api_secret = user_data.get('mexc_api_secret', '')
+        has_keys = api_key and api_secret and len(api_key) > 10
     
-    if not has_keys:
+    if not has_keys or not api_secret:
         await query.edit_message_text(
             f"⚠️ **لم يتم ربط {exchange.upper()} API**\n\n"
-            f"يجب ربط API أولاً قبل التفعيل",
+            f"يجب ربط API أولاً قبل التفعيل\n\n"
+            f"اضغط على \"🔗 ربط API\" أولاً",
             parse_mode='Markdown'
         )
         return
@@ -667,7 +670,9 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # تهيئة الحساب الحقيقي
     from real_account_manager import real_account_manager
     try:
+        logger.info(f"🔄 بدء تهيئة حساب {exchange} للمستخدم {user_id}")
         real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+        logger.info(f"✅ تم تهيئة حساب {exchange} بنجاح")
         
         # تفعيل المنصة
         user_data['exchange'] = exchange
@@ -710,9 +715,30 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"خطأ في تفعيل المنصة: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        error_message = str(e)
+        
+        # رسائل خطأ مخصصة
+        if "ModuleNotFoundError" in error_message or "ImportError" in error_message:
+            error_details = "خطأ في استيراد المكتبات. تأكد من تثبيت جميع المتطلبات."
+        elif "connection" in error_message.lower():
+            error_details = "خطأ في الاتصال بالمنصة. تحقق من الإنترنت."
+        elif "api" in error_message.lower() or "key" in error_message.lower():
+            error_details = "خطأ في مفاتيح API. تحقق من صحة المفاتيح."
+        else:
+            error_details = f"تفاصيل الخطأ: {error_message[:100]}"
+        
         await query.edit_message_text(
             f"❌ **خطأ في التفعيل**\n\n"
-            f"حاول مرة أخرى أو تحقق من المفاتيح"
+            f"{error_details}\n\n"
+            f"💡 **الحلول المقترحة:**\n"
+            f"1. تحقق من صحة مفاتيح API\n"
+            f"2. تأكد من تفعيل API في حسابك\n"
+            f"3. جرب إعادة ربط API\n"
+            f"4. تحقق من الاتصال بالإنترنت",
+            parse_mode='Markdown'
         )
 
 async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT_TYPE):
