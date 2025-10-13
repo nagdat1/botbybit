@@ -563,9 +563,10 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                     if not found_balance:
                         balance_info += "• لا يوجد رصيد حالياً\n"
             
-            # حفظ المفاتيح
+            # حفظ المفاتيح وتهيئة الحساب الحقيقي
             from user_manager import user_manager
             from database import db_manager
+            from real_account_manager import real_account_manager
             
             user_data = user_manager.get_user(user_id)
             if user_data:
@@ -573,6 +574,13 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 user_data['bybit_api_secret'] = api_secret
                 user_data['exchange'] = 'bybit'
                 user_data['account_type'] = 'real'  # حساب حقيقي
+                
+                # تهيئة الحساب الحقيقي فوراً
+                try:
+                    real_account_manager.initialize_account(user_id, 'bybit', api_key, api_secret)
+                    logger.info(f"✅ تم تهيئة حساب Bybit الحقيقي للمستخدم {user_id}")
+                except Exception as e:
+                    logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}")
                 
                 # حفظ في قاعدة البيانات
                 db_manager.update_user_settings(user_id, {
@@ -648,8 +656,10 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
             if not found_balance:
                 balance_info += "• لا يوجد رصيد حالياً\n"
         
-        # حفظ المفاتيح
+        # حفظ المفاتيح وتهيئة الحساب الحقيقي
         from user_manager import user_manager
+        from real_account_manager import real_account_manager
+        
         user_data = user_manager.get_user(user_id)
         if user_data:
             user_data['mexc_api_key'] = api_key
@@ -657,6 +667,13 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
             user_data['exchange'] = 'mexc'
             user_data['market_type'] = 'spot'  # MEXC تدعم Spot فقط
             user_data['account_type'] = 'real'  # حساب حقيقي
+            
+            # تهيئة الحساب الحقيقي فوراً
+            try:
+                real_account_manager.initialize_account(user_id, 'mexc', api_key, api_secret)
+                logger.info(f"✅ تم تهيئة حساب MEXC الحقيقي للمستخدم {user_id}")
+            except Exception as e:
+                logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}")
             
             # حفظ في قاعدة البيانات
             from database import db_manager

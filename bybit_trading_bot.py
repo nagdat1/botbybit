@@ -2522,6 +2522,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # مستخدم جديد - إنشاء حساب
         user_manager.create_user(user_id)
         user_data = user_manager.get_user(user_id)
+    else:
+        # مستخدم موجود - إعادة تحميل الحساب الحقيقي إذا كان مفعّلاً
+        account_type = user_data.get('account_type', 'demo')
+        exchange = user_data.get('exchange', '')
+        
+        if account_type == 'real' and exchange:
+            from real_account_manager import real_account_manager
+            
+            # التحقق من وجود المفاتيح
+            if exchange == 'bybit':
+                api_key = user_data.get('bybit_api_key', '')
+                api_secret = user_data.get('bybit_api_secret', '')
+            elif exchange == 'mexc':
+                api_key = user_data.get('mexc_api_key', '')
+                api_secret = user_data.get('mexc_api_secret', '')
+            else:
+                api_key = ''
+                api_secret = ''
+            
+            # إعادة تهيئة الحساب إذا كانت المفاتيح موجودة
+            if api_key and api_secret and len(api_key) > 10:
+                try:
+                    real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+                    logger.info(f"✅ تم إعادة تحميل حساب {exchange} للمستخدم {user_id}")
+                except Exception as e:
+                    logger.error(f"⚠️ خطأ في إعادة تحميل الحساب: {e}")
         
         # رسالة ترحيب للمستخدم الجديد
         welcome_message = f"""
