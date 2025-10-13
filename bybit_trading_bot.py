@@ -2552,8 +2552,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-        [KeyboardButton("🏦 اختيار المنصة")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -3230,6 +3229,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # بناء القائمة الأساسية
     keyboard = [
+        [InlineKeyboardButton("🏦 اختيار المنصة (Bybit/MEXC)", callback_data="select_exchange")],
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]
@@ -5049,6 +5049,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"📥 Callback received: {data} from user {user_id}")
     
+    # معالجة زر اختيار المنصة
+    if data == "select_exchange":
+        from exchange_commands import cmd_select_exchange
+        await cmd_select_exchange(update, context)
+        return
+    
+    # معالجة أزرار اختيار المنصات من exchange_commands
+    if data.startswith("exchange_"):
+        # سيتم معالجتها في exchange_commands.py
+        pass
+    
     # معالجة زر الربط API
     if data == "link_api":
         if user_id is not None:
@@ -5930,12 +5941,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await update.message.reply_text("❌ فشل في المتابعة")
             return
-    
-    # معالجة زر اختيار المنصة
-    if text == "🏦 اختيار المنصة":
-        from exchange_commands import cmd_select_exchange
-        await cmd_select_exchange(update, context)
-        return
     
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:

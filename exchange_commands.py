@@ -38,7 +38,7 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
                 callback_data="exchange_select_mexc"
             )
         ],
-        [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="main_menu")]
+        [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
