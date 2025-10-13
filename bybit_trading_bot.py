@@ -5055,10 +5055,41 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cmd_select_exchange(update, context)
         return
     
-    # معالجة أزرار اختيار المنصات من exchange_commands
-    if data.startswith("exchange_"):
-        # سيتم معالجتها في exchange_commands.py
-        pass
+    # معالجة أزرار اختيار المنصات
+    if data == "exchange_select_bybit":
+        from exchange_commands import show_bybit_options
+        await show_bybit_options(update, context)
+        return
+    
+    if data == "exchange_select_mexc":
+        from exchange_commands import show_mexc_options
+        await show_mexc_options(update, context)
+        return
+    
+    if data == "exchange_setup_bybit":
+        from exchange_commands import start_bybit_setup
+        await start_bybit_setup(update, context)
+        return
+    
+    if data == "exchange_setup_mexc":
+        from exchange_commands import start_mexc_setup
+        await start_mexc_setup(update, context)
+        return
+    
+    if data == "exchange_activate_bybit" or data == "exchange_activate_mexc":
+        from exchange_commands import activate_exchange
+        await activate_exchange(update, context)
+        return
+    
+    if data == "exchange_test_bybit" or data == "exchange_test_mexc":
+        from exchange_commands import test_exchange_connection
+        await test_exchange_connection(update, context)
+        return
+    
+    if data == "exchange_menu":
+        from exchange_commands import cmd_select_exchange
+        await cmd_select_exchange(update, context)
+        return
     
     # معالجة زر الربط API
     if data == "link_api":
