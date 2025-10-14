@@ -888,15 +888,14 @@ class DatabaseManager:
                 
                 cursor.execute("""
                     INSERT INTO signals (
-                        signal_id, user_id, signal_type, symbol, price,
+                        signal_id, user_id, signal_type, symbol,
                         market_type, signal_data, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
                     signal_data['signal_id'],
                     signal_data['user_id'],
                     signal_data['signal_type'],
                     signal_data['symbol'],
-                    signal_data.get('price'),
                     signal_data.get('market_type', 'spot'),
                     json.dumps(signal_data.get('raw_data', {})),
                     'received'

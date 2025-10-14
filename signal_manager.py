@@ -35,7 +35,7 @@ class SignalManager:
         """
         try:
             # التحقق من وجود الحقول الإلزامية
-            required_fields = ['signal', 'symbol', 'price', 'id']
+            required_fields = ['signal', 'symbol', 'id']
             for field in required_fields:
                 if field not in signal_data:
                     return False, f"Missing required field: {field}"
@@ -49,14 +49,6 @@ class SignalManager:
             symbol = signal_data.get('symbol', '')
             if not symbol or len(symbol) < 2:
                 return False, "Invalid symbol"
-            
-            # التحقق من السعر
-            try:
-                price = float(signal_data.get('price', 0))
-                if price <= 0:
-                    return False, "Invalid price: must be positive"
-            except (ValueError, TypeError):
-                return False, "Invalid price format"
             
             # التحقق من معرف الإشارة
             signal_id = signal_data.get('id', '')
@@ -128,7 +120,6 @@ class SignalManager:
                 'user_id': user_id,
                 'signal_type': signal_type,
                 'symbol': symbol,
-                'price': signal_data.get('price'),
                 'market_type': SignalManager.SIGNAL_TYPES[signal_type]['market'],
                 'raw_data': signal_data
             }

@@ -5780,7 +5780,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {
   "signal": "buy",
   "symbol": "BTCUSDT",
-  "price": 45000,
   "id": "TV_001"
 }
 
@@ -5791,7 +5790,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {
   "signal": "sell",
   "symbol": "BTCUSDT",
-  "price": 46000,
   "id": "TV_002"
 }
 
@@ -5802,7 +5800,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {
   "signal": "long",
   "symbol": "BTCUSDT",
-  "price": 45000,
   "id": "TV_LONG_001"
 }
 
@@ -5813,7 +5810,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {
   "signal": "close_long",
   "symbol": "BTCUSDT",
-  "price": 46000,
   "id": "TV_CLOSE_001"
 }
 
@@ -5824,7 +5820,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {
   "signal": "short",
   "symbol": "ETHUSDT",
-  "price": 2500,
   "id": "TV_SHORT_001"
 }
 
@@ -5835,7 +5830,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {
   "signal": "close_short",
   "symbol": "ETHUSDT",
-  "price": 2420,
   "id": "TV_CLOSE_002"
 }
 
@@ -5853,7 +5847,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📱 ستتلقى إشعار تفصيلي لكل عملية يحتوي على:
 • 🆔 معرف الإشارة
 • 📊 نوع الإشارة
-• 💱 الرمز والسعر
+• 💱 الرمز
 • 📋 رقم الأمر المنفذ
 • ✅ حالة التنفيذ
 
@@ -5875,12 +5869,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # محاولة إرسال رسالة مبسطة
             simple_message = """📖 دليل الإشارات
 
-BUY: {"signal": "buy", "symbol": "BTCUSDT", "price": 45000, "id": "TV_001"}
-SELL: {"signal": "sell", "symbol": "BTCUSDT", "price": 46000, "id": "TV_002"}
-LONG: {"signal": "long", "symbol": "BTCUSDT", "price": 45000, "id": "TV_LONG_001"}
-CLOSE_LONG: {"signal": "close_long", "symbol": "BTCUSDT", "price": 46000, "id": "TV_CLOSE_001"}
-SHORT: {"signal": "short", "symbol": "ETHUSDT", "price": 2500, "id": "TV_SHORT_001"}
-CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT", "price": 2420, "id": "TV_CLOSE_002"}"""
+BUY: {"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}
+SELL: {"signal": "sell", "symbol": "BTCUSDT", "id": "TV_002"}
+LONG: {"signal": "long", "symbol": "BTCUSDT", "id": "TV_LONG_001"}
+CLOSE_LONG: {"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_CLOSE_001"}
+SHORT: {"signal": "short", "symbol": "ETHUSDT", "id": "TV_SHORT_001"}
+CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_CLOSE_002"}
+
+فقط signal و symbol و id مطلوبان"""
             if update.callback_query is not None:
                 await update.callback_query.edit_message_text(
                     simple_message,
