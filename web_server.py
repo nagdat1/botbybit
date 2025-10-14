@@ -216,6 +216,10 @@ class WebServer:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:
+                            signal_type = data.get('signal', 'N/A')
+                            symbol = data.get('symbol', 'N/A')
+                            signal_id = data.get('id', 'N/A')
+                            
                             # التحقق من نوع الحساب
                             if user_data.get('account_type') == 'real':
                                 # تنفيذ على الحساب الحقيقي
@@ -226,9 +230,7 @@ class WebServer:
                                 print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
                                 
                                 # إرسال إشعار مفصل بالنتيجة
-                                signal_id = result.get('signal_id', 'N/A')
-                                signal_type = data.get('signal', 'N/A')
-                                symbol = data.get('symbol', 'N/A')
+                                signal_id = result.get('signal_id', signal_id)
                                 
                                 if result.get('success'):
                                     action_emoji = {
@@ -241,36 +243,71 @@ class WebServer:
                                     }.get(signal_type.lower(), '🔔')
                                     
                                     notification_msg = (
-                                        f"{action_emoji} تم تنفيذ الإشارة بنجاح\n\n"
-                                        f"🆔 معرف الإشارة: {signal_id}\n"
-                                        f"📊 النوع: {signal_type.upper()}\n"
-                                        f"💱 الرمز: {symbol}\n"
-                                        f"🏦 المنصة: {user_data.get('exchange', 'N/A').upper()}\n"
-                                        f"💰 السوق: {user_data.get('market_type', 'N/A').upper()}\n"
+                                        f"╔═══════════════════════╗\n"
+                                        f"║  {action_emoji} تنفيذ إشارة ناجح  ║\n"
+                                        f"╚═══════════════════════╝\n\n"
+                                        f"🔴 الحساب: <b>حقيقي</b>\n\n"
+                                        f"🆔 معرف الإشارة: <code>{signal_id}</code>\n"
+                                        f"📊 النوع: <b>{signal_type.upper()}</b>\n"
+                                        f"💱 الرمز: <b>{symbol}</b>\n"
+                                        f"🏦 المنصة: <b>{user_data.get('exchange', 'N/A').upper()}</b>\n"
+                                        f"💰 السوق: <b>{user_data.get('market_type', 'N/A').upper()}</b>\n"
                                     )
                                     
                                     if result.get('order_id'):
-                                        notification_msg += f"📋 رقم الأمر: {result.get('order_id')}\n"
+                                        notification_msg += f"📋 رقم الأمر: <code>{result.get('order_id')}</code>\n"
                                     
                                     if result.get('closed_order_id'):
-                                        notification_msg += f"🔒 الأمر المغلق: {result.get('closed_order_id')}\n"
+                                        notification_msg += f"🔒 الأمر المغلق: <code>{result.get('closed_order_id')}</code>\n"
                                     
-                                    notification_msg += f"\n✅ الحالة: {result.get('message', '')}"
+                                    notification_msg += f"\n✅ الحالة: {result.get('message', '')}\n"
+                                    notification_msg += f"\n━━━━━━━━━━━━━━━━━━━━\n💎 by نجدت"
                                     
                                     self.send_telegram_notification_simple(notification_msg, user_id)
                                 else:
                                     error_msg = (
-                                        f"❌ فشل تنفيذ الإشارة\n\n"
-                                        f"🆔 معرف الإشارة: {signal_id}\n"
-                                        f"📊 النوع: {signal_type.upper()}\n"
-                                        f"💱 الرمز: {symbol}\n"
+                                        f"╔═══════════════════════╗\n"
+                                        f"║  ❌ فشل تنفيذ الإشارة  ║\n"
+                                        f"╚═══════════════════════╝\n\n"
+                                        f"🔴 الحساب: <b>حقيقي</b>\n\n"
+                                        f"🆔 معرف الإشارة: <code>{signal_id}</code>\n"
+                                        f"📊 النوع: <b>{signal_type.upper()}</b>\n"
+                                        f"💱 الرمز: <b>{symbol}</b>\n"
                                         f"⚠️ السبب: {result.get('message', 'خطأ غير معروف')}\n"
+                                        f"\n━━━━━━━━━━━━━━━━━━━━\n💎 by نجدت"
                                     )
                                     
                                     self.send_telegram_notification_simple(error_msg, user_id)
                             else:
                                 # معالجة الحساب التجريبي بالطريقة العادية
-                                loop.run_until_complete(self.trading_bot.process_signal(data))
+                                result = loop.run_until_complete(self.trading_bot.process_signal(data))
+                                print(f"✅ [DEMO ACCOUNT] نتيجة التنفيذ: {result}")
+                                
+                                # إرسال إشعار للحساب التجريبي أيضاً
+                                action_emoji = {
+                                    'buy': '🟢',
+                                    'long': '📈',
+                                    'short': '📉',
+                                    'sell': '🔴',
+                                    'close_long': '✅',
+                                    'close_short': '✅'
+                                }.get(signal_type.lower(), '🔔')
+                                
+                                notification_msg = (
+                                    f"╔═══════════════════════╗\n"
+                                    f"║  {action_emoji} استلام إشارة  ║\n"
+                                    f"╚═══════════════════════╝\n\n"
+                                    f"🟢 الحساب: <b>تجريبي</b>\n\n"
+                                    f"🆔 معرف الإشارة: <code>{signal_id}</code>\n"
+                                    f"📊 النوع: <b>{signal_type.upper()}</b>\n"
+                                    f"💱 الرمز: <b>{symbol}</b>\n"
+                                    f"💰 السوق: <b>{user_data.get('market_type', 'N/A').upper()}</b>\n"
+                                    f"💵 المبلغ: <b>{user_data.get('trade_amount', 100)} USDT</b>\n"
+                                    f"\n✅ تم معالجة الإشارة بنجاح\n"
+                                    f"\n━━━━━━━━━━━━━━━━━━━━\n💎 by نجدت"
+                                )
+                                
+                                self.send_telegram_notification_simple(notification_msg, user_id)
                         finally:
                             # استعادة الإعدادات الأصلية
                             self.trading_bot.user_settings.update(original_settings)
