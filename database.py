@@ -59,7 +59,47 @@ class DatabaseManager:
                         partial_close TEXT DEFAULT '[]',
                         status TEXT DEFAULT 'OPEN',
                         notes TEXT,
+                        signal_id TEXT,
+                        signal_type TEXT,
+                        market_type TEXT DEFAULT 'spot',
                         FOREIGN KEY (user_id) REFERENCES users (user_id)
+                    )
+                """)
+                
+                # إضافة حقول signal_id و signal_type و market_type إلى جدول orders إذا لم تكن موجودة
+                try:
+                    cursor.execute("ALTER TABLE orders ADD COLUMN signal_id TEXT")
+                except sqlite3.OperationalError:
+                    pass  # الحقل موجود بالفعل
+                
+                try:
+                    cursor.execute("ALTER TABLE orders ADD COLUMN signal_type TEXT")
+                except sqlite3.OperationalError:
+                    pass
+                
+                try:
+                    cursor.execute("ALTER TABLE orders ADD COLUMN market_type TEXT DEFAULT 'spot'")
+                except sqlite3.OperationalError:
+                    pass
+                
+                # جدول تتبع الإشارات المستلمة
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS signals (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        signal_id TEXT NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        signal_type TEXT NOT NULL,
+                        symbol TEXT NOT NULL,
+                        price REAL,
+                        market_type TEXT DEFAULT 'spot',
+                        signal_data TEXT,
+                        status TEXT DEFAULT 'received',
+                        received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        processed_at TIMESTAMP,
+                        order_id TEXT,
+                        notes TEXT,
+                        FOREIGN KEY (user_id) REFERENCES users (user_id),
+                        UNIQUE(signal_id, user_id)
                     )
                 """)
                 
@@ -805,6 +845,159 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على عدد إشارات المطور {developer_id}: {e}")
             return 0
+    
+    # إدارة الإشارات
+    def create_signal(self, signal_data: Dict) -> Optional[int]:
+        """حفظ إشارة جديدة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO signals (
+                        signal_id, user_id, signal_type, symbol, price,
+                        market_type, signal_data, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    signal_data['signal_id'],
+                    signal_data['user_id'],
+                    signal_data['signal_type'],
+                    signal_data['symbol'],
+                    signal_data.get('price'),
+                    signal_data.get('market_type', 'spot'),
+                    json.dumps(signal_data.get('raw_data', {})),
+                    'received'
+                ))
+                
+                conn.commit()
+                return cursor.lastrowid
+                
+        except sqlite3.IntegrityError:
+            logger.warning(f"إشارة مكررة تم تجاهلها: {signal_data['signal_id']} للمستخدم {signal_data['user_id']}")
+            return None
+        except Exception as e:
+            logger.error(f"خطأ في حفظ الإشارة: {e}")
+            return None
+    
+    def check_signal_exists(self, signal_id: str, user_id: int) -> bool:
+        """التحقق من وجود إشارة مسبقاً"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT id FROM signals 
+                    WHERE signal_id = ? AND user_id = ?
+                """, (signal_id, user_id))
+                
+                return cursor.fetchone() is not None
+                
+        except Exception as e:
+            logger.error(f"خطأ في التحقق من وجود الإشارة: {e}")
+            return False
+    
+    def update_signal_status(self, signal_id: str, user_id: int, 
+                            status: str, order_id: str = None, notes: str = None) -> bool:
+        """تحديث حالة الإشارة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                updates = {
+                    'status': status,
+                    'processed_at': datetime.now().isoformat()
+                }
+                
+                if order_id:
+                    updates['order_id'] = order_id
+                if notes:
+                    updates['notes'] = notes
+                
+                set_clauses = []
+                values = []
+                for key, value in updates.items():
+                    set_clauses.append(f"{key} = ?")
+                    values.append(value)
+                
+                values.extend([signal_id, user_id])
+                query = f"UPDATE signals SET {', '.join(set_clauses)} WHERE signal_id = ? AND user_id = ?"
+                
+                cursor.execute(query, values)
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث حالة الإشارة: {e}")
+            return False
+    
+    def get_open_order_by_signal(self, signal_id: str, user_id: int) -> Optional[Dict]:
+        """الحصول على صفقة مفتوحة مرتبطة بإشارة معينة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM orders 
+                    WHERE signal_id = ? AND user_id = ? AND status = 'OPEN'
+                    ORDER BY open_time DESC
+                    LIMIT 1
+                """, (signal_id, user_id))
+                
+                row = cursor.fetchone()
+                if row:
+                    order = dict(row)
+                    try:
+                        order['tps'] = json.loads(order['tps'])
+                        order['partial_close'] = json.loads(order['partial_close'])
+                    except (json.JSONDecodeError, TypeError):
+                        order['tps'] = []
+                        order['partial_close'] = []
+                    return order
+                return None
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الصفقة المرتبطة بالإشارة: {e}")
+            return None
+    
+    def get_signal_stats(self, user_id: int) -> Dict:
+        """الحصول على إحصائيات الإشارات"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # إجمالي الإشارات
+                cursor.execute("""
+                    SELECT COUNT(*) as total FROM signals WHERE user_id = ?
+                """, (user_id,))
+                total = cursor.fetchone()['total']
+                
+                # الإشارات حسب النوع
+                cursor.execute("""
+                    SELECT signal_type, COUNT(*) as count 
+                    FROM signals 
+                    WHERE user_id = ?
+                    GROUP BY signal_type
+                """, (user_id,))
+                by_type = {row['signal_type']: row['count'] for row in cursor.fetchall()}
+                
+                # الإشارات حسب الحالة
+                cursor.execute("""
+                    SELECT status, COUNT(*) as count 
+                    FROM signals 
+                    WHERE user_id = ?
+                    GROUP BY status
+                """, (user_id,))
+                by_status = {row['status']: row['count'] for row in cursor.fetchall()}
+                
+                return {
+                    'total': total,
+                    'by_type': by_type,
+                    'by_status': by_status
+                }
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على إحصائيات الإشارات: {e}")
+            return {'total': 0, 'by_type': {}, 'by_status': {}}
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

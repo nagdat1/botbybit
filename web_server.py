@@ -225,20 +225,49 @@ class WebServer:
                                 )
                                 print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
                                 
-                                # إرسال إشعار بالنتيجة
+                                # إرسال إشعار مفصل بالنتيجة
+                                signal_id = result.get('signal_id', 'N/A')
+                                signal_type = data.get('signal', 'N/A')
+                                symbol = data.get('symbol', 'N/A')
+                                
                                 if result.get('success'):
-                                    self.send_telegram_notification(
-                                        f"✅ تم تنفيذ الإشارة على الحساب الحقيقي\n\n"
-                                        f"المنصة: {user_data.get('exchange', 'N/A').upper()}\n"
-                                        f"{result.get('message', '')}",
-                                        data
+                                    action_emoji = {
+                                        'buy': '🟢',
+                                        'long': '📈',
+                                        'short': '📉',
+                                        'sell': '🔴',
+                                        'close_long': '✅',
+                                        'close_short': '✅'
+                                    }.get(signal_type.lower(), '🔔')
+                                    
+                                    notification_msg = (
+                                        f"{action_emoji} تم تنفيذ الإشارة بنجاح\n\n"
+                                        f"🆔 معرف الإشارة: {signal_id}\n"
+                                        f"📊 النوع: {signal_type.upper()}\n"
+                                        f"💱 الرمز: {symbol}\n"
+                                        f"🏦 المنصة: {user_data.get('exchange', 'N/A').upper()}\n"
+                                        f"💰 السوق: {user_data.get('market_type', 'N/A').upper()}\n"
                                     )
+                                    
+                                    if result.get('order_id'):
+                                        notification_msg += f"📋 رقم الأمر: {result.get('order_id')}\n"
+                                    
+                                    if result.get('closed_order_id'):
+                                        notification_msg += f"🔒 الأمر المغلق: {result.get('closed_order_id')}\n"
+                                    
+                                    notification_msg += f"\n✅ الحالة: {result.get('message', '')}"
+                                    
+                                    self.send_telegram_notification_simple(notification_msg, user_id)
                                 else:
-                                    self.send_telegram_notification(
+                                    error_msg = (
                                         f"❌ فشل تنفيذ الإشارة\n\n"
-                                        f"{result.get('message', 'خطأ غير معروف')}",
-                                        data
+                                        f"🆔 معرف الإشارة: {signal_id}\n"
+                                        f"📊 النوع: {signal_type.upper()}\n"
+                                        f"💱 الرمز: {symbol}\n"
+                                        f"⚠️ السبب: {result.get('message', 'خطأ غير معروف')}\n"
                                     )
+                                    
+                                    self.send_telegram_notification_simple(error_msg, user_id)
                             else:
                                 # معالجة الحساب التجريبي بالطريقة العادية
                                 loop.run_until_complete(self.trading_bot.process_signal(data))
@@ -494,6 +523,35 @@ class WebServer:
             
         except Exception as e:
             print(f"❌ خطأ في إرسال إشعار تلجرام: {e}")
+    
+    def send_telegram_notification_simple(self, message, user_id=None):
+        """إرسال إشعار تلجرام بسيط بدون تنسيق إضافي"""
+        try:
+            import asyncio
+            from telegram.ext import Application
+            
+            async def send_message():
+                try:
+                    application = Application.builder().token(TELEGRAM_TOKEN).build()
+                    
+                    # إرسال للمستخدم المحدد أو للمشرف
+                    chat_id = user_id if user_id else ADMIN_USER_ID
+                    
+                    await application.bot.send_message(chat_id=chat_id, text=message, parse_mode='HTML')
+                except Exception as e:
+                    print(f"❌ خطأ في إرسال الرسالة: {e}")
+            
+            # تشغيل في thread منفصل
+            def run_async():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(send_message())
+                loop.close()
+            
+            threading.Thread(target=run_async, daemon=True).start()
+            
+        except Exception as e:
+            print(f"❌ خطأ في إرسال إشعار تلجرام البسيط: {e}")
     
     def start_background_tasks(self):
         """بدء المهام الخلفية"""
