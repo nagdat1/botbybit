@@ -134,77 +134,36 @@ class SignalExecutor:
             logger.info(f"📡 Bybit {category.upper()}: {signal_type} {symbol} [ID: {signal_id}]")
             
             if action == 'close':
-                # إغلاق صفقة
-                if 'order_to_close' in signal_result:
-                    # إغلاق صفقة محددة (close_long/close_short)
-                    order_to_close = signal_result['order_to_close']
-                    order_id = order_to_close['order_id']
-                    
-                    logger.info(f"🔄 إغلاق صفقة محددة: {order_id}")
-                    
-                    result = account.close_position(category, symbol, side)
-                    
+                # إغلاق صفقة - البحث عن أي صفقة مفتوحة للرمز المحدد
+                positions = account.get_open_positions(category)
+                target_position = next((p for p in positions if p['symbol'] == symbol), None)
+                
+                if target_position:
+                    result = account.close_position(category, symbol, target_position['side'])
                     if result:
-                        # تحديث حالة الصفقة القديمة
-                        db_manager.update_order(order_id, {'status': 'CLOSED', 'close_time': 'CURRENT_TIMESTAMP'})
-                        
-                        # تحديث الإشارة
                         signal_manager.update_signal_with_order(
-                            signal_id, user_id, order_id, 'closed'
+                            signal_id, user_id, result.get('order_id'), 'closed'
                         )
                         
-                        logger.info(f"✅ تم إغلاق صفقة {symbol} [Order: {order_id}] بنجاح")
+                        logger.info(f"✅ تم إغلاق صفقة {symbol} بنجاح")
                         return {
                             'success': True,
                             'message': f'Position closed: {symbol}',
-                            'order_id': order_id,
-                            'closed_order_id': order_id,
+                            'order_id': result.get('order_id'),
                             'is_real': True
                         }
-                    else:
-                        signal_manager.mark_signal_failed(signal_id, user_id, 'Failed to close position')
-                        return {
-                            'success': False,
-                            'message': 'Failed to close position',
-                            'error': 'CLOSE_FAILED'
-                        }
-                else:
-                    # إغلاق عام (sell في spot)
-                    positions = account.get_open_positions(category)
-                    target_position = next((p for p in positions if p['symbol'] == symbol), None)
-                    
-                    if target_position:
-                        result = account.close_position(category, symbol, target_position['side'])
-                        if result:
-                            signal_manager.update_signal_with_order(
-                                signal_id, user_id, result.get('order_id'), 'closed'
-                            )
-                            
-                            logger.info(f"✅ تم إغلاق صفقة {symbol} بنجاح")
-                            return {
-                                'success': True,
-                                'message': f'Position closed: {symbol}',
-                                'order_id': result.get('order_id'),
-                                'is_real': True
-                            }
-                    
-                    signal_manager.mark_signal_failed(signal_id, user_id, 'No open position found')
-                    return {
-                        'success': False,
-                        'message': f'No open position found for {symbol}',
-                        'error': 'NO_POSITION'
-                    }
+                
+                signal_manager.mark_signal_failed(signal_id, user_id, 'No open position found')
+                return {
+                    'success': False,
+                    'message': f'No open position found for {symbol}',
+                    'error': 'NO_POSITION'
+                }
             
             elif action == 'open':
                 # فتح صفقة جديدة
-                # حساب الكمية بناءً على مبلغ التداول
-                price = float(signal_data.get('price', 1))
-                if category == 'linear':
-                    # للفيوتشر مع الرافعة
-                    qty = (trade_amount * leverage) / price
-                else:
-                    # للسبوت بدون رافعة
-                    qty = trade_amount / price
+                # البوت يقوم بتنفيذ أمر سوق Market Order مباشرة بمبلغ محدد
+                # لا حاجة لحساب الكمية، المنصة تتعامل مع ذلك تلقائياً
                 
                 # استخراج TP/SL إذا كانت موجودة
                 take_profit = signal_data.get('take_profit')
@@ -215,13 +174,13 @@ class SignalExecutor:
                 if stop_loss:
                     stop_loss = float(stop_loss)
                 
-                # وضع الأمر
+                # وضع الأمر - سيتم حساب الكمية من قبل المنصة بناءً على السعر الحالي
                 result = account.place_order(
                     category=category,
                     symbol=symbol,
                     side=side,
                     order_type='Market',
-                    qty=round(qty, 4),
+                    qty=trade_amount,  # المبلغ بالدولار
                     leverage=leverage if category == 'linear' else None,
                     take_profit=take_profit,
                     stop_loss=stop_loss
@@ -229,6 +188,8 @@ class SignalExecutor:
                 
                 if result:
                     order_id = result.get('order_id')
+                    executed_qty = result.get('qty', trade_amount)
+                    executed_price = result.get('price', 0)
                     
                     # حفظ الصفقة في قاعدة البيانات
                     order_data = {
@@ -236,8 +197,8 @@ class SignalExecutor:
                         'user_id': user_id,
                         'symbol': symbol,
                         'side': signal_type,  # buy, long, short
-                        'entry_price': price,
-                        'quantity': qty,
+                        'entry_price': executed_price,
+                        'quantity': executed_qty,
                         'signal_id': signal_id,
                         'signal_type': signal_type,
                         'market_type': market_type,
@@ -257,7 +218,8 @@ class SignalExecutor:
                         'order_id': order_id,
                         'symbol': symbol,
                         'side': signal_type,
-                        'qty': qty,
+                        'qty': executed_qty,
+                        'price': executed_price,
                         'is_real': True
                     }
                 else:
@@ -306,20 +268,18 @@ class SignalExecutor:
             else:
                 side = 'SELL'
             
-            # حساب الكمية
-            price = float(signal_data.get('price', 1))
-            quantity = trade_amount / price
-            
-            # وضع الأمر
+            # وضع الأمر - MEXC Market Order
             result = account.place_order(
                 symbol=symbol,
                 side=side,
-                quantity=round(quantity, 6),
+                quantity=trade_amount,  # المبلغ بالدولار
                 order_type='MARKET'
             )
             
             if result:
                 order_id = result.get('orderId')
+                executed_qty = result.get('executedQty', trade_amount)
+                executed_price = result.get('price', 0)
                 
                 if action == 'open':
                     # حفظ الصفقة في قاعدة البيانات
@@ -328,8 +288,8 @@ class SignalExecutor:
                         'user_id': user_id,
                         'symbol': symbol,
                         'side': signal_type,
-                        'entry_price': price,
-                        'quantity': quantity,
+                        'entry_price': executed_price,
+                        'quantity': executed_qty,
                         'signal_id': signal_id,
                         'signal_type': signal_type,
                         'market_type': 'spot',
@@ -341,10 +301,6 @@ class SignalExecutor:
                 
                 elif action == 'close':
                     # تحديث الصفقة المغلقة
-                    if 'order_to_close' in signal_result:
-                        old_order_id = signal_result['order_to_close']['order_id']
-                        db_manager.update_order(old_order_id, {'status': 'CLOSED'})
-                    
                     signal_manager.update_signal_with_order(signal_id, user_id, str(order_id), 'closed')
                 
                 logger.info(f"✅ تم تنفيذ أمر {signal_type} {symbol} على MEXC بنجاح [Order: {order_id}]")
@@ -355,7 +311,8 @@ class SignalExecutor:
                     'order_id': str(order_id),
                     'symbol': symbol,
                     'side': signal_type,
-                    'qty': quantity,
+                    'qty': executed_qty,
+                    'price': executed_price,
                     'is_real': True
                 }
             else:

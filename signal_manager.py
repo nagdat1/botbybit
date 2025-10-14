@@ -34,7 +34,7 @@ class SignalManager:
             (is_valid, error_message)
         """
         try:
-            # التحقق من وجود الحقول الإلزامية
+            # التحقق من وجود الحقول الإلزامية - فقط signal و symbol
             required_fields = ['signal', 'symbol']
             for field in required_fields:
                 if field not in signal_data:
@@ -128,7 +128,6 @@ class SignalManager:
                 'user_id': user_id,
                 'signal_type': signal_type,
                 'symbol': symbol,
-                'price': signal_data.get('price'),
                 'market_type': SignalManager.SIGNAL_TYPES[signal_type]['market'],
                 'raw_data': signal_data
             }
@@ -162,65 +161,17 @@ class SignalManager:
             
             elif action == 'close':
                 # إشارة إغلاق صفقة
-                # التحقق من وجود صفقة مفتوحة مرتبطة بهذا الـ ID
-                if signal_type in ['close_long', 'close_short']:
-                    # للإغلاق المرتبط بـ ID محدد
-                    original_signal_id = signal_data.get('original_id') or signal_data.get('id')
-                    if not original_signal_id:
-                        logger.warning(f"⚠️ إشارة إغلاق بدون original_id: {signal_id}")
-                        db_manager.update_signal_status(
-                            signal_id, user_id, 'ignored', 
-                            notes='No original_id provided'
-                        )
-                        return {
-                            'success': False,
-                            'message': 'Close signal requires original_id',
-                            'signal_id': signal_id,
-                            'action': 'ignore',
-                            'should_execute': False
-                        }
-                    
-                    # البحث عن الصفقة المفتوحة
-                    open_order = db_manager.get_open_order_by_signal(str(original_signal_id), user_id)
-                    if not open_order:
-                        logger.warning(f"⚠️ لا توجد صفقة مفتوحة للإشارة: {original_signal_id}")
-                        db_manager.update_signal_status(
-                            signal_id, user_id, 'ignored', 
-                            notes=f'No open position for signal: {original_signal_id}'
-                        )
-                        return {
-                            'success': False,
-                            'message': f'No open position found for signal: {original_signal_id}',
-                            'signal_id': signal_id,
-                            'action': 'ignore',
-                            'should_execute': False
-                        }
-                    
-                    logger.info(f"✅ إشارة إغلاق صفقة: {signal_type} {symbol} [Original: {original_signal_id}]")
-                    return {
-                        'success': True,
-                        'message': f'Close {signal_type} signal for {symbol}',
-                        'signal_id': signal_id,
-                        'original_signal_id': original_signal_id,
-                        'action': 'close',
-                        'market_type': signal_info['market'],
-                        'side': signal_info['side'],
-                        'order_to_close': open_order,
-                        'should_execute': True
-                    }
-                
-                else:
-                    # إغلاق عادي (sell في spot)
-                    logger.info(f"✅ إشارة إغلاق: {signal_type} {symbol}")
-                    return {
-                        'success': True,
-                        'message': f'Close signal for {symbol}',
-                        'signal_id': signal_id,
-                        'action': 'close',
-                        'market_type': signal_info['market'],
-                        'side': signal_info['side'],
-                        'should_execute': True
-                    }
+                # البحث عن أي صفقة مفتوحة للرمز المحدد
+                logger.info(f"✅ إشارة إغلاق: {signal_type} {symbol}")
+                return {
+                    'success': True,
+                    'message': f'Close {signal_type} signal for {symbol}',
+                    'signal_id': signal_id,
+                    'action': 'close',
+                    'market_type': signal_info['market'],
+                    'side': signal_info['side'],
+                    'should_execute': True
+                }
             
         except Exception as e:
             logger.error(f"❌ خطأ في معالجة الإشارة: {e}")

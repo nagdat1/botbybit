@@ -16,9 +16,15 @@
 ```json
 {
   "signal": "buy",
+  "symbol": "BTCUSDT"
+}
+```
+
+**مثال مع TP/SL (اختياري):**
+```json
+{
+  "signal": "buy",
   "symbol": "BTCUSDT",
-  "price": 45000,
-  "id": "TV_20240115_001",
   "take_profit": 46000,
   "stop_loss": 44000
 }
