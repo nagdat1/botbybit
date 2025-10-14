@@ -2479,6 +2479,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+            [KeyboardButton("💼 تداول يدوي")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -2578,7 +2579,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+        [KeyboardButton("💼 تداول يدوي")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -5238,6 +5240,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"📥 Callback received: {data} from user {user_id}")
     
+    # معالجة أزرار التداول اليدوي
+    if data == "manual_trade_menu":
+        await manual_trade_menu(update, context)
+        return
+    elif data == "manual_trade_spot":
+        await manual_trade_action_spot(update, context)
+        return
+    elif data == "manual_trade_futures":
+        await manual_trade_action_futures(update, context)
+        return
+    elif data in ["manual_trade_buy", "manual_trade_sell", "manual_trade_long", "manual_trade_short", "manual_trade_close_long", "manual_trade_close_short"]:
+        action = data.replace("manual_trade_", "")
+        await manual_trade_enter_symbol(update, context, action)
+        return
+    elif data == "manual_trade_execute":
+        await manual_trade_execute(update, context)
+        return
+    elif data == "cancel_manual_trade":
+        await cancel_manual_trade(update, context)
+        return
+    
     # معالجة زر اختيار المنصة
     if data == "select_exchange":
         from exchange_commands import cmd_select_exchange
@@ -6170,6 +6193,314 @@ CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_CLOSE_002"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(f"❌ زر غير مدعوم: {data}\n\nيرجى الإبلاغ عن هذا الخطأ")
 
+# ====================================
+# 💼 نظام التداول اليدوي
+# ====================================
+
+async def manual_trade_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """قائمة التداول اليدوي - اختيار نوع السوق"""
+    keyboard = [
+        [
+            InlineKeyboardButton("📊 Spot (الفوري)", callback_data="manual_trade_spot"),
+            InlineKeyboardButton("🚀 Futures (العقود)", callback_data="manual_trade_futures")
+        ],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="cancel_manual_trade")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    message = """💼 التداول اليدوي
+
+اختر نوع السوق الذي تريد التداول فيه:
+
+📊 **Spot** (السوق الفوري)
+• شراء وبيع مباشر بدون رافعة
+
+🚀 **Futures** (العقود المستقبلية)
+• تداول بالرافعة المالية (Long/Short)"""
+    
+    if update.message:
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def manual_trade_action_spot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """اختيار نوع العملية في Spot"""
+    query = update.callback_query
+    await query.answer()
+    
+    # حفظ نوع السوق
+    context.user_data['manual_trade'] = {'market_type': 'spot'}
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("💰 شراء (Buy)", callback_data="manual_trade_buy"),
+            InlineKeyboardButton("💸 بيع (Sell)", callback_data="manual_trade_sell")
+        ],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="manual_trade_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    message = """📊 التداول الفوري (Spot)
+
+اختر نوع العملية:
+
+💰 **شراء (Buy)**
+• شراء عملة في السوق الفوري
+
+💸 **بيع (Sell)**
+• بيع عملة موجودة في محفظتك"""
+    
+    await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def manual_trade_action_futures(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """اختيار نوع العملية في Futures"""
+    query = update.callback_query
+    await query.answer()
+    
+    # حفظ نوع السوق
+    context.user_data['manual_trade'] = {'market_type': 'futures'}
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("📈 Long (شراء)", callback_data="manual_trade_long"),
+            InlineKeyboardButton("📉 Short (بيع)", callback_data="manual_trade_short")
+        ],
+        [
+            InlineKeyboardButton("🔒 إغلاق Long", callback_data="manual_trade_close_long"),
+            InlineKeyboardButton("🔓 إغلاق Short", callback_data="manual_trade_close_short")
+        ],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="manual_trade_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    message = """🚀 التداول بالعقود (Futures)
+
+اختر نوع العملية:
+
+📈 **Long (صعود)**
+• رهان على صعود السعر
+
+📉 **Short (هبوط)**
+• رهان على هبوط السعر
+
+🔒🔓 **إغلاق الصفقات**
+• إغلاق صفقة مفتوحة"""
+    
+    await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def manual_trade_enter_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE, action: str):
+    """طلب إدخال الرمز"""
+    query = update.callback_query
+    await query.answer()
+    
+    # حفظ نوع العملية
+    if 'manual_trade' not in context.user_data:
+        context.user_data['manual_trade'] = {}
+    context.user_data['manual_trade']['action'] = action
+    context.user_data['manual_trade']['awaiting'] = 'symbol'
+    
+    # تحديد النص حسب نوع العملية
+    action_names = {
+        'buy': '💰 شراء',
+        'sell': '💸 بيع',
+        'long': '📈 Long',
+        'short': '📉 Short',
+        'close_long': '🔒 إغلاق Long',
+        'close_short': '🔓 إغلاق Short'
+    }
+    
+    market_type = context.user_data['manual_trade'].get('market_type', 'spot')
+    
+    keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    message = f"""✍️ {action_names.get(action, action)}
+
+أدخل رمز العملة الذي تريد التداول به:
+
+مثال: BTCUSDT, ETHUSDT, SOLUSDT
+
+💡 يجب أن يكون الرمز بالشكل الصحيح"""
+    
+    await query.edit_message_text(message, reply_markup=reply_markup)
+
+async def manual_trade_enter_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """طلب إدخال الكمية/المبلغ"""
+    if update.message:
+        symbol = update.message.text.upper().strip()
+        
+        # التحقق من صحة الرمز
+        if not symbol.endswith('USDT'):
+            await update.message.reply_text("❌ يرجى إدخال رمز صحيح ينتهي بـ USDT\n\nمثال: BTCUSDT")
+            return
+        
+        # حفظ الرمز
+        context.user_data['manual_trade']['symbol'] = symbol
+        context.user_data['manual_trade']['awaiting'] = 'amount'
+        
+        action = context.user_data['manual_trade'].get('action')
+        
+        # إذا كانت عملية إغلاق، لا حاجة للكمية
+        if action in ['close_long', 'close_short']:
+            await manual_trade_confirm(update, context)
+            return
+        
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        message = f"""💵 تحديد المبلغ
+
+الرمز: **{symbol}**
+
+أدخل المبلغ بالدولار (USDT):
+
+مثال: 100, 50, 25.5
+
+💡 سيتم حساب الكمية تلقائياً حسب السعر الحالي"""
+        
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def manual_trade_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تأكيد وتنفيذ الأمر"""
+    if update.message:
+        # إذا كانت رسالة نصية، فهي المبلغ
+        try:
+            amount = float(update.message.text.strip())
+            if amount <= 0:
+                await update.message.reply_text("❌ المبلغ يجب أن يكون أكبر من صفر")
+                return
+            context.user_data['manual_trade']['amount'] = amount
+        except ValueError:
+            await update.message.reply_text("❌ يرجى إدخال مبلغ صحيح\n\nمثال: 100")
+            return
+    
+    # جمع البيانات
+    trade_data = context.user_data.get('manual_trade', {})
+    market_type = trade_data.get('market_type')
+    action = trade_data.get('action')
+    symbol = trade_data.get('symbol')
+    amount = trade_data.get('amount', 0)
+    
+    # أسماء العمليات
+    action_names = {
+        'buy': '💰 شراء',
+        'sell': '💸 بيع',
+        'long': '📈 Long',
+        'short': '📉 Short',
+        'close_long': '🔒 إغلاق Long',
+        'close_short': '🔓 إغلاق Short'
+    }
+    
+    market_emoji = "📊" if market_type == 'spot' else "🚀"
+    
+    # رسالة التأكيد
+    if action in ['close_long', 'close_short']:
+        message = f"""{market_emoji} تأكيد الأمر
+
+{action_names.get(action)}
+الرمز: **{symbol}**
+
+⚠️ سيتم إغلاق الصفقة المفتوحة بالكامل
+
+هل تريد المتابعة؟"""
+    else:
+        message = f"""{market_emoji} تأكيد الأمر
+
+{action_names.get(action)}
+الرمز: **{symbol}**
+المبلغ: **{amount} USDT**
+
+هل تريد المتابعة؟"""
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ تنفيذ", callback_data="manual_trade_execute"),
+            InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def manual_trade_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تنفيذ الأمر"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id
+    trade_data = context.user_data.get('manual_trade', {})
+    
+    market_type = trade_data.get('market_type')
+    action = trade_data.get('action')
+    symbol = trade_data.get('symbol')
+    amount = trade_data.get('amount', 0)
+    
+    # رسالة الانتظار
+    await query.edit_message_text("⏳ جار تنفيذ الأمر...")
+    
+    try:
+        # هنا يتم تنفيذ الأمر باستخدام signal_executor
+        from signal_executor import signal_executor
+        from datetime import datetime
+        
+        # إنشاء بيانات إشارة
+        signal_data = {
+            'signal': action,
+            'symbol': symbol,
+            'id': f'MANUAL_{user_id}_{int(datetime.now().timestamp())}'
+        }
+        
+        # الحصول على بيانات المستخدم
+        user_data_db = user_manager.get_user(user_id)
+        if not user_data_db:
+            await query.edit_message_text("❌ خطأ: لم يتم العثور على بيانات المستخدم")
+            return
+        
+        # تنفيذ الإشارة
+        result = await signal_executor.execute_signal(user_id, signal_data, user_data_db)
+        
+        # عرض النتيجة
+        if result.get('success'):
+            message = f"""✅ تم تنفيذ الأمر بنجاح!
+
+📊 التفاصيل:
+• الرمز: {symbol}
+• العملية: {action}
+• رقم الأمر: {result.get('order_id', 'N/A')}"""
+            
+            if result.get('price'):
+                message += f"\n• السعر: {result.get('price')}"
+            if result.get('qty'):
+                message += f"\n• الكمية: {result.get('qty')}"
+        else:
+            message = f"""❌ فشل تنفيذ الأمر
+
+السبب: {result.get('message', 'خطأ غير معروف')}"""
+        
+        await query.edit_message_text(message)
+        
+    except Exception as e:
+        logger.error(f"خطأ في تنفيذ الأمر اليدوي: {e}")
+        await query.edit_message_text(f"❌ حدث خطأ أثناء التنفيذ:\n{str(e)}")
+    
+    finally:
+        # مسح البيانات
+        if 'manual_trade' in context.user_data:
+            del context.user_data['manual_trade']
+
+async def cancel_manual_trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إلغاء التداول اليدوي"""
+    query = update.callback_query
+    await query.answer("❌ تم الإلغاء")
+    
+    # مسح البيانات
+    if 'manual_trade' in context.user_data:
+        del context.user_data['manual_trade']
+    
+    await query.edit_message_text("❌ تم إلغاء العملية")
+
+# ====================================
+
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
     if update.message is None or update.message.text is None:
@@ -6177,6 +6508,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     user_id = update.effective_user.id if update.effective_user else None
     text = update.message.text
+    
+    # معالجة إدخالات التداول اليدوي
+    if 'manual_trade' in context.user_data:
+        awaiting = context.user_data['manual_trade'].get('awaiting')
+        if awaiting == 'symbol':
+            await manual_trade_enter_amount(update, context)
+            return
+        elif awaiting == 'amount':
+            await manual_trade_confirm(update, context)
+            return
     
     # معالجة أزرار المطور
     if user_id and developer_manager.is_developer(user_id):
@@ -7083,6 +7424,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id is not None and user_id in user_input_state:
                 del user_input_state[user_id]
     
+    elif text == "💼 تداول يدوي":
+        await manual_trade_menu(update, context)
     elif text == "⚙️ الإعدادات":
         await settings_menu(update, context)
     elif text == "📊 حالة الحساب":
