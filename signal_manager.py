@@ -114,13 +114,16 @@ class SignalManager:
                     'should_execute': False
                 }
             
+            # تحديد نوع السوق - من signal_data إن وجد، أو من نوع الإشارة
+            market_type = signal_data.get('market_type') or SignalManager.SIGNAL_TYPES[signal_type]['market']
+            
             # حفظ الإشارة في قاعدة البيانات
             signal_record = {
                 'signal_id': signal_id,
                 'user_id': user_id,
                 'signal_type': signal_type,
                 'symbol': symbol,
-                'market_type': SignalManager.SIGNAL_TYPES[signal_type]['market'],
+                'market_type': market_type,
                 'raw_data': signal_data
             }
             
@@ -146,7 +149,7 @@ class SignalManager:
                     'message': f'Open {signal_type} signal for {symbol}',
                     'signal_id': signal_id,
                     'action': 'open',
-                    'market_type': signal_info['market'],
+                    'market_type': market_type,
                     'side': signal_info['side'],
                     'should_execute': True
                 }
@@ -160,7 +163,7 @@ class SignalManager:
                     'message': f'Close {signal_type} signal for {symbol}',
                     'signal_id': signal_id,
                     'action': 'close',
-                    'market_type': signal_info['market'],
+                    'market_type': market_type,
                     'side': signal_info['side'],
                     'should_execute': True
                 }
