@@ -6430,7 +6430,7 @@ async def manual_trade_execute(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     trade_data = context.user_data.get('manual_trade', {})
     
-    market_type = trade_data.get('market_type')
+    market_type_trade = trade_data.get('market_type')
     action = trade_data.get('action')
     symbol = trade_data.get('symbol')
     amount = trade_data.get('amount', 0)
@@ -6439,35 +6439,45 @@ async def manual_trade_execute(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.edit_message_text("⏳ جار تنفيذ الأمر...")
     
     try:
-        # هنا يتم تنفيذ الأمر باستخدام signal_executor
-        from signal_executor import signal_executor
-        from datetime import datetime
-        
-        # إنشاء بيانات إشارة
-        signal_data = {
-            'signal': action,
-            'symbol': symbol,
-            'id': f'MANUAL_{user_id}_{int(datetime.now().timestamp())}'
-        }
-        
         # الحصول على بيانات المستخدم
         user_data_db = user_manager.get_user(user_id)
         if not user_data_db:
             await query.edit_message_text("❌ خطأ: لم يتم العثور على بيانات المستخدم")
             return
         
-        # تنفيذ الإشارة
-        result = await signal_executor.execute_signal(user_id, signal_data, user_data_db)
+        account_type = user_data_db.get('account_type', 'demo')
+        
+        # تنفيذ على الحساب المناسب
+        if account_type == 'real':
+            # تنفيذ على الحساب الحقيقي
+            from signal_executor import signal_executor
+            from datetime import datetime
+            
+            signal_data = {
+                'signal': action,
+                'symbol': symbol,
+                'id': f'MANUAL_{user_id}_{int(datetime.now().timestamp())}'
+            }
+            
+            result = await signal_executor.execute_signal(user_id, signal_data, user_data_db)
+            
+        else:
+            # تنفيذ على الحساب التجريبي
+            result = await execute_manual_trade_demo(user_id, market_type_trade, action, symbol, amount)
         
         # عرض النتيجة
         if result.get('success'):
-            message = f"""✅ تم تنفيذ الأمر بنجاح!
+            account_emoji = "🔴" if account_type == 'real' else "🟢"
+            message = f"""✅ تم تنفيذ الأمر بنجاح! {account_emoji}
 
 📊 التفاصيل:
+• نوع الحساب: {'حقيقي 🔴' if account_type == 'real' else 'تجريبي 🟢'}
 • الرمز: {symbol}
 • العملية: {action}
-• رقم الأمر: {result.get('order_id', 'N/A')}"""
+• المبلغ: {amount} USDT"""
             
+            if result.get('order_id'):
+                message += f"\n• رقم الأمر: {result.get('order_id')}"
             if result.get('price'):
                 message += f"\n• السعر: {result.get('price')}"
             if result.get('qty'):
@@ -6481,12 +6491,107 @@ async def manual_trade_execute(update: Update, context: ContextTypes.DEFAULT_TYP
         
     except Exception as e:
         logger.error(f"خطأ في تنفيذ الأمر اليدوي: {e}")
+        import traceback
+        traceback.print_exc()
         await query.edit_message_text(f"❌ حدث خطأ أثناء التنفيذ:\n{str(e)}")
     
     finally:
         # مسح البيانات
         if 'manual_trade' in context.user_data:
             del context.user_data['manual_trade']
+
+async def execute_manual_trade_demo(user_id: int, market_type: str, action: str, symbol: str, amount: float) -> Dict:
+    """تنفيذ صفقة يدوية على الحساب التجريبي"""
+    try:
+        # الحصول على الحساب المناسب
+        account = user_manager.get_user_account(user_id, market_type)
+        
+        if not account:
+            return {
+                'success': False,
+                'message': f'لم يتم العثور على حساب {market_type}'
+            }
+        
+        # تحديد نوع الأمر
+        if action in ['buy', 'long']:
+            side = 'Buy'
+        elif action in ['sell', 'short']:
+            side = 'Sell'
+        elif action in ['close_long', 'close_short']:
+            # إغلاق صفقة
+            positions = account.get_open_positions()
+            target_position = None
+            
+            for pos in positions:
+                if pos['symbol'] == symbol:
+                    if action == 'close_long' and pos['side'] == 'Buy':
+                        target_position = pos
+                        break
+                    elif action == 'close_short' and pos['side'] == 'Sell':
+                        target_position = pos
+                        break
+            
+            if not target_position:
+                return {
+                    'success': False,
+                    'message': f'لا توجد صفقة {action} مفتوحة لـ {symbol}'
+                }
+            
+            # إغلاق الصفقة
+            close_result = account.close_position(symbol, target_position['side'])
+            
+            if close_result:
+                return {
+                    'success': True,
+                    'message': 'تم إغلاق الصفقة بنجاح',
+                    'order_id': f'DEMO_{int(time.time())}',
+                    'symbol': symbol,
+                    'action': action
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'فشل إغلاق الصفقة'
+                }
+        else:
+            return {
+                'success': False,
+                'message': f'نوع عملية غير معروف: {action}'
+            }
+        
+        # فتح صفقة جديدة
+        leverage = 10 if market_type == 'futures' else 1
+        
+        result = account.place_order(
+            symbol=symbol,
+            side=side,
+            order_type='Market',
+            qty=amount,
+            leverage=leverage
+        )
+        
+        if result:
+            return {
+                'success': True,
+                'message': 'تم تنفيذ الأمر بنجاح',
+                'order_id': result.get('order_id', f'DEMO_{int(time.time())}'),
+                'price': result.get('price'),
+                'qty': result.get('qty'),
+                'symbol': symbol,
+                'action': action
+            }
+        else:
+            return {
+                'success': False,
+                'message': 'فشل تنفيذ الأمر'
+            }
+            
+    except Exception as e:
+        logger.error(f"خطأ في تنفيذ الصفقة التجريبية: {e}")
+        return {
+            'success': False,
+            'message': str(e)
+        }
 
 async def cancel_manual_trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إلغاء التداول اليدوي"""
