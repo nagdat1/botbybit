@@ -5888,68 +5888,62 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 1️⃣ BUY - شراء Spot
 • يفتح صفقة شراء في السوق الفوري
 • مثال:
-```
 {
   "signal": "buy",
   "symbol": "BTCUSDT",
   "id": "TV_001"
 }
-```
+
 
 2️⃣ SELL - إغلاق Spot
 • يغلق صفقة الشراء المفتوحة
 • مثال:
-```
 {
   "signal": "sell",
   "symbol": "BTCUSDT",
   "id": "TV_002"
 }
-```
+
 
 3️⃣ LONG - صفقة شراء Futures
 • يفتح صفقة شراء في العقود المستقبلية
 • مثال:
-```
 {
   "signal": "long",
   "symbol": "BTCUSDT",
   "id": "TV_LONG_001"
 }
-```
+
 
 4️⃣ CLOSE_LONG - إغلاق LONG
 • يغلق صفقة LONG المفتوحة
 • مثال:
-```
 {
   "signal": "close_long",
   "symbol": "BTCUSDT",
   "id": "TV_CLOSE_001"
 }
-```
+
 
 5️⃣ SHORT - صفقة بيع Futures
 • يفتح صفقة بيع في العقود المستقبلية
 • مثال:
-```
 {
   "signal": "short",
   "symbol": "ETHUSDT",
   "id": "TV_SHORT_001"
 }
-```
+
 
 6️⃣ CLOSE_SHORT - إغلاق SHORT
 • يغلق صفقة SHORT المفتوحة
 • مثال:
-```
 {
   "signal": "close_short",
   "symbol": "ETHUSDT",
   "id": "TV_CLOSE_002"
 }
-```
+
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -5968,9 +5962,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • 📋 رقم الأمر المنفذ
 • ✅ حالة التنفيذ
 
-━━━━━━━━━━━━━━━━━━━━━━
-
-💎 by نجدت"""
+━━━━━━━━━━━━━━━━━━━━━━"""
         
         keyboard = [
             [InlineKeyboardButton("🔙 رجوع", callback_data="webhook_url")]
@@ -5981,8 +5973,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if update.callback_query is not None:
                 await update.callback_query.edit_message_text(
                     help_message, 
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
+                    reply_markup=reply_markup
                 )
         except Exception as e:
             logger.error(f"خطأ في عرض شرح الإشارات: {e}")
