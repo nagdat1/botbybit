@@ -5781,9 +5781,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```json
 {
   "signal": "buy",
-  "symbol": "BTCUSDT",
-  "price": 45000,
-  "id": "TV_001"
+  "symbol": "BTCUSDT"
 }
 ```
 
@@ -5793,9 +5791,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```json
 {
   "signal": "sell",
-  "symbol": "BTCUSDT",
-  "price": 46000,
-  "id": "TV_002"
+  "symbol": "BTCUSDT"
 }
 ```
 
@@ -5805,23 +5801,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```json
 {
   "signal": "long",
-  "symbol": "BTCUSDT",
-  "price": 45000,
-  "id": "TV_LONG_001"
+  "symbol": "BTCUSDT"
 }
 ```
 
 4️⃣ **CLOSE_LONG** - إغلاق LONG
-• يغلق صفقة LONG محددة
-• ⚠️ يجب تضمين original_id
+• يغلق صفقة LONG المفتوحة
 • مثال:
 ```json
 {
   "signal": "close_long",
-  "symbol": "BTCUSDT",
-  "price": 46000,
-  "id": "TV_CLOSE_001",
-  "original_id": "TV_LONG_001"
+  "symbol": "BTCUSDT"
 }
 ```
 
@@ -5831,23 +5821,30 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```json
 {
   "signal": "short",
-  "symbol": "ETHUSDT",
-  "price": 2500,
-  "id": "TV_SHORT_001"
+  "symbol": "ETHUSDT"
 }
 ```
 
 6️⃣ **CLOSE_SHORT** - إغلاق SHORT
-• يغلق صفقة SHORT محددة
-• ⚠️ يجب تضمين original_id
+• يغلق صفقة SHORT المفتوحة
 • مثال:
 ```json
 {
   "signal": "close_short",
-  "symbol": "ETHUSDT",
-  "price": 2420,
-  "id": "TV_CLOSE_002",
-  "original_id": "TV_SHORT_001"
+  "symbol": "ETHUSDT"
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+💡 **إشارات اختيارية:**
+يمكنك إضافة Take Profit و Stop Loss:
+```json
+{
+  "signal": "buy",
+  "symbol": "BTCUSDT",
+  "take_profit": 46000,
+  "stop_loss": 44000
 }
 ```
 
@@ -5855,26 +5852,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚡ **مميزات النظام:**
 
-✅ تتبع كل إشارة بمعرف فريد (ID)
+✅ إشارات بسيطة - فقط signal و symbol مطلوبان
 ✅ منع الإشارات المكررة تلقائياً
-✅ ربط صفقات الإغلاق بالفتح
+✅ إغلاق تلقائي للصفقات المفتوحة
 ✅ إشعارات مفصلة لكل عملية
 ✅ دعم Spot و Futures معاً
+✅ تنفيذ فوري بسعر السوق
 
 📱 **ستتلقى إشعار تفصيلي لكل عملية يحتوي على:**
 • 🆔 معرف الإشارة
 • 📊 نوع الإشارة
-• 💱 الرمز والسعر
+• 💱 الرمز
 • 📋 رقم الأمر المنفذ
+• 💰 السعر المنفذ
 • ✅ حالة التنفيذ
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-📚 **للمزيد من التفاصيل:**
-راجع ملف SIGNAL_SYSTEM.md في المشروع للحصول على أمثلة كاملة وشرح تفصيلي
-
-🔗 **رابط الوثائق الكاملة:**
-https://github.com/your-repo/SIGNAL_SYSTEM.md
+📚 **ملاحظات مهمة:**
+• لا حاجة لإرسال السعر - يتم التنفيذ بسعر السوق
+• إغلاق الصفقات يتم تلقائياً عند استقبال إشارة إغلاق
+• البوت يحسب الكمية تلقائياً بناءً على إعداداتك
         """
         
         keyboard = [
