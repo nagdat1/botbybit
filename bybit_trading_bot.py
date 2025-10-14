@@ -5939,20 +5939,46 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"خطأ في عرض شرح الإشارات: {e}")
             # محاولة إرسال رسالة مبسطة
-            simple_message = """📖 دليل الإشارات
+            simple_message = """📖 دليل استخدام نظام الإشارات
 
-BUY: {"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}
-SELL: {"signal": "sell", "symbol": "BTCUSDT", "id": "TV_002"}
-LONG: {"signal": "long", "symbol": "BTCUSDT", "id": "TV_LONG_001"}
-CLOSE_LONG: {"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_CLOSE_001"}
-SHORT: {"signal": "short", "symbol": "ETHUSDT", "id": "TV_SHORT_001"}
-CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_CLOSE_002"}
+🎯 أنواع الإشارات:
 
-فقط signal و symbol و id مطلوبان"""
+1️⃣ BUY - شراء Spot
+```
+{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}
+```
+
+2️⃣ SELL - إغلاق Spot
+```
+{"signal": "sell", "symbol": "BTCUSDT", "id": "TV_002"}
+```
+
+3️⃣ LONG - شراء Futures
+```
+{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}
+```
+
+4️⃣ CLOSE_LONG - إغلاق LONG
+```
+{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}
+```
+
+5️⃣ SHORT - بيع Futures
+```
+{"signal": "short", "symbol": "ETHUSDT", "id": "TV_S01"}
+```
+
+6️⃣ CLOSE_SHORT - إغلاق SHORT
+```
+{"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_C02"}
+```
+
+✅ فقط signal و symbol و id مطلوبان"""
             if update.callback_query is not None:
                 await update.callback_query.edit_message_text(
                     simple_message,
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
                 )
     # معالجة أزرار المطور
     elif data == "developer_panel":
