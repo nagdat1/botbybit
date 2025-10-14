@@ -5784,6 +5784,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
   "id": "TV_001"
 }
 
+
 2️⃣ SELL - إغلاق Spot
 • يغلق صفقة الشراء المفتوحة
 • مثال:
@@ -5794,6 +5795,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
   "id": "TV_002"
 }
 
+
 3️⃣ LONG - صفقة شراء Futures
 • يفتح صفقة شراء في العقود المستقبلية
 • مثال:
@@ -5803,6 +5805,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
   "price": 45000,
   "id": "TV_LONG_001"
 }
+
 
 4️⃣ CLOSE_LONG - إغلاق LONG
 • يغلق صفقة LONG محددة
@@ -5816,6 +5819,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
   "original_id": "TV_LONG_001"
 }
 
+
 5️⃣ SHORT - صفقة بيع Futures
 • يفتح صفقة بيع في العقود المستقبلية
 • مثال:
@@ -5825,6 +5829,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
   "price": 2500,
   "id": "TV_SHORT_001"
 }
+
 
 6️⃣ CLOSE_SHORT - إغلاق SHORT
 • يغلق صفقة SHORT محددة
@@ -5837,6 +5842,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
   "id": "TV_CLOSE_002",
   "original_id": "TV_SHORT_001"
 }
+
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
