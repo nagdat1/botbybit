@@ -5768,6 +5768,122 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+    elif data == "webhook_help":
+        # عرض شرح مفصل لنظام الإشارات
+        help_message = """
+📖 **دليل استخدام نظام الإشارات المتقدم**
+
+🎯 **أنواع الإشارات المدعومة:**
+
+1️⃣ **BUY** - شراء Spot
+• يفتح صفقة شراء في السوق الفوري
+• مثال:
+```json
+{
+  "signal": "buy",
+  "symbol": "BTCUSDT",
+  "price": 45000,
+  "id": "TV_001"
+}
+```
+
+2️⃣ **SELL** - إغلاق Spot
+• يغلق صفقة الشراء المفتوحة
+• مثال:
+```json
+{
+  "signal": "sell",
+  "symbol": "BTCUSDT",
+  "price": 46000,
+  "id": "TV_002"
+}
+```
+
+3️⃣ **LONG** - صفقة شراء Futures
+• يفتح صفقة شراء في العقود المستقبلية
+• مثال:
+```json
+{
+  "signal": "long",
+  "symbol": "BTCUSDT",
+  "price": 45000,
+  "id": "TV_LONG_001"
+}
+```
+
+4️⃣ **CLOSE_LONG** - إغلاق LONG
+• يغلق صفقة LONG محددة
+• ⚠️ يجب تضمين original_id
+• مثال:
+```json
+{
+  "signal": "close_long",
+  "symbol": "BTCUSDT",
+  "price": 46000,
+  "id": "TV_CLOSE_001",
+  "original_id": "TV_LONG_001"
+}
+```
+
+5️⃣ **SHORT** - صفقة بيع Futures
+• يفتح صفقة بيع في العقود المستقبلية
+• مثال:
+```json
+{
+  "signal": "short",
+  "symbol": "ETHUSDT",
+  "price": 2500,
+  "id": "TV_SHORT_001"
+}
+```
+
+6️⃣ **CLOSE_SHORT** - إغلاق SHORT
+• يغلق صفقة SHORT محددة
+• ⚠️ يجب تضمين original_id
+• مثال:
+```json
+{
+  "signal": "close_short",
+  "symbol": "ETHUSDT",
+  "price": 2420,
+  "id": "TV_CLOSE_002",
+  "original_id": "TV_SHORT_001"
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ **مميزات النظام:**
+
+✅ تتبع كل إشارة بمعرف فريد (ID)
+✅ منع الإشارات المكررة تلقائياً
+✅ ربط صفقات الإغلاق بالفتح
+✅ إشعارات مفصلة لكل عملية
+✅ دعم Spot و Futures معاً
+
+📱 **ستتلقى إشعار تفصيلي لكل عملية يحتوي على:**
+• 🆔 معرف الإشارة
+• 📊 نوع الإشارة
+• 💱 الرمز والسعر
+• 📋 رقم الأمر المنفذ
+• ✅ حالة التنفيذ
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📚 **للمزيد من التفاصيل:**
+راجع ملف SIGNAL_SYSTEM.md في المشروع للحصول على أمثلة كاملة وشرح تفصيلي
+
+🔗 **رابط الوثائق الكاملة:**
+https://github.com/your-repo/SIGNAL_SYSTEM.md
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 رجوع", callback_data="webhook_url")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text(help_message, reply_markup=reply_markup, parse_mode='Markdown')
     # معالجة أزرار المطور
     elif data == "developer_panel":
         await show_developer_panel(update, context)
