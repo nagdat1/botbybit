@@ -5255,6 +5255,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         symbol = data.replace("manual_pair_", "")
         await manual_trade_select_pair(update, context, symbol)
         return
+    elif data.startswith("manual_amount_"):
+        if data == "manual_amount_custom":
+            await manual_trade_amount_custom(update, context)
+        else:
+            amount_str = data.replace("manual_amount_", "")
+            amount = float(amount_str)
+            await manual_trade_set_amount(update, context, amount)
+        return
     elif data == "manual_trade_execute":
         await manual_trade_execute(update, context)
         return
@@ -6338,13 +6346,54 @@ async def manual_trade_select_pair(update: Update, context: ContextTypes.DEFAULT
         await manual_trade_confirm_close(query, context)
         return
     
-    # طلب المبلغ
+    # عرض أزرار المبالغ السريعة
+    await manual_trade_select_amount(query, context, symbol)
+
+async def manual_trade_select_amount(query, context: ContextTypes.DEFAULT_TYPE, symbol: str):
+    """عرض أزرار اختيار المبلغ السريع"""
+    # أزرار المبالغ الشائعة
+    keyboard = [
+        [
+            InlineKeyboardButton("10 $", callback_data="manual_amount_10"),
+            InlineKeyboardButton("25 $", callback_data="manual_amount_25"),
+            InlineKeyboardButton("50 $", callback_data="manual_amount_50")
+        ],
+        [
+            InlineKeyboardButton("100 $", callback_data="manual_amount_100"),
+            InlineKeyboardButton("250 $", callback_data="manual_amount_250"),
+            InlineKeyboardButton("500 $", callback_data="manual_amount_500")
+        ],
+        [
+            InlineKeyboardButton("1000 $", callback_data="manual_amount_1000"),
+            InlineKeyboardButton("✍️ مبلغ مخصص", callback_data="manual_amount_custom")
+        ],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    message = f"""💵 اختر المبلغ
+
+الزوج: **{symbol}**
+
+اختر المبلغ الذي تريد التداول به:
+
+💡 أو اضغط "مبلغ مخصص" لإدخال مبلغ آخر"""
+    
+    await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def manual_trade_amount_custom(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """طلب إدخال المبلغ يدوياً"""
+    query = update.callback_query
+    await query.answer()
+    
     context.user_data['manual_trade']['awaiting'] = 'amount'
+    
+    symbol = context.user_data['manual_trade'].get('symbol')
     
     keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    message = f"""💵 تحديد المبلغ
+    message = f"""✍️ إدخال المبلغ يدوياً
 
 الزوج: **{symbol}**
 
@@ -6352,7 +6401,57 @@ async def manual_trade_select_pair(update: Update, context: ContextTypes.DEFAULT
 
 مثال: 100, 50, 25.5
 
-💡 سيتم حساب الكمية تلقائياً حسب السعر الحالي"""
+💡 سيتم حساب الكمية تلقائياً"""
+    
+    await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def manual_trade_set_amount(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: float):
+    """حفظ المبلغ والانتقال للتأكيد"""
+    query = update.callback_query
+    await query.answer()
+    
+    # حفظ المبلغ
+    context.user_data['manual_trade']['amount'] = amount
+    
+    # الانتقال للتأكيد
+    await manual_trade_confirm_with_query(query, context)
+
+async def manual_trade_confirm_with_query(query, context: ContextTypes.DEFAULT_TYPE):
+    """تأكيد الأمر (من query)"""
+    # جمع البيانات
+    trade_data = context.user_data.get('manual_trade', {})
+    market_type = trade_data.get('market_type')
+    action = trade_data.get('action')
+    symbol = trade_data.get('symbol')
+    amount = trade_data.get('amount', 0)
+    
+    # أسماء العمليات
+    action_names = {
+        'buy': '💰 شراء',
+        'sell': '💸 بيع',
+        'long': '📈 Long',
+        'short': '📉 Short',
+        'close_long': '🔒 إغلاق Long',
+        'close_short': '🔓 إغلاق Short'
+    }
+    
+    market_emoji = "📊" if market_type == 'spot' else "🚀"
+    
+    message = f"""{market_emoji} تأكيد الأمر
+
+{action_names.get(action)}
+الزوج: **{symbol}**
+المبلغ: **{amount} USDT**
+
+هل تريد المتابعة؟"""
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ تنفيذ", callback_data="manual_trade_execute"),
+            InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
 
@@ -6376,21 +6475,33 @@ async def manual_trade_enter_amount(update: Update, context: ContextTypes.DEFAUL
             await manual_trade_confirm(update, context)
             return
         
-        # طلب المبلغ
-        context.user_data['manual_trade']['awaiting'] = 'amount'
-        
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")]]
+        # عرض أزرار المبلغ السريع
+        keyboard = [
+            [
+                InlineKeyboardButton("10 $", callback_data="manual_amount_10"),
+                InlineKeyboardButton("25 $", callback_data="manual_amount_25"),
+                InlineKeyboardButton("50 $", callback_data="manual_amount_50")
+            ],
+            [
+                InlineKeyboardButton("100 $", callback_data="manual_amount_100"),
+                InlineKeyboardButton("250 $", callback_data="manual_amount_250"),
+                InlineKeyboardButton("500 $", callback_data="manual_amount_500")
+            ],
+            [
+                InlineKeyboardButton("1000 $", callback_data="manual_amount_1000"),
+                InlineKeyboardButton("✍️ مبلغ مخصص", callback_data="manual_amount_custom")
+            ],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_manual_trade")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        message = f"""💵 تحديد المبلغ
+        message = f"""💵 اختر المبلغ
 
 الزوج: **{symbol}**
 
-أرسل المبلغ بالدولار (USDT):
+اختر المبلغ الذي تريد التداول به:
 
-مثال: 100, 50, 25.5
-
-💡 سيتم حساب الكمية تلقائياً حسب السعر الحالي"""
+💡 أو اضغط "مبلغ مخصص" لإدخال مبلغ آخر"""
         
         await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
 
