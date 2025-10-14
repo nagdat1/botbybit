@@ -5808,15 +5808,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 4️⃣ CLOSE_LONG - إغلاق LONG
-• يغلق صفقة LONG محددة
-• ⚠️ يجب تضمين original_id
+• يغلق صفقة LONG المفتوحة
 • مثال:
 {
   "signal": "close_long",
   "symbol": "BTCUSDT",
   "price": 46000,
-  "id": "TV_CLOSE_001",
-  "original_id": "TV_LONG_001"
+  "id": "TV_CLOSE_001"
 }
 
 
@@ -5832,15 +5830,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 6️⃣ CLOSE_SHORT - إغلاق SHORT
-• يغلق صفقة SHORT محددة
-• ⚠️ يجب تضمين original_id
+• يغلق صفقة SHORT المفتوحة
 • مثال:
 {
   "signal": "close_short",
   "symbol": "ETHUSDT",
   "price": 2420,
-  "id": "TV_CLOSE_002",
-  "original_id": "TV_SHORT_001"
+  "id": "TV_CLOSE_002"
 }
 
 
@@ -5850,7 +5846,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ✅ تتبع كل إشارة بمعرف فريد (ID)
 ✅ منع الإشارات المكررة تلقائياً
-✅ ربط صفقات الإغلاق بالفتح
+✅ إغلاق تلقائي للصفقات المفتوحة
 ✅ إشعارات مفصلة لكل عملية
 ✅ دعم Spot و Futures معاً
 
@@ -5882,9 +5878,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 BUY: {"signal": "buy", "symbol": "BTCUSDT", "price": 45000, "id": "TV_001"}
 SELL: {"signal": "sell", "symbol": "BTCUSDT", "price": 46000, "id": "TV_002"}
 LONG: {"signal": "long", "symbol": "BTCUSDT", "price": 45000, "id": "TV_LONG_001"}
-CLOSE_LONG: {"signal": "close_long", "symbol": "BTCUSDT", "price": 46000, "id": "TV_CLOSE_001", "original_id": "TV_LONG_001"}
+CLOSE_LONG: {"signal": "close_long", "symbol": "BTCUSDT", "price": 46000, "id": "TV_CLOSE_001"}
 SHORT: {"signal": "short", "symbol": "ETHUSDT", "price": 2500, "id": "TV_SHORT_001"}
-CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT", "price": 2420, "id": "TV_CLOSE_002", "original_id": "TV_SHORT_001"}"""
+CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT", "price": 2420, "id": "TV_CLOSE_002"}"""
             if update.callback_query is not None:
                 await update.callback_query.edit_message_text(
                     simple_message,

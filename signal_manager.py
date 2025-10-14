@@ -63,12 +63,6 @@ class SignalManager:
             if not signal_id:
                 return False, "Invalid signal ID"
             
-            # التحقق من original_id للإغلاق
-            if signal_type in ['close_long', 'close_short']:
-                original_id = signal_data.get('original_id', '')
-                if not original_id:
-                    return False, f"{signal_type} requires original_id field"
-            
             return True, ""
             
         except Exception as e:

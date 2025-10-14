@@ -134,54 +134,30 @@ class SignalExecutor:
             logger.info(f"📡 Bybit {category.upper()}: {signal_type} {symbol} [ID: {signal_id}]")
             
             if action == 'close':
-                # إغلاق صفقة - البحث عن الصفقة بواسطة original_id
-                original_id = signal_data.get('original_id')
+                # إغلاق صفقة - البحث عن أي صفقة مفتوحة للرمز المحدد
+                positions = account.get_open_positions(category)
+                target_position = next((p for p in positions if p['symbol'] == symbol), None)
                 
-                if not original_id:
-                    signal_manager.mark_signal_failed(signal_id, user_id, 'Missing original_id')
-                    return {
-                        'success': False,
-                        'message': 'Missing original_id for close signal',
-                        'error': 'MISSING_ORIGINAL_ID'
-                    }
+                if target_position:
+                    result = account.close_position(category, symbol, target_position['side'])
+                    if result:
+                        signal_manager.update_signal_with_order(
+                            signal_id, user_id, result.get('order_id'), 'closed'
+                        )
+                        
+                        logger.info(f"✅ تم إغلاق صفقة {symbol} بنجاح")
+                        return {
+                            'success': True,
+                            'message': f'Position closed: {symbol}',
+                            'order_id': result.get('order_id'),
+                            'is_real': True
+                        }
                 
-                # البحث عن الصفقة المرتبطة بـ original_id
-                original_order = db_manager.get_order_by_signal_id(original_id, user_id)
-                
-                if not original_order or original_order.get('status') != 'OPEN':
-                    signal_manager.mark_signal_failed(signal_id, user_id, f'No open position found with ID: {original_id}')
-                    return {
-                        'success': False,
-                        'message': f'No open position found with original_id: {original_id}',
-                        'error': 'NO_MATCHING_POSITION'
-                    }
-                
-                # إغلاق الصفقة
-                result = account.close_position(category, symbol, original_order.get('side'))
-                
-                if result:
-                    # تحديث حالة الصفقة الأصلية
-                    db_manager.update_order_status(original_order.get('order_id'), 'CLOSED')
-                    
-                    # تحديث الإشارة
-                    signal_manager.update_signal_with_order(
-                        signal_id, user_id, result.get('order_id'), 'closed'
-                    )
-                    
-                    logger.info(f"✅ تم إغلاق صفقة {symbol} المرتبطة بـ ID: {original_id}")
-                    return {
-                        'success': True,
-                        'message': f'Position closed: {symbol} (original_id: {original_id})',
-                        'order_id': result.get('order_id'),
-                        'original_id': original_id,
-                        'is_real': True
-                    }
-                
-                signal_manager.mark_signal_failed(signal_id, user_id, 'Failed to close position')
+                signal_manager.mark_signal_failed(signal_id, user_id, 'No open position found')
                 return {
                     'success': False,
-                    'message': f'Failed to close position for {symbol}',
-                    'error': 'CLOSE_FAILED'
+                    'message': f'No open position found for {symbol}',
+                    'error': 'NO_POSITION'
                 }
             
             elif action == 'open':
@@ -286,38 +262,11 @@ class SignalExecutor:
             
             logger.info(f"📡 MEXC SPOT: {signal_type} {symbol} [ID: {signal_id}]")
             
-            if action == 'close':
-                # إغلاق صفقة - البحث عن الصفقة بواسطة original_id
-                original_id = signal_data.get('original_id')
-                
-                if not original_id:
-                    signal_manager.mark_signal_failed(signal_id, user_id, 'Missing original_id')
-                    return {
-                        'success': False,
-                        'message': 'Missing original_id for close signal',
-                        'error': 'MISSING_ORIGINAL_ID'
-                    }
-                
-                # البحث عن الصفقة المرتبطة بـ original_id
-                original_order = db_manager.get_order_by_signal_id(original_id, user_id)
-                
-                if not original_order or original_order.get('status') != 'OPEN':
-                    signal_manager.mark_signal_failed(signal_id, user_id, f'No open position found with ID: {original_id}')
-                    return {
-                        'success': False,
-                        'message': f'No open position found with original_id: {original_id}',
-                        'error': 'NO_MATCHING_POSITION'
-                    }
-                
-                # تحديد جهة الأمر لـ MEXC - عكس الصفقة الأصلية
-                side = 'SELL' if original_order.get('side') == 'buy' else 'BUY'
-            
+            # تحديد جهة الأمر لـ MEXC
+            if side_type == 'Buy':
+                side = 'BUY'
             else:
-                # تحديد جهة الأمر لـ MEXC للفتح
-                if side_type == 'Buy':
-                    side = 'BUY'
-                else:
-                    side = 'SELL'
+                side = 'SELL'
             
             # وضع الأمر - MEXC Market Order
             result = account.place_order(
@@ -351,20 +300,8 @@ class SignalExecutor:
                     signal_manager.update_signal_with_order(signal_id, user_id, str(order_id), 'executed')
                 
                 elif action == 'close':
-                    # تحديث حالة الصفقة الأصلية
-                    db_manager.update_order_status(original_order.get('order_id'), 'CLOSED')
-                    
                     # تحديث الإشارة
                     signal_manager.update_signal_with_order(signal_id, user_id, str(order_id), 'closed')
-                    
-                    logger.info(f"✅ تم إغلاق صفقة {symbol} المرتبطة بـ ID: {original_id}")
-                    return {
-                        'success': True,
-                        'message': f'Position closed: {symbol} (original_id: {original_id})',
-                        'order_id': str(order_id),
-                        'original_id': original_id,
-                        'is_real': True
-                    }
                 
                 logger.info(f"✅ تم تنفيذ أمر {signal_type} {symbol} على MEXC بنجاح [Order: {order_id}]")
                 
