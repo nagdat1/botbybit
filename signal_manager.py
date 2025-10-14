@@ -34,8 +34,8 @@ class SignalManager:
             (is_valid, error_message)
         """
         try:
-            # التحقق من وجود الحقول الإلزامية - فقط signal و symbol
-            required_fields = ['signal', 'symbol']
+            # التحقق من وجود الحقول الإلزامية
+            required_fields = ['signal', 'symbol', 'price', 'id']
             for field in required_fields:
                 if field not in signal_data:
                     return False, f"Missing required field: {field}"
@@ -50,6 +50,25 @@ class SignalManager:
             if not symbol or len(symbol) < 2:
                 return False, "Invalid symbol"
             
+            # التحقق من السعر
+            try:
+                price = float(signal_data.get('price', 0))
+                if price <= 0:
+                    return False, "Invalid price: must be positive"
+            except (ValueError, TypeError):
+                return False, "Invalid price format"
+            
+            # التحقق من معرف الإشارة
+            signal_id = signal_data.get('id', '')
+            if not signal_id:
+                return False, "Invalid signal ID"
+            
+            # التحقق من original_id للإغلاق
+            if signal_type in ['close_long', 'close_short']:
+                original_id = signal_data.get('original_id', '')
+                if not original_id:
+                    return False, f"{signal_type} requires original_id field"
+            
             return True, ""
             
         except Exception as e:
@@ -59,23 +78,10 @@ class SignalManager:
     @staticmethod
     def generate_signal_id(signal_data: Dict) -> str:
         """
-        توليد معرف فريد للإشارة
-        إذا كان موجود في البيانات يتم استخدامه، وإلا يتم توليده
+        استخدام معرف الإشارة من البيانات
         """
-        # التحقق من وجود ID في البيانات
-        if 'id' in signal_data and signal_data['id']:
-            return str(signal_data['id'])
-        
-        # توليد ID بناءً على الوقت والبيانات
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        signal_type = signal_data.get('signal', '')
-        symbol = signal_data.get('symbol', '')
-        
-        # استخدام UUID مع البيانات الأساسية
-        unique_str = f"{timestamp}_{signal_type}_{symbol}"
-        signal_id = f"{unique_str}_{str(uuid.uuid4())[:8]}"
-        
-        return signal_id
+        # استخدام ID المرسل في الإشارة
+        return str(signal_data.get('id', ''))
     
     @staticmethod
     def process_signal(user_id: int, signal_data: Dict) -> Dict:
@@ -128,6 +134,7 @@ class SignalManager:
                 'user_id': user_id,
                 'signal_type': signal_type,
                 'symbol': symbol,
+                'price': signal_data.get('price'),
                 'market_type': SignalManager.SIGNAL_TYPES[signal_type]['market'],
                 'raw_data': signal_data
             }

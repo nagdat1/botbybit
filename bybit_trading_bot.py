@@ -5779,7 +5779,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • مثال:
 {
   "signal": "buy",
-  "symbol": "BTCUSDT"
+  "symbol": "BTCUSDT",
+  "price": 45000,
+  "id": "TV_001"
 }
 
 2️⃣ SELL - إغلاق Spot
@@ -5787,7 +5789,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • مثال:
 {
   "signal": "sell",
-  "symbol": "BTCUSDT"
+  "symbol": "BTCUSDT",
+  "price": 46000,
+  "id": "TV_002"
 }
 
 3️⃣ LONG - صفقة شراء Futures
@@ -5795,15 +5799,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • مثال:
 {
   "signal": "long",
-  "symbol": "BTCUSDT"
+  "symbol": "BTCUSDT",
+  "price": 45000,
+  "id": "TV_LONG_001"
 }
 
 4️⃣ CLOSE_LONG - إغلاق LONG
-• يغلق صفقة LONG المفتوحة
+• يغلق صفقة LONG محددة
+• ⚠️ يجب تضمين original_id
 • مثال:
 {
   "signal": "close_long",
-  "symbol": "BTCUSDT"
+  "symbol": "BTCUSDT",
+  "price": 46000,
+  "id": "TV_CLOSE_001",
+  "original_id": "TV_LONG_001"
 }
 
 5️⃣ SHORT - صفقة بيع Futures
@@ -5811,44 +5821,41 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • مثال:
 {
   "signal": "short",
-  "symbol": "ETHUSDT"
+  "symbol": "ETHUSDT",
+  "price": 2500,
+  "id": "TV_SHORT_001"
 }
 
 6️⃣ CLOSE_SHORT - إغلاق SHORT
-• يغلق صفقة SHORT المفتوحة
+• يغلق صفقة SHORT محددة
+• ⚠️ يجب تضمين original_id
 • مثال:
 {
   "signal": "close_short",
-  "symbol": "ETHUSDT"
+  "symbol": "ETHUSDT",
+  "price": 2420,
+  "id": "TV_CLOSE_002",
+  "original_id": "TV_SHORT_001"
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
 ⚡ مميزات النظام:
 
-✅ إشارات بسيطة - فقط signal و symbol
-✅ تنفيذ فوري بسعر السوق
-✅ إغلاق تلقائي للصفقات المفتوحة
+✅ تتبع كل إشارة بمعرف فريد (ID)
 ✅ منع الإشارات المكررة تلقائياً
+✅ ربط صفقات الإغلاق بالفتح
+✅ إشعارات مفصلة لكل عملية
 ✅ دعم Spot و Futures معاً
 
 📱 ستتلقى إشعار تفصيلي لكل عملية يحتوي على:
 • 🆔 معرف الإشارة
 • 📊 نوع الإشارة
-• 💱 الرمز
+• 💱 الرمز والسعر
 • 📋 رقم الأمر المنفذ
-• 💰 السعر المنفذ
 • ✅ حالة التنفيذ
 
-━━━━━━━━━━━━━━━━━━━━━━
-
-💡 اختياري - أهداف ربح ووقف خسارة:
-{
-  "signal": "buy",
-  "symbol": "BTCUSDT",
-  "take_profit": 46000,
-  "stop_loss": 44000
-}"""
+━━━━━━━━━━━━━━━━━━━━━━"""
         
         keyboard = [
             [InlineKeyboardButton("🔙 رجوع", callback_data="webhook_url")]
@@ -5866,16 +5873,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # محاولة إرسال رسالة مبسطة
             simple_message = """📖 دليل الإشارات
 
-الإشارات المدعومة:
-{"signal": "buy", "symbol": "BTCUSDT"}
-{"signal": "sell", "symbol": "BTCUSDT"}
-{"signal": "long", "symbol": "BTCUSDT"}
-{"signal": "close_long", "symbol": "BTCUSDT"}
-{"signal": "short", "symbol": "ETHUSDT"}
-{"signal": "close_short", "symbol": "ETHUSDT"}
-
-فقط signal و symbol مطلوبان
-التنفيذ فوري بسعر السوق"""
+BUY: {"signal": "buy", "symbol": "BTCUSDT", "price": 45000, "id": "TV_001"}
+SELL: {"signal": "sell", "symbol": "BTCUSDT", "price": 46000, "id": "TV_002"}
+LONG: {"signal": "long", "symbol": "BTCUSDT", "price": 45000, "id": "TV_LONG_001"}
+CLOSE_LONG: {"signal": "close_long", "symbol": "BTCUSDT", "price": 46000, "id": "TV_CLOSE_001", "original_id": "TV_LONG_001"}
+SHORT: {"signal": "short", "symbol": "ETHUSDT", "price": 2500, "id": "TV_SHORT_001"}
+CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT", "price": 2420, "id": "TV_CLOSE_002", "original_id": "TV_SHORT_001"}"""
             if update.callback_query is not None:
                 await update.callback_query.edit_message_text(
                     simple_message,

@@ -467,6 +467,39 @@ class DatabaseManager:
             logger.error(f"خطأ في الحصول على الصفقة {order_id}: {e}")
             return None
     
+    def get_order_by_signal_id(self, signal_id: str, user_id: int) -> Optional[Dict]:
+        """الحصول على صفقة محددة بواسطة signal_id"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM orders 
+                    WHERE signal_id = ? AND user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (signal_id, user_id))
+                
+                row = cursor.fetchone()
+                
+                if row:
+                    order = dict(row)
+                    
+                    # تحويل النصوص JSON إلى قوائم
+                    try:
+                        order['tps'] = json.loads(order['tps'])
+                        order['partial_close'] = json.loads(order['partial_close'])
+                    except (json.JSONDecodeError, TypeError):
+                        order['tps'] = []
+                        order['partial_close'] = []
+                    
+                    return order
+                return None
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الصفقة بواسطة signal_id {signal_id}: {e}")
+            return None
+    
     def update_order(self, order_id: str, updates: Dict) -> bool:
         """تحديث صفقة"""
         try:
@@ -855,14 +888,15 @@ class DatabaseManager:
                 
                 cursor.execute("""
                     INSERT INTO signals (
-                        signal_id, user_id, signal_type, symbol,
+                        signal_id, user_id, signal_type, symbol, price,
                         market_type, signal_data, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     signal_data['signal_id'],
                     signal_data['user_id'],
                     signal_data['signal_type'],
                     signal_data['symbol'],
+                    signal_data.get('price'),
                     signal_data.get('market_type', 'spot'),
                     json.dumps(signal_data.get('raw_data', {})),
                     'received'
