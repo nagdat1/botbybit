@@ -5881,105 +5881,53 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
     elif data == "webhook_help":
         # عرض شرح مفصل لنظام الإشارات
-        help_message = """📖 دليل استخدام نظام الإشارات
+        help_message = """📖 *دليل الإشارات*
 
-🎯 أنواع الإشارات المدعومة:
+🎯 *أنواع الإشارات:*
 
 1️⃣ BUY - شراء Spot
-```
-{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}
-```
+`{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}`
 
-2️⃣ SELL - إغلاق Spot
-```
-{"signal": "sell", "symbol": "BTCUSDT", "id": "TV_002"}
-```
+2️⃣ SELL - بيع Spot
+`{"signal": "sell", "symbol": "BTCUSDT", "id": "TV_002"}`
 
-3️⃣ LONG - شراء Futures
-```
-{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}
-```
+3️⃣ LONG - فتح Futures Long
+`{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}`
 
-4️⃣ CLOSE_LONG - إغلاق LONG
-```
-{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}
-```
+4️⃣ CLOSE_LONG - إغلاق Long
+`{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}`
 
-5️⃣ SHORT - بيع Futures
-```
-{"signal": "short", "symbol": "ETHUSDT", "id": "TV_S01"}
-```
+5️⃣ SHORT - فتح Futures Short
+`{"signal": "short", "symbol": "ETHUSDT", "id": "TV_S01"}`
 
-6️⃣ CLOSE_SHORT - إغلاق SHORT
-```
-{"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_C02"}
-```
+6️⃣ CLOSE_SHORT - إغلاق Short
+`{"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_C02"}`
 
-━━━━━━━━━━━━━━━━━━━━━━
-
-⚡ مميزات:
-✅ تتبع بمعرف فريد (ID)
-✅ منع التكرار تلقائياً
-✅ إشعارات مفصلة
-
-━━━━━━━━━━━━━━━━━━━━━━"""
+✅ فقط *signal* و *symbol* و *id* مطلوبان"""
         
         keyboard = [
             [InlineKeyboardButton("🔙 رجوع", callback_data="webhook_url")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        try:
-            if update.callback_query is not None:
+        if update.callback_query is not None:
+            try:
                 await update.callback_query.edit_message_text(
                     help_message, 
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
-        except Exception as e:
-            logger.error(f"خطأ في عرض شرح الإشارات: {e}")
-            # محاولة إرسال رسالة مبسطة
-            simple_message = """📖 دليل استخدام نظام الإشارات
-
-🎯 أنواع الإشارات:
-
-1️⃣ BUY - شراء Spot
-```
-{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}
-```
-
-2️⃣ SELL - إغلاق Spot
-```
-{"signal": "sell", "symbol": "BTCUSDT", "id": "TV_002"}
-```
-
-3️⃣ LONG - شراء Futures
-```
-{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}
-```
-
-4️⃣ CLOSE_LONG - إغلاق LONG
-```
-{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}
-```
-
-5️⃣ SHORT - بيع Futures
-```
-{"signal": "short", "symbol": "ETHUSDT", "id": "TV_S01"}
-```
-
-6️⃣ CLOSE_SHORT - إغلاق SHORT
-```
-{"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_C02"}
-```
-
-✅ فقط signal و symbol و id مطلوبان"""
-            if update.callback_query is not None:
-                await update.callback_query.edit_message_text(
-                    simple_message,
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
-                )
+            except Exception as e:
+                logger.error(f"خطأ في عرض شرح الإشارات: {e}")
+                # محاولة بدون تنسيق
+                simple_message = help_message.replace('*', '').replace('`', '')
+                try:
+                    await update.callback_query.edit_message_text(
+                        simple_message,
+                        reply_markup=reply_markup
+                    )
+                except Exception as e2:
+                    logger.error(f"خطأ في عرض الرسالة البديلة: {e2}")
     # معالجة أزرار المطور
     elif data == "developer_panel":
         await show_developer_panel(update, context)
