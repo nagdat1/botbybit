@@ -279,35 +279,67 @@ class WebServer:
                                     
                                     self.send_telegram_notification_simple(error_msg, user_id)
                             else:
-                                # معالجة الحساب التجريبي بالطريقة العادية
-                                result = loop.run_until_complete(self.trading_bot.process_signal(data))
-                                print(f"✅ [DEMO ACCOUNT] نتيجة التنفيذ: {result}")
-                                
-                                # إرسال إشعار للحساب التجريبي أيضاً
-                                action_emoji = {
-                                    'buy': '🟢',
-                                    'long': '📈',
-                                    'short': '📉',
-                                    'sell': '🔴',
-                                    'close_long': '✅',
-                                    'close_short': '✅'
-                                }.get(signal_type.lower(), '🔔')
-                                
-                                notification_msg = (
-                                    f"╔═══════════════════════╗\n"
-                                    f"║  {action_emoji} استلام إشارة  ║\n"
-                                    f"╚═══════════════════════╝\n\n"
-                                    f"🟢 الحساب: <b>تجريبي</b>\n\n"
-                                    f"🆔 معرف الإشارة: <code>{signal_id}</code>\n"
-                                    f"📊 النوع: <b>{signal_type.upper()}</b>\n"
-                                    f"💱 الرمز: <b>{symbol}</b>\n"
-                                    f"💰 السوق: <b>{user_data.get('market_type', 'N/A').upper()}</b>\n"
-                                    f"💵 المبلغ: <b>{user_data.get('trade_amount', 100)} USDT</b>\n"
-                                    f"\n✅ تم معالجة الإشارة بنجاح\n"
-                                    f"\n━━━━━━━━━━━━━━━━━━━━\n💎 by نجدت"
-                                )
-                                
-                                self.send_telegram_notification_simple(notification_msg, user_id)
+                                # معالجة الحساب التجريبي - تنفيذ مباشر على حساب المستخدم
+                                try:
+                                    result = loop.run_until_complete(
+                                        self._execute_demo_signal(user_id, data, user_data)
+                                    )
+                                    print(f"✅ [DEMO ACCOUNT] نتيجة التنفيذ: {result}")
+                                    
+                                    # إرسال إشعار للحساب التجريبي
+                                    action_emoji = {
+                                        'buy': '🟢',
+                                        'long': '📈',
+                                        'short': '📉',
+                                        'sell': '🔴',
+                                        'close_long': '✅',
+                                        'close_short': '✅'
+                                    }.get(signal_type.lower(), '🔔')
+                                    
+                                    if result.get('success'):
+                                        notification_msg = (
+                                            f"╔═══════════════════════╗\n"
+                                            f"║  {action_emoji} تنفيذ صفقة تجريبية  ║\n"
+                                            f"╚═══════════════════════╝\n\n"
+                                            f"🟢 الحساب: <b>تجريبي</b>\n\n"
+                                            f"🆔 معرف الإشارة: <code>{signal_id}</code>\n"
+                                            f"📊 النوع: <b>{signal_type.upper()}</b>\n"
+                                            f"💱 الرمز: <b>{symbol}</b>\n"
+                                            f"💰 السوق: <b>{user_data.get('market_type', 'spot').upper()}</b>\n"
+                                            f"💵 المبلغ: <b>{user_data.get('trade_amount', 100)} USDT</b>\n"
+                                        )
+                                        
+                                        if result.get('order_id'):
+                                            notification_msg += f"📋 رقم الأمر: <code>{result.get('order_id')}</code>\n"
+                                        
+                                        if result.get('price'):
+                                            notification_msg += f"💲 السعر: <b>{result.get('price')}</b>\n"
+                                        
+                                        if result.get('balance'):
+                                            notification_msg += f"💰 الرصيد المتبقي: <b>{result.get('balance'):.2f} USDT</b>\n"
+                                        
+                                        notification_msg += f"\n✅ تم تنفيذ الصفقة بنجاح\n"
+                                        notification_msg += f"\n━━━━━━━━━━━━━━━━━━━━\n💎 by نجدت"
+                                        
+                                        self.send_telegram_notification_simple(notification_msg, user_id)
+                                    else:
+                                        error_msg = (
+                                            f"╔═══════════════════════╗\n"
+                                            f"║  ❌ فشل التنفيذ  ║\n"
+                                            f"╚═══════════════════════╝\n\n"
+                                            f"🟢 الحساب: <b>تجريبي</b>\n\n"
+                                            f"🆔 معرف الإشارة: <code>{signal_id}</code>\n"
+                                            f"📊 النوع: <b>{signal_type.upper()}</b>\n"
+                                            f"💱 الرمز: <b>{symbol}</b>\n"
+                                            f"⚠️ السبب: {result.get('message', 'خطأ غير معروف')}\n"
+                                            f"\n━━━━━━━━━━━━━━━━━━━━\n💎 by نجدت"
+                                        )
+                                        self.send_telegram_notification_simple(error_msg, user_id)
+                                        
+                                except Exception as e:
+                                    print(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
+                                    import traceback
+                                    traceback.print_exc()
                         finally:
                             # استعادة الإعدادات الأصلية
                             self.trading_bot.user_settings.update(original_settings)
@@ -335,7 +367,203 @@ class WebServer:
                 traceback.print_exc()
                 return jsonify({"status": "error", "message": str(e)}), 500
     
-    # تم حذف دالة _process_user_signal القديمة - الآن نستخدم trading_bot.process_signal مباشرة
+    async def _execute_demo_signal(self, user_id: int, signal_data: dict, user_data: dict) -> dict:
+        """تنفيذ إشارة على الحساب التجريبي بشكل مباشر ومتكامل"""
+        try:
+            from user_manager import user_manager
+            from database import db_manager
+            from signal_manager import signal_manager
+            import time
+            
+            # معالجة الإشارة بواسطة SignalManager
+            signal_result = signal_manager.process_signal(user_id, signal_data)
+            
+            if not signal_result.get('should_execute'):
+                print(f"⚠️ لن يتم تنفيذ الإشارة: {signal_result.get('message')}")
+                return {
+                    'success': False,
+                    'message': signal_result.get('message', 'Signal ignored')
+                }
+            
+            signal_id = signal_result.get('signal_id')
+            signal_type = signal_data.get('signal', '').lower()
+            symbol = signal_data.get('symbol', '')
+            market_type = user_data.get('market_type', 'spot')
+            trade_amount = user_data.get('trade_amount', 100.0)
+            leverage = user_data.get('leverage', 10)
+            
+            print(f"🎯 [DEMO] تنفيذ إشارة: {signal_type} {symbol} على {market_type}")
+            
+            # الحصول على حساب المستخدم التجريبي
+            account = user_manager.get_user_account(user_id, market_type)
+            
+            if not account:
+                error_msg = f'لم يتم العثور على حساب {market_type} تجريبي للمستخدم {user_id}'
+                print(f"❌ {error_msg}")
+                signal_manager.mark_signal_failed(signal_id, user_id, error_msg)
+                return {
+                    'success': False,
+                    'message': error_msg
+                }
+            
+            # الحصول على السعر الحالي
+            try:
+                from bybit_trading_bot import BybitAPI
+                bybit_api = BybitAPI("", "")  # للحساب التجريبي نستخدم API فقط للأسعار
+                price = bybit_api.get_ticker_price(symbol, market_type)
+                if not price:
+                    price = 100.0  # سعر افتراضي إذا فشل الحصول على السعر
+            except:
+                price = 100.0
+            
+            print(f"💲 السعر الحالي لـ {symbol}: {price}")
+            
+            # تحديد نوع العملية
+            action = signal_result.get('action')  # 'open' أو 'close'
+            side = signal_result.get('side')  # 'Buy' أو 'Sell'
+            
+            order_id = None
+            
+            if action == 'open':
+                # فتح صفقة جديدة
+                print(f"📈 فتح صفقة: {side} {symbol}")
+                
+                # حساب الكمية
+                if market_type == 'futures':
+                    qty = trade_amount * leverage / price
+                else:
+                    qty = trade_amount / price
+                
+                # تنفيذ الأمر على الحساب التجريبي
+                result = account.place_order(
+                    symbol=symbol,
+                    side=side,
+                    order_type='Market',
+                    qty=qty,
+                    leverage=leverage if market_type == 'futures' else 1
+                )
+                
+                if result:
+                    order_id = result.get('order_id') or f'DEMO_{int(time.time())}'
+                    
+                    # حفظ في قاعدة البيانات
+                    db_manager.save_order({
+                        'user_id': user_id,
+                        'order_id': order_id,
+                        'symbol': symbol,
+                        'side': side,
+                        'price': price,
+                        'qty': qty,
+                        'status': 'filled',
+                        'market_type': market_type,
+                        'signal_id': signal_id,
+                        'signal_type': signal_type
+                    })
+                    
+                    # تحديث الإشارة
+                    signal_manager.update_signal_with_order(signal_id, user_id, order_id, 'executed')
+                    
+                    print(f"✅ تم فتح الصفقة بنجاح: {order_id}")
+                    
+                    return {
+                        'success': True,
+                        'message': 'Order executed successfully',
+                        'order_id': order_id,
+                        'price': price,
+                        'qty': qty,
+                        'balance': account.balance
+                    }
+                else:
+                    error_msg = 'فشل في تنفيذ الأمر'
+                    signal_manager.mark_signal_failed(signal_id, user_id, error_msg)
+                    return {
+                        'success': False,
+                        'message': error_msg
+                    }
+                    
+            elif action == 'close':
+                # إغلاق صفقة
+                print(f"🔒 إغلاق صفقة: {symbol}")
+                
+                # البحث عن صفقة مفتوحة للرمز المحدد
+                positions = account.get_open_positions()
+                target_position = None
+                
+                for pos in positions:
+                    if pos['symbol'] == symbol:
+                        # للسبوت: أي صفقة شراء
+                        # للفيوتشر: نفس الاتجاه
+                        if market_type == 'spot':
+                            target_position = pos
+                            break
+                        else:  # futures
+                            if signal_type in ['close_long'] and pos.get('side') == 'Buy':
+                                target_position = pos
+                                break
+                            elif signal_type in ['close_short'] and pos.get('side') == 'Sell':
+                                target_position = pos
+                                break
+                
+                if target_position:
+                    # إغلاق الصفقة
+                    close_result = account.close_position(symbol, target_position.get('side', 'Buy'))
+                    
+                    if close_result:
+                        order_id = close_result.get('order_id') or f'DEMO_CLOSE_{int(time.time())}'
+                        
+                        # تحديث في قاعدة البيانات
+                        db_manager.save_order({
+                            'user_id': user_id,
+                            'order_id': order_id,
+                            'symbol': symbol,
+                            'side': 'Sell' if target_position.get('side') == 'Buy' else 'Buy',
+                            'price': price,
+                            'qty': target_position.get('qty', 0),
+                            'status': 'filled',
+                            'market_type': market_type,
+                            'signal_id': signal_id,
+                            'signal_type': signal_type
+                        })
+                        
+                        signal_manager.update_signal_with_order(signal_id, user_id, order_id, 'closed')
+                        
+                        print(f"✅ تم إغلاق الصفقة بنجاح: {order_id}")
+                        
+                        return {
+                            'success': True,
+                            'message': 'Position closed successfully',
+                            'order_id': order_id,
+                            'price': price,
+                            'balance': account.balance
+                        }
+                    else:
+                        error_msg = 'فشل في إغلاق الصفقة'
+                        signal_manager.mark_signal_failed(signal_id, user_id, error_msg)
+                        return {
+                            'success': False,
+                            'message': error_msg
+                        }
+                else:
+                    error_msg = f'لا توجد صفقة مفتوحة لـ {symbol}'
+                    signal_manager.mark_signal_failed(signal_id, user_id, error_msg)
+                    return {
+                        'success': False,
+                        'message': error_msg
+                    }
+            
+            return {
+                'success': False,
+                'message': 'Unknown action'
+            }
+            
+        except Exception as e:
+            print(f"❌ خطأ في تنفيذ الإشارة التجريبية: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'message': str(e)
+            }
     
     def setup_socketio_events(self):
         """إعداد أحداث WebSocket"""
