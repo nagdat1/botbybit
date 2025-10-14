@@ -5770,49 +5770,43 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
     elif data == "webhook_help":
         # عرض شرح مفصل لنظام الإشارات
-        help_message = """
-📖 *دليل نظام الإشارات*
+        help_message = """📖 دليل نظام الإشارات
 
-🎯 *الإشارات المدعومة:*
+🎯 الإشارات المدعومة:
 
-1️⃣ *BUY* - شراء Spot
-`{"signal": "buy", "symbol": "BTCUSDT"}`
+1️⃣ BUY - شراء Spot
+{"signal": "buy", "symbol": "BTCUSDT"}
 
-2️⃣ *SELL* - إغلاق Spot
-`{"signal": "sell", "symbol": "BTCUSDT"}`
+2️⃣ SELL - إغلاق Spot
+{"signal": "sell", "symbol": "BTCUSDT"}
 
-3️⃣ *LONG* - شراء Futures
-`{"signal": "long", "symbol": "BTCUSDT"}`
+3️⃣ LONG - شراء Futures
+{"signal": "long", "symbol": "BTCUSDT"}
 
-4️⃣ *CLOSE_LONG* - إغلاق LONG
-`{"signal": "close_long", "symbol": "BTCUSDT"}`
+4️⃣ CLOSE_LONG - إغلاق LONG
+{"signal": "close_long", "symbol": "BTCUSDT"}
 
-5️⃣ *SHORT* - بيع Futures
-`{"signal": "short", "symbol": "ETHUSDT"}`
+5️⃣ SHORT - بيع Futures
+{"signal": "short", "symbol": "ETHUSDT"}
 
-6️⃣ *CLOSE_SHORT* - إغلاق SHORT
-`{"signal": "close_short", "symbol": "ETHUSDT"}`
-
-━━━━━━━━━━━━━
-
-💡 *اختياري - مع TP/SL:*
-`{
-  "signal": "buy",
-  "symbol": "BTCUSDT",
-  "take_profit": 46000,
-  "stop_loss": 44000
-}`
+6️⃣ CLOSE_SHORT - إغلاق SHORT
+{"signal": "close_short", "symbol": "ETHUSDT"}
 
 ━━━━━━━━━━━━━
 
-⚡ *المميزات:*
+💡 اختياري - مع TP/SL:
+مثال: إضافة أهداف ربح ووقف خسارة
+
+━━━━━━━━━━━━━
+
+⚡ المميزات:
 ✅ بسيط - فقط signal و symbol
 ✅ تنفيذ فوري بسعر السوق
 ✅ إغلاق تلقائي للصفقات
 ✅ منع التكرار تلقائياً
 ✅ إشعارات مفصلة
 
-📱 *ستتلقى إشعار يحتوي على:*
+📱 ستتلقى إشعار يحتوي على:
 • معرف الإشارة
 • نوع الإشارة
 • الرمز
@@ -5822,22 +5816,44 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ━━━━━━━━━━━━━
 
-📚 *ملاحظات:*
-• لا حاجة للسعر
+📚 ملاحظات مهمة:
+• لا حاجة لإرسال السعر
 • حساب تلقائي للكمية
 • تنفيذ فوري
 
 للتفاصيل الكاملة راجع:
-SIGNAL_SYSTEM.md
-        """
+SIGNAL_SYSTEM.md"""
         
         keyboard = [
             [InlineKeyboardButton("🔙 رجوع", callback_data="webhook_url")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(help_message, reply_markup=reply_markup, parse_mode='Markdown')
+        try:
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(
+                    help_message, 
+                    reply_markup=reply_markup
+                )
+        except Exception as e:
+            logger.error(f"خطأ في عرض شرح الإشارات: {e}")
+            # محاولة إرسال رسالة مبسطة
+            simple_message = """📖 دليل الإشارات
+
+فقط أرسل:
+{"signal": "buy", "symbol": "BTCUSDT"}
+{"signal": "sell", "symbol": "BTCUSDT"}
+{"signal": "long", "symbol": "BTCUSDT"}
+{"signal": "close_long", "symbol": "BTCUSDT"}
+{"signal": "short", "symbol": "ETHUSDT"}
+{"signal": "close_short", "symbol": "ETHUSDT"}
+
+راجع ملف SIGNAL_SYSTEM.md للتفاصيل"""
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(
+                    simple_message,
+                    reply_markup=reply_markup
+                )
     # معالجة أزرار المطور
     elif data == "developer_panel":
         await show_developer_panel(update, context)
