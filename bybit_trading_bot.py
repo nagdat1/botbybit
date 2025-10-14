@@ -5775,27 +5775,50 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎯 الإشارات المدعومة:
 
 1️⃣ BUY - شراء Spot
-{"signal": "buy", "symbol": "BTCUSDT"}
+{
+  "signal": "buy",
+  "symbol": "BTCUSDT"
+}
 
 2️⃣ SELL - إغلاق Spot
-{"signal": "sell", "symbol": "BTCUSDT"}
+{
+  "signal": "sell",
+  "symbol": "BTCUSDT"
+}
 
 3️⃣ LONG - شراء Futures
-{"signal": "long", "symbol": "BTCUSDT"}
+{
+  "signal": "long",
+  "symbol": "BTCUSDT"
+}
 
 4️⃣ CLOSE_LONG - إغلاق LONG
-{"signal": "close_long", "symbol": "BTCUSDT"}
+{
+  "signal": "close_long",
+  "symbol": "BTCUSDT"
+}
 
 5️⃣ SHORT - بيع Futures
-{"signal": "short", "symbol": "ETHUSDT"}
+{
+  "signal": "short",
+  "symbol": "ETHUSDT"
+}
 
 6️⃣ CLOSE_SHORT - إغلاق SHORT
-{"signal": "close_short", "symbol": "ETHUSDT"}
+{
+  "signal": "close_short",
+  "symbol": "ETHUSDT"
+}
 
 ━━━━━━━━━━━━━
 
 💡 اختياري - مع TP/SL:
-مثال: إضافة أهداف ربح ووقف خسارة
+{
+  "signal": "buy",
+  "symbol": "BTCUSDT",
+  "take_profit": 46000,
+  "stop_loss": 44000
+}
 
 ━━━━━━━━━━━━━
 
@@ -5806,23 +5829,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ✅ منع التكرار تلقائياً
 ✅ إشعارات مفصلة
 
-📱 ستتلقى إشعار يحتوي على:
+📱 إشعار لكل عملية:
 • معرف الإشارة
-• نوع الإشارة
-• الرمز
-• رقم الأمر
-• السعر المنفذ
+• نوع الإشارة والرمز
+• رقم الأمر والسعر المنفذ
 • حالة التنفيذ
 
 ━━━━━━━━━━━━━
 
-📚 ملاحظات مهمة:
+📚 ملاحظات:
 • لا حاجة لإرسال السعر
 • حساب تلقائي للكمية
-• تنفيذ فوري
-
-للتفاصيل الكاملة راجع:
-SIGNAL_SYSTEM.md"""
+• تنفيذ فوري"""
         
         keyboard = [
             [InlineKeyboardButton("🔙 رجوع", callback_data="webhook_url")]
@@ -5840,15 +5858,12 @@ SIGNAL_SYSTEM.md"""
             # محاولة إرسال رسالة مبسطة
             simple_message = """📖 دليل الإشارات
 
-فقط أرسل:
-{"signal": "buy", "symbol": "BTCUSDT"}
-{"signal": "sell", "symbol": "BTCUSDT"}
-{"signal": "long", "symbol": "BTCUSDT"}
-{"signal": "close_long", "symbol": "BTCUSDT"}
-{"signal": "short", "symbol": "ETHUSDT"}
-{"signal": "close_short", "symbol": "ETHUSDT"}
-
-راجع ملف SIGNAL_SYSTEM.md للتفاصيل"""
+BUY: {"signal": "buy", "symbol": "BTCUSDT"}
+SELL: {"signal": "sell", "symbol": "BTCUSDT"}
+LONG: {"signal": "long", "symbol": "BTCUSDT"}
+CLOSE_LONG: {"signal": "close_long", "symbol": "BTCUSDT"}
+SHORT: {"signal": "short", "symbol": "ETHUSDT"}
+CLOSE_SHORT: {"signal": "close_short", "symbol": "ETHUSDT"}"""
             if update.callback_query is not None:
                 await update.callback_query.edit_message_text(
                     simple_message,
