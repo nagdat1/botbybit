@@ -428,23 +428,28 @@ class WebServer:
                 # فتح صفقة جديدة
                 print(f"📈 فتح صفقة: {side} {symbol}")
                 
-                # حساب الكمية
+                # فتح الصفقة حسب نوع السوق
                 if market_type == 'futures':
-                    qty = trade_amount * leverage / price
+                    # فتح صفقة فيوتشر
+                    success, position_id = account.open_futures_position(
+                        symbol=symbol,
+                        side=side,
+                        margin_amount=trade_amount,
+                        price=price,
+                        leverage=leverage
+                    )
                 else:
-                    qty = trade_amount / price
+                    # فتح صفقة سبوت
+                    success, position_id = account.open_spot_position(
+                        symbol=symbol,
+                        side=side,
+                        amount=trade_amount,
+                        price=price
+                    )
                 
-                # تنفيذ الأمر على الحساب التجريبي
-                result = account.place_order(
-                    symbol=symbol,
-                    side=side,
-                    order_type='Market',
-                    qty=qty,
-                    leverage=leverage if market_type == 'futures' else 1
-                )
-                
-                if result:
-                    order_id = result.get('order_id') or f'DEMO_{int(time.time())}'
+                if success:
+                    order_id = position_id
+                    qty = trade_amount / price if market_type == 'spot' else trade_amount * leverage / price
                     
                     # حفظ في قاعدة البيانات
                     db_manager.save_order({
@@ -474,7 +479,7 @@ class WebServer:
                         'balance': account.balance
                     }
                 else:
-                    error_msg = 'فشل في تنفيذ الأمر'
+                    error_msg = f'فشل في تنفيذ الأمر: {position_id}'
                     signal_manager.mark_signal_failed(signal_id, user_id, error_msg)
                     return {
                         'success': False,
@@ -486,39 +491,59 @@ class WebServer:
                 print(f"🔒 إغلاق صفقة: {symbol}")
                 
                 # البحث عن صفقة مفتوحة للرمز المحدد
-                positions = account.get_open_positions()
+                target_position_id = None
                 target_position = None
                 
-                for pos in positions:
-                    if pos['symbol'] == symbol:
+                for position_id, position in account.positions.items():
+                    # جلب الرمز من الصفقة
+                    pos_symbol = None
+                    pos_side = None
+                    
+                    if isinstance(position, dict):
+                        pos_symbol = position.get('symbol')
+                        pos_side = position.get('side')
+                    else:
+                        # FuturesPosition object
+                        pos_symbol = getattr(position, 'symbol', None)
+                        pos_side = getattr(position, 'side', None)
+                    
+                    if pos_symbol == symbol:
                         # للسبوت: أي صفقة شراء
                         # للفيوتشر: نفس الاتجاه
                         if market_type == 'spot':
-                            target_position = pos
+                            target_position_id = position_id
+                            target_position = position
                             break
                         else:  # futures
-                            if signal_type in ['close_long'] and pos.get('side') == 'Buy':
-                                target_position = pos
+                            if signal_type in ['close_long'] and pos_side == 'Buy':
+                                target_position_id = position_id
+                                target_position = position
                                 break
-                            elif signal_type in ['close_short'] and pos.get('side') == 'Sell':
-                                target_position = pos
+                            elif signal_type in ['close_short'] and pos_side == 'Sell':
+                                target_position_id = position_id
+                                target_position = position
                                 break
                 
-                if target_position:
+                if target_position_id:
                     # إغلاق الصفقة
-                    close_result = account.close_position(symbol, target_position.get('side', 'Buy'))
+                    if market_type == 'futures':
+                        success, close_result = account.close_futures_position(target_position_id, price)
+                    else:
+                        success, close_result = account.close_spot_position(target_position_id, price)
                     
-                    if close_result:
-                        order_id = close_result.get('order_id') or f'DEMO_CLOSE_{int(time.time())}'
+                    if success:
+                        order_id = f'DEMO_CLOSE_{int(time.time())}'
+                        pnl = close_result.get('pnl', 0)
+                        qty = close_result.get('contracts', close_result.get('amount', 0) / price)
                         
                         # تحديث في قاعدة البيانات
                         db_manager.save_order({
                             'user_id': user_id,
                             'order_id': order_id,
                             'symbol': symbol,
-                            'side': 'Sell' if target_position.get('side') == 'Buy' else 'Buy',
+                            'side': 'Sell' if signal_type in ['close_long', 'sell'] else 'Buy',
                             'price': price,
-                            'qty': target_position.get('qty', 0),
+                            'qty': qty,
                             'status': 'filled',
                             'market_type': market_type,
                             'signal_id': signal_id,
@@ -527,17 +552,18 @@ class WebServer:
                         
                         signal_manager.update_signal_with_order(signal_id, user_id, order_id, 'closed')
                         
-                        print(f"✅ تم إغلاق الصفقة بنجاح: {order_id}")
+                        print(f"✅ تم إغلاق الصفقة بنجاح: {order_id}, PnL: {pnl:.2f}")
                         
                         return {
                             'success': True,
                             'message': 'Position closed successfully',
                             'order_id': order_id,
                             'price': price,
+                            'pnl': pnl,
                             'balance': account.balance
                         }
                     else:
-                        error_msg = 'فشل في إغلاق الصفقة'
+                        error_msg = f'فشل في إغلاق الصفقة: {close_result.get("error", "Unknown error")}'
                         signal_manager.mark_signal_failed(signal_id, user_id, error_msg)
                         return {
                             'success': False,
