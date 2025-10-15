@@ -4473,6 +4473,47 @@ async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("⏳ جاري تطبيق الإعداد الذكي...")
         
         position_id = query.data.replace("quick_setup_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
         
         # تطبيق الإعدادات الذكية
         success = trade_tools_manager.set_default_levels(
@@ -4634,7 +4675,47 @@ async def clear_take_profits(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer()
         
         position_id = query.data.replace("clearTP_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
         managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
         
         if not managed_pos:
             await query.edit_message_text("❌ الصفقة غير موجودة")
@@ -4661,7 +4742,47 @@ async def clear_stop_loss(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         
         position_id = query.data.replace("clearSL_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
         managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
         
         if not managed_pos:
             await query.edit_message_text("❌ الصفقة غير موجودة")
@@ -4688,9 +4809,53 @@ async def stop_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         
         position_id = query.data.replace("stopTrailing_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
-        if not managed_pos or not managed_pos.stop_loss:
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
+        
+        if not managed_pos:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        if not managed_pos.stop_loss:
             await query.edit_message_text("❌ لا يوجد Stop Loss نشط")
             return
         
@@ -4722,6 +4887,47 @@ async def set_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         
         position_id = query.data.replace("autoTP_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
+        managed_pos = trade_tools_manager.get_managed_position(position_id)
+        
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
         
         success = trade_tools_manager.set_default_levels(position_id, tp_percentages=[1.5, 3.0, 5.0])
         
@@ -4741,6 +4947,8 @@ async def set_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except Exception as e:
         logger.error(f"خطأ في تعيين الأهداف التلقائية: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
@@ -4751,10 +4959,50 @@ async def set_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         
         position_id = query.data.replace("autoSL_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
+        
         if not managed_pos:
-            await query.edit_message_text("❌ الصفقة غير موجودة في النظام المدار")
+            await query.edit_message_text("❌ الصفقة غير موجودة")
             return
         
         # تعيين SL بنسبة 2%
@@ -4943,9 +5191,53 @@ async def move_sl_to_breakeven(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.answer()
         
         position_id = query.data.replace("moveBE_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
-        if not managed_pos or not managed_pos.stop_loss:
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
+        
+        if not managed_pos:
+            await query.edit_message_text("❌ الصفقة غير موجودة")
+            return
+        
+        if not managed_pos.stop_loss:
             await query.edit_message_text("❌ لا يوجد Stop Loss مُعيّن لهذه الصفقة")
             return
         
@@ -4979,10 +5271,50 @@ async def enable_trailing_stop(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.answer()
         
         position_id = query.data.replace("trailing_", "")
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        # التأكد من وجود الصفقة في النظام المُدار
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
+        if not managed_pos and user_id:
+            # البحث عن الصفقة وإنشاء managed position
+            position_info = None
+            market_type = None
+            
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    market_type = 'spot'
+            
+            if not position_info:
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                if futures_account and position_id in futures_account.positions:
+                    position = futures_account.positions[position_id]
+                    if hasattr(position, 'symbol'):
+                        position_info = {
+                            'symbol': position.symbol,
+                            'entry_price': position.entry_price,
+                            'side': position.side,
+                            'leverage': position.leverage,
+                            'margin_amount': position.margin_amount
+                        }
+                        market_type = 'futures'
+            
+            if position_info:
+                managed_pos = trade_tools_manager.create_managed_position(
+                    position_id=position_id,
+                    symbol=position_info.get('symbol', ''),
+                    side=position_info.get('side', 'Buy'),
+                    entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                    quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                    market_type=market_type,
+                    leverage=position_info.get('leverage', 1)
+                )
+        
         if not managed_pos:
-            await query.edit_message_text("❌ الصفقة غير موجودة في النظام المدار")
+            await query.edit_message_text("❌ الصفقة غير موجودة")
             return
         
         # تعيين trailing stop بمسافة 2%
