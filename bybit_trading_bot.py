@@ -7502,17 +7502,29 @@ async def show_guide_tradingview(update: Update, context: ContextTypes.DEFAULT_T
 
 **لشراء BTC:**
 ```json
-{{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}}
+{{
+    "signal": "buy",
+    "symbol": "BTCUSDT",
+    "id": "TV_001"
+}}
 ```
 
 **لفتح Long:**
 ```json
-{{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}}
+{{
+    "signal": "long",
+    "symbol": "BTCUSDT",
+    "id": "TV_L01"
+}}
 ```
 
 **لإغلاق Long:**
 ```json
-{{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}}
+{{
+    "signal": "close_long",
+    "symbol": "BTCUSDT",
+    "id": "TV_C01"
+}}
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -7536,12 +7548,20 @@ async def show_guide_examples(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 **عند الشراء:**
 ```json
-{"signal": "buy", "symbol": "BTCUSDT", "id": "SPOT_01"}
+{
+    "signal": "buy",
+    "symbol": "BTCUSDT",
+    "id": "SPOT_01"
+}
 ```
 
 **عند البيع:**
 ```json
-{"signal": "sell", "symbol": "BTCUSDT", "id": "SPOT_02"}
+{
+    "signal": "sell",
+    "symbol": "BTCUSDT",
+    "id": "SPOT_02"
+}
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -7550,12 +7570,20 @@ async def show_guide_examples(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 **فتح Long عند 45000:**
 ```json
-{"signal": "long", "symbol": "BTCUSDT", "id": "LONG_01"}
+{
+    "signal": "long",
+    "symbol": "BTCUSDT",
+    "id": "LONG_01"
+}
 ```
 
 **إغلاق Long عند 46000:**
 ```json
-{"signal": "close_long", "symbol": "BTCUSDT", "id": "CLOSE_01"}
+{
+    "signal": "close_long",
+    "symbol": "BTCUSDT",
+    "id": "CLOSE_01"
+}
 ```
 
 **النتيجة:**
@@ -7567,12 +7595,20 @@ async def show_guide_examples(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 **فتح Short عند 3000:**
 ```json
-{"signal": "short", "symbol": "ETHUSDT", "id": "SHORT_01"}
+{
+    "signal": "short",
+    "symbol": "ETHUSDT",
+    "id": "SHORT_01"
+}
 ```
 
 **إغلاق Short عند 2900:**
 ```json
-{"signal": "close_short", "symbol": "ETHUSDT", "id": "CLOSE_02"}
+{
+    "signal": "close_short",
+    "symbol": "ETHUSDT",
+    "id": "CLOSE_02"
+}
 ```
 
 **النتيجة:**
@@ -7646,27 +7682,47 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
 
 **🛒 شراء Spot:**
 ```json
-{{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}}
+{{
+    "signal": "buy",
+    "symbol": "BTCUSDT",
+    "id": "TV_001"
+}}
 ```
 
 **📈 فتح Long:**
 ```json
-{{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}}
+{{
+    "signal": "long",
+    "symbol": "BTCUSDT",
+    "id": "TV_L01"
+}}
 ```
 
 **🔄 إغلاق Long:**
 ```json
-{{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}}
+{{
+    "signal": "close_long",
+    "symbol": "BTCUSDT",
+    "id": "TV_C01"
+}}
 ```
 
 **📉 فتح Short:**
 ```json
-{{"signal": "short", "symbol": "ETHUSDT", "id": "TV_S01"}}
+{{
+    "signal": "short",
+    "symbol": "ETHUSDT",
+    "id": "TV_S01"
+}}
 ```
 
 **🔄 إغلاق Short:**
 ```json
-{{"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_C02"}}
+{{
+    "signal": "close_short",
+    "symbol": "ETHUSDT",
+    "id": "TV_C02"
+}}
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━
