@@ -165,46 +165,33 @@ class SignalExecutor:
             elif action in ['sell', 'short']:
                 side = 'Sell'
             elif action == 'close':
-                # إغلاق الصفقة المفتوحة
+                # إغلاق الصفقة المفتوحة بالكامل
                 positions = account.get_open_positions(category)
                 
-                # تحديد الجهة المراد إغلاقها
-                close_side = signal_data.get('close_side', '').lower()
-                
-                if close_side:
-                    # إغلاق جهة محددة (long أو short)
-                    target_position = next(
-                        (p for p in positions 
-                         if p['symbol'] == symbol and p['side'].lower() == close_side),
-                        None
-                    )
-                else:
-                    # إغلاق أي صفقة مفتوحة على هذا الرمز
-                    target_position = next((p for p in positions if p['symbol'] == symbol), None)
+                # البحث عن أي صفقة مفتوحة على هذا الرمز
+                target_position = next((p for p in positions if p['symbol'] == symbol), None)
                 
                 if target_position:
                     result = account.close_position(category, symbol, target_position['side'])
                     if result:
-                        logger.info(f"✅ تم إغلاق صفقة {symbol} {close_side.upper()} بنجاح")
+                        logger.info(f"✅ تم إغلاق صفقة {symbol} بالكامل بنجاح")
                         return {
                             'success': True,
-                            'message': f'Position closed: {symbol} {close_side.upper()}',
+                            'message': f'Position closed: {symbol}',
                             'order_id': result.get('order_id'),
                             'is_real': True
                         }
                 
-                close_msg = f'{close_side.upper()} ' if close_side else ''
                 return {
                     'success': False,
-                    'message': f'No open {close_msg}position found for {symbol}',
+                    'message': f'No open position found for {symbol}',
                     'error': 'NO_POSITION'
                 }
             elif action == 'partial_close':
                 # إغلاق جزئي للصفقة
                 positions = account.get_open_positions(category)
                 
-                # تحديد الجهة المراد إغلاقها
-                close_side = signal_data.get('close_side', '').lower()
+                # الحصول على النسبة المئوية
                 percentage = float(signal_data.get('percentage', 50))
                 
                 # التحقق من صحة النسبة
@@ -215,16 +202,8 @@ class SignalExecutor:
                         'error': 'INVALID_PERCENTAGE'
                     }
                 
-                if close_side:
-                    # إغلاق جزئي لجهة محددة
-                    target_position = next(
-                        (p for p in positions 
-                         if p['symbol'] == symbol and p['side'].lower() == close_side),
-                        None
-                    )
-                else:
-                    # إغلاق جزئي لأي صفقة مفتوحة
-                    target_position = next((p for p in positions if p['symbol'] == symbol), None)
+                # البحث عن أي صفقة مفتوحة على هذا الرمز
+                target_position = next((p for p in positions if p['symbol'] == symbol), None)
                 
                 if target_position:
                     # حساب الكمية المراد إغلاقها
@@ -245,10 +224,10 @@ class SignalExecutor:
                         )
                         
                         if result:
-                            logger.info(f"✅ تم إغلاق {percentage}% من صفقة {symbol} {close_side.upper()} بنجاح")
+                            logger.info(f"✅ تم إغلاق {percentage}% من صفقة {symbol} بنجاح")
                             return {
                                 'success': True,
-                                'message': f'Partial close: {percentage}% of {symbol} {close_side.upper()}',
+                                'message': f'Partial close: {percentage}% of {symbol}',
                                 'order_id': result.get('order_id'),
                                 'percentage': percentage,
                                 'is_real': True
@@ -267,10 +246,9 @@ class SignalExecutor:
                             'error': 'PARTIAL_CLOSE_ERROR'
                         }
                 
-                close_msg = f'{close_side.upper()} ' if close_side else ''
                 return {
                     'success': False,
-                    'message': f'No open {close_msg}position found for {symbol}',
+                    'message': f'No open position found for {symbol}',
                     'error': 'NO_POSITION'
                 }
             else:

@@ -1936,18 +1936,8 @@ class TradingBot:
                 positions_to_close = []
                 for pos_id, pos_info in user_positions.items():
                     if pos_info.get('symbol') == symbol:
-                        # التحقق من نوع الإغلاق المطلوب (إن وجد)
-                        from signal_converter import signal_converter
-                        original_signal = getattr(self, '_current_signal_data', {})
-                        close_side = original_signal.get('close_side', '')
-                        
-                        if close_side:
-                            # إغلاق جهة محددة فقط
-                            if pos_info.get('side', '').lower() == close_side.lower():
-                                positions_to_close.append(pos_id)
-                        else:
-                            # إغلاق جميع الصفقات على هذا الرمز
-                            positions_to_close.append(pos_id)
+                        # إغلاق جميع الصفقات على هذا الرمز
+                        positions_to_close.append(pos_id)
                 
                 if not positions_to_close:
                     logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
@@ -2049,14 +2039,8 @@ class TradingBot:
                 positions_to_partial_close = []
                 for pos_id, pos_info in user_positions.items():
                     if pos_info.get('symbol') == symbol:
-                        # التحقق من نوع الإغلاق المطلوب
-                        close_side = self._current_signal_data.get('close_side', '')
-                        
-                        if close_side:
-                            if pos_info.get('side', '').lower() == close_side.lower():
-                                positions_to_partial_close.append(pos_id)
-                        else:
-                            positions_to_partial_close.append(pos_id)
+                        # إغلاق جزئي لجميع الصفقات على هذا الرمز
+                        positions_to_partial_close.append(pos_id)
                 
                 if not positions_to_partial_close:
                     logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
@@ -5717,12 +5701,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_webhook_help(update, context)
     elif data == "signal_guide":
         await show_signal_guide(update, context)
-    elif data == "guide_spot":
-        await show_guide_spot(update, context)
-    elif data == "guide_long":
-        await show_guide_long(update, context)
-    elif data == "guide_short":
-        await show_guide_short(update, context)
+    elif data == "guide_buy":
+        await show_guide_buy(update, context)
+    elif data == "guide_sell":
+        await show_guide_sell(update, context)
+    elif data == "guide_close":
+        await show_guide_close(update, context)
     elif data == "guide_partial":
         await show_guide_partial(update, context)
     elif data == "guide_how":
@@ -7311,19 +7295,25 @@ async def show_signal_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # القائمة الرئيسية لدليل الإشارات
     guide_message = """
-📖 **دليل الإشارات الجديد**
+📖 **دليل الإشارات - نظام مبسط**
 
-🎯 **نظام مبسط وذكي**
-فقط 3 حقول مطلوبة!
+🎯 **4 إشارات فقط!**
 
-اختر نوع الإشارات للتعرف عليها:
+🟢 **buy** - شراء
+🔴 **sell** - بيع  
+⚪ **close** - إغلاق كامل
+🟡 **partial_close** - إغلاق جزئي
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+اختر قسم للتعرف على التفاصيل:
     """
     
     keyboard = [
-        [InlineKeyboardButton("🛒 إشارات Spot", callback_data="guide_spot")],
-        [InlineKeyboardButton("📈 إشارات Futures Long", callback_data="guide_long")],
-        [InlineKeyboardButton("📉 إشارات Futures Short", callback_data="guide_short")],
-        [InlineKeyboardButton("📊 الإغلاق الجزئي", callback_data="guide_partial")],
+        [InlineKeyboardButton("🟢 إشارة الشراء (Buy)", callback_data="guide_buy")],
+        [InlineKeyboardButton("🔴 إشارة البيع (Sell)", callback_data="guide_sell")],
+        [InlineKeyboardButton("⚪ الإغلاق الكامل (Close)", callback_data="guide_close")],
+        [InlineKeyboardButton("🟡 الإغلاق الجزئي (Partial)", callback_data="guide_partial")],
         [InlineKeyboardButton("⚙️ كيف يعمل النظام؟", callback_data="guide_how")],
         [InlineKeyboardButton("🔗 إعداد TradingView", callback_data="guide_tradingview")],
         [InlineKeyboardButton("📋 أمثلة عملية", callback_data="guide_examples")],
@@ -7337,53 +7327,194 @@ async def show_signal_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif update.callback_query:
         await update.callback_query.edit_message_text(guide_message, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def show_guide_spot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض دليل إشارات Spot"""
+async def show_guide_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل إشارة الشراء"""
     guide = """
-🛒 **إشارات Spot (السوق الفوري)**
+🟢 **إشارة الشراء (Buy)**
 
-تستخدم للتداول في السوق الفوري بدون رافعة مالية.
+فتح صفقة شراء - تربح عند ارتفاع السعر
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**1️⃣ إشارة BUY (شراء)**
+**📝 التنسيق:**
 
 ```json
 {
     "signal": "buy",
     "symbol": "BTCUSDT",
-    "id": "TV_001"
+    "id": "TV_B01"
 }
 ```
 
-• **الوصف**: شراء عملة في السوق الفوري
-• **المبلغ**: يُأخذ من إعداداتك تلقائياً
-• **السعر**: يُجلب من Bybit تلقائياً
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📋 التفاصيل:**
+
+• **signal**: "buy" (ثابت)
+• **symbol**: رمز العملة (BTCUSDT, ETHUSDT...)
+• **id**: معرف الإشارة (أي نص تريده)
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**2️⃣ إشارة SELL (بيع)**
+**⚙️ ما الذي يحدث؟**
+
+1. البوت يستقبل الإشارة
+2. يجلب السعر الحالي من Bybit
+3. يستخدم إعداداتك:
+   • المبلغ (من trade_amount)
+   • الرافعة (من leverage)
+   • نوع السوق (spot/futures)
+4. ينفذ الشراء تلقائياً
+5. يرسل إشعار بالنتيجة
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**💡 أمثلة:**
+
+```json
+{"signal": "buy", "symbol": "BTCUSDT", "id": "BUY_BTC_001"}
+{"signal": "buy", "symbol": "ETHUSDT", "id": "BUY_ETH_001"}
+{"signal": "buy", "symbol": "SOLUSDT", "id": "BUY_SOL_001"}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **متى تستخدمها؟**
+• عند توقع ارتفاع السعر
+• لفتح صفقة جديدة
+• للشراء في القاع
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل إشارة البيع"""
+    guide = """
+🔴 **إشارة البيع (Sell)**
+
+فتح صفقة بيع - تربح عند انخفاض السعر
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📝 التنسيق:**
 
 ```json
 {
     "signal": "sell",
     "symbol": "BTCUSDT",
-    "id": "TV_002"
+    "id": "TV_S01"
 }
 ```
 
-• **الوصف**: بيع عملة في السوق الفوري
-• **المبلغ**: من إعداداتك
-• **السعر**: من Bybit تلقائياً
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📋 التفاصيل:**
+
+• **signal**: "sell" (ثابت)
+• **symbol**: رمز العملة (BTCUSDT, ETHUSDT...)
+• **id**: معرف الإشارة (أي نص تريده)
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-✅ **مميزات Spot**:
-• بدون رافعة مالية
-• مخاطر أقل
-• مناسب للمبتدئين
+**⚙️ ما الذي يحدث؟**
 
-⚠️ **ملاحظة**: تأكد من اختيار "SPOT" في إعدادات نوع السوق
+1. البوت يستقبل الإشارة
+2. يجلب السعر الحالي من Bybit
+3. يستخدم إعداداتك:
+   • المبلغ (من trade_amount)
+   • الرافعة (من leverage) 
+   • نوع السوق (spot/futures)
+4. ينفذ البيع تلقائياً
+5. يرسل إشعار بالنتيجة
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**💡 أمثلة:**
+
+```json
+{"signal": "sell", "symbol": "BTCUSDT", "id": "SELL_BTC_001"}
+{"signal": "sell", "symbol": "ETHUSDT", "id": "SELL_ETH_001"}
+{"signal": "sell", "symbol": "SOLUSDT", "id": "SELL_SOL_001"}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **متى تستخدمها؟**
+• عند توقع انخفاض السعر
+• لفتح صفقة Short (في الفيوتشر)
+• للبيع في القمة
+
+⚠️ **ملاحظة**: 
+• في Spot: بيع عادي
+• في Futures: فتح Short (بيع بالرافعة)
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل الإغلاق الكامل"""
+    guide = """
+⚪ **الإغلاق الكامل (Close)**
+
+إغلاق جميع الصفقات المفتوحة على الرمز
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📝 التنسيق:**
+
+```json
+{
+    "signal": "close",
+    "symbol": "BTCUSDT",
+    "id": "TV_C01"
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📋 التفاصيل:**
+
+• **signal**: "close" (ثابت)
+• **symbol**: رمز العملة
+• **id**: معرف الإشارة
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**⚙️ ما الذي يحدث؟**
+
+1. البوت يبحث عن صفقات مفتوحة على BTCUSDT
+2. يجلب السعر الحالي
+3. يغلق جميع الصفقات (Buy أو Sell)
+4. يحسب الربح/الخسارة تلقائياً
+5. يرسل إشعار بالنتيجة النهائية
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**💡 أمثلة:**
+
+```json
+{"signal": "close", "symbol": "BTCUSDT", "id": "CLOSE_BTC"}
+{"signal": "close", "symbol": "ETHUSDT", "id": "CLOSE_ETH"}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **متى تستخدمها؟**
+• عند تحقيق الهدف
+• عند الرغبة في الخروج الكامل
+• لإغلاق جميع الصفقات على الرمز
+
+⚠️ **ملاحظة**: يُغلق **جميع** الصفقات على الرمز المحدد
     """
     
     keyboard = [
@@ -7512,67 +7643,89 @@ async def show_guide_short(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_guide_partial(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض دليل الإغلاق الجزئي"""
     guide = """
-📊 **الإغلاق الجزئي (Partial Close)**
+🟡 **الإغلاق الجزئي (Partial Close)**
 
 جني الأرباح على مراحل بدلاً من إغلاق الصفقة كاملة!
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**1️⃣ إغلاق جزئي Long**
+**📝 التنسيق:**
 
 ```json
 {
-    "signal": "partial_close_long",
+    "signal": "partial_close",
     "symbol": "BTCUSDT",
     "percentage": 50,
     "id": "TV_PC01"
 }
 ```
 
-• **الوصف**: إغلاق نسبة معينة من صفقة Long
-• **percentage**: النسبة المئوية للإغلاق (1-100)
-• **النطاق**: 1% - 100%
-• **الافتراضي**: 50% إذا لم تحدد
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📋 التفاصيل:**
+
+• **signal**: "partial_close" (ثابت)
+• **symbol**: رمز العملة
+• **percentage**: النسبة المئوية (1-100)
+• **id**: معرف الإشارة
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**2️⃣ إغلاق جزئي Short**
+**⚙️ ما الذي يحدث؟**
 
-```json
-{
-    "signal": "partial_close_short",
-    "symbol": "ETHUSDT",
-    "percentage": 25,
-    "id": "TV_PC02"
-}
-```
-
-• **الوصف**: إغلاق نسبة معينة من صفقة Short
-• **مثال**: 25% = ربع الصفقة فقط
-• **الباقي**: يبقى مفتوح للحركة الإضافية
+1. البوت يبحث عن صفقة مفتوحة على الرمز
+2. يجلب السعر الحالي
+3. يحسب الكمية: `الحجم الكلي × (النسبة / 100)`
+4. يغلق الجزء المحدد فقط
+5. يحسب الربح/الخسارة للجزء المغلق
+6. يُبقي الباقي مفتوح
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**🎯 استراتيجية Take Profit متدرج**
+**💡 أمثلة:**
 
-**1. فتح Long:**
+**إغلاق 50% (نصف الصفقة):**
 ```json
-{{"signal": "long", "symbol": "BTCUSDT", "id": "L01"}}
+{"signal": "partial_close", "symbol": "BTCUSDT", "percentage": 50, "id": "TP1"}
 ```
 
-**2. إغلاق 30% عند TP1 (+2%):**
+**إغلاق 25% (ربع الصفقة):**
 ```json
-{{"signal": "partial_close_long", "symbol": "BTCUSDT", "percentage": 30, "id": "TP1"}}
+{"signal": "partial_close", "symbol": "ETHUSDT", "percentage": 25, "id": "TP2"}
 ```
 
-**3. إغلاق 50% عند TP2 (+4%):**
+**إغلاق 75%:**
 ```json
-{{"signal": "partial_close_long", "symbol": "BTCUSDT", "percentage": 50, "id": "TP2"}}
+{"signal": "partial_close", "symbol": "SOLUSDT", "percentage": 75, "id": "TP3"}
 ```
 
-**4. إغلاق الباقي عند TP3 (+6%):**
+**أرقام عشرية (17.5%):**
 ```json
-{{"signal": "close_long", "symbol": "BTCUSDT", "id": "TP3"}}
+{"signal": "partial_close", "symbol": "BTCUSDT", "percentage": 17.5, "id": "TP_CUSTOM"}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**🎯 استراتيجية Take Profit متدرج:**
+
+**1. فتح صفقة:**
+```json
+{{"signal": "buy", "symbol": "BTCUSDT", "id": "OPEN"}}
+```
+
+**2. جني 30% عند +2%:**
+```json
+{{"signal": "partial_close", "symbol": "BTCUSDT", "percentage": 30, "id": "TP1"}}
+```
+
+**3. جني 50% عند +4%:**
+```json
+{{"signal": "partial_close", "symbol": "BTCUSDT", "percentage": 50, "id": "TP2"}}
+```
+
+**4. إغلاق الباقي 20%:**
+```json
+{{"signal": "close", "symbol": "BTCUSDT", "id": "TP3"}}
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -7581,14 +7734,20 @@ async def show_guide_partial(update: Update, context: ContextTypes.DEFAULT_TYPE)
 • تأمين الأرباح تدريجياً
 • تقليل المخاطر
 • الاستفادة من الحركة الكاملة
-• مرونة كاملة في النسب
+• نسب مرنة (حتى 0.1%)
 
 **💡 نصائح:**
 • النسبة تُحسب من الحجم المتبقي
-• يمكنك استخدام أرقام عشرية (17.5%)
-• مدعوم فقط في Futures حالياً
+• يمكن الإغلاق على عدة مراحل
+• مدعوم في Spot و Futures
 
-⚠️ **ملاحظة**: يجب أن تكون هناك صفقة مفتوحة أولاً!
+**📊 مثال رياضي:**
+• صفقة حجمها 1000 USDT
+• إغلاق 30% → يُغلق 300، يتبقى 700
+• إغلاق 50% → يُغلق 350 (50% من 700)، يتبقى 350
+• إغلاق 100% → يُغلق الـ 350 المتبقية
+
+⚠️ **ملاحظة**: يجب وجود صفقة مفتوحة أولاً!
     """
     
     keyboard = [
@@ -7705,25 +7864,35 @@ async def show_guide_tradingview(update: Update, context: ContextTypes.DEFAULT_T
 {{
     "signal": "buy",
     "symbol": "BTCUSDT",
-    "id": "TV_001"
+    "id": "TV_B01"
 }}
 ```
 
-**لفتح Long:**
+**لبيع BTC:**
 ```json
 {{
-    "signal": "long",
+    "signal": "sell",
     "symbol": "BTCUSDT",
-    "id": "TV_L01"
+    "id": "TV_S01"
 }}
 ```
 
-**لإغلاق Long:**
+**لإغلاق كامل:**
 ```json
 {{
-    "signal": "close_long",
+    "signal": "close",
     "symbol": "BTCUSDT",
     "id": "TV_C01"
+}}
+```
+
+**لإغلاق جزئي (50%):**
+```json
+{{
+    "signal": "partial_close",
+    "symbol": "BTCUSDT",
+    "percentage": 50,
+    "id": "TV_PC01"
 }}
 ```
 
@@ -7744,122 +7913,138 @@ async def show_guide_examples(update: Update, context: ContextTypes.DEFAULT_TYPE
     guide = """
 📋 **أمثلة عملية**
 
-**🎯 مثال 1: استراتيجية Spot بسيطة**
+**🎯 مثال 1: تداول بسيط**
 
-**عند الشراء:**
+**شراء BTC:**
 ```json
 {
     "signal": "buy",
     "symbol": "BTCUSDT",
-    "id": "SPOT_01"
+    "id": "SIMPLE_B01"
 }
 ```
 
-**عند البيع:**
+**بيع BTC:**
 ```json
 {
     "signal": "sell",
     "symbol": "BTCUSDT",
-    "id": "SPOT_02"
+    "id": "SIMPLE_S01"
+}
+```
+
+**إغلاق الصفقة:**
+```json
+{
+    "signal": "close",
+    "symbol": "BTCUSDT",
+    "id": "SIMPLE_C01"
 }
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**📈 مثال 2: Long Trading**
+**🎯 مثال 2: استراتيجية Swing**
 
-**فتح Long عند 45000:**
+**الدخول (شراء):**
 ```json
 {
-    "signal": "long",
-    "symbol": "BTCUSDT",
-    "id": "LONG_01"
+    "signal": "buy",
+    "symbol": "ETHUSDT",
+    "id": "SWING_ENTRY"
 }
 ```
 
-**إغلاق Long عند 46000:**
+**الخروج (إغلاق):**
 ```json
 {
-    "signal": "close_long",
-    "symbol": "BTCUSDT",
-    "id": "CLOSE_01"
+    "signal": "close",
+    "symbol": "ETHUSDT",
+    "id": "SWING_EXIT"
 }
 ```
 
 **النتيجة:**
-✅ ربح ~200 USDT (مع رافعة 10x)
+✅ ربح عند ارتفاع السعر
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**📉 مثال 3: Short Trading**
+**🎯 مثال 3: Take Profit متدرج**
 
-**فتح Short عند 3000:**
+**1. فتح صفقة:**
 ```json
 {
-    "signal": "short",
-    "symbol": "ETHUSDT",
-    "id": "SHORT_01"
-}
-```
-
-**إغلاق Short عند 2900:**
-```json
-{
-    "signal": "close_short",
-    "symbol": "ETHUSDT",
-    "id": "CLOSE_02"
-}
-```
-
-**النتيجة:**
-✅ ربح من انخفاض السعر
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-**📊 مثال 4: Take Profit متدرج**
-
-**فتح Long:**
-```json
-{
-    "signal": "long",
+    "signal": "buy",
     "symbol": "BTCUSDT",
-    "id": "GRAD_L01"
+    "id": "TP_ENTRY"
 }
 ```
 
-**إغلاق 30% عند +2%:**
+**2. جني 30% عند +2%:**
 ```json
 {
-    "signal": "partial_close_long",
+    "signal": "partial_close",
     "symbol": "BTCUSDT",
     "percentage": 30,
-    "id": "GRAD_PC01"
+    "id": "TP_1"
 }
 ```
 
-**إغلاق 40% عند +4%:**
+**3. جني 40% عند +4%:**
 ```json
 {
-    "signal": "partial_close_long",
+    "signal": "partial_close",
     "symbol": "BTCUSDT",
     "percentage": 40,
-    "id": "GRAD_PC02"
+    "id": "TP_2"
 }
 ```
 
-**إغلاق الباقي 30%:**
+**4. إغلاق الباقي 30%:**
 ```json
 {
-    "signal": "close_long",
+    "signal": "close",
     "symbol": "BTCUSDT",
-    "id": "GRAD_C01"
+    "id": "TP_3"
 }
 ```
 
 **النتيجة:**
-✅ تأمين الأرباح تدريجياً
+✅ تأمين أرباح على 3 مستويات
 ✅ تقليل المخاطر
-✅ الاستفادة من الحركة الكاملة
+✅ زيادة معدل النجاح
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**🎯 مثال 4: إدارة مخاطر احترافية**
+
+**فتح صفقة بيع:**
+```json
+{
+    "signal": "sell",
+    "symbol": "SOLUSDT",
+    "id": "RISK_ENTRY"
+}
+```
+
+**جني نصف الصفقة عند الهدف:**
+```json
+{
+    "signal": "partial_close",
+    "symbol": "SOLUSDT",
+    "percentage": 50,
+    "id": "RISK_TP1"
+}
+```
+
+**إغلاق الباقي:**
+```json
+{
+    "signal": "close",
+    "symbol": "SOLUSDT",
+    "id": "RISK_EXIT"
+}
+```
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -7927,68 +8112,40 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
 
 **📋 أمثلة الإشارات:**
 
-**🛒 شراء Spot:**
+**🟢 شراء:**
 ```json
 {{
     "signal": "buy",
     "symbol": "BTCUSDT",
-    "id": "TV_001"
+    "id": "TV_B01"
 }}
 ```
 
-**📈 فتح Long:**
+**🔴 بيع:**
 ```json
 {{
-    "signal": "long",
+    "signal": "sell",
     "symbol": "BTCUSDT",
-    "id": "TV_L01"
+    "id": "TV_S01"
 }}
 ```
 
-**🔄 إغلاق Long:**
+**⚪ إغلاق كامل:**
 ```json
 {{
-    "signal": "close_long",
+    "signal": "close",
     "symbol": "BTCUSDT",
     "id": "TV_C01"
 }}
 ```
 
-**📉 فتح Short:**
+**🟡 إغلاق جزئي (50%):**
 ```json
 {{
-    "signal": "short",
-    "symbol": "ETHUSDT",
-    "id": "TV_S01"
-}}
-```
-
-**🔄 إغلاق Short:**
-```json
-{{
-    "signal": "close_short",
-    "symbol": "ETHUSDT",
-    "id": "TV_C02"
-}}
-```
-
-**📊 إغلاق جزئي Long (50%):**
-```json
-{{
-    "signal": "partial_close_long",
+    "signal": "partial_close",
     "symbol": "BTCUSDT",
     "percentage": 50,
     "id": "TV_PC01"
-}}
-```
-
-**📊 إغلاق جزئي Short (25%):**
-```json
-{{
-    "signal": "partial_close_short",
-    "symbol": "ETHUSDT",
-    "percentage": 25,
-    "id": "TV_PC02"
 }}
 ```
 

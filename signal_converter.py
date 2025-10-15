@@ -20,10 +20,7 @@ class SignalConverter:
     """محول الإشارات من التنسيق البسيط إلى التنسيق الداخلي"""
     
     # تعريف أنواع الإشارات المدعومة
-    SPOT_SIGNALS = ['buy', 'sell']
-    FUTURES_LONG_SIGNALS = ['long', 'close_long', 'partial_close_long']
-    FUTURES_SHORT_SIGNALS = ['short', 'close_short', 'partial_close_short']
-    ALL_SIGNALS = SPOT_SIGNALS + FUTURES_LONG_SIGNALS + FUTURES_SHORT_SIGNALS
+    ALL_SIGNALS = ['buy', 'sell', 'close', 'partial_close']
     
     @staticmethod
     def convert_signal(signal_data: Dict, user_settings: Optional[Dict] = None) -> Optional[Dict]:
@@ -117,59 +114,28 @@ class SignalConverter:
                 'signal_type': signal_type
             }
             
-            # إشارات SPOT
-            if signal_type in SignalConverter.SPOT_SIGNALS:
-                converted['market_type'] = 'spot'
-                converted['action'] = signal_type  # buy أو sell
-                logger.info(f"📊 إشارة SPOT: {signal_type.upper()}")
+            # إشارة شراء (BUY)
+            if signal_type == 'buy':
+                converted['action'] = 'buy'
+                logger.info(f"🟢 إشارة شراء: {symbol}")
             
-            # إشارات FUTURES - LONG
-            elif signal_type == 'long':
-                converted['market_type'] = 'futures'
-                converted['action'] = 'buy'  # فتح Long = شراء
-                converted['position_type'] = 'long'
-                logger.info(f"📈 إشارة FUTURES: فتح LONG")
+            # إشارة بيع (SELL)
+            elif signal_type == 'sell':
+                converted['action'] = 'sell'
+                logger.info(f"🔴 إشارة بيع: {symbol}")
             
-            elif signal_type == 'close_long':
-                converted['market_type'] = 'futures'
+            # إشارة إغلاق كامل (CLOSE)
+            elif signal_type == 'close':
                 converted['action'] = 'close'
-                converted['position_type'] = 'long'
-                converted['close_side'] = 'long'
-                logger.info(f"📉 إشارة FUTURES: إغلاق LONG")
+                logger.info(f"⚪ إشارة إغلاق كامل: {symbol}")
             
-            elif signal_type == 'partial_close_long':
-                converted['market_type'] = 'futures'
+            # إشارة إغلاق جزئي (PARTIAL_CLOSE)
+            elif signal_type == 'partial_close':
                 converted['action'] = 'partial_close'
-                converted['position_type'] = 'long'
-                converted['close_side'] = 'long'
                 # النسبة المئوية يجب أن تكون موجودة في البيانات الأصلية
                 percentage = signal_data.get('percentage', 50)  # افتراضي 50%
                 converted['percentage'] = percentage
-                logger.info(f"📊 إشارة FUTURES: إغلاق جزئي LONG ({percentage}%)")
-            
-            # إشارات FUTURES - SHORT
-            elif signal_type == 'short':
-                converted['market_type'] = 'futures'
-                converted['action'] = 'sell'  # فتح Short = بيع
-                converted['position_type'] = 'short'
-                logger.info(f"📉 إشارة FUTURES: فتح SHORT")
-            
-            elif signal_type == 'close_short':
-                converted['market_type'] = 'futures'
-                converted['action'] = 'close'
-                converted['position_type'] = 'short'
-                converted['close_side'] = 'short'
-                logger.info(f"📈 إشارة FUTURES: إغلاق SHORT")
-            
-            elif signal_type == 'partial_close_short':
-                converted['market_type'] = 'futures'
-                converted['action'] = 'partial_close'
-                converted['position_type'] = 'short'
-                converted['close_side'] = 'short'
-                # النسبة المئوية يجب أن تكون موجودة في البيانات الأصلية
-                percentage = signal_data.get('percentage', 50)  # افتراضي 50%
-                converted['percentage'] = percentage
-                logger.info(f"📊 إشارة FUTURES: إغلاق جزئي SHORT ({percentage}%)")
+                logger.info(f"🟡 إشارة إغلاق جزئي: {symbol} ({percentage}%)")
             
             else:
                 logger.error(f"❌ نوع إشارة غير معروف: {signal_type}")
@@ -291,14 +257,10 @@ class SignalConverter:
             وصف الإشارة بالعربية
         """
         descriptions = {
-            'buy': '📈 شراء (Spot)',
-            'sell': '📉 بيع (Spot)',
-            'long': '🚀 فتح صفقة شراء (Long)',
-            'close_long': '🔻 إغلاق صفقة شراء (Close Long)',
-            'partial_close_long': '📊 إغلاق جزئي لصفقة شراء (Partial Close Long)',
-            'short': '🔻 فتح صفقة بيع (Short)',
-            'close_short': '🚀 إغلاق صفقة بيع (Close Short)',
-            'partial_close_short': '📊 إغلاق جزئي لصفقة بيع (Partial Close Short)'
+            'buy': '🟢 شراء',
+            'sell': '🔴 بيع',
+            'close': '⚪ إغلاق كامل',
+            'partial_close': '🟡 إغلاق جزئي'
         }
         
         return descriptions.get(signal_type.lower(), '❓ غير معروف')
@@ -354,14 +316,11 @@ if __name__ == "__main__":
     
     # أمثلة الإشارات
     test_signals = [
-        {'signal': 'buy', 'symbol': 'BTCUSDT', 'id': 'TV_001'},
-        {'signal': 'sell', 'symbol': 'ETHUSDT', 'id': 'TV_002'},
-        {'signal': 'long', 'symbol': 'BTCUSDT', 'id': 'TV_L01'},
-        {'signal': 'close_long', 'symbol': 'BTCUSDT', 'id': 'TV_C01'},
-        {'signal': 'short', 'symbol': 'ETHUSDT', 'id': 'TV_S01'},
-        {'signal': 'close_short', 'symbol': 'ETHUSDT', 'id': 'TV_C02'},
-        {'signal': 'partial_close_long', 'symbol': 'BTCUSDT', 'id': 'TV_PC01', 'percentage': 50},
-        {'signal': 'partial_close_short', 'symbol': 'ETHUSDT', 'id': 'TV_PC02', 'percentage': 25}
+        {'signal': 'buy', 'symbol': 'BTCUSDT', 'id': 'TV_B01'},
+        {'signal': 'sell', 'symbol': 'BTCUSDT', 'id': 'TV_S01'},
+        {'signal': 'close', 'symbol': 'BTCUSDT', 'id': 'TV_C01'},
+        {'signal': 'partial_close', 'symbol': 'BTCUSDT', 'id': 'TV_PC01', 'percentage': 50},
+        {'signal': 'partial_close', 'symbol': 'ETHUSDT', 'id': 'TV_PC02', 'percentage': 25}
     ]
     
     for test_signal in test_signals:

@@ -18,66 +18,53 @@ USER_ID = 123456789  # ضع معرف المستخدم الخاص بك
 
 # ===== الإشارات للاختبار =====
 
-# إشارات Spot
-SPOT_SIGNALS = [
+# إشارات الشراء والبيع
+BUY_SELL_SIGNALS = [
     {
         "signal": "buy",
         "symbol": "BTCUSDT",
-        "id": "TEST_BUY_001"
+        "id": "TEST_B01"
     },
     {
         "signal": "sell",
-        "symbol": "ETHUSDT",
-        "id": "TEST_SELL_001"
+        "symbol": "BTCUSDT",
+        "id": "TEST_S01"
     }
 ]
 
-# إشارات Futures - Long
-FUTURES_LONG_SIGNALS = [
+# إشارات الإغلاق
+CLOSE_SIGNALS = [
     {
-        "signal": "long",
+        "signal": "close",
         "symbol": "BTCUSDT",
-        "id": "TEST_LONG_001"
-    },
-    {
-        "signal": "close_long",
-        "symbol": "BTCUSDT",
-        "id": "TEST_CLOSE_LONG_001"
-    }
-]
-
-# إشارات Futures - Short
-FUTURES_SHORT_SIGNALS = [
-    {
-        "signal": "short",
-        "symbol": "ETHUSDT",
-        "id": "TEST_SHORT_001"
-    },
-    {
-        "signal": "close_short",
-        "symbol": "ETHUSDT",
-        "id": "TEST_CLOSE_SHORT_001"
+        "id": "TEST_C01"
     }
 ]
 
 # إشارات الإغلاق الجزئي
 PARTIAL_CLOSE_SIGNALS = [
     {
-        "signal": "partial_close_long",
+        "signal": "partial_close",
         "symbol": "BTCUSDT",
         "percentage": 50,
-        "id": "TEST_PARTIAL_LONG_001"
+        "id": "TEST_PC01"
     },
     {
-        "signal": "partial_close_short",
+        "signal": "partial_close",
         "symbol": "ETHUSDT",
         "percentage": 25,
-        "id": "TEST_PARTIAL_SHORT_001"
+        "id": "TEST_PC02"
+    },
+    {
+        "signal": "partial_close",
+        "symbol": "SOLUSDT",
+        "percentage": 75,
+        "id": "TEST_PC03"
     }
 ]
 
 # جميع الإشارات
-ALL_SIGNALS = SPOT_SIGNALS + FUTURES_LONG_SIGNALS + FUTURES_SHORT_SIGNALS + PARTIAL_CLOSE_SIGNALS
+ALL_SIGNALS = BUY_SELL_SIGNALS + CLOSE_SIGNALS + PARTIAL_CLOSE_SIGNALS
 
 
 def send_signal(signal_data, webhook_url=None, use_personal=False, user_id=None):
@@ -234,29 +221,20 @@ def test_all_signals(webhook_url=None, use_personal=False, user_id=None, delay=2
     print("="*80)
 
 
-def test_spot_signals_only(webhook_url=None, use_personal=False, user_id=None):
-    """اختبار إشارات Spot فقط"""
-    print("\n🛒 اختبار إشارات Spot")
+def test_buy_sell_only(webhook_url=None, use_personal=False, user_id=None):
+    """اختبار إشارات Buy و Sell فقط"""
+    print("\n🟢🔴 اختبار إشارات Buy و Sell")
     
-    for signal in SPOT_SIGNALS:
+    for signal in BUY_SELL_SIGNALS:
         send_signal(signal, webhook_url=webhook_url, use_personal=use_personal, user_id=user_id)
         time.sleep(2)
 
 
-def test_futures_long_only(webhook_url=None, use_personal=False, user_id=None):
-    """اختبار إشارات Futures Long فقط"""
-    print("\n📈 اختبار إشارات Futures Long")
+def test_close_only(webhook_url=None, use_personal=False, user_id=None):
+    """اختبار إشارات Close فقط"""
+    print("\n⚪ اختبار إشارات Close")
     
-    for signal in FUTURES_LONG_SIGNALS:
-        send_signal(signal, webhook_url=webhook_url, use_personal=use_personal, user_id=user_id)
-        time.sleep(2)
-
-
-def test_futures_short_only(webhook_url=None, use_personal=False, user_id=None):
-    """اختبار إشارات Futures Short فقط"""
-    print("\n📉 اختبار إشارات Futures Short")
-    
-    for signal in FUTURES_SHORT_SIGNALS:
+    for signal in CLOSE_SIGNALS:
         send_signal(signal, webhook_url=webhook_url, use_personal=use_personal, user_id=user_id)
         time.sleep(2)
 
@@ -296,16 +274,15 @@ def interactive_test():
     # اختيار نوع الاختبار
     print("\nاختر نوع الاختبار:")
     print("1. اختبار محول الإشارات فقط (بدون إرسال)")
-    print("2. اختبار جميع الإشارات")
-    print("3. اختبار إشارات Spot فقط")
-    print("4. اختبار إشارات Futures Long فقط")
-    print("5. اختبار إشارات Futures Short فقط")
-    print("6. اختبار الإغلاق الجزئي فقط")
-    print("7. اختبار إشارات غير صحيحة")
-    print("8. اختبار إشارة واحدة مخصصة")
+    print("2. اختبار جميع الإشارات (Buy, Sell, Close, Partial)")
+    print("3. اختبار Buy و Sell فقط")
+    print("4. اختبار Close فقط")
+    print("5. اختبار Partial Close فقط")
+    print("6. اختبار إشارات غير صحيحة")
+    print("7. اختبار إشارة واحدة مخصصة")
     print("0. خروج")
     
-    choice = input("\nأدخل اختيارك (0-8): ").strip()
+    choice = input("\nأدخل اختيارك (0-7): ").strip()
     
     if choice == "0":
         print("👋 إلى اللقاء!")
@@ -332,20 +309,20 @@ def interactive_test():
     elif choice == "2":
         test_all_signals(webhook_url, use_personal, user_id)
     elif choice == "3":
-        test_spot_signals_only(webhook_url, use_personal, user_id)
+        test_buy_sell_only(webhook_url, use_personal, user_id)
     elif choice == "4":
-        test_futures_long_only(webhook_url, use_personal, user_id)
+        test_close_only(webhook_url, use_personal, user_id)
     elif choice == "5":
-        test_futures_short_only(webhook_url, use_personal, user_id)
-    elif choice == "6":
         test_partial_close_only(webhook_url, use_personal, user_id)
-    elif choice == "7":
+    elif choice == "6":
         test_invalid_signals(webhook_url)
-    elif choice == "8":
+    elif choice == "7":
         # اختبار مخصص
         print("\nأنواع الإشارات المدعومة:")
-        print("buy, sell, long, close_long, short, close_short")
-        print("partial_close_long, partial_close_short")
+        print("🟢 buy - شراء")
+        print("🔴 sell - بيع")
+        print("⚪ close - إغلاق كامل")
+        print("🟡 partial_close - إغلاق جزئي")
         
         signal_type = input("\nأدخل نوع الإشارة: ").strip().lower()
         symbol = input("أدخل رمز العملة (مثل BTCUSDT): ").strip().upper()
