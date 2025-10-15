@@ -7919,63 +7919,113 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     position_id = state.replace("waiting_partial_percentage_", "")
                     del user_input_state[user_id]
                     
-                    # استدعاء دالة الإغلاق الجزئي مع النسبة المخصصة
-                    # تحويل إلى callback query وهمي
-                    from telegram import InlineKeyboardButton
+                    logger.info(f"🔍 إغلاق جزئي {percentage}% للصفقة {position_id}")
                     
-                    # البحث عن الصفقة
+                    # البحث عن الصفقة في TradingAccount
                     position_info = None
-                    if user_id in user_manager.user_positions:
+                    account = None
+                    market_type = None
+                    
+                    # البحث في حساب السبوت
+                    spot_account = user_manager.get_user_account(user_id, 'spot')
+                    if spot_account and position_id in spot_account.positions:
+                        position = spot_account.positions[position_id]
+                        if isinstance(position, dict):
+                            position_info = position
+                            account = spot_account
+                            market_type = 'spot'
+                            logger.info(f"✅ تم العثور على الصفقة في حساب السبوت")
+                    
+                    # البحث في حساب الفيوتشر
+                    if not position_info:
+                        futures_account = user_manager.get_user_account(user_id, 'futures')
+                        if futures_account and position_id in futures_account.positions:
+                            position = futures_account.positions[position_id]
+                            if hasattr(position, 'symbol'):
+                                position_info = {
+                                    'symbol': position.symbol,
+                                    'entry_price': position.entry_price,
+                                    'side': position.side,
+                                    'account_type': 'futures',
+                                    'leverage': position.leverage,
+                                    'margin_amount': position.margin_amount,
+                                    'position_size': position.position_size,
+                                    'contracts': position.contracts,
+                                    'current_price': position.current_price
+                                }
+                                account = futures_account
+                                market_type = 'futures'
+                                logger.info(f"✅ تم العثور على الصفقة في حساب الفيوتشر")
+                            elif isinstance(position, dict):
+                                position_info = position
+                                account = futures_account
+                                market_type = 'futures'
+                    
+                    # البحث في الصفقات القديمة (للتوافق)
+                    if not position_info and user_id in user_manager.user_positions:
                         position_info = user_manager.user_positions[user_id].get(position_id)
+                        if position_info:
+                            market_type = position_info.get('account_type', 'spot')
+                            if not account:
+                                account = user_manager.get_user_account(user_id, market_type)
+                    
                     if not position_info:
                         position_info = trading_bot.open_positions.get(position_id)
+                        if position_info:
+                            market_type = position_info.get('account_type', 'spot')
                     
                     if not position_info:
-                        await update.message.reply_text("❌ الصفقة غير موجودة")
+                        await update.message.reply_text(f"❌ الصفقة غير موجودة\n\n🔍 Position ID: {position_id}")
                         return
                     
-                    # معالجة الإغلاق
-                    market_type = position_info.get('account_type', 'spot')
-                    is_user_position = user_id in user_manager.user_positions and position_id in user_manager.user_positions[user_id]
-                    
-                    if is_user_position:
+                    if not account:
                         account = user_manager.get_user_account(user_id, market_type)
-                    else:
-                        account = trading_bot.demo_account_futures if market_type == 'futures' else trading_bot.demo_account_spot
                     
-                    current_price = position_info.get('current_price', position_info['entry_price'])
+                    current_price = position_info.get('current_price', position_info.get('entry_price', position_info.get('price', 0)))
                     original_amount = position_info.get('amount', position_info.get('margin_amount', 0))
                     close_amount = original_amount * (percentage / 100)
                     
-                    entry_price = position_info['entry_price']
-                    side = position_info['side']
+                    entry_price = position_info.get('entry_price', position_info.get('price', 0))
+                    side = position_info.get('side', 'Buy')
+                    symbol = position_info.get('symbol', 'Unknown')
                     
                     if side.lower() == "buy":
-                        pnl = (current_price - entry_price) * (close_amount / entry_price)
+                        pnl = (current_price - entry_price) * (close_amount / entry_price) if entry_price > 0 else 0
                     else:
-                        pnl = (entry_price - current_price) * (close_amount / entry_price)
+                        pnl = (entry_price - current_price) * (close_amount / entry_price) if entry_price > 0 else 0
                     
-                    position_info['amount'] = original_amount - close_amount
+                    # تحديث المبلغ المتبقي في الصفقة
+                    remaining_amount = original_amount - close_amount
+                    if isinstance(position, dict):
+                        position['amount'] = remaining_amount
                     
+                    # تحديث الرصيد
                     if market_type == 'spot':
                         account.balance += close_amount + pnl
                     else:
                         account.balance += pnl
-                        account.margin_locked -= close_amount
+                        if hasattr(account, 'margin_locked'):
+                            account.margin_locked -= close_amount
+                    
+                    # تزامن الرصيد مع قاعدة البيانات
+                    from database import db_manager
+                    db_manager.update_user_settings(user_id, {'balance': account.balance})
                     
                     pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
                     message = f"""
 {pnl_emoji} تم إغلاق {percentage}% من الصفقة
 
-📊 الرمز: {position_info['symbol']}
+📊 الرمز: {symbol}
 🔄 النوع: {side.upper()}
 💲 سعر الإغلاق: {current_price:.6f}
 💰 المبلغ المغلق: {close_amount:.2f}
 {pnl_emoji} الربح/الخسارة: {pnl:+.2f}
 
-📈 المتبقي: {position_info['amount']:.2f} ({100-percentage}%)
+📈 المتبقي: {remaining_amount:.2f} ({100-percentage}%)
 💰 الرصيد الجديد: {account.balance:.2f}
                     """
+                    
+                    logger.info(f"✅ تم إغلاق {percentage}% من الصفقة {position_id}, PnL: {pnl:.2f}")
                     
                     keyboard = [[
                         InlineKeyboardButton("🔙 رجوع للإدارة", callback_data=f"manage_{position_id}"),
@@ -8010,7 +8060,46 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("❌ نسبة الإغلاق يجب أن تكون بين 1 و 100")
                     return
                 
+                # التأكد من وجود managed position
                 managed_pos = trade_tools_manager.get_managed_position(position_id)
+                
+                if not managed_pos:
+                    # البحث عن الصفقة وإنشاء managed position
+                    position_info = None
+                    market_type = None
+                    
+                    spot_account = user_manager.get_user_account(user_id, 'spot')
+                    if spot_account and position_id in spot_account.positions:
+                        position = spot_account.positions[position_id]
+                        if isinstance(position, dict):
+                            position_info = position
+                            market_type = 'spot'
+                    
+                    if not position_info:
+                        futures_account = user_manager.get_user_account(user_id, 'futures')
+                        if futures_account and position_id in futures_account.positions:
+                            position = futures_account.positions[position_id]
+                            if hasattr(position, 'symbol'):
+                                position_info = {
+                                    'symbol': position.symbol,
+                                    'entry_price': position.entry_price,
+                                    'side': position.side,
+                                    'leverage': position.leverage,
+                                    'margin_amount': position.margin_amount
+                                }
+                                market_type = 'futures'
+                    
+                    if position_info:
+                        managed_pos = trade_tools_manager.create_managed_position(
+                            position_id=position_id,
+                            symbol=position_info.get('symbol', ''),
+                            side=position_info.get('side', 'Buy'),
+                            entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                            quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                            market_type=market_type,
+                            leverage=position_info.get('leverage', 1)
+                        )
+                
                 if not managed_pos:
                     await update.message.reply_text("❌ الصفقة غير موجودة")
                     return
@@ -8054,7 +8143,46 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("❌ نسبة Stop Loss يجب أن تكون بين 0.1 و 50")
                     return
                 
+                # التأكد من وجود managed position
                 managed_pos = trade_tools_manager.get_managed_position(position_id)
+                
+                if not managed_pos:
+                    # البحث عن الصفقة وإنشاء managed position
+                    position_info = None
+                    market_type = None
+                    
+                    spot_account = user_manager.get_user_account(user_id, 'spot')
+                    if spot_account and position_id in spot_account.positions:
+                        position = spot_account.positions[position_id]
+                        if isinstance(position, dict):
+                            position_info = position
+                            market_type = 'spot'
+                    
+                    if not position_info:
+                        futures_account = user_manager.get_user_account(user_id, 'futures')
+                        if futures_account and position_id in futures_account.positions:
+                            position = futures_account.positions[position_id]
+                            if hasattr(position, 'symbol'):
+                                position_info = {
+                                    'symbol': position.symbol,
+                                    'entry_price': position.entry_price,
+                                    'side': position.side,
+                                    'leverage': position.leverage,
+                                    'margin_amount': position.margin_amount
+                                }
+                                market_type = 'futures'
+                    
+                    if position_info:
+                        managed_pos = trade_tools_manager.create_managed_position(
+                            position_id=position_id,
+                            symbol=position_info.get('symbol', ''),
+                            side=position_info.get('side', 'Buy'),
+                            entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                            quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                            market_type=market_type,
+                            leverage=position_info.get('leverage', 1)
+                        )
+                
                 if not managed_pos:
                     await update.message.reply_text("❌ الصفقة غير موجودة")
                     return
@@ -8111,7 +8239,46 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("❌ المسافة يجب أن تكون بين 0.1 و 20")
                     return
                 
+                # التأكد من وجود managed position
                 managed_pos = trade_tools_manager.get_managed_position(position_id)
+                
+                if not managed_pos:
+                    # البحث عن الصفقة وإنشاء managed position
+                    position_info = None
+                    market_type = None
+                    
+                    spot_account = user_manager.get_user_account(user_id, 'spot')
+                    if spot_account and position_id in spot_account.positions:
+                        position = spot_account.positions[position_id]
+                        if isinstance(position, dict):
+                            position_info = position
+                            market_type = 'spot'
+                    
+                    if not position_info:
+                        futures_account = user_manager.get_user_account(user_id, 'futures')
+                        if futures_account and position_id in futures_account.positions:
+                            position = futures_account.positions[position_id]
+                            if hasattr(position, 'symbol'):
+                                position_info = {
+                                    'symbol': position.symbol,
+                                    'entry_price': position.entry_price,
+                                    'side': position.side,
+                                    'leverage': position.leverage,
+                                    'margin_amount': position.margin_amount
+                                }
+                                market_type = 'futures'
+                    
+                    if position_info:
+                        managed_pos = trade_tools_manager.create_managed_position(
+                            position_id=position_id,
+                            symbol=position_info.get('symbol', ''),
+                            side=position_info.get('side', 'Buy'),
+                            entry_price=position_info.get('entry_price', position_info.get('price', 0)),
+                            quantity=position_info.get('amount', position_info.get('margin_amount', 100)),
+                            market_type=market_type,
+                            leverage=position_info.get('leverage', 1)
+                        )
+                
                 if not managed_pos:
                     await update.message.reply_text("❌ الصفقة غير موجودة")
                     return
