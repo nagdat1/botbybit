@@ -1602,8 +1602,44 @@ class TradingBot:
                 logger.info("البوت متوقف، تم تجاهل الإشارة")
                 return
             
+            # تحويل الإشارة إذا كانت بالتنسيق الجديد
+            from signal_converter import convert_simple_signal, validate_simple_signal
+            
+            # التحقق من نوع الإشارة (جديدة أو قديمة)
+            if 'signal' in signal_data and 'action' not in signal_data:
+                logger.info(f"📡 استقبال إشارة جديدة بالتنسيق البسيط: {signal_data}")
+                
+                # التحقق من صحة الإشارة
+                is_valid, validation_message = validate_simple_signal(signal_data)
+                
+                if not is_valid:
+                    logger.error(f"❌ إشارة غير صحيحة: {validation_message}")
+                    await self.send_message_to_admin(
+                        f"❌ إشارة غير صحيحة\n\n"
+                        f"📋 التفاصيل: {validation_message}\n"
+                        f"📥 البيانات: {signal_data}"
+                    )
+                    return
+                
+                # تحويل الإشارة إلى التنسيق الداخلي
+                converted_signal = convert_simple_signal(signal_data, self.user_settings)
+                
+                if not converted_signal:
+                    logger.error(f"❌ فشل تحويل الإشارة")
+                    await self.send_message_to_admin(
+                        f"❌ فشل تحويل الإشارة\n\n"
+                        f"📥 البيانات الأصلية: {signal_data}"
+                    )
+                    return
+                
+                logger.info(f"✅ تم تحويل الإشارة بنجاح: {converted_signal}")
+                signal_data = converted_signal
+            
+            # حفظ بيانات الإشارة للاستخدام في execute_demo_trade
+            self._current_signal_data = signal_data
+            
             symbol = signal_data.get('symbol', '').upper()
-            action = signal_data.get('action', '').lower()  # buy أو sell
+            action = signal_data.get('action', '').lower()  # buy أو sell أو close
             
             if not symbol or not action:
                 logger.error("بيانات الإشارة غير مكتملة")
@@ -1892,6 +1928,107 @@ class TradingBot:
                 user_positions = self.open_positions
                 logger.info(f"استخدام الحساب العام لنوع السوق {user_market_type}")
             
+            # معالجة إشارات الإغلاق (close, close_long, close_short)
+            if action == 'close':
+                logger.info(f"🔄 معالجة إشارة إغلاق للرمز {symbol}")
+                
+                # البحث عن الصفقات المفتوحة لهذا الرمز
+                positions_to_close = []
+                for pos_id, pos_info in user_positions.items():
+                    if pos_info.get('symbol') == symbol:
+                        # التحقق من نوع الإغلاق المطلوب (إن وجد)
+                        from signal_converter import signal_converter
+                        original_signal = getattr(self, '_current_signal_data', {})
+                        close_side = original_signal.get('close_side', '')
+                        
+                        if close_side:
+                            # إغلاق جهة محددة فقط
+                            if pos_info.get('side', '').lower() == close_side.lower():
+                                positions_to_close.append(pos_id)
+                        else:
+                            # إغلاق جميع الصفقات على هذا الرمز
+                            positions_to_close.append(pos_id)
+                
+                if not positions_to_close:
+                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
+                    await self.send_message_to_admin(
+                        f"⚠️ لا توجد صفقات مفتوحة للإغلاق\n\n"
+                        f"📊 الرمز: {symbol}\n"
+                        f"🏪 السوق: {user_market_type.upper()}"
+                    )
+                    return
+                
+                # إغلاق الصفقات
+                for pos_id in positions_to_close:
+                    pos_info = user_positions[pos_id]
+                    
+                    if user_market_type == 'futures':
+                        # إغلاق صفقة فيوتشر
+                        position = account.positions.get(pos_id)
+                        if position:
+                            pnl = position.calculate_closing_pnl(price)
+                            success, result = account.close_futures_position(pos_id, price)
+                            
+                            if success:
+                                logger.info(f"✅ تم إغلاق صفقة الفيوتشر: {pos_id}")
+                                
+                                # إزالة من قائمة الصفقات
+                                del user_positions[pos_id]
+                                
+                                # إرسال إشعار
+                                message = f"✅ تم إغلاق صفقة فيوتشر\n\n"
+                                if self.user_id:
+                                    message += f"👤 المستخدم: {self.user_id}\n"
+                                message += f"📊 الرمز: {symbol}\n"
+                                message += f"🔄 النوع: {pos_info.get('side', '').upper()}\n"
+                                message += f"💰 الربح/الخسارة: {pnl:.2f}\n"
+                                message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
+                                message += f"💲 سعر الإغلاق: {price:.6f}\n"
+                                message += f"🆔 رقم الصفقة: {pos_id}\n"
+                                
+                                # معلومات الحساب
+                                account_info = account.get_account_info()
+                                message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                                message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
+                                
+                                await self.send_message_to_admin(message)
+                            else:
+                                logger.error(f"❌ فشل إغلاق صفقة الفيوتشر: {result}")
+                                await self.send_message_to_admin(f"❌ فشل إغلاق الصفقة: {result}")
+                    else:
+                        # إغلاق صفقة سبوت
+                        success, result = account.close_spot_position(pos_id, price)
+                        
+                        if success:
+                            pnl = result  # PnL
+                            logger.info(f"✅ تم إغلاق صفقة السبوت: {pos_id}")
+                            
+                            # إزالة من قائمة الصفقات
+                            del user_positions[pos_id]
+                            
+                            # إرسال إشعار
+                            message = f"✅ تم إغلاق صفقة سبوت\n\n"
+                            if self.user_id:
+                                message += f"👤 المستخدم: {self.user_id}\n"
+                            message += f"📊 الرمز: {symbol}\n"
+                            message += f"🔄 النوع: {pos_info.get('side', '').upper()}\n"
+                            message += f"💰 الربح/الخسارة: {pnl:.2f}\n"
+                            message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
+                            message += f"💲 سعر الإغلاق: {price:.6f}\n"
+                            message += f"🆔 رقم الصفقة: {pos_id}\n"
+                            
+                            # معلومات الحساب
+                            account_info = account.get_account_info()
+                            message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
+                            
+                            await self.send_message_to_admin(message)
+                        else:
+                            logger.error(f"❌ فشل إغلاق صفقة السبوت: {result}")
+                            await self.send_message_to_admin(f"❌ فشل إغلاق الصفقة: {result}")
+                
+                return  # انتهى معالجة إشارة الإغلاق
+            
+            # معالجة إشارات الفتح (buy, sell, long, short)
             if user_market_type == 'futures':
                 margin_amount = self.user_settings['trade_amount']  # مبلغ الهامش
                 leverage = self.user_settings['leverage']

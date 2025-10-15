@@ -54,10 +54,64 @@ class SignalExecutor:
                     'error': 'ACCOUNT_NOT_FOUND'
                 }
             
+            # تحويل الإشارة إذا كانت بالتنسيق الجديد
+            from signal_converter import convert_simple_signal
+            
+            # التحقق من نوع الإشارة (جديدة أو قديمة)
+            if 'signal' in signal_data and 'action' not in signal_data:
+                logger.info(f"📡 تحويل إشارة جديدة: {signal_data}")
+                converted_signal = convert_simple_signal(signal_data, user_data)
+                
+                if not converted_signal:
+                    logger.error(f"❌ فشل تحويل الإشارة الجديدة")
+                    return {
+                        'success': False,
+                        'message': 'Failed to convert signal',
+                        'error': 'CONVERSION_FAILED'
+                    }
+                
+                signal_data = converted_signal
+                logger.info(f"✅ تم تحويل الإشارة: {signal_data}")
+            
             # استخراج معلومات الإشارة
             action = signal_data.get('action', '').lower()
             symbol = signal_data.get('symbol', '')
-            price = float(signal_data.get('price', 0))
+            price = float(signal_data.get('price', 0)) if signal_data.get('price') else 0.0
+            
+            # إذا لم يكن السعر موجود، جلبه من API
+            if not price or price == 0.0:
+                try:
+                    logger.info(f"🔍 جلب السعر الحالي لـ {symbol}...")
+                    
+                    if exchange == 'bybit':
+                        # جلب السعر من Bybit
+                        category = 'linear' if market_type == 'futures' else 'spot'
+                        ticker = real_account.get_ticker(category, symbol)
+                        if ticker and 'lastPrice' in ticker:
+                            price = float(ticker['lastPrice'])
+                            logger.info(f"✅ السعر الحالي: {price}")
+                        else:
+                            logger.error(f"❌ فشل جلب السعر من Bybit")
+                            return {
+                                'success': False,
+                                'message': f'Failed to get current price for {symbol}',
+                                'error': 'PRICE_FETCH_FAILED'
+                            }
+                    else:
+                        # جلب السعر من MEXC أو منصات أخرى
+                        logger.warning(f"⚠️ جلب السعر من {exchange} غير مدعوم حالياً")
+                        return {
+                            'success': False,
+                            'message': f'Price fetching from {exchange} not implemented',
+                            'error': 'PRICE_FETCH_NOT_SUPPORTED'
+                        }
+                except Exception as e:
+                    logger.error(f"❌ خطأ في جلب السعر: {e}")
+                    return {
+                        'success': False,
+                        'message': f'Error fetching price: {e}',
+                        'error': 'PRICE_FETCH_ERROR'
+                    }
             
             # معلومات التداول
             trade_amount = user_data.get('trade_amount', 100.0)
@@ -113,22 +167,36 @@ class SignalExecutor:
             elif action == 'close':
                 # إغلاق الصفقة المفتوحة
                 positions = account.get_open_positions(category)
-                target_position = next((p for p in positions if p['symbol'] == symbol), None)
+                
+                # تحديد الجهة المراد إغلاقها
+                close_side = signal_data.get('close_side', '').lower()
+                
+                if close_side:
+                    # إغلاق جهة محددة (long أو short)
+                    target_position = next(
+                        (p for p in positions 
+                         if p['symbol'] == symbol and p['side'].lower() == close_side),
+                        None
+                    )
+                else:
+                    # إغلاق أي صفقة مفتوحة على هذا الرمز
+                    target_position = next((p for p in positions if p['symbol'] == symbol), None)
                 
                 if target_position:
                     result = account.close_position(category, symbol, target_position['side'])
                     if result:
-                        logger.info(f"✅ تم إغلاق صفقة {symbol} بنجاح")
+                        logger.info(f"✅ تم إغلاق صفقة {symbol} {close_side.upper()} بنجاح")
                         return {
                             'success': True,
-                            'message': f'Position closed: {symbol}',
+                            'message': f'Position closed: {symbol} {close_side.upper()}',
                             'order_id': result.get('order_id'),
                             'is_real': True
                         }
                 
+                close_msg = f'{close_side.upper()} ' if close_side else ''
                 return {
                     'success': False,
-                    'message': f'No open position found for {symbol}',
+                    'message': f'No open {close_msg}position found for {symbol}',
                     'error': 'NO_POSITION'
                 }
             else:

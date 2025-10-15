@@ -115,6 +115,28 @@ class WebServer:
                     print("⚠️ [WEB SERVER - WEBHOOK القديم] لا توجد بيانات")
                     return jsonify({"status": "error", "message": "No data received"}), 400
                 
+                # استيراد محول الإشارات
+                from signal_converter import convert_simple_signal, validate_simple_signal
+                
+                # التحقق من نوع الإشارة (جديدة أو قديمة)
+                if 'signal' in data and 'action' not in data:
+                    # إشارة جديدة - التحقق من صحتها
+                    is_valid, validation_message = validate_simple_signal(data)
+                    
+                    if not is_valid:
+                        print(f"❌ [WEB SERVER - WEBHOOK القديم] إشارة غير صحيحة: {validation_message}")
+                        return jsonify({"status": "error", "message": validation_message}), 400
+                    
+                    # تحويل الإشارة إلى التنسيق الداخلي
+                    converted_data = convert_simple_signal(data, self.trading_bot.user_settings)
+                    
+                    if not converted_data:
+                        print(f"❌ [WEB SERVER - WEBHOOK القديم] فشل تحويل الإشارة")
+                        return jsonify({"status": "error", "message": "Failed to convert signal"}), 400
+                    
+                    print(f"✅ [WEB SERVER - WEBHOOK القديم] تم تحويل الإشارة: {converted_data}")
+                    data = converted_data
+                
                 # تسجيل الإشارة
                 self.add_signal_to_chart(data)
                 
@@ -138,6 +160,8 @@ class WebServer:
                 
             except Exception as e:
                 print(f"❌ [WEB SERVER - WEBHOOK القديم] خطأ: {e}")
+                import traceback
+                traceback.print_exc()
                 return jsonify({"status": "error", "message": str(e)}), 400
         
         @self.app.route('/personal/<int:user_id>/webhook', methods=['POST'])
@@ -187,6 +211,28 @@ class WebServer:
                 
                 print(f"✅ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
                 print(f"📋 [WEB SERVER - WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
+                
+                # استيراد محول الإشارات
+                from signal_converter import convert_simple_signal, validate_simple_signal
+                
+                # التحقق من نوع الإشارة (جديدة أو قديمة)
+                if 'signal' in data and 'action' not in data:
+                    # إشارة جديدة - التحقق من صحتها
+                    is_valid, validation_message = validate_simple_signal(data)
+                    
+                    if not is_valid:
+                        print(f"❌ [WEB SERVER - WEBHOOK شخصي] إشارة غير صحيحة: {validation_message}")
+                        return jsonify({"status": "error", "message": validation_message}), 400
+                    
+                    # تحويل الإشارة إلى التنسيق الداخلي مع إعدادات المستخدم
+                    converted_data = convert_simple_signal(data, user_data)
+                    
+                    if not converted_data:
+                        print(f"❌ [WEB SERVER - WEBHOOK شخصي] فشل تحويل الإشارة")
+                        return jsonify({"status": "error", "message": "Failed to convert signal"}), 400
+                    
+                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تم تحويل الإشارة: {converted_data}")
+                    data = converted_data
                 
                 # حفظ إعدادات البوت الحالية مؤقتًا واستخدام نفس دالة المعالجة
                 original_settings = self.trading_bot.user_settings.copy()
