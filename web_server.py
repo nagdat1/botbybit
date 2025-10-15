@@ -571,6 +571,14 @@ class WebServer:
                     # تزامن الرصيد مع قاعدة البيانات
                     self._sync_balance_to_database(user_id, account, market_type)
                     
+                    # Logging مفصل للتأكد
+                    logger.info(f"✅ تم فتح الصفقة بنجاح:")
+                    logger.info(f"   - User ID: {user_id}")
+                    logger.info(f"   - Order ID: {order_id}")
+                    logger.info(f"   - Symbol: {symbol}")
+                    logger.info(f"   - Market: {market_type}")
+                    logger.info(f"   - عدد الصفقات في الحساب: {len(account.positions)}")
+                    logger.info(f"   - الصفقة موجودة في account.positions: {order_id in account.positions}")
                     print(f"✅ تم فتح الصفقة بنجاح: {order_id}")
                     
                     # إرسال إشعار Telegram مفصل

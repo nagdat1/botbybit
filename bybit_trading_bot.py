@@ -4929,28 +4929,74 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
         # الحصول على معرف المستخدم
         user_id = update.effective_user.id if update.effective_user else None
         
-        # البحث عن الصفقة في صفقات المستخدم أو الصفقات العامة
+        # البحث عن الصفقة في TradingAccount أولاً
         position_info = None
-        is_user_position = False
+        account = None
+        market_type = None
         
-        if user_id and user_id in user_manager.user_positions:
+        logger.info(f"🔍 البحث عن الصفقة {position_id} للمستخدم {user_id}")
+        
+        # البحث في حساب السبوت
+        if user_id:
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            if spot_account and position_id in spot_account.positions:
+                position = spot_account.positions[position_id]
+                if isinstance(position, dict):
+                    position_info = position
+                    position_info['account_type'] = 'spot'
+                    account = spot_account
+                    market_type = 'spot'
+                    logger.info(f"✅ تم العثور على الصفقة في حساب السبوت")
+        
+        # البحث في حساب الفيوتشر
+        if not position_info and user_id:
+            futures_account = user_manager.get_user_account(user_id, 'futures')
+            if futures_account and position_id in futures_account.positions:
+                position = futures_account.positions[position_id]
+                if hasattr(position, 'symbol'):  # FuturesPosition object
+                    position_info = {
+                        'symbol': position.symbol,
+                        'entry_price': position.entry_price,
+                        'side': position.side,
+                        'account_type': 'futures',
+                        'leverage': position.leverage,
+                        'margin_amount': position.margin_amount,
+                        'position_size': position.position_size,
+                        'liquidation_price': position.liquidation_price,
+                        'contracts': position.contracts
+                    }
+                    account = futures_account
+                    market_type = 'futures'
+                    logger.info(f"✅ تم العثور على الصفقة في حساب الفيوتشر")
+                elif isinstance(position, dict):
+                    position_info = position
+                    position_info['account_type'] = 'futures'
+                    account = futures_account
+                    market_type = 'futures'
+        
+        # البحث في الصفقات القديمة (للتوافق)
+        if not position_info and user_id and user_id in user_manager.user_positions:
             if position_id in user_manager.user_positions[user_id]:
                 position_info = user_manager.user_positions[user_id][position_id]
-                is_user_position = True
-                logger.info(f"تم العثور على الصفقة {position_id} في صفقات المستخدم {user_id}")
+                market_type = position_info.get('account_type', 'spot')
+                logger.info(f"✅ تم العثور على الصفقة في user_positions")
         
         if not position_info and position_id in trading_bot.open_positions:
             position_info = trading_bot.open_positions[position_id]
-            logger.info(f"تم العثور على الصفقة {position_id} في الصفقات العامة")
+            market_type = position_info.get('account_type', 'spot')
+            logger.info(f"✅ تم العثور على الصفقة في open_positions")
         
         if not position_info:
+            error_msg = f"❌ الصفقة غير موجودة\n\n🔍 Position ID: {position_id}\n👤 User ID: {user_id}"
+            logger.error(error_msg)
             if update.callback_query is not None:
-                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+                await update.callback_query.edit_message_text(error_msg)
             return
         
-        symbol = position_info['symbol']
+        symbol = position_info.get('symbol', '')
         category = position_info.get('category', 'spot')
-        market_type = position_info.get('account_type', 'spot')
+        if not market_type:
+            market_type = position_info.get('account_type', 'spot')
         
         # الحصول على السعر الحالي
         current_price = position_info.get('current_price')
@@ -4962,14 +5008,24 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
             current_price = position_info['entry_price'] * 1.01  # ربح 1%
         
         if trading_bot.user_settings['account_type'] == 'demo':
-            # تحديد الحساب الصحيح - استخدام حساب المستخدم إذا كانت صفقة مستخدم
-            if is_user_position and user_id:
-                account = user_manager.get_user_account(user_id, market_type)
-            else:
-                if market_type == 'spot':
-                    account = trading_bot.demo_account_spot
+            # استخدام الحساب الذي وجدنا فيه الصفقة
+            if not account:
+                # إذا لم نجد الحساب، نحصل عليه من user_manager
+                if user_id:
+                    account = user_manager.get_user_account(user_id, market_type)
                 else:
-                    account = trading_bot.demo_account_futures
+                    # استخدام الحساب العام
+                    if market_type == 'spot':
+                        account = trading_bot.demo_account_spot
+                    else:
+                        account = trading_bot.demo_account_futures
+            
+            if not account:
+                error_msg = f"❌ لم يتم العثور على الحساب\n\nMarket: {market_type}\nUser: {user_id}"
+                logger.error(error_msg)
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text(error_msg)
+                return
             
             # إغلاق الصفقة
             if market_type == 'spot':
@@ -4979,6 +5035,22 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                 
             if success:
                 trade_record = result
+                
+                # تحديث قاعدة البيانات
+                from database import db_manager
+                
+                # البحث عن الصفقة في قاعدة البيانات وإغلاقها
+                open_orders = db_manager.get_user_orders(user_id, status='OPEN')
+                for order in open_orders:
+                    if order.get('symbol') == symbol and order.get('market_type') == market_type:
+                        pnl_value = trade_record.get('pnl', 0) if isinstance(trade_record, dict) else 0
+                        db_manager.close_order(order['order_id'], current_price, pnl_value)
+                        logger.info(f"✅ تم إغلاق الصفقة في قاعدة البيانات: {order['order_id']}")
+                        break
+                
+                # تزامن الرصيد
+                account_info = account.get_account_info()
+                db_manager.update_user_settings(user_id, {'balance': account_info.get('balance', 0)})
                 
                 if isinstance(trade_record, dict) and 'pnl' in trade_record:
                     pnl = float(trade_record['pnl'])
