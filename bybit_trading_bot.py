@@ -3809,9 +3809,9 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
     spot_keyboard = []
     
     for position_id, position_info in spot_positions.items():
-        symbol = position_info['symbol']
-        entry_price = position_info['entry_price']
-        side = position_info['side']
+        symbol = position_info.get('symbol', '')
+        entry_price = position_info.get('entry_price', position_info.get('price', 0))
+        side = position_info.get('side', 'Buy')
         amount = position_info.get('amount', position_info.get('margin_amount', 0))
         
         # الحصول على السعر الحالي من البيانات المحدثة
@@ -3900,12 +3900,14 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
     futures_text = "🔄 الصفقات المفتوحة - فيوتشر:\n\n"
     futures_keyboard = []
     
-    account = trading_bot.demo_account_futures
+    # الحصول على حساب المستخدم
+    user_id = update.effective_user.id if update.effective_user else None
+    account = user_manager.get_user_account(user_id, 'futures') if user_id else trading_bot.demo_account_futures
     
     for position_id, position_info in futures_positions.items():
-        symbol = position_info['symbol']
-        entry_price = position_info['entry_price']
-        side = position_info['side']
+        symbol = position_info.get('symbol', '')
+        entry_price = position_info.get('entry_price', position_info.get('price', 0))
+        side = position_info.get('side', 'Buy')
         leverage = position_info.get('leverage', 1)
         margin_amount = position_info.get('margin_amount', 0)
         position_size = position_info.get('position_size', 0)
