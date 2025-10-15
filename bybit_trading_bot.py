@@ -3687,13 +3687,45 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # 🟢 حساب تجريبي - جلب الصفقات من داخل البوت
             logger.info("🟢 عرض الصفقات التجريبية من داخل البوت...")
             
-            # إضافة صفقات المستخدم من user_manager
-            if user_id and user_id in user_manager.user_positions:
-                user_positions = user_manager.user_positions[user_id]
-                all_positions.update(user_positions)
-                logger.info(f"تم العثور على {len(user_positions)} صفقة تجريبية للمستخدم {user_id}")
+            # جلب الصفقات من TradingAccount الخاص بالمستخدم
+            if user_id:
+                spot_account = user_manager.get_user_account(user_id, 'spot')
+                futures_account = user_manager.get_user_account(user_id, 'futures')
+                
+                # جلب صفقات السبوت
+                if spot_account and hasattr(spot_account, 'positions'):
+                    for position_id, position in spot_account.positions.items():
+                        if isinstance(position, dict):
+                            position['account_type'] = 'spot'
+                            all_positions[position_id] = position
+                            logger.info(f"📊 صفقة سبوت: {position.get('symbol')}")
+                
+                # جلب صفقات الفيوتشر
+                if futures_account and hasattr(futures_account, 'positions'):
+                    for position_id, position in futures_account.positions.items():
+                        # تحويل FuturesPosition إلى dict
+                        if hasattr(position, 'symbol'):  # FuturesPosition object
+                            all_positions[position_id] = {
+                                'symbol': position.symbol,
+                                'entry_price': position.entry_price,
+                                'side': position.side,
+                                'account_type': 'futures',
+                                'leverage': position.leverage,
+                                'position_size': position.position_size,
+                                'current_price': position.current_price,
+                                'pnl_percent': position.unrealized_pnl,
+                                'liquidation_price': position.liquidation_price,
+                                'contracts': position.contracts,
+                                'margin_amount': position.margin_amount
+                            }
+                            logger.info(f"📊 صفقة فيوتشر: {position.symbol} - {position.side}")
+                        elif isinstance(position, dict):
+                            position['account_type'] = 'futures'
+                            all_positions[position_id] = position
+                
+                logger.info(f"✅ تم جلب {len(all_positions)} صفقة للمستخدم {user_id}")
             
-            # إضافة الصفقات من trading_bot.open_positions (للإشارات القديمة)
+            # إضافة الصفقات من trading_bot.open_positions (للإشارات القديمة - للتوافق)
             all_positions.update(trading_bot.open_positions)
         
         logger.info(f"📊 إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
@@ -5230,12 +5262,22 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         await update.callback_query.message.reply_text(wallet_message, parse_mode='Markdown')
                     return
         
-        # إذا كان حساب تجريبي، استخدم البيانات التجريبية
-        spot_account = trading_bot.demo_account_spot
-        futures_account = trading_bot.demo_account_futures
+        # إذا كان حساب تجريبي، استخدم بيانات المستخدم من user_manager
+        from user_manager import user_manager
         
-        spot_info = spot_account.get_account_info()
-        futures_info = futures_account.get_account_info()
+        # جلب الحسابات الحقيقية للمستخدم
+        spot_account = user_manager.get_user_account(user_id, 'spot')
+        futures_account = user_manager.get_user_account(user_id, 'futures')
+        
+        if not spot_account or not futures_account:
+            # إنشاء حسابات إذا لم تكن موجودة
+            if not user_manager.get_user(user_id):
+                user_manager.create_user(user_id)
+            spot_account = user_manager.get_user_account(user_id, 'spot')
+            futures_account = user_manager.get_user_account(user_id, 'futures')
+        
+        spot_info = spot_account.get_account_info() if spot_account else {'balance': 0, 'unrealized_pnl': 0, 'total_trades': 0, 'open_positions': 0, 'winning_trades': 0, 'losing_trades': 0}
+        futures_info = futures_account.get_account_info() if futures_account else {'balance': 0, 'unrealized_pnl': 0, 'total_trades': 0, 'open_positions': 0, 'winning_trades': 0, 'losing_trades': 0}
         
         # حساب الإجمالي
         total_balance = spot_info['balance'] + futures_info['balance']

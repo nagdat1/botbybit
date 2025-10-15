@@ -367,6 +367,102 @@ class WebServer:
                 traceback.print_exc()
                 return jsonify({"status": "error", "message": str(e)}), 500
     
+    def _sync_balance_to_database(self, user_id: int, account, market_type: str):
+        """تزامن الرصيد من TradingAccount إلى قاعدة البيانات"""
+        try:
+            from database import db_manager
+            
+            # الحصول على معلومات الحساب
+            account_info = account.get_account_info()
+            balance = account_info.get('balance', 0)
+            
+            # تحديث في قاعدة البيانات
+            db_manager.update_user_settings(user_id, {'balance': balance})
+            
+            logger.info(f"✅ تم تزامن الرصيد للمستخدم {user_id} ({market_type}): {balance:.2f}")
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في تزامن الرصيد: {e}")
+    
+    async def _send_detailed_notification(self, user_id: int, notification_type: str, **kwargs):
+        """إرسال إشعار Telegram مفصل"""
+        try:
+            if not self.trading_bot or not self.trading_bot.application:
+                return
+            
+            signal_type = kwargs.get('signal_type', '')
+            symbol = kwargs.get('symbol', '')
+            price = kwargs.get('price', 0)
+            qty = kwargs.get('qty', 0)
+            order_id = kwargs.get('order_id', '')
+            market_type = kwargs.get('market_type', 'spot')
+            balance = kwargs.get('balance', 0)
+            signal_id = kwargs.get('signal_id', '')
+            side = kwargs.get('side', '')
+            pnl = kwargs.get('pnl', 0)
+            
+            if notification_type == 'open':
+                action_emoji = "🟢" if side == "Buy" else "🔴"
+                action_text = "شراء" if side == "Buy" else "بيع"
+                
+                message = f"""╔═══════════════════════╗
+║  ✅ تنفيذ ناجح  ║
+╚═══════════════════════╝
+
+{action_emoji} **فتح صفقة {action_text}**
+
+📊 **تفاصيل الصفقة:**
+🆔 معرف الإشارة: `{signal_id}`
+📊 النوع: {signal_type.upper()}
+💱 الرمز: {symbol}
+💰 السوق: {market_type.upper()}
+💵 السعر: ${price:,.4f}
+📦 الكمية: {qty:.4f}
+🆔 معرف الأمر: `{order_id}`
+
+💰 **الرصيد:**
+💳 الرصيد الحالي: ${balance:,.2f}
+
+━━━━━━━━━━━━━━━━━━━━
+💎 by نجدت"""
+                
+            elif notification_type == 'close':
+                pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
+                pnl_text = "ربح" if pnl >= 0 else "خسارة"
+                
+                message = f"""╔═══════════════════════╗
+║  ✅ إغلاق ناجح  ║
+╚═══════════════════════╝
+
+🔒 **إغلاق صفقة**
+
+📊 **تفاصيل الصفقة:**
+🆔 معرف الإشارة: `{signal_id}`
+📊 النوع: {signal_type.upper()}
+💱 الرمز: {symbol}
+💰 السوق: {market_type.upper()}
+💵 سعر الإغلاق: ${price:,.4f}
+🆔 معرف الأمر: `{order_id}`
+
+{pnl_emoji} **النتيجة:**
+📈 PnL: ${pnl:,.2f} ({pnl_text})
+💳 الرصيد الحالي: ${balance:,.2f}
+
+━━━━━━━━━━━━━━━━━━━━
+💎 by نجدت"""
+            
+            else:
+                return
+            
+            await self.trading_bot.application.bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في إرسال الإشعار: {e}")
+    
     async def _execute_demo_signal(self, user_id: int, signal_data: dict, user_data: dict) -> dict:
         """تنفيذ إشارة على الحساب التجريبي بشكل مباشر ومتكامل"""
         try:
@@ -468,7 +564,25 @@ class WebServer:
                     # تحديث الإشارة
                     signal_manager.update_signal_with_order(signal_id, user_id, order_id, 'executed')
                     
+                    # تزامن الرصيد مع قاعدة البيانات
+                    self._sync_balance_to_database(user_id, account, market_type)
+                    
                     print(f"✅ تم فتح الصفقة بنجاح: {order_id}")
+                    
+                    # إرسال إشعار Telegram مفصل
+                    await self._send_detailed_notification(
+                        user_id=user_id,
+                        notification_type='open',
+                        signal_type=signal_type,
+                        symbol=symbol,
+                        side=side,
+                        price=price,
+                        qty=qty,
+                        order_id=order_id,
+                        market_type=market_type,
+                        balance=account.balance,
+                        signal_id=signal_id
+                    )
                     
                     return {
                         'success': True,
@@ -481,6 +595,29 @@ class WebServer:
                 else:
                     error_msg = f'فشل في تنفيذ الأمر: {position_id}'
                     signal_manager.mark_signal_failed(signal_id, user_id, error_msg)
+                    
+                    # إرسال إشعار بالفشل
+                    try:
+                        await self.trading_bot.application.bot.send_message(
+                            chat_id=user_id,
+                            text=f"""╔═══════════════════════╗
+║  ❌ فشل التنفيذ  ║
+╚═══════════════════════╝
+
+🟢 الحساب: تجريبي
+
+🆔 معرف الإشارة: `{signal_id}`
+📊 النوع: {signal_type.upper()}
+💱 الرمز: {symbol}
+⚠️ السبب: {error_msg}
+
+━━━━━━━━━━━━━━━━━━━━
+💎 by نجدت""",
+                            parse_mode='Markdown'
+                        )
+                    except:
+                        pass
+                    
                     return {
                         'success': False,
                         'message': error_msg
@@ -559,7 +696,24 @@ class WebServer:
                             
                             signal_manager.update_signal_with_order(signal_id, user_id, order_to_close['order_id'], 'closed')
                             
+                            # تزامن الرصيد مع قاعدة البيانات
+                            self._sync_balance_to_database(user_id, account, market_type)
+                            
                             print(f"✅ تم إغلاق الصفقة بنجاح: {order_to_close['order_id']}, PnL: {pnl:.2f}")
+                            
+                            # إرسال إشعار Telegram مفصل
+                            await self._send_detailed_notification(
+                                user_id=user_id,
+                                notification_type='close',
+                                signal_type=signal_type,
+                                symbol=symbol,
+                                price=price,
+                                order_id=order_to_close['order_id'],
+                                market_type=market_type,
+                                balance=account.balance,
+                                signal_id=signal_id,
+                                pnl=pnl
+                            )
                             
                             return {
                                 'success': True,
