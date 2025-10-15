@@ -2616,7 +2616,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔙 الرجوع لحساب المطور")]
+            [KeyboardButton("📖 دليل الإشارات"), KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -2715,7 +2715,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+        [KeyboardButton("📖 دليل الإشارات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -5604,6 +5605,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await close_position(position_id, update, context)
     elif data == "refresh_positions" or data == "show_positions":
         await open_positions(update, context)
+    elif data == "signal_guide":
+        await show_signal_guide(update, context)
+    elif data == "guide_spot":
+        await show_guide_spot(update, context)
+    elif data == "guide_long":
+        await show_guide_long(update, context)
+    elif data == "guide_short":
+        await show_guide_short(update, context)
+    elif data == "guide_how":
+        await show_guide_how(update, context)
+    elif data == "guide_tradingview":
+        await show_guide_tradingview(update, context)
+    elif data == "guide_examples":
+        await show_guide_examples(update, context)
     elif data == "auto_apply_menu":
         await auto_apply_settings_menu(update, context)
     elif data == "toggle_auto_apply":
@@ -7114,6 +7129,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await open_positions(update, context)
     elif text == "📈 تاريخ التداول":
         await trade_history(update, context)
+    elif text == "📖 دليل الإشارات":
+        await show_signal_guide(update, context)
     elif text == "💰 المحفظة":
         await wallet_overview(update, context)
     elif text == "▶️ تشغيل البوت":
@@ -7176,6 +7193,401 @@ async def process_external_signal(symbol: str, action: str):
     }
     await trading_bot.process_signal(signal_data)
 
+async def show_signal_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل الإشارات الجديد المفصل"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    # القائمة الرئيسية لدليل الإشارات
+    guide_message = """
+📖 **دليل الإشارات الجديد**
+
+🎯 **نظام مبسط وذكي**
+فقط 3 حقول مطلوبة!
+
+اختر نوع الإشارات للتعرف عليها:
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🛒 إشارات Spot", callback_data="guide_spot")],
+        [InlineKeyboardButton("📈 إشارات Futures Long", callback_data="guide_long")],
+        [InlineKeyboardButton("📉 إشارات Futures Short", callback_data="guide_short")],
+        [InlineKeyboardButton("⚙️ كيف يعمل النظام؟", callback_data="guide_how")],
+        [InlineKeyboardButton("🔗 إعداد TradingView", callback_data="guide_tradingview")],
+        [InlineKeyboardButton("📋 أمثلة عملية", callback_data="guide_examples")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.message:
+        await update.message.reply_text(guide_message, reply_markup=reply_markup, parse_mode='Markdown')
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(guide_message, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_spot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل إشارات Spot"""
+    guide = """
+🛒 **إشارات Spot (السوق الفوري)**
+
+تستخدم للتداول في السوق الفوري بدون رافعة مالية.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**1️⃣ إشارة BUY (شراء)**
+
+```json
+{
+    "signal": "buy",
+    "symbol": "BTCUSDT",
+    "id": "TV_001"
+}
+```
+
+• **الوصف**: شراء عملة في السوق الفوري
+• **المبلغ**: يُأخذ من إعداداتك تلقائياً
+• **السعر**: يُجلب من Bybit تلقائياً
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**2️⃣ إشارة SELL (بيع)**
+
+```json
+{
+    "signal": "sell",
+    "symbol": "BTCUSDT",
+    "id": "TV_002"
+}
+```
+
+• **الوصف**: بيع عملة في السوق الفوري
+• **المبلغ**: من إعداداتك
+• **السعر**: من Bybit تلقائياً
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **مميزات Spot**:
+• بدون رافعة مالية
+• مخاطر أقل
+• مناسب للمبتدئين
+
+⚠️ **ملاحظة**: تأكد من اختيار "SPOT" في إعدادات نوع السوق
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_long(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل إشارات Long"""
+    guide = """
+📈 **إشارات Futures - Long (شراء بالرافعة)**
+
+تستخدم للمراهنة على ارتفاع السعر بالرافعة المالية.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**1️⃣ إشارة LONG (فتح صفقة شراء)**
+
+```json
+{
+    "signal": "long",
+    "symbol": "BTCUSDT",
+    "id": "TV_L01"
+}
+```
+
+• **الوصف**: فتح صفقة Long (شراء)
+• **الهامش**: من إعداداتك (مثلاً 100 USDT)
+• **الرافعة**: من إعداداتك (مثلاً 10x)
+• **حجم الصفقة**: 100 × 10 = 1000 USDT
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**2️⃣ إشارة CLOSE_LONG (إغلاق)**
+
+```json
+{
+    "signal": "close_long",
+    "symbol": "BTCUSDT",
+    "id": "TV_C01"
+}
+```
+
+• **الوصف**: إغلاق صفقة Long مفتوحة
+• **البحث**: يبحث عن صفقة Long على BTCUSDT
+• **الإغلاق**: إغلاق كامل تلقائي
+• **الربح/الخسارة**: يُحسب تلقائياً
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **مميزات Long**:
+• الربح عند ارتفاع السعر
+• رافعة مالية قابلة للتخصيص
+• مناسب للأسواق الصاعدة
+
+⚠️ **تحذير**: الرافعة تزيد الأرباح والخسائر
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_short(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل إشارات Short"""
+    guide = """
+📉 **إشارات Futures - Short (بيع بالرافعة)**
+
+تستخدم للمراهنة على انخفاض السعر بالرافعة المالية.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**1️⃣ إشارة SHORT (فتح صفقة بيع)**
+
+```json
+{
+    "signal": "short",
+    "symbol": "ETHUSDT",
+    "id": "TV_S01"
+}
+```
+
+• **الوصف**: فتح صفقة Short (بيع)
+• **الهامش**: من إعداداتك (مثلاً 100 USDT)
+• **الرافعة**: من إعداداتك (مثلاً 10x)
+• **حجم الصفقة**: 100 × 10 = 1000 USDT
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**2️⃣ إشارة CLOSE_SHORT (إغلاق)**
+
+```json
+{
+    "signal": "close_short",
+    "symbol": "ETHUSDT",
+    "id": "TV_C02"
+}
+```
+
+• **الوصف**: إغلاق صفقة Short مفتوحة
+• **البحث**: يبحث عن صفقة Short على ETHUSDT
+• **الإغلاق**: إغلاق كامل تلقائي
+• **الربح/الخسارة**: يُحسب تلقائياً
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **مميزات Short**:
+• الربح عند انخفاض السعر
+• رافعة مالية قابلة للتخصيص
+• مناسب للأسواق الهابطة
+
+⚠️ **تحذير**: Short أكثر خطورة من Long
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_how(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض كيفية عمل النظام"""
+    guide = """
+⚙️ **كيف يعمل النظام؟**
+
+البوت يقوم بكل شيء تلقائياً! 🤖
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📥 1. استقبال الإشارة**
+تصل إشارة بسيطة:
+```json
+{
+    "signal": "long",
+    "symbol": "BTCUSDT",
+    "id": "TV_001"
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**🔄 2. التحويل الذكي**
+البوت يضيف:
+• السعر الحالي (من Bybit API)
+• المبلغ (من إعداداتك: 100 USDT)
+• الرافعة (من إعداداتك: 10x)
+• نوع السوق (Futures تلقائياً)
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**⚡ 3. التنفيذ**
+• يفتح صفقة بحجم 1000 USDT
+• يحسب سعر التصفية
+• يرسل إشعار تفصيلي
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📊 4. الإدارة**
+• تتبع الصفقة المفتوحة
+• حساب PnL لحظياً
+• إغلاق عند إشارة close_long
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **النتيجة**:
+• لا حاجة لإرسال السعر
+• لا حاجة لإرسال المبلغ
+• لا حاجة لإرسال الرافعة
+• فقط 3 حقول بسيطة!
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_tradingview(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل إعداد TradingView"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    # إنشاء رابط webhook الشخصي
+    railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+    render_url = os.getenv('RENDER_EXTERNAL_URL')
+    
+    if railway_url:
+        if not railway_url.startswith('http'):
+            railway_url = f"https://{railway_url}"
+        webhook_url = f"{railway_url}/personal/{user_id}/webhook"
+    elif render_url:
+        webhook_url = f"{render_url}/personal/{user_id}/webhook"
+    else:
+        port = PORT
+        webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
+    
+    guide = f"""
+🔗 **إعداد TradingView**
+
+**الخطوة 1: احصل على رابط Webhook**
+```
+{webhook_url}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**الخطوة 2: في TradingView**
+1. افتح الشارت
+2. أنشئ Alert جديد
+3. اختر شرط التنبيه
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**الخطوة 3: إعداد Webhook**
+1. اختر "Webhook URL"
+2. ضع الرابط أعلاه
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**الخطوة 4: Message**
+في حقل Message، ضع:
+
+**لشراء BTC:**
+```json
+{{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}}
+```
+
+**لفتح Long:**
+```json
+{{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}}
+```
+
+**لإغلاق Long:**
+```json
+{{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ **جاهز!** سيصلك إشعار عند كل إشارة
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_examples(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض أمثلة عملية"""
+    guide = """
+📋 **أمثلة عملية**
+
+**🎯 مثال 1: استراتيجية Spot بسيطة**
+
+**عند الشراء:**
+```json
+{"signal": "buy", "symbol": "BTCUSDT", "id": "SPOT_01"}
+```
+
+**عند البيع:**
+```json
+{"signal": "sell", "symbol": "BTCUSDT", "id": "SPOT_02"}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📈 مثال 2: Long Trading**
+
+**فتح Long عند 45000:**
+```json
+{"signal": "long", "symbol": "BTCUSDT", "id": "LONG_01"}
+```
+
+**إغلاق Long عند 46000:**
+```json
+{"signal": "close_long", "symbol": "BTCUSDT", "id": "CLOSE_01"}
+```
+
+**النتيجة:**
+✅ ربح ~200 USDT (مع رافعة 10x)
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📉 مثال 3: Short Trading**
+
+**فتح Short عند 3000:**
+```json
+{"signal": "short", "symbol": "ETHUSDT", "id": "SHORT_01"}
+```
+
+**إغلاق Short عند 2900:**
+```json
+{"signal": "close_short", "symbol": "ETHUSDT", "id": "CLOSE_02"}
+```
+
+**النتيجة:**
+✅ ربح من انخفاض السعر
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+💡 **نصيحة**: اختبر في الحساب التجريبي أولاً!
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """معالج الأخطاء"""
     logger.error(f"Update {update} caused error {context.error}")
@@ -7187,6 +7599,7 @@ def main():
     
     # إضافة المعالجات
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("signals", show_signal_guide))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_error_handler(error_handler)
