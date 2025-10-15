@@ -452,14 +452,14 @@ class WebServer:
                     qty = trade_amount / price if market_type == 'spot' else trade_amount * leverage / price
                     
                     # حفظ في قاعدة البيانات
-                    db_manager.save_order({
+                    db_manager.create_order({
                         'user_id': user_id,
                         'order_id': order_id,
                         'symbol': symbol,
                         'side': side,
                         'price': price,
                         'qty': qty,
-                        'status': 'filled',
+                        'status': 'OPEN',
                         'market_type': market_type,
                         'signal_id': signal_id,
                         'signal_type': signal_type
@@ -532,36 +532,58 @@ class WebServer:
                         success, close_result = account.close_spot_position(target_position_id, price)
                     
                     if success:
-                        order_id = f'DEMO_CLOSE_{int(time.time())}'
                         pnl = close_result.get('pnl', 0)
-                        qty = close_result.get('contracts', close_result.get('amount', 0) / price)
                         
-                        # تحديث في قاعدة البيانات
-                        db_manager.save_order({
-                            'user_id': user_id,
-                            'order_id': order_id,
-                            'symbol': symbol,
-                            'side': 'Sell' if signal_type in ['close_long', 'sell'] else 'Buy',
-                            'price': price,
-                            'qty': qty,
-                            'status': 'filled',
-                            'market_type': market_type,
-                            'signal_id': signal_id,
-                            'signal_type': signal_type
-                        })
+                        # البحث عن الصفقة المفتوحة في قاعدة البيانات لإغلاقها
+                        open_orders = db_manager.get_user_orders(user_id, status='OPEN')
+                        order_to_close = None
                         
-                        signal_manager.update_signal_with_order(signal_id, user_id, order_id, 'closed')
+                        for order in open_orders:
+                            if order.get('symbol') == symbol and order.get('market_type') == market_type:
+                                # للسبوت: أي صفقة مفتوحة
+                                # للفيوتشر: نفس الاتجاه
+                                if market_type == 'spot':
+                                    order_to_close = order
+                                    break
+                                else:  # futures
+                                    if signal_type == 'close_long' and order.get('side') == 'Buy':
+                                        order_to_close = order
+                                        break
+                                    elif signal_type == 'close_short' and order.get('side') == 'Sell':
+                                        order_to_close = order
+                                        break
                         
-                        print(f"✅ تم إغلاق الصفقة بنجاح: {order_id}, PnL: {pnl:.2f}")
-                        
-                        return {
-                            'success': True,
-                            'message': 'Position closed successfully',
-                            'order_id': order_id,
-                            'price': price,
-                            'pnl': pnl,
-                            'balance': account.balance
-                        }
+                        if order_to_close:
+                            # إغلاق الصفقة في قاعدة البيانات
+                            db_manager.close_order(order_to_close['order_id'], price, pnl)
+                            
+                            signal_manager.update_signal_with_order(signal_id, user_id, order_to_close['order_id'], 'closed')
+                            
+                            print(f"✅ تم إغلاق الصفقة بنجاح: {order_to_close['order_id']}, PnL: {pnl:.2f}")
+                            
+                            return {
+                                'success': True,
+                                'message': 'Position closed successfully',
+                                'order_id': order_to_close['order_id'],
+                                'price': price,
+                                'pnl': pnl,
+                                'balance': account.balance
+                            }
+                        else:
+                            # إذا لم نجد الصفقة في DB، نستخدم position_id
+                            order_id = target_position_id
+                            signal_manager.update_signal_with_order(signal_id, user_id, order_id, 'closed')
+                            
+                            print(f"✅ تم إغلاق الصفقة بنجاح: {order_id}, PnL: {pnl:.2f}")
+                            
+                            return {
+                                'success': True,
+                                'message': 'Position closed successfully',
+                                'order_id': order_id,
+                                'price': price,
+                                'pnl': pnl,
+                                'balance': account.balance
+                            }
                     else:
                         error_msg = f'فشل في إغلاق الصفقة: {close_result.get("error", "Unknown error")}'
                         signal_manager.mark_signal_failed(signal_id, user_id, error_msg)

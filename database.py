@@ -376,20 +376,23 @@ class DatabaseManager:
                 cursor.execute("""
                     INSERT INTO orders (
                         order_id, user_id, symbol, side, entry_price, quantity,
-                        tps, sl, partial_close, status, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        tps, sl, partial_close, status, notes, signal_id, signal_type, market_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     order_data['order_id'],
                     order_data['user_id'],
                     order_data['symbol'],
                     order_data['side'],
-                    order_data['entry_price'],
-                    order_data['quantity'],
+                    order_data.get('entry_price', order_data.get('price', 0.0)),
+                    order_data.get('quantity', order_data.get('qty', 0.0)),
                     json.dumps(order_data.get('tps', [])),
                     order_data.get('sl', 0.0),
                     json.dumps(order_data.get('partial_close', [])),
                     order_data.get('status', 'OPEN'),
-                    order_data.get('notes', '')
+                    order_data.get('notes', ''),
+                    order_data.get('signal_id', ''),
+                    order_data.get('signal_type', ''),
+                    order_data.get('market_type', 'spot')
                 ))
                 
                 conn.commit()
