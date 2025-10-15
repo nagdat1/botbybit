@@ -10,6 +10,7 @@ import time
 import json
 import threading
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
@@ -20,6 +21,9 @@ import requests
 
 # استيراد إعدادات البوت
 from config import *
+
+# إعدادLogger
+logger = logging.getLogger(__name__)
 
 class WebServer:
     def __init__(self, trading_bot):
