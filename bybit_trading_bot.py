@@ -5886,22 +5886,58 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎯 أنواع الإشارات:
 
 1️⃣ BUY - شراء Spot
-{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}
+```
+{
+    "signal": "buy",
+    "symbol": "BTCUSDT",
+    "id": "TV_001"
+}
+```
 
 2️⃣ SELL - بيع Spot
-{"signal": "sell", "symbol": "BTCUSDT", "id": "TV_002"}
+```
+{
+    "signal": "sell",
+    "symbol": "BTCUSDT",
+    "id": "TV_002"
+}
+```
 
 3️⃣ LONG - فتح Long
-{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}
+```
+{
+    "signal": "long",
+    "symbol": "BTCUSDT",
+    "id": "TV_L01"
+}
+```
 
 4️⃣ CLOSE_LONG - إغلاق Long
-{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}
+```
+{
+    "signal": "close_long",
+    "symbol": "BTCUSDT",
+    "id": "TV_C01"
+}
+```
 
 5️⃣ SHORT - فتح Short
-{"signal": "short", "symbol": "ETHUSDT", "id": "TV_S01"}
+```
+{
+    "signal": "short",
+    "symbol": "ETHUSDT",
+    "id": "TV_S01"
+}
+```
 
 6️⃣ CLOSE_SHORT - إغلاق Short
-{"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_C02"}
+```
+{
+    "signal": "close_short",
+    "symbol": "ETHUSDT",
+    "id": "TV_C02"
+}
+```
 
 ✅ فقط signal و symbol و id مطلوبان"""
         
