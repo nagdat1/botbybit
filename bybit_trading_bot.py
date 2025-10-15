@@ -5881,63 +5881,51 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
     elif data == "webhook_help":
         # عرض شرح مفصل لنظام الإشارات
-        help_message = """📖 دليل الإشارات
+        help_message = """📖 <b>دليل الإشارات</b>
 
-🎯 أنواع الإشارات:
+🎯 <b>أنواع الإشارات:</b>
 
 1️⃣ BUY - شراء Spot
-```
-{
+<pre>{
     "signal": "buy",
     "symbol": "BTCUSDT",
     "id": "TV_001"
-}
-```
+}</pre>
 
 2️⃣ SELL - بيع Spot
-```
-{
+<pre>{
     "signal": "sell",
     "symbol": "BTCUSDT",
     "id": "TV_002"
-}
-```
+}</pre>
 
 3️⃣ LONG - فتح Long
-```
-{
+<pre>{
     "signal": "long",
     "symbol": "BTCUSDT",
     "id": "TV_L01"
-}
-```
+}</pre>
 
 4️⃣ CLOSE_LONG - إغلاق Long
-```
-{
+<pre>{
     "signal": "close_long",
     "symbol": "BTCUSDT",
     "id": "TV_C01"
-}
-```
+}</pre>
 
 5️⃣ SHORT - فتح Short
-```
-{
+<pre>{
     "signal": "short",
     "symbol": "ETHUSDT",
     "id": "TV_S01"
-}
-```
+}</pre>
 
 6️⃣ CLOSE_SHORT - إغلاق Short
-```
-{
+<pre>{
     "signal": "close_short",
     "symbol": "ETHUSDT",
     "id": "TV_C02"
-}
-```
+}</pre>
 
 ✅ فقط signal و symbol و id مطلوبان"""
         
@@ -5950,7 +5938,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.answer()
             await update.callback_query.edit_message_text(
                 help_message, 
-                reply_markup=reply_markup
+                reply_markup=reply_markup,
+                parse_mode='HTML'
             )
     # معالجة أزرار المطور
     elif data == "developer_panel":
