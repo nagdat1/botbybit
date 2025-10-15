@@ -5605,6 +5605,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await close_position(position_id, update, context)
     elif data == "refresh_positions" or data == "show_positions":
         await open_positions(update, context)
+    elif data == "webhook_help":
+        await show_webhook_help(update, context)
     elif data == "signal_guide":
         await show_signal_guide(update, context)
     elif data == "guide_spot":
@@ -7587,6 +7589,154 @@ async def show_guide_examples(update: Update, context: ContextTypes.DEFAULT_TYPE
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_webhook_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض الشرح المفصل لكيفية استخدام Webhook"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    # إنشاء رابط webhook الشخصي
+    railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+    render_url = os.getenv('RENDER_EXTERNAL_URL')
+    
+    if railway_url:
+        if not railway_url.startswith('http'):
+            railway_url = f"https://{railway_url}"
+        webhook_url = f"{railway_url}/personal/{user_id}/webhook"
+    elif render_url:
+        webhook_url = f"{render_url}/personal/{user_id}/webhook"
+    else:
+        port = PORT
+        webhook_url = f"http://localhost:{port}/personal/{user_id}/webhook"
+    
+    help_message = f"""
+📖 **الشرح المفصل لاستخدام Webhook**
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 **رابط Webhook الخاص بك:**
+```
+{webhook_url}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**🎯 ما هو Webhook؟**
+
+Webhook هو رابط خاص بك يستقبل الإشارات من TradingView أو أي منصة أخرى ويرسلها مباشرة إلى البوت لتنفيذها.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📱 كيفية الإعداد في TradingView:**
+
+**الخطوة 1️⃣: إنشاء Alert**
+• افتح الشارت في TradingView
+• اضغط على زر "Alert" (🔔)
+• اختر الشرط المناسب لاستراتيجيتك
+
+**الخطوة 2️⃣: إعداد Webhook**
+• في إعدادات Alert، اختر "Webhook URL"
+• انسخ رابط Webhook أعلاه والصقه
+
+**الخطوة 3️⃣: كتابة الإشارة**
+في حقل "Message"، اكتب الإشارة بتنسيق JSON:
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📋 أمثلة الإشارات:**
+
+**🛒 شراء Spot:**
+```json
+{{"signal": "buy", "symbol": "BTCUSDT", "id": "TV_001"}}
+```
+
+**📈 فتح Long:**
+```json
+{{"signal": "long", "symbol": "BTCUSDT", "id": "TV_L01"}}
+```
+
+**🔄 إغلاق Long:**
+```json
+{{"signal": "close_long", "symbol": "BTCUSDT", "id": "TV_C01"}}
+```
+
+**📉 فتح Short:**
+```json
+{{"signal": "short", "symbol": "ETHUSDT", "id": "TV_S01"}}
+```
+
+**🔄 إغلاق Short:**
+```json
+{{"signal": "close_short", "symbol": "ETHUSDT", "id": "TV_C02"}}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**✅ ما الذي يحدث؟**
+
+1. **TradingView** يرسل الإشارة للرابط
+2. **البوت** يستقبل الإشارة تلقائياً
+3. **النظام الذكي** يضيف:
+   • السعر الحالي (من Bybit)
+   • المبلغ (من إعداداتك)
+   • الرافعة (من إعداداتك)
+4. **التنفيذ** يتم فوراً
+5. **الإشعار** يصلك على التلجرام
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**⚠️ ملاحظات أمان:**
+
+🔒 **احتفظ بالرابط سرياً**
+• لا تشاركه مع أحد
+• كل شخص لديه الرابط يمكنه إرسال إشارات
+
+🛡️ **التحكم في الوصول**
+• يمكنك تعطيل حسابك من الإعدادات
+• سيتوقف استقبال الإشارات عند التعطيل
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**💡 نصائح:**
+
+✅ **للاختبار:**
+• استخدم الحساب التجريبي أولاً
+• جرب جميع أنواع الإشارات
+• تأكد من استلام الإشعارات
+
+✅ **للإنتاج:**
+• تحقق من إعداداتك (المبلغ، الرافعة)
+• راقب الإشارات في البداية
+• استخدم Stop Loss دائماً
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**📚 للمزيد:**
+استخدم أمر /signals لعرض دليل الإشارات الكامل
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✨ **جاهز للبدء؟**
+انسخ رابط Webhook واستخدمه في TradingView!
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("📖 دليل الإشارات", callback_data="signal_guide")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="usage_links")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            help_message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(
+            help_message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """معالج الأخطاء"""
