@@ -54,7 +54,7 @@
 4. فعّل الصلاحيات: Read, Write, Trade
 
 من MEXC:
-1. اذهب إلى https://www.mexc.com/ar-AE/auth/signup?inviteCode=3RwDp
+1. اذهب إلى https://www.mexc.com/
 2. Account → API Management
 3. Create New API Key
 4. فعّل صلاحية: Spot Trading فقط

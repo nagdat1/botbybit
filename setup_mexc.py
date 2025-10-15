@@ -18,7 +18,7 @@ def setup_mexc_api():
     print("   1. API Key من حسابك على MEXC")
     print("   2. API Secret من حسابك على MEXC")
     print("\n💡 للحصول على المفاتيح:")
-    print("   • اذهب إلى https://www.mexc.com/ar-AE/auth/signup?inviteCode=3RwDp")
+    print("   • اذهب إلى https://www.mexc.com/")
     print("   • Account → API Management")
     print("   • Create New API Key")
     print("   • فعّل صلاحية Spot Trading فقط")

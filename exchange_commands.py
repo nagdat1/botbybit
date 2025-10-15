@@ -292,7 +292,7 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
 MEXC تدعم التداول الفوري فقط - لا يوجد دعم للفيوتشر عبر API
 
 🔐 **لربط API:**
-1. اذهب إلى [MEXC API Management](https://www.mexc.com/ar-AE/auth/signup?inviteCode=3RwDp)
+1. اذهب إلى [MEXC API Management](https://www.mexc.com/user/openapi)
 2. أنشئ API Key جديد
 3. فعّل صلاحية Spot Trading فقط
 4. اضغط "🔑 ربط/تحديث MEXC API Keys"
