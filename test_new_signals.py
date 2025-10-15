@@ -60,8 +60,24 @@ FUTURES_SHORT_SIGNALS = [
     }
 ]
 
+# إشارات الإغلاق الجزئي
+PARTIAL_CLOSE_SIGNALS = [
+    {
+        "signal": "partial_close_long",
+        "symbol": "BTCUSDT",
+        "percentage": 50,
+        "id": "TEST_PARTIAL_LONG_001"
+    },
+    {
+        "signal": "partial_close_short",
+        "symbol": "ETHUSDT",
+        "percentage": 25,
+        "id": "TEST_PARTIAL_SHORT_001"
+    }
+]
+
 # جميع الإشارات
-ALL_SIGNALS = SPOT_SIGNALS + FUTURES_LONG_SIGNALS + FUTURES_SHORT_SIGNALS
+ALL_SIGNALS = SPOT_SIGNALS + FUTURES_LONG_SIGNALS + FUTURES_SHORT_SIGNALS + PARTIAL_CLOSE_SIGNALS
 
 
 def send_signal(signal_data, webhook_url=None, use_personal=False, user_id=None):
@@ -245,6 +261,15 @@ def test_futures_short_only(webhook_url=None, use_personal=False, user_id=None):
         time.sleep(2)
 
 
+def test_partial_close_only(webhook_url=None, use_personal=False, user_id=None):
+    """اختبار إشارات الإغلاق الجزئي فقط"""
+    print("\n📊 اختبار إشارات الإغلاق الجزئي")
+    
+    for signal in PARTIAL_CLOSE_SIGNALS:
+        send_signal(signal, webhook_url=webhook_url, use_personal=use_personal, user_id=user_id)
+        time.sleep(2)
+
+
 def test_invalid_signals(webhook_url=None):
     """اختبار إشارات غير صحيحة للتأكد من معالجة الأخطاء"""
     print("\n❌ اختبار إشارات غير صحيحة")
@@ -275,11 +300,12 @@ def interactive_test():
     print("3. اختبار إشارات Spot فقط")
     print("4. اختبار إشارات Futures Long فقط")
     print("5. اختبار إشارات Futures Short فقط")
-    print("6. اختبار إشارات غير صحيحة")
-    print("7. اختبار إشارة واحدة مخصصة")
+    print("6. اختبار الإغلاق الجزئي فقط")
+    print("7. اختبار إشارات غير صحيحة")
+    print("8. اختبار إشارة واحدة مخصصة")
     print("0. خروج")
     
-    choice = input("\nأدخل اختيارك (0-7): ").strip()
+    choice = input("\nأدخل اختيارك (0-8): ").strip()
     
     if choice == "0":
         print("👋 إلى اللقاء!")
@@ -312,11 +338,14 @@ def interactive_test():
     elif choice == "5":
         test_futures_short_only(webhook_url, use_personal, user_id)
     elif choice == "6":
-        test_invalid_signals(webhook_url)
+        test_partial_close_only(webhook_url, use_personal, user_id)
     elif choice == "7":
+        test_invalid_signals(webhook_url)
+    elif choice == "8":
         # اختبار مخصص
         print("\nأنواع الإشارات المدعومة:")
         print("buy, sell, long, close_long, short, close_short")
+        print("partial_close_long, partial_close_short")
         
         signal_type = input("\nأدخل نوع الإشارة: ").strip().lower()
         symbol = input("أدخل رمز العملة (مثل BTCUSDT): ").strip().upper()
@@ -327,6 +356,14 @@ def interactive_test():
             "symbol": symbol,
             "id": signal_id or f"CUSTOM_{int(time.time())}"
         }
+        
+        # إذا كان إغلاق جزئي، أضف النسبة
+        if 'partial_close' in signal_type:
+            percentage = input("أدخل النسبة المئوية (1-100، افتراضي 50): ").strip()
+            if percentage:
+                custom_signal['percentage'] = float(percentage)
+            else:
+                custom_signal['percentage'] = 50
         
         send_signal(custom_signal, webhook_url, use_personal, user_id)
     else:

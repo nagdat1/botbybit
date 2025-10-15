@@ -21,8 +21,8 @@ class SignalConverter:
     
     # تعريف أنواع الإشارات المدعومة
     SPOT_SIGNALS = ['buy', 'sell']
-    FUTURES_LONG_SIGNALS = ['long', 'close_long']
-    FUTURES_SHORT_SIGNALS = ['short', 'close_short']
+    FUTURES_LONG_SIGNALS = ['long', 'close_long', 'partial_close_long']
+    FUTURES_SHORT_SIGNALS = ['short', 'close_short', 'partial_close_short']
     ALL_SIGNALS = SPOT_SIGNALS + FUTURES_LONG_SIGNALS + FUTURES_SHORT_SIGNALS
     
     @staticmethod
@@ -137,6 +137,16 @@ class SignalConverter:
                 converted['close_side'] = 'long'
                 logger.info(f"📉 إشارة FUTURES: إغلاق LONG")
             
+            elif signal_type == 'partial_close_long':
+                converted['market_type'] = 'futures'
+                converted['action'] = 'partial_close'
+                converted['position_type'] = 'long'
+                converted['close_side'] = 'long'
+                # النسبة المئوية يجب أن تكون موجودة في البيانات الأصلية
+                percentage = signal_data.get('percentage', 50)  # افتراضي 50%
+                converted['percentage'] = percentage
+                logger.info(f"📊 إشارة FUTURES: إغلاق جزئي LONG ({percentage}%)")
+            
             # إشارات FUTURES - SHORT
             elif signal_type == 'short':
                 converted['market_type'] = 'futures'
@@ -150,6 +160,16 @@ class SignalConverter:
                 converted['position_type'] = 'short'
                 converted['close_side'] = 'short'
                 logger.info(f"📈 إشارة FUTURES: إغلاق SHORT")
+            
+            elif signal_type == 'partial_close_short':
+                converted['market_type'] = 'futures'
+                converted['action'] = 'partial_close'
+                converted['position_type'] = 'short'
+                converted['close_side'] = 'short'
+                # النسبة المئوية يجب أن تكون موجودة في البيانات الأصلية
+                percentage = signal_data.get('percentage', 50)  # افتراضي 50%
+                converted['percentage'] = percentage
+                logger.info(f"📊 إشارة FUTURES: إغلاق جزئي SHORT ({percentage}%)")
             
             else:
                 logger.error(f"❌ نوع إشارة غير معروف: {signal_type}")
@@ -275,8 +295,10 @@ class SignalConverter:
             'sell': '📉 بيع (Spot)',
             'long': '🚀 فتح صفقة شراء (Long)',
             'close_long': '🔻 إغلاق صفقة شراء (Close Long)',
+            'partial_close_long': '📊 إغلاق جزئي لصفقة شراء (Partial Close Long)',
             'short': '🔻 فتح صفقة بيع (Short)',
-            'close_short': '🚀 إغلاق صفقة بيع (Close Short)'
+            'close_short': '🚀 إغلاق صفقة بيع (Close Short)',
+            'partial_close_short': '📊 إغلاق جزئي لصفقة بيع (Partial Close Short)'
         }
         
         return descriptions.get(signal_type.lower(), '❓ غير معروف')
@@ -337,7 +359,9 @@ if __name__ == "__main__":
         {'signal': 'long', 'symbol': 'BTCUSDT', 'id': 'TV_L01'},
         {'signal': 'close_long', 'symbol': 'BTCUSDT', 'id': 'TV_C01'},
         {'signal': 'short', 'symbol': 'ETHUSDT', 'id': 'TV_S01'},
-        {'signal': 'close_short', 'symbol': 'ETHUSDT', 'id': 'TV_C02'}
+        {'signal': 'close_short', 'symbol': 'ETHUSDT', 'id': 'TV_C02'},
+        {'signal': 'partial_close_long', 'symbol': 'BTCUSDT', 'id': 'TV_PC01', 'percentage': 50},
+        {'signal': 'partial_close_short', 'symbol': 'ETHUSDT', 'id': 'TV_PC02', 'percentage': 25}
     ]
     
     for test_signal in test_signals:

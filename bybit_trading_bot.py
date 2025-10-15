@@ -2028,6 +2028,114 @@ class TradingBot:
                 
                 return  # انتهى معالجة إشارة الإغلاق
             
+            # معالجة إشارات الإغلاق الجزئي (partial_close)
+            if action == 'partial_close':
+                logger.info(f"📊 معالجة إشارة إغلاق جزئي للرمز {symbol}")
+                
+                # الحصول على النسبة المئوية
+                percentage = float(self._current_signal_data.get('percentage', 50))
+                
+                # التحقق من صحة النسبة
+                if percentage <= 0 or percentage > 100:
+                    logger.error(f"❌ نسبة غير صحيحة: {percentage}%")
+                    await self.send_message_to_admin(
+                        f"❌ نسبة إغلاق جزئي غير صحيحة\n\n"
+                        f"📊 النسبة: {percentage}%\n"
+                        f"✅ النطاق المسموح: 1 - 100%"
+                    )
+                    return
+                
+                # البحث عن الصفقات المفتوحة لهذا الرمز
+                positions_to_partial_close = []
+                for pos_id, pos_info in user_positions.items():
+                    if pos_info.get('symbol') == symbol:
+                        # التحقق من نوع الإغلاق المطلوب
+                        close_side = self._current_signal_data.get('close_side', '')
+                        
+                        if close_side:
+                            if pos_info.get('side', '').lower() == close_side.lower():
+                                positions_to_partial_close.append(pos_id)
+                        else:
+                            positions_to_partial_close.append(pos_id)
+                
+                if not positions_to_partial_close:
+                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
+                    await self.send_message_to_admin(
+                        f"⚠️ لا توجد صفقات للإغلاق الجزئي\n\n"
+                        f"📊 الرمز: {symbol}\n"
+                        f"🏪 السوق: {user_market_type.UPPER()}"
+                    )
+                    return
+                
+                # إغلاق جزئي للصفقات
+                for pos_id in positions_to_partial_close:
+                    pos_info = user_positions[pos_id]
+                    
+                    if user_market_type == 'futures':
+                        # إغلاق جزئي لصفقة فيوتشر
+                        position = account.positions.get(pos_id)
+                        if position:
+                            # حساب الكمية المراد إغلاقها
+                            close_amount = position.position_size * (percentage / 100)
+                            close_contracts = position.contracts * (percentage / 100)
+                            
+                            # حساب الربح/الخسارة للجزء المغلق
+                            partial_pnl = position.calculate_closing_pnl(price) * (percentage / 100)
+                            
+                            # تحديث الصفقة
+                            new_position_size = position.position_size * ((100 - percentage) / 100)
+                            new_margin = position.margin_amount * ((100 - percentage) / 100)
+                            new_contracts = position.contracts * ((100 - percentage) / 100)
+                            
+                            # تحديث معلومات الصفقة في الحساب
+                            position.position_size = new_position_size
+                            position.margin_amount = new_margin
+                            position.contracts = new_contracts
+                            
+                            # تحرير الهامش المغلق وإضافة الربح/الخسارة
+                            released_margin = position.margin_amount * (percentage / 100)
+                            account.margin_locked -= (released_margin - partial_pnl)
+                            account.balance += partial_pnl
+                            
+                            # تحديث معلومات الصفقة في user_positions
+                            user_positions[pos_id]['position_size'] = new_position_size
+                            user_positions[pos_id]['margin_amount'] = new_margin
+                            user_positions[pos_id]['contracts'] = new_contracts
+                            
+                            # إرسال إشعار
+                            message = f"📊 تم إغلاق جزئي لصفقة فيوتشر\n\n"
+                            if self.user_id:
+                                message += f"👤 المستخدم: {self.user_id}\n"
+                            message += f"📊 الرمز: {symbol}\n"
+                            message += f"🔄 النوع: {pos_info.get('side', '').UPPER()}\n"
+                            message += f"📈 النسبة المغلقة: {percentage}%\n"
+                            message += f"💰 الربح/الخسارة الجزئي: {partial_pnl:.2f}\n"
+                            message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
+                            message += f"💲 سعر الإغلاق: {price:.6f}\n"
+                            message += f"\n📊 **الصفقة المتبقية:**\n"
+                            message += f"📈 الحجم المتبقي: {new_position_size:.2f} USDT ({100-percentage}%)\n"
+                            message += f"🔒 الهامش المتبقي: {new_margin:.2f} USDT\n"
+                            message += f"📊 العقود المتبقية: {new_contracts:.6f}\n"
+                            message += f"🆔 رقم الصفقة: {pos_id}\n"
+                            
+                            # معلومات الحساب
+                            account_info = account.get_account_info()
+                            message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                            message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
+                            
+                            await self.send_message_to_admin(message)
+                            logger.info(f"✅ تم الإغلاق الجزئي ({percentage}%) لصفقة {pos_id}")
+                    else:
+                        # الإغلاق الجزئي غير مدعوم حالياً في Spot
+                        logger.warning(f"⚠️ الإغلاق الجزئي غير مدعوم في Spot حالياً")
+                        await self.send_message_to_admin(
+                            f"⚠️ الإغلاق الجزئي مدعوم فقط في Futures\n\n"
+                            f"🏪 نوع السوق الحالي: {user_market_type.UPPER()}\n"
+                            f"💡 للإغلاق الجزئي، استخدم نوع سوق FUTURES"
+                        )
+                
+                return  # انتهى معالجة الإغلاق الجزئي
+            
             # معالجة إشارات الفتح (buy, sell, long, short)
             if user_market_type == 'futures':
                 margin_amount = self.user_settings['trade_amount']  # مبلغ الهامش
@@ -5615,6 +5723,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_guide_long(update, context)
     elif data == "guide_short":
         await show_guide_short(update, context)
+    elif data == "guide_partial":
+        await show_guide_partial(update, context)
     elif data == "guide_how":
         await show_guide_how(update, context)
     elif data == "guide_tradingview":
@@ -7213,6 +7323,7 @@ async def show_signal_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🛒 إشارات Spot", callback_data="guide_spot")],
         [InlineKeyboardButton("📈 إشارات Futures Long", callback_data="guide_long")],
         [InlineKeyboardButton("📉 إشارات Futures Short", callback_data="guide_short")],
+        [InlineKeyboardButton("📊 الإغلاق الجزئي", callback_data="guide_partial")],
         [InlineKeyboardButton("⚙️ كيف يعمل النظام؟", callback_data="guide_how")],
         [InlineKeyboardButton("🔗 إعداد TradingView", callback_data="guide_tradingview")],
         [InlineKeyboardButton("📋 أمثلة عملية", callback_data="guide_examples")],
@@ -7389,6 +7500,95 @@ async def show_guide_short(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • مناسب للأسواق الهابطة
 
 ⚠️ **تحذير**: Short أكثر خطورة من Long
+    """
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للدليل", callback_data="signal_guide")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(guide, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_guide_partial(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض دليل الإغلاق الجزئي"""
+    guide = """
+📊 **الإغلاق الجزئي (Partial Close)**
+
+جني الأرباح على مراحل بدلاً من إغلاق الصفقة كاملة!
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**1️⃣ إغلاق جزئي Long**
+
+```json
+{
+    "signal": "partial_close_long",
+    "symbol": "BTCUSDT",
+    "percentage": 50,
+    "id": "TV_PC01"
+}
+```
+
+• **الوصف**: إغلاق نسبة معينة من صفقة Long
+• **percentage**: النسبة المئوية للإغلاق (1-100)
+• **النطاق**: 1% - 100%
+• **الافتراضي**: 50% إذا لم تحدد
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**2️⃣ إغلاق جزئي Short**
+
+```json
+{
+    "signal": "partial_close_short",
+    "symbol": "ETHUSDT",
+    "percentage": 25,
+    "id": "TV_PC02"
+}
+```
+
+• **الوصف**: إغلاق نسبة معينة من صفقة Short
+• **مثال**: 25% = ربع الصفقة فقط
+• **الباقي**: يبقى مفتوح للحركة الإضافية
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**🎯 استراتيجية Take Profit متدرج**
+
+**1. فتح Long:**
+```json
+{{"signal": "long", "symbol": "BTCUSDT", "id": "L01"}}
+```
+
+**2. إغلاق 30% عند TP1 (+2%):**
+```json
+{{"signal": "partial_close_long", "symbol": "BTCUSDT", "percentage": 30, "id": "TP1"}}
+```
+
+**3. إغلاق 50% عند TP2 (+4%):**
+```json
+{{"signal": "partial_close_long", "symbol": "BTCUSDT", "percentage": 50, "id": "TP2"}}
+```
+
+**4. إغلاق الباقي عند TP3 (+6%):**
+```json
+{{"signal": "close_long", "symbol": "BTCUSDT", "id": "TP3"}}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+**✅ المميزات:**
+• تأمين الأرباح تدريجياً
+• تقليل المخاطر
+• الاستفادة من الحركة الكاملة
+• مرونة كاملة في النسب
+
+**💡 نصائح:**
+• النسبة تُحسب من الحجم المتبقي
+• يمكنك استخدام أرقام عشرية (17.5%)
+• مدعوم فقط في Futures حالياً
+
+⚠️ **ملاحظة**: يجب أن تكون هناك صفقة مفتوحة أولاً!
     """
     
     keyboard = [
@@ -7616,6 +7816,53 @@ async def show_guide_examples(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
+**📊 مثال 4: Take Profit متدرج**
+
+**فتح Long:**
+```json
+{
+    "signal": "long",
+    "symbol": "BTCUSDT",
+    "id": "GRAD_L01"
+}
+```
+
+**إغلاق 30% عند +2%:**
+```json
+{
+    "signal": "partial_close_long",
+    "symbol": "BTCUSDT",
+    "percentage": 30,
+    "id": "GRAD_PC01"
+}
+```
+
+**إغلاق 40% عند +4%:**
+```json
+{
+    "signal": "partial_close_long",
+    "symbol": "BTCUSDT",
+    "percentage": 40,
+    "id": "GRAD_PC02"
+}
+```
+
+**إغلاق الباقي 30%:**
+```json
+{
+    "signal": "close_long",
+    "symbol": "BTCUSDT",
+    "id": "GRAD_C01"
+}
+```
+
+**النتيجة:**
+✅ تأمين الأرباح تدريجياً
+✅ تقليل المخاطر
+✅ الاستفادة من الحركة الكاملة
+
+━━━━━━━━━━━━━━━━━━━━━━
+
 💡 **نصيحة**: اختبر في الحساب التجريبي أولاً!
     """
     
@@ -7722,6 +7969,26 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
     "signal": "close_short",
     "symbol": "ETHUSDT",
     "id": "TV_C02"
+}}
+```
+
+**📊 إغلاق جزئي Long (50%):**
+```json
+{{
+    "signal": "partial_close_long",
+    "symbol": "BTCUSDT",
+    "percentage": 50,
+    "id": "TV_PC01"
+}}
+```
+
+**📊 إغلاق جزئي Short (25%):**
+```json
+{{
+    "signal": "partial_close_short",
+    "symbol": "ETHUSDT",
+    "percentage": 25,
+    "id": "TV_PC02"
 }}
 ```
 

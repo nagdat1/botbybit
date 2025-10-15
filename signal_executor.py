@@ -199,6 +199,80 @@ class SignalExecutor:
                     'message': f'No open {close_msg}position found for {symbol}',
                     'error': 'NO_POSITION'
                 }
+            elif action == 'partial_close':
+                # إغلاق جزئي للصفقة
+                positions = account.get_open_positions(category)
+                
+                # تحديد الجهة المراد إغلاقها
+                close_side = signal_data.get('close_side', '').lower()
+                percentage = float(signal_data.get('percentage', 50))
+                
+                # التحقق من صحة النسبة
+                if percentage <= 0 or percentage > 100:
+                    return {
+                        'success': False,
+                        'message': f'Invalid percentage: {percentage}%. Must be between 1 and 100',
+                        'error': 'INVALID_PERCENTAGE'
+                    }
+                
+                if close_side:
+                    # إغلاق جزئي لجهة محددة
+                    target_position = next(
+                        (p for p in positions 
+                         if p['symbol'] == symbol and p['side'].lower() == close_side),
+                        None
+                    )
+                else:
+                    # إغلاق جزئي لأي صفقة مفتوحة
+                    target_position = next((p for p in positions if p['symbol'] == symbol), None)
+                
+                if target_position:
+                    # حساب الكمية المراد إغلاقها
+                    current_qty = float(target_position.get('size', 0))
+                    close_qty = current_qty * (percentage / 100)
+                    
+                    try:
+                        # تنفيذ إغلاق جزئي عبر وضع أمر معاكس
+                        opposite_side = 'Sell' if target_position['side'] == 'Buy' else 'Buy'
+                        
+                        result = account.place_order(
+                            category=category,
+                            symbol=symbol,
+                            side=opposite_side,
+                            order_type='Market',
+                            qty=round(close_qty, 4),
+                            reduce_only=True  # مهم: للإغلاق فقط
+                        )
+                        
+                        if result:
+                            logger.info(f"✅ تم إغلاق {percentage}% من صفقة {symbol} {close_side.upper()} بنجاح")
+                            return {
+                                'success': True,
+                                'message': f'Partial close: {percentage}% of {symbol} {close_side.upper()}',
+                                'order_id': result.get('order_id'),
+                                'percentage': percentage,
+                                'is_real': True
+                            }
+                        else:
+                            return {
+                                'success': False,
+                                'message': f'Failed to execute partial close',
+                                'error': 'PARTIAL_CLOSE_FAILED'
+                            }
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في الإغلاق الجزئي: {e}")
+                        return {
+                            'success': False,
+                            'message': f'Error in partial close: {str(e)}',
+                            'error': 'PARTIAL_CLOSE_ERROR'
+                        }
+                
+                close_msg = f'{close_side.upper()} ' if close_side else ''
+                return {
+                    'success': False,
+                    'message': f'No open {close_msg}position found for {symbol}',
+                    'error': 'NO_POSITION'
+                }
             else:
                 return {
                     'success': False,
