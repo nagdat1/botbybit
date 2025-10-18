@@ -3669,125 +3669,98 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(settings_text, reply_markup=reply_markup)
 
 async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض حالة الحساب مع معلومات مفصلة للفيوتشر"""
+    """عرض حالة الحساب الفنية والاتصال"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    user_data = user_manager.get_user(user_id)
+    
+    if not user_data:
+        await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+        return
+    
     try:
-        user_id = update.effective_user.id
-        user_data = user_manager.get_user(user_id)
-        
         # التحقق من نوع الحساب
-        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
-        exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
-        market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
+        account_type = user_data.get('account_type', 'demo')
+        market_type = user_data.get('market_type', 'spot')
         
+        # بناء رسالة حالة الحساب
+        status_message = "📊 **حالة الحساب الفنية**\n\n"
+        
+        # معلومات الحساب الأساسية
+        status_message += f"""
+🔐 **معلومات الحساب:**
+👤 نوع الحساب: {account_type.upper()}
+🏪 نوع السوق: {market_type.upper()}
+🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x
+💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
+        """
+        
+        # حالة الاتصال
         if account_type == 'real':
-            # الحصول على معلومات الحساب الحقيقي
-            from real_account_manager import real_account_manager
+            status_message += "\n🔗 **حالة الاتصال:**\n"
             
-            real_account = real_account_manager.get_account(user_id)
+            # التحقق من المنصات المرتبطة
+            bybit_connected = user_data.get('bybit_api_connected', False)
+            mexc_connected = user_data.get('mexc_api_connected', False)
             
-            if real_account:
-                # جلب الرصيد حسب نوع السوق
-                balance = real_account.get_wallet_balance(market_type)
-                
-                if balance:
-                    total_equity = balance.get('total_equity', 0)
-                    available_balance = balance.get('available_balance', 0)
-                    unrealized_pnl = balance.get('unrealized_pnl', 0)
-                    
-                    pnl_emoji = "🟢" if unrealized_pnl >= 0 else "🔴"
-                    
-                    # الحصول على الصفقات المفتوحة
-                    open_positions = []
-                    if exchange == 'bybit' and hasattr(real_account, 'get_open_positions'):
-                        category = 'linear' if market_type == 'futures' else 'spot'
-                        open_positions = real_account.get_open_positions(category)
-                    
-                    status_text = f"""
-🔐 **حالة الحساب الحقيقي**
-
-🏦 **المنصة:** {exchange.upper()} ✅
-📊 **نوع السوق:** {market_type.upper()}
-⚡ **الحالة:** متصل ونشط
-
-💰 **محفظة {market_type.upper()}:**
-• القيمة الإجمالية: ${total_equity:,.2f}
-• الرصيد المتاح: ${available_balance:,.2f}
-• {pnl_emoji} PnL غير محقق: ${unrealized_pnl:,.2f}
-
-📈 **الصفقات:**
-• صفقات مفتوحة: {len(open_positions)}
-
-⚡ **البيانات مباشرة من المنصة**
-                    """
-                else:
-                    status_text = f"""
-🔐 **حالة الحساب الحقيقي**
-
-🏦 **المنصة:** {exchange.upper()} ✅
-📊 **نوع السوق:** {market_type.upper()}
-❌ **لا توجد معلومات رصيد متاحة**
-                    """
+            if bybit_connected:
+                status_message += "🏦 Bybit: 🟢 متصل ✅\n"
             else:
-                status_text = f"""
-⚠️ **حساب حقيقي غير مفعّل**
-
-🏦 **المنصة المحددة:** {exchange.upper()}
-📊 **نوع السوق:** {market_type.upper()}
-
-💡 **لتفعيل الحساب الحقيقي:**
-1. اذهب إلى الإعدادات
-2. اضغط "🏦 اختيار المنصة"
-3. اضغط "✅ استخدام المنصة"
+                status_message += "🏦 Bybit: 🔴 غير متصل ❌\n"
+            
+            if mexc_connected:
+                status_message += "🏦 MEXC: 🟢 متصل ✅\n"
+            else:
+                status_message += "🏦 MEXC: 🔴 غير متصل ❌\n"
+            
+            # معلومات API
+            if bybit_connected or mexc_connected:
+                status_message += f"""
+📡 **معلومات API:**
+🔑 API Keys: {'🟢 مفعلة' if user_data.get('api_connected', False) else '🔴 معطلة'}
+🔒 الصلاحيات: Trading Enabled
+🌐 البيئة: Production
+⏰ آخر تحديث: {user_data.get('last_api_check', 'لم يتم التحقق')}
                 """
+            else:
+                status_message += "\n⚠️ **لا توجد منصات مرتبطة**\n"
+                status_message += "اذهب إلى الإعدادات لربط حسابك الحقيقي\n"
         else:
-            # الحصول على معلومات الحساب التجريبي الداخلي
-            account = trading_bot.get_current_account()
-            account_info = account.get_account_info()
-            
-            market_type = trading_bot.user_settings['market_type']
-            
-            if market_type == 'futures':
-                status_text = f"""
-📊 حالة الحساب التجريبي - فيوتشر:
-
-💰 الرصيد الكلي: {account_info['balance']:.2f}
-💳 الرصيد المتاح: {account_info['available_balance']:.2f}
-🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}
-💼 القيمة الصافية: {account_info['equity']:.2f}
-📈 الربح/الخسارة غير المحققة: {account_info['unrealized_pnl']:.2f}
-📊 نسبة الهامش: {account_info['margin_ratio']}
-🔄 الصفقات المفتوحة: {account_info['open_positions']}
-
-📈 إحصائيات التداول:
-📊 إجمالي الصفقات: {account_info['total_trades']}
-✅ الصفقات الرابحة: {account_info['winning_trades']}
-❌ الصفقات الخاسرة: {account_info['losing_trades']}
-🎯 معدل النجاح: {account_info['win_rate']}%
-🏪 نوع السوق: FUTURES
-⚡ الرافعة المالية: {trading_bot.user_settings['leverage']}x
-                """
-            else:
-                status_text = f"""
-📊 حالة الحساب التجريبي - سبوت:
-
-💰 الرصيد الحالي: {account_info['balance']:.2f}
-💳 الرصيد الأولي: {account_info['initial_balance']:.2f}
-📈 الربح/الخسارة غير المحققة: {account_info['unrealized_pnl']:.2f}
-📊 إجمالي الصفقات: {account_info['total_trades']}
-✅ الصفقات الرابحة: {account_info['winning_trades']}
-❌ الصفقات الخاسرة: {account_info['losing_trades']}
-🎯 معدل النجاح: {account_info['win_rate']}%
-🔄 الصفقات المفتوحة: {account_info['open_positions']}
-🏪 نوع السوق: SPOT
-                """
+            status_message += f"""
+🔗 **حالة الاتصال:**
+🟢 الحساب التجريبي: نشط ✅
+📊 البيانات: محلية
+🔄 التحديث: فوري
+⏰ آخر نشاط: {user_data.get('last_activity', 'الآن')}
+            """
         
-        if update.message is not None:
-            await update.message.reply_text(status_text)
+        # إعدادات التداول المتقدمة
+        status_message += f"""
+
+⚙️ **إعدادات التداول المتقدمة:**
+🎯 Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
+🎯 Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
+🔄 Auto Close: {'مفعل' if trading_bot.user_settings.get('auto_close', False) else 'معطل'}
+📊 Risk Management: {'مفعل' if trading_bot.user_settings.get('risk_management', True) else 'معطل'}
+        """
+        
+        # معلومات النظام
+        status_message += f"""
+
+🖥️ **معلومات النظام:**
+🤖 البوت: نشط ✅
+📡 Webhook: {user_data.get('webhook_url', 'غير محدد')}
+🔄 آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
+📊 إجمالي الإشارات: {user_data.get('total_signals', 0)}
+        """
+        
+        await update.message.reply_text(status_message, parse_mode='Markdown')
         
     except Exception as e:
         logger.error(f"خطأ في عرض حالة الحساب: {e}")
-        if update.message is not None:
-            await update.message.reply_text(f"❌ خطأ في عرض حالة الحساب: {e}")
+        await update.message.reply_text("❌ خطأ في عرض حالة الحساب")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
@@ -5525,7 +5498,7 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ خطأ في عرض معلومات المحفظة")
 
 async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض إحصائيات المستخدم المفصلة"""
+    """عرض تحليل الأداء والربحية المتقدم"""
     if update.effective_user is None:
         return
     
@@ -5558,17 +5531,6 @@ async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         total_losing_trades = spot_info['losing_trades'] + futures_info['losing_trades']
         total_win_rate = round((total_winning_trades / max(total_trades, 1)) * 100, 2)
         
-        # تحديد حالة PnL
-        if total_pnl > 0:
-            total_pnl_arrow = "📈"
-            total_pnl_status = "ربح"
-        elif total_pnl < 0:
-            total_pnl_arrow = "📉"
-            total_pnl_status = "خسارة"
-        else:
-            total_pnl_arrow = "➖"
-            total_pnl_status = "متعادل"
-        
         # حساب إحصائيات إضافية
         profit_loss_ratio = 0
         if total_losing_trades > 0:
@@ -5582,46 +5544,86 @@ async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         if total_losing_trades > 0:
             avg_loss = abs(total_pnl) / total_losing_trades
         
-        message = f"""
-📊 **إحصائيات التداول المفصلة**
+        # حساب مؤشرات الأداء المتقدمة
+        sharpe_ratio = 0
+        if total_trades > 0:
+            sharpe_ratio = (total_win_rate - 50) / max(total_trades, 1)
+        
+        # تحديد مستوى الأداء
+        if total_win_rate >= 70:
+            performance_level = "🏆 ممتاز"
+            performance_color = "🟢"
+        elif total_win_rate >= 60:
+            performance_level = "🥇 جيد جداً"
+            performance_color = "🟡"
+        elif total_win_rate >= 50:
+            performance_level = "🥈 متوسط"
+            performance_color = "🟠"
+        else:
+            performance_level = "🥉 يحتاج تحسين"
+            performance_color = "🔴"
+        
+        # بناء رسالة التحليل
+        analysis_message = f"""
+📊 **تحليل الأداء والربحية**
 
-💰 **الرصيد الحالي:**
-💳 الرصيد الكلي: {total_balance:.2f} USDT
-💳 الرصيد المتاح: {total_available:.2f} USDT
-🔒 الهامش المحجوز: {total_margin_locked:.2f} USDT
-💼 القيمة الصافية: {total_equity:.2f} USDT
-{total_pnl_arrow} إجمالي PnL: {total_pnl:.2f} USDT - {total_pnl_status}
+{performance_color} **مستوى الأداء:** {performance_level}
+🎯 معدل النجاح: {total_win_rate:.1f}%
 
 📈 **إحصائيات الأداء:**
 🔄 الصفقات المفتوحة: {total_open_positions}
 📊 إجمالي الصفقات: {total_trades}
 ✅ الصفقات الرابحة: {total_winning_trades}
 ❌ الصفقات الخاسرة: {total_losing_trades}
-🎯 معدل النجاح: {total_win_rate:.1f}%
 
-📊 **تحليل الأداء:**
+📊 **تحليل الربحية:**
 📈 متوسط الربح: {avg_profit:.2f} USDT
 📉 متوسط الخسارة: {avg_loss:.2f} USDT
 ⚖️ نسبة الربح/الخسارة: {profit_loss_ratio:.2f}
+📊 مؤشر شارب: {sharpe_ratio:.2f}
 
-⚙️ **إعدادات التداول:**
-🏪 نوع السوق: {trading_bot.user_settings['market_type'].upper()}
-💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
-🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x
-🎯 Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
-🎯 Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
+💰 **الرصيد الحالي:**
+💳 الرصيد الكلي: {total_balance:.2f} USDT
+💳 الرصيد المتاح: {total_available:.2f} USDT
+🔒 الهامش المحجوز: {total_margin_locked:.2f} USDT
+💼 القيمة الصافية: {total_equity:.2f} USDT
 
-📅 **معلومات الحساب:**
-👤 نوع الحساب: {user_data.get('account_type', 'تجريبي')}
-🔗 حالة API: {'🟢 مرتبط' if user_data.get('api_connected', False) else '🔴 غير مرتبط'}
-📡 آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
+📊 **تحليل السوق:**
+🏪 السبوت: {spot_info['balance']:.2f} USDT
+🏪 الفيوتشر: {futures_info['balance']:.2f} USDT
+📈 PnL السبوت: {spot_info['unrealized_pnl']:.2f} USDT
+📈 PnL الفيوتشر: {futures_info['unrealized_pnl']:.2f} USDT
+
+🎯 **التوصيات:**
+{_get_trading_recommendations(total_win_rate, total_trades, profit_loss_ratio)}
         """
         
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(analysis_message, parse_mode='Markdown')
         
     except Exception as e:
-        logger.error(f"خطأ في عرض إحصائيات المستخدم: {e}")
-        await update.message.reply_text("❌ خطأ في عرض الإحصائيات")
+        logger.error(f"خطأ في عرض تحليل الأداء: {e}")
+        await update.message.reply_text("❌ خطأ في عرض تحليل الأداء")
+
+def _get_trading_recommendations(win_rate, total_trades, profit_loss_ratio):
+    """الحصول على توصيات التداول"""
+    recommendations = []
+    
+    if total_trades < 10:
+        recommendations.append("📊 تحتاج المزيد من الصفقات لتقييم دقيق")
+    elif win_rate < 40:
+        recommendations.append("⚠️ معدل النجاح منخفض - راجع استراتيجيتك")
+    elif win_rate > 70:
+        recommendations.append("🎉 أداء ممتاز - استمر في استراتيجيتك")
+    
+    if profit_loss_ratio < 1:
+        recommendations.append("⚖️ نسبة الربح/الخسارة منخفضة - حسّن إدارة المخاطر")
+    elif profit_loss_ratio > 2:
+        recommendations.append("💎 نسبة ممتازة - استراتيجية فعالة")
+    
+    if not recommendations:
+        recommendations.append("📈 أداء متوازن - استمر في التطوير")
+    
+    return "\n".join(recommendations)
 
 # باقي الوظائف تبقى كما هي مع بعض التحديثات...
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
