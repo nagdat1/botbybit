@@ -3692,8 +3692,14 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status_message += f"""
 🔐 **معلومات الحساب:**
 👤 نوع الحساب: {account_type.upper()}
-🏪 نوع السوق: {market_type.upper()}
-🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x
+🏪 نوع السوق: {market_type.upper()}"""
+        
+        # إضافة الرافعة المالية فقط للفيوتشر
+        if market_type.lower() == 'futures':
+            status_message += f"""
+🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x"""
+        
+        status_message += f"""
 💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
         """
         
@@ -7652,7 +7658,6 @@ def main():
     start_price_updates()
     
     # تشغيل البوت
-    logger.info("مرحبا ايها القائد")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
