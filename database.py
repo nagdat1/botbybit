@@ -121,6 +121,28 @@ class DatabaseManager:
                     )
                 """)
                 
+                # جدول الصفقات المرتبطة بالـ ID (للربط بين الإشارات)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS signal_positions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        signal_id TEXT NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        symbol TEXT NOT NULL,
+                        side TEXT NOT NULL,
+                        entry_price REAL NOT NULL,
+                        quantity REAL NOT NULL,
+                        exchange TEXT NOT NULL,
+                        market_type TEXT NOT NULL,
+                        order_id TEXT,
+                        status TEXT DEFAULT 'OPEN',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        closed_at TIMESTAMP,
+                        notes TEXT,
+                        FOREIGN KEY (user_id) REFERENCES users (user_id),
+                        UNIQUE(signal_id, user_id, symbol)
+                    )
+                """)
+                
                 conn.commit()
                 logger.info("تم تهيئة قاعدة البيانات بنجاح")
                 
@@ -805,6 +827,159 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على عدد إشارات المطور {developer_id}: {e}")
             return 0
+    
+    # إدارة الصفقات المرتبطة بالـ ID
+    def create_signal_position(self, position_data: Dict) -> bool:
+        """إنشاء صفقة مرتبطة بالـ ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO signal_positions (
+                        signal_id, user_id, symbol, side, entry_price, quantity,
+                        exchange, market_type, order_id, status, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    position_data['signal_id'],
+                    position_data['user_id'],
+                    position_data['symbol'],
+                    position_data['side'],
+                    position_data['entry_price'],
+                    position_data['quantity'],
+                    position_data['exchange'],
+                    position_data['market_type'],
+                    position_data.get('order_id', ''),
+                    position_data.get('status', 'OPEN'),
+                    position_data.get('notes', '')
+                ))
+                
+                conn.commit()
+                logger.info(f"تم إنشاء صفقة مرتبطة بالـ ID: {position_data['signal_id']} - {position_data['symbol']}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء صفقة مرتبطة بالـ ID: {e}")
+            return False
+    
+    def get_signal_positions(self, signal_id: str, user_id: int = None) -> List[Dict]:
+        """الحصول على الصفقات المرتبطة بالـ ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if user_id:
+                    cursor.execute("""
+                        SELECT * FROM signal_positions 
+                        WHERE signal_id = ? AND user_id = ?
+                        ORDER BY created_at DESC
+                    """, (signal_id, user_id))
+                else:
+                    cursor.execute("""
+                        SELECT * FROM signal_positions 
+                        WHERE signal_id = ?
+                        ORDER BY created_at DESC
+                    """, (signal_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الصفقات المرتبطة بالـ ID {signal_id}: {e}")
+            return []
+    
+    def get_user_signal_positions(self, user_id: int, status: str = None) -> List[Dict]:
+        """الحصول على جميع الصفقات المرتبطة بالـ ID للمستخدم"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if status:
+                    cursor.execute("""
+                        SELECT * FROM signal_positions 
+                        WHERE user_id = ? AND status = ?
+                        ORDER BY created_at DESC
+                    """, (user_id, status))
+                else:
+                    cursor.execute("""
+                        SELECT * FROM signal_positions 
+                        WHERE user_id = ?
+                        ORDER BY created_at DESC
+                    """, (user_id,))
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على صفقات المستخدم {user_id}: {e}")
+            return []
+    
+    def update_signal_position(self, signal_id: str, user_id: int, symbol: str, updates: Dict) -> bool:
+        """تحديث صفقة مرتبطة بالـ ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # بناء استعلام التحديث
+                set_clauses = []
+                values = []
+                
+                for key, value in updates.items():
+                    if key in ['status'] and value == 'CLOSED':
+                        set_clauses.append("closed_at = CURRENT_TIMESTAMP")
+                    set_clauses.append(f"{key} = ?")
+                    values.append(value)
+                
+                if set_clauses:
+                    values.extend([signal_id, user_id, symbol])
+                    query = f"UPDATE signal_positions SET {', '.join(set_clauses)} WHERE signal_id = ? AND user_id = ? AND symbol = ?"
+                    
+                    cursor.execute(query, values)
+                    conn.commit()
+                    return cursor.rowcount > 0
+                
+                return False
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث الصفقة المرتبطة بالـ ID: {e}")
+            return False
+    
+    def close_signal_position(self, signal_id: str, user_id: int, symbol: str) -> bool:
+        """إغلاق صفقة مرتبطة بالـ ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE signal_positions 
+                    SET status = 'CLOSED', closed_at = CURRENT_TIMESTAMP
+                    WHERE signal_id = ? AND user_id = ? AND symbol = ?
+                """, (signal_id, user_id, symbol))
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق الصفقة المرتبطة بالـ ID: {e}")
+            return False
+    
+    def get_position_by_signal_id(self, signal_id: str, user_id: int, symbol: str) -> Optional[Dict]:
+        """الحصول على صفقة محددة بالـ ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM signal_positions 
+                    WHERE signal_id = ? AND user_id = ? AND symbol = ?
+                """, (signal_id, user_id, symbol))
+                
+                row = cursor.fetchone()
+                return dict(row) if row else None
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الصفقة بالـ ID: {e}")
+            return None
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

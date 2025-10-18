@@ -70,7 +70,7 @@ class SignalConverter:
             logger.info(f"🔄 تحويل الإشارة: {signal_type.upper()} {symbol}")
             
             # تحديد نوع السوق والإجراء بناءً على نوع الإشارة
-            converted_signal = SignalConverter._determine_signal_type(signal_type, symbol, signal_id)
+            converted_signal = SignalConverter._determine_signal_type(signal_type, symbol, signal_id, signal_data)
             
             if not converted_signal:
                 logger.error(f"❌ فشل تحديد نوع الإشارة: {signal_type}")
@@ -85,6 +85,14 @@ class SignalConverter:
             converted_signal['timestamp'] = datetime.now().isoformat()
             converted_signal['original_signal'] = signal_data.copy()
             
+            # إضافة معلومات إضافية للـ ID
+            if signal_id:
+                converted_signal['has_signal_id'] = True
+                logger.info(f"🆔 الإشارة مرتبطة بالـ ID: {signal_id}")
+            else:
+                converted_signal['has_signal_id'] = False
+                logger.warning(f"⚠️ الإشارة بدون ID - سيتم التعامل معها بالطريقة التقليدية")
+            
             logger.info(f"✅ تم تحويل الإشارة بنجاح: {converted_signal}")
             
             return converted_signal
@@ -96,7 +104,7 @@ class SignalConverter:
             return None
     
     @staticmethod
-    def _determine_signal_type(signal_type: str, symbol: str, signal_id: str) -> Optional[Dict]:
+    def _determine_signal_type(signal_type: str, symbol: str, signal_id: str, signal_data: Dict = None) -> Optional[Dict]:
         """
         تحديد نوع السوق والإجراء بناءً على نوع الإشارة
         
@@ -104,6 +112,7 @@ class SignalConverter:
             signal_type: نوع الإشارة
             symbol: رمز العملة
             signal_id: معرف الإشارة
+            signal_data: البيانات الأصلية للإشارة (للاستفادة من النسبة المئوية)
             
         Returns:
             بيانات الإشارة الأساسية
@@ -132,10 +141,14 @@ class SignalConverter:
             # إشارة إغلاق جزئي (PARTIAL_CLOSE)
             elif signal_type == 'partial_close':
                 converted['action'] = 'partial_close'
-                # النسبة المئوية يجب أن تكون موجودة في البيانات الأصلية
-                percentage = signal_data.get('percentage', 50)  # افتراضي 50%
-                converted['percentage'] = percentage
-                logger.info(f"🟡 إشارة إغلاق جزئي: {symbol} ({percentage}%)")
+                # النسبة المئوية من البيانات الأصلية
+                if signal_data and 'percentage' in signal_data:
+                    percentage = float(signal_data['percentage'])
+                    converted['percentage'] = percentage
+                    logger.info(f"🟡 إشارة إغلاق جزئي: {symbol} ({percentage}%)")
+                else:
+                    converted['percentage'] = 50  # افتراضي 50%
+                    logger.info(f"🟡 إشارة إغلاق جزئي: {symbol} (50% افتراضي)")
             
             else:
                 logger.error(f"❌ نوع إشارة غير معروف: {signal_type}")
