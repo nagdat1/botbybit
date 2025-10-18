@@ -7227,8 +7227,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await open_positions(update, context)
     elif text == "📈 تاريخ التداول":
         await trade_history(update, context)
-    elif text == "📖 دليل الإشارات":
-        await show_signal_guide(update, context)
     elif text == "💰 المحفظة":
         await wallet_overview(update, context)
     elif text == "▶️ تشغيل البوت":
@@ -7319,7 +7317,7 @@ async def show_signal_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⚙️ كيف يعمل النظام؟", callback_data="guide_how")],
         [InlineKeyboardButton("🔗 إعداد TradingView", callback_data="guide_tradingview")],
         [InlineKeyboardButton("📋 أمثلة عملية", callback_data="guide_examples")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main")]
+        [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
