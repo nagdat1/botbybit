@@ -31,3 +31,23 @@
 2025-09-27 02:21:26,338 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:36,368 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
 2025-09-27 02:21:46,407 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw/getUpdates "HTTP/1.1 200 OK"
+2025-10-18 05:15:31,467 - bybit_trading_bot - INFO - ✅ تم تهيئة TradeToolsManager
+2025-10-18 05:15:31,468 - user_manager - INFO - تم إنشاء حسابات للمستخدم 8169000394
+2025-10-18 05:15:31,468 - user_manager - INFO - تم تحميل 1 مستخدم
+2025-10-18 05:15:31,468 - init_developers - INFO - بدء تهيئة 1 مطور...
+2025-10-18 05:15:31,469 - init_developers - INFO - إنشاء مطور جديد: Nagdat
+2025-10-18 05:15:31,472 - database - INFO - تم إنشاء مطور جديد: 8169000394 - Nagdat
+2025-10-18 05:15:31,473 - init_developers - INFO - ✅ تم إنشاء المطور Nagdat بنجاح
+2025-10-18 05:15:31,473 - init_developers - INFO - ✅ تم الانتهاء من تهيئة المطورين
+2025-10-18 05:15:31,473 - bybit_trading_bot - INFO - ✅ تم تهيئة نظام المطورين بنجاح
+2025-10-18 05:15:31,474 - developer_manager - INFO - تم تحميل 2 مطور
+2025-10-18 05:15:31,475 - bybit_trading_bot - INFO - ✅ المطور الرئيسي موجود: 8169000394
+2025-10-18 05:15:48,604 - bybit_trading_bot - INFO - ✅ تم تهيئة TradeToolsManager
+2025-10-18 05:15:48,605 - user_manager - INFO - تم إنشاء حسابات للمستخدم 8169000394
+2025-10-18 05:15:48,605 - user_manager - INFO - تم تحميل 1 مستخدم
+2025-10-18 05:15:48,605 - init_developers - INFO - بدء تهيئة 1 مطور...
+2025-10-18 05:15:48,605 - init_developers - INFO - المطور Nagdat موجود بالفعل، تحديث المعلومات...
+2025-10-18 05:15:48,607 - init_developers - INFO - ✅ تم الانتهاء من تهيئة المطورين
+2025-10-18 05:15:48,607 - bybit_trading_bot - INFO - ✅ تم تهيئة نظام المطورين بنجاح
+2025-10-18 05:15:48,610 - developer_manager - INFO - تم تحميل 2 مطور
+2025-10-18 05:15:48,610 - bybit_trading_bot - INFO - ✅ المطور الرئيسي موجود: 8169000394

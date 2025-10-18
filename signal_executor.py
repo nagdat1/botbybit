@@ -11,6 +11,17 @@ from signal_position_manager import signal_position_manager
 
 logger = logging.getLogger(__name__)
 
+# استيراد دالة فحص المخاطر
+try:
+    from bybit_trading_bot import check_risk_management, reset_daily_loss_if_needed
+except ImportError:
+    # إذا لم تكن متوفرة، نعرف دوال فارغة
+    def check_risk_management(user_id, trade_result):
+        return {'should_stop': False, 'message': 'Risk management not available'}
+    
+    def reset_daily_loss_if_needed(user_id):
+        pass
+
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
     
@@ -126,20 +137,42 @@ class SignalExecutor:
             
             # تنفيذ الإشارة حسب المنصة
             if exchange == 'bybit':
-                return await SignalExecutor._execute_bybit_signal(
+                result = await SignalExecutor._execute_bybit_signal(
                     real_account, signal_data, market_type, 
                     trade_amount, leverage, user_id
                 )
             elif exchange == 'mexc':
-                return await SignalExecutor._execute_mexc_signal(
+                result = await SignalExecutor._execute_mexc_signal(
                     real_account, signal_data, trade_amount, user_id
                 )
             else:
-                return {
+                result = {
                     'success': False,
                     'message': f'Unsupported exchange: {exchange}',
                     'error': 'UNSUPPORTED_EXCHANGE'
                 }
+            
+            # فحص إدارة المخاطر بعد تنفيذ الصفقة
+            if result.get('success', False):
+                try:
+                    # إعادة تعيين الخسارة اليومية إذا لزم الأمر
+                    reset_daily_loss_if_needed(user_id)
+                    
+                    # فحص المخاطر
+                    risk_check = check_risk_management(user_id, result)
+                    
+                    if risk_check.get('should_stop', False):
+                        logger.warning(f"🚨 تم إيقاف البوت للمستخدم {user_id}: {risk_check.get('message', '')}")
+                        result['risk_stopped'] = True
+                        result['risk_message'] = risk_check.get('message', '')
+                    else:
+                        logger.info(f"✅ فحص المخاطر نجح للمستخدم {user_id}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ خطأ في فحص المخاطر: {e}")
+                    # لا نوقف الصفقة بسبب خطأ في فحص المخاطر
+            
+            return result
                 
         except Exception as e:
             logger.error(f"❌ خطأ في تنفيذ الإشارة: {e}")

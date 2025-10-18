@@ -2907,6 +2907,72 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message is not None:
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
 
+async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """قائمة إدارة المخاطر"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    user_data = user_manager.get_user(user_id)
+    
+    if not user_data:
+        if update.message is not None:
+            await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+        return
+    
+    # الحصول على إعدادات إدارة المخاطر
+    risk_settings = user_data.get('risk_management', {
+        'enabled': True,
+        'max_loss_percent': 10.0,  # الحد الأقصى للخسارة كنسبة مئوية
+        'max_loss_amount': 1000.0,  # الحد الأقصى للخسارة بالمبلغ
+        'stop_trading_on_loss': True,  # إيقاف التداول عند الوصول للحد
+        'daily_loss_limit': 500.0,  # حد الخسارة اليومية
+        'weekly_loss_limit': 2000.0  # حد الخسارة الأسبوعية
+    })
+    
+    enabled_status = "✅" if risk_settings['enabled'] else "❌"
+    stop_status = "✅" if risk_settings['stop_trading_on_loss'] else "❌"
+    
+    # بناء رسالة إدارة المخاطر
+    risk_message = f"""
+🛡️ **إدارة المخاطر**
+
+📊 **الحالة الحالية:**
+🛡️ إدارة المخاطر: {enabled_status}
+⏹️ إيقاف التداول عند الخسارة: {stop_status}
+
+💰 **حدود الخسارة:**
+📉 الحد الأقصى للخسارة: {risk_settings['max_loss_percent']:.1f}%
+💸 الحد الأقصى بالمبلغ: {risk_settings['max_loss_amount']:.0f} USDT
+📅 الحد اليومي: {risk_settings['daily_loss_limit']:.0f} USDT
+📆 الحد الأسبوعي: {risk_settings['weekly_loss_limit']:.0f} USDT
+
+📊 **الإحصائيات الحالية:**
+💸 الخسارة اليومية: {user_data.get('daily_loss', 0):.2f} USDT
+📈 الخسارة الأسبوعية: {user_data.get('weekly_loss', 0):.2f} USDT
+📉 إجمالي الخسارة: {user_data.get('total_loss', 0):.2f} USDT
+    """
+    
+    # بناء الأزرار
+    keyboard = [
+        [InlineKeyboardButton(f"🛡️ تفعيل/إلغاء إدارة المخاطر", callback_data="toggle_risk_management")],
+        [InlineKeyboardButton("📉 تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
+        [InlineKeyboardButton("💸 تعديل حد الخسارة بالمبلغ", callback_data="set_max_loss_amount")],
+        [InlineKeyboardButton("📅 تعديل الحد اليومي", callback_data="set_daily_loss_limit")],
+        [InlineKeyboardButton("📆 تعديل الحد الأسبوعي", callback_data="set_weekly_loss_limit")],
+        [InlineKeyboardButton(f"⏹️ إيقاف التداول عند الخسارة", callback_data="toggle_stop_trading")],
+        [InlineKeyboardButton("📊 عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
+        [InlineKeyboardButton("🔄 إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        await update.callback_query.edit_message_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+    elif update.message:
+        await update.message.reply_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+
 async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة إعدادات التطبيق التلقائي"""
     try:
@@ -2989,6 +3055,517 @@ async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"خطأ في تبديل التطبيق التلقائي: {e}")
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+# ===== دوال إدارة المخاطر =====
+
+async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تبديل حالة إدارة المخاطر"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
+        
+        if not user_data:
+            await query.edit_message_text("❌ لم يتم العثور على بيانات المستخدم")
+            return
+        
+        # الحصول على إعدادات إدارة المخاطر الحالية
+        risk_settings = user_data.get('risk_management', {
+            'enabled': True,
+            'max_loss_percent': 10.0,
+            'max_loss_amount': 1000.0,
+            'stop_trading_on_loss': True,
+            'daily_loss_limit': 500.0,
+            'weekly_loss_limit': 2000.0
+        })
+        
+        # تبديل الحالة
+        risk_settings['enabled'] = not risk_settings['enabled']
+        
+        # حفظ الإعدادات
+        user_manager.update_user(user_id, {'risk_management': risk_settings})
+        
+        status = "✅ مفعل" if risk_settings['enabled'] else "❌ معطل"
+        message = f"🛡️ إدارة المخاطر: {status}"
+        
+        await query.edit_message_text(message)
+        await asyncio.sleep(1)
+        await risk_management_menu(update, context)
+        
+    except Exception as e:
+        logger.error(f"خطأ في تبديل إدارة المخاطر: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_max_loss_percent(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعديل حد الخسارة المئوي"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        user_input_state[user_id] = 'waiting_max_loss_percent'
+        
+        message = """
+📉 **تعديل حد الخسارة المئوي**
+
+أدخل النسبة المئوية للحد الأقصى للخسارة (1-50%):
+
+مثال: 10 (يعني 10%)
+
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً
+        """
+        
+        await query.edit_message_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في تعديل حد الخسارة المئوي: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_max_loss_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعديل حد الخسارة بالمبلغ"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        user_input_state[user_id] = 'waiting_max_loss_amount'
+        
+        message = """
+💸 **تعديل حد الخسارة بالمبلغ**
+
+أدخل المبلغ بالـ USDT للحد الأقصى للخسارة:
+
+مثال: 1000 (يعني 1000 USDT)
+
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً
+        """
+        
+        await query.edit_message_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في تعديل حد الخسارة بالمبلغ: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_daily_loss_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعديل حد الخسارة اليومية"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        user_input_state[user_id] = 'waiting_daily_loss_limit'
+        
+        message = """
+📅 **تعديل حد الخسارة اليومية**
+
+أدخل المبلغ بالـ USDT للحد الأقصى للخسارة اليومية:
+
+مثال: 500 (يعني 500 USDT في اليوم)
+
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول حتى اليوم التالي
+        """
+        
+        await query.edit_message_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في تعديل حد الخسارة اليومية: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def set_weekly_loss_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تعديل حد الخسارة الأسبوعية"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        user_input_state[user_id] = 'waiting_weekly_loss_limit'
+        
+        message = """
+📆 **تعديل حد الخسارة الأسبوعية**
+
+أدخل المبلغ بالـ USDT للحد الأقصى للخسارة الأسبوعية:
+
+مثال: 2000 (يعني 2000 USDT في الأسبوع)
+
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول حتى الأسبوع التالي
+        """
+        
+        await query.edit_message_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في تعديل حد الخسارة الأسبوعية: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تبديل إيقاف التداول عند الخسارة"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
+        
+        if not user_data:
+            await query.edit_message_text("❌ لم يتم العثور على بيانات المستخدم")
+            return
+        
+        # الحصول على إعدادات إدارة المخاطر الحالية
+        risk_settings = user_data.get('risk_management', {
+            'enabled': True,
+            'max_loss_percent': 10.0,
+            'max_loss_amount': 1000.0,
+            'stop_trading_on_loss': True,
+            'daily_loss_limit': 500.0,
+            'weekly_loss_limit': 2000.0
+        })
+        
+        # تبديل الحالة
+        risk_settings['stop_trading_on_loss'] = not risk_settings['stop_trading_on_loss']
+        
+        # حفظ الإعدادات
+        user_manager.update_user(user_id, {'risk_management': risk_settings})
+        
+        status = "✅ مفعل" if risk_settings['stop_trading_on_loss'] else "❌ معطل"
+        message = f"⏹️ إيقاف التداول عند الخسارة: {status}"
+        
+        await query.edit_message_text(message)
+        await asyncio.sleep(1)
+        await risk_management_menu(update, context)
+        
+    except Exception as e:
+        logger.error(f"خطأ في تبديل إيقاف التداول: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def show_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض إحصائيات المخاطر"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
+        
+        if not user_data:
+            await query.edit_message_text("❌ لم يتم العثور على بيانات المستخدم")
+            return
+        
+        # الحصول على إحصائيات المخاطر
+        daily_loss = user_data.get('daily_loss', 0)
+        weekly_loss = user_data.get('weekly_loss', 0)
+        total_loss = user_data.get('total_loss', 0)
+        
+        # الحصول على إعدادات المخاطر
+        risk_settings = user_data.get('risk_management', {})
+        max_loss_percent = risk_settings.get('max_loss_percent', 10.0)
+        max_loss_amount = risk_settings.get('max_loss_amount', 1000.0)
+        daily_limit = risk_settings.get('daily_loss_limit', 500.0)
+        weekly_limit = risk_settings.get('weekly_loss_limit', 2000.0)
+        
+        # حساب النسب المئوية
+        daily_percent = (daily_loss / daily_limit * 100) if daily_limit > 0 else 0
+        weekly_percent = (weekly_loss / weekly_limit * 100) if weekly_limit > 0 else 0
+        
+        # تحديد حالة الخطر
+        daily_status = "🔴" if daily_percent >= 80 else "🟡" if daily_percent >= 50 else "🟢"
+        weekly_status = "🔴" if weekly_percent >= 80 else "🟡" if weekly_percent >= 50 else "🟢"
+        
+        stats_message = f"""
+📊 **إحصائيات المخاطر**
+
+📅 **الخسارة اليومية:**
+{daily_status} المبلغ: {daily_loss:.2f} USDT
+📊 النسبة: {daily_percent:.1f}% من الحد ({daily_limit:.0f} USDT)
+
+📆 **الخسارة الأسبوعية:**
+{weekly_status} المبلغ: {weekly_loss:.2f} USDT
+📊 النسبة: {weekly_percent:.1f}% من الحد ({weekly_limit:.0f} USDT)
+
+📉 **إجمالي الخسارة:**
+💸 المبلغ: {total_loss:.2f} USDT
+📊 الحد المئوي: {max_loss_percent:.1f}%
+💸 الحد بالمبلغ: {max_loss_amount:.0f} USDT
+
+🎯 **التوصيات:**
+{_get_risk_recommendations(daily_percent, weekly_percent, total_loss, max_loss_amount)}
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 تحديث", callback_data="show_risk_stats")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="risk_management_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(stats_message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض إحصائيات المخاطر: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+async def reset_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعادة تعيين إحصائيات المخاطر"""
+    try:
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        
+        # إعادة تعيين الإحصائيات
+        user_manager.update_user(user_id, {
+            'daily_loss': 0,
+            'weekly_loss': 0,
+            'total_loss': 0,
+            'last_reset_date': datetime.now().strftime('%Y-%m-%d')
+        })
+        
+        message = "🔄 تم إعادة تعيين إحصائيات المخاطر بنجاح"
+        
+        await query.edit_message_text(message)
+        await asyncio.sleep(1)
+        await risk_management_menu(update, context)
+        
+    except Exception as e:
+        logger.error(f"خطأ في إعادة تعيين إحصائيات المخاطر: {e}")
+        if update.callback_query:
+            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+
+def _get_risk_recommendations(daily_percent, weekly_percent, total_loss, max_loss_amount):
+    """الحصول على توصيات المخاطر"""
+    recommendations = []
+    
+    if daily_percent >= 80:
+        recommendations.append("🚨 خطر عالي اليوم - توقف عن التداول")
+    elif daily_percent >= 50:
+        recommendations.append("⚠️ خطر متوسط اليوم - قلل من حجم التداول")
+    
+    if weekly_percent >= 80:
+        recommendations.append("🚨 خطر عالي أسبوعياً - راجع استراتيجيتك")
+    elif weekly_percent >= 50:
+        recommendations.append("⚠️ خطر متوسط أسبوعياً - احذر من الخسائر")
+    
+    if total_loss >= max_loss_amount * 0.8:
+        recommendations.append("🚨 قريب من الحد الأقصى - توقف فوراً")
+    elif total_loss >= max_loss_amount * 0.5:
+        recommendations.append("⚠️ وصلت لنصف الحد الأقصى - احذر")
+    
+    if not recommendations:
+        recommendations.append("✅ الوضع آمن - استمر بحذر")
+    
+    return "\n".join(recommendations)
+
+# ===== نظام إدارة المخاطر المتقدم =====
+
+def check_risk_management(user_id: int, trade_result: dict) -> dict:
+    """التحقق من إدارة المخاطر وإيقاف البوت عند الحاجة"""
+    try:
+        user_data = user_manager.get_user(user_id)
+        if not user_data:
+            return {'should_stop': False, 'message': 'No user data'}
+        
+        # الحصول على إعدادات إدارة المخاطر
+        risk_settings = user_data.get('risk_management', {
+            'enabled': True,
+            'max_loss_percent': 10.0,
+            'max_loss_amount': 1000.0,
+            'stop_trading_on_loss': True,
+            'daily_loss_limit': 500.0,
+            'weekly_loss_limit': 2000.0
+        })
+        
+        if not risk_settings.get('enabled', True):
+            return {'should_stop': False, 'message': 'Risk management disabled'}
+        
+        # حساب الخسارة من الصفقة
+        trade_pnl = trade_result.get('pnl', 0)
+        if trade_pnl >= 0:  # ربح، لا نحتاج للتحقق
+            return {'should_stop': False, 'message': 'Profitable trade'}
+        
+        loss_amount = abs(trade_pnl)
+        
+        # تحديث إحصائيات الخسارة
+        current_daily_loss = user_data.get('daily_loss', 0)
+        current_weekly_loss = user_data.get('weekly_loss', 0)
+        current_total_loss = user_data.get('total_loss', 0)
+        
+        new_daily_loss = current_daily_loss + loss_amount
+        new_weekly_loss = current_weekly_loss + loss_amount
+        new_total_loss = current_total_loss + loss_amount
+        
+        # التحقق من الحدود
+        max_loss_percent = risk_settings.get('max_loss_percent', 10.0)
+        max_loss_amount = risk_settings.get('max_loss_amount', 1000.0)
+        daily_limit = risk_settings.get('daily_loss_limit', 500.0)
+        weekly_limit = risk_settings.get('weekly_loss_limit', 2000.0)
+        
+        # حساب النسبة المئوية للخسارة من الرصيد
+        account_type = user_data.get('account_type', 'demo')
+        if account_type == 'demo':
+            # للحساب التجريبي، نحصل على الرصيد من الحساب التجريبي
+            spot_account = trading_bot.demo_account_spot
+            futures_account = trading_bot.demo_account_futures
+            spot_info = spot_account.get_account_info()
+            futures_info = futures_account.get_account_info()
+            total_balance = spot_info['balance'] + futures_info['balance']
+        else:
+            # للحساب الحقيقي، نحصل على الرصيد من المنصات المرتبطة
+            total_balance = 0
+            bybit_connected = user_data.get('bybit_api_connected', False)
+            mexc_connected = user_data.get('mexc_api_connected', False)
+            
+            if bybit_connected:
+                try:
+                    bybit_account = user_manager.get_user_account(user_id, 'bybit')
+                    if bybit_account:
+                        bybit_info = bybit_account.get_account_info()
+                        total_balance += bybit_info.get('balance', 0)
+                except:
+                    pass
+            
+            if mexc_connected:
+                try:
+                    mexc_account = user_manager.get_user_account(user_id, 'mexc')
+                    if mexc_account:
+                        mexc_info = mexc_account.get_account_info()
+                        total_balance += mexc_info.get('balance', 0)
+                except:
+                    pass
+        
+        # حساب النسبة المئوية للخسارة
+        loss_percent = (new_total_loss / total_balance * 100) if total_balance > 0 else 0
+        
+        # تحديد ما إذا كان يجب إيقاف البوت
+        should_stop = False
+        stop_reason = ""
+        
+        if risk_settings.get('stop_trading_on_loss', True):
+            # التحقق من الحد اليومي
+            if new_daily_loss >= daily_limit:
+                should_stop = True
+                stop_reason = f"تم الوصول للحد اليومي ({daily_limit} USDT)"
+            
+            # التحقق من الحد الأسبوعي
+            elif new_weekly_loss >= weekly_limit:
+                should_stop = True
+                stop_reason = f"تم الوصول للحد الأسبوعي ({weekly_limit} USDT)"
+            
+            # التحقق من الحد المئوي
+            elif loss_percent >= max_loss_percent:
+                should_stop = True
+                stop_reason = f"تم الوصول للحد المئوي ({max_loss_percent}%)"
+            
+            # التحقق من الحد بالمبلغ
+            elif new_total_loss >= max_loss_amount:
+                should_stop = True
+                stop_reason = f"تم الوصول للحد بالمبلغ ({max_loss_amount} USDT)"
+        
+        # تحديث الإحصائيات في قاعدة البيانات
+        user_manager.update_user(user_id, {
+            'daily_loss': new_daily_loss,
+            'weekly_loss': new_weekly_loss,
+            'total_loss': new_total_loss,
+            'last_loss_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+        # إيقاف البوت إذا لزم الأمر
+        if should_stop:
+            user_manager.update_user(user_id, {'is_active': False})
+            
+            # إرسال إشعار للمستخدم
+            try:
+                from config import TELEGRAM_TOKEN, ADMIN_USER_ID
+                from telegram.ext import Application
+                
+                async def send_stop_notification():
+                    try:
+                        application = Application.builder().token(TELEGRAM_TOKEN).build()
+                        await application.initialize()
+                        
+                        stop_message = f"""
+🚨 **تم إيقاف البوت تلقائياً**
+
+📊 **سبب الإيقاف:** {stop_reason}
+
+💰 **إحصائيات الخسارة:**
+📅 اليومية: {new_daily_loss:.2f} USDT
+📆 الأسبوعية: {new_weekly_loss:.2f} USDT
+📉 الإجمالية: {new_total_loss:.2f} USDT
+
+🛡️ **حدود المخاطر:**
+📅 الحد اليومي: {daily_limit:.0f} USDT
+📆 الحد الأسبوعي: {weekly_limit:.0f} USDT
+📊 الحد المئوي: {max_loss_percent:.1f}%
+💸 الحد بالمبلغ: {max_loss_amount:.0f} USDT
+
+⚠️ **لإعادة تشغيل البوت، اذهب إلى الإعدادات وافعل زر التشغيل**
+                        """
+                        
+                        await application.bot.send_message(
+                            chat_id=user_id,
+                            text=stop_message,
+                            parse_mode='Markdown'
+                        )
+                        
+                        await application.shutdown()
+                    except Exception as e:
+                        logger.error(f"خطأ في إرسال إشعار الإيقاف: {e}")
+                
+                # تشغيل الإشعار في الخلفية
+                import asyncio
+                asyncio.create_task(send_stop_notification())
+                
+            except Exception as e:
+                logger.error(f"خطأ في إعداد إشعار الإيقاف: {e}")
+        
+        return {
+            'should_stop': should_stop,
+            'message': stop_reason if should_stop else 'Risk check passed',
+            'daily_loss': new_daily_loss,
+            'weekly_loss': new_weekly_loss,
+            'total_loss': new_total_loss,
+            'loss_percent': loss_percent
+        }
+        
+    except Exception as e:
+        logger.error(f"خطأ في فحص إدارة المخاطر: {e}")
+        return {'should_stop': False, 'message': f'Error: {e}'}
+
+def reset_daily_loss_if_needed(user_id: int):
+    """إعادة تعيين الخسارة اليومية إذا كان اليوم جديد"""
+    try:
+        user_data = user_manager.get_user(user_id)
+        if not user_data:
+            return
+        
+        last_reset_date = user_data.get('last_reset_date', '')
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        
+        if last_reset_date != current_date:
+            # إعادة تعيين الخسارة اليومية
+            user_manager.update_user(user_id, {
+                'daily_loss': 0,
+                'last_reset_date': current_date
+            })
+            
+            # إعادة تعيين الخسارة الأسبوعية إذا كان الأسبوع جديد
+            last_reset_week = user_data.get('last_reset_week', '')
+            current_week = datetime.now().strftime('%Y-W%U')
+            
+            if last_reset_week != current_week:
+                user_manager.update_user(user_id, {
+                    'weekly_loss': 0,
+                    'last_reset_week': current_week
+                })
+                
+    except Exception as e:
+        logger.error(f"خطأ في إعادة تعيين الخسارة اليومية: {e}")
 
 async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إعداد سريع للإعدادات التلقائية"""
@@ -3526,6 +4103,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # إضافة باقي الأزرار
     keyboard.extend([
         [InlineKeyboardButton(f"🤖 تطبيق تلقائي TP/SL {auto_status}", callback_data="auto_apply_menu")],
+        [InlineKeyboardButton("🛡️ إدارة المخاطر", callback_data="risk_management_menu")],
         [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")]
     ])
     
@@ -5883,6 +6461,24 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start(update, context)
     elif data == "auto_apply_menu":
         await auto_apply_settings_menu(update, context)
+    elif data == "risk_management_menu":
+        await risk_management_menu(update, context)
+    elif data == "toggle_risk_management":
+        await toggle_risk_management(update, context)
+    elif data == "set_max_loss_percent":
+        await set_max_loss_percent(update, context)
+    elif data == "set_max_loss_amount":
+        await set_max_loss_amount(update, context)
+    elif data == "set_daily_loss_limit":
+        await set_daily_loss_limit(update, context)
+    elif data == "set_weekly_loss_limit":
+        await set_weekly_loss_limit(update, context)
+    elif data == "toggle_stop_trading":
+        await toggle_stop_trading_on_loss(update, context)
+    elif data == "show_risk_stats":
+        await show_risk_statistics(update, context)
+    elif data == "reset_risk_stats":
+        await reset_risk_statistics(update, context)
     elif data == "toggle_auto_apply":
         await toggle_auto_apply(update, context)
     elif data == "quick_auto_setup":
@@ -7012,6 +7608,91 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال رصيد غير سالب")
+            except ValueError:
+                if update.message is not None:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        # معالجة إدخال إعدادات إدارة المخاطر
+        elif state == "waiting_max_loss_percent":
+            try:
+                percent = float(text)
+                if 1 <= percent <= 50:
+                    user_data = user_manager.get_user(user_id)
+                    if user_data:
+                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings['max_loss_percent'] = percent
+                        user_manager.update_user(user_id, {'risk_management': risk_settings})
+                    
+                    del user_input_state[user_id]
+                    if update.message is not None:
+                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة المئوي إلى: {percent}%")
+                        await risk_management_menu(update, context)
+                else:
+                    if update.message is not None:
+                        await update.message.reply_text("❌ يرجى إدخال نسبة بين 1 و 50")
+            except ValueError:
+                if update.message is not None:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        elif state == "waiting_max_loss_amount":
+            try:
+                amount = float(text)
+                if amount > 0:
+                    user_data = user_manager.get_user(user_id)
+                    if user_data:
+                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings['max_loss_amount'] = amount
+                        user_manager.update_user(user_id, {'risk_management': risk_settings})
+                    
+                    del user_input_state[user_id]
+                    if update.message is not None:
+                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة بالمبلغ إلى: {amount} USDT")
+                        await risk_management_menu(update, context)
+                else:
+                    if update.message is not None:
+                        await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
+            except ValueError:
+                if update.message is not None:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        elif state == "waiting_daily_loss_limit":
+            try:
+                limit = float(text)
+                if limit > 0:
+                    user_data = user_manager.get_user(user_id)
+                    if user_data:
+                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings['daily_loss_limit'] = limit
+                        user_manager.update_user(user_id, {'risk_management': risk_settings})
+                    
+                    del user_input_state[user_id]
+                    if update.message is not None:
+                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة اليومية إلى: {limit} USDT")
+                        await risk_management_menu(update, context)
+                else:
+                    if update.message is not None:
+                        await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
+            except ValueError:
+                if update.message is not None:
+                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+        
+        elif state == "waiting_weekly_loss_limit":
+            try:
+                limit = float(text)
+                if limit > 0:
+                    user_data = user_manager.get_user(user_id)
+                    if user_data:
+                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings['weekly_loss_limit'] = limit
+                        user_manager.update_user(user_id, {'risk_management': risk_settings})
+                    
+                    del user_input_state[user_id]
+                    if update.message is not None:
+                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة الأسبوعية إلى: {limit} USDT")
+                        await risk_management_menu(update, context)
+                else:
+                    if update.message is not None:
+                        await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
             except ValueError:
                 if update.message is not None:
                     await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
