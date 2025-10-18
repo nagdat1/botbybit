@@ -2933,9 +2933,9 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         
         enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
         stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
-    
-    # بناء رسالة إدارة المخاطر
-    risk_message = f"""
+        
+        # بناء رسالة إدارة المخاطر
+        risk_message = f"""
 🛡️ **إدارة المخاطر**
 
 📊 **الحالة الحالية:**
@@ -2967,35 +2967,35 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
 • 🟢 الأفضل: تفعيل الاثنين معاً للحماية الكاملة
 • 🟡 مقبول: تفعيل إدارة المخاطر فقط (مراقبة بدون حماية)
 • 🔴 خطير: تعطيل الاثنين (لا يوجد حماية)
-    """
-    
-    # بناء الأزرار
-    keyboard = [
-        [InlineKeyboardButton(f"🛡️ تفعيل/إلغاء إدارة المخاطر", callback_data="toggle_risk_management")],
-        [InlineKeyboardButton("📉 تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
-        [InlineKeyboardButton("💸 تعديل حد الخسارة بالمبلغ", callback_data="set_max_loss_amount")],
-        [InlineKeyboardButton("📅 تعديل الحد اليومي", callback_data="set_daily_loss_limit")],
-        [InlineKeyboardButton("📆 تعديل الحد الأسبوعي", callback_data="set_weekly_loss_limit")],
-        [InlineKeyboardButton(f"⏹️ إيقاف التداول عند الخسارة", callback_data="toggle_stop_trading")],
-        [InlineKeyboardButton("📊 عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
-        [InlineKeyboardButton("🔄 إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
-        [InlineKeyboardButton("📖 شرح مفصل للخيارات", callback_data="risk_management_guide")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        try:
-            await update.callback_query.edit_message_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as edit_error:
-            if "Message is not modified" in str(edit_error):
-                # الرسالة نفسها، لا نحتاج لتحديثها
-                pass
-            else:
-                raise edit_error
-    elif update.message:
-        await update.message.reply_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+        """
+        
+        # بناء الأزرار
+        keyboard = [
+            [InlineKeyboardButton(f"🛡️ تفعيل/إلغاء إدارة المخاطر", callback_data="toggle_risk_management")],
+            [InlineKeyboardButton("📉 تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
+            [InlineKeyboardButton("💸 تعديل حد الخسارة بالمبلغ", callback_data="set_max_loss_amount")],
+            [InlineKeyboardButton("📅 تعديل الحد اليومي", callback_data="set_daily_loss_limit")],
+            [InlineKeyboardButton("📆 تعديل الحد الأسبوعي", callback_data="set_weekly_loss_limit")],
+            [InlineKeyboardButton(f"⏹️ إيقاف التداول عند الخسارة", callback_data="toggle_stop_trading")],
+            [InlineKeyboardButton("📊 عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
+            [InlineKeyboardButton("🔄 إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
+            [InlineKeyboardButton("📖 شرح مفصل للخيارات", callback_data="risk_management_guide")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            try:
+                await update.callback_query.edit_message_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+            except Exception as edit_error:
+                if "Message is not modified" in str(edit_error):
+                    # الرسالة نفسها، لا نحتاج لتحديثها
+                    pass
+                else:
+                    raise edit_error
+        elif update.message:
+            await update.message.reply_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
     
     except Exception as e:
         logger.error(f"خطأ في قائمة إدارة المخاطر: {e}")
