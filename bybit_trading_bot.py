@@ -162,7 +162,7 @@ class TradingAccount:
         self.losing_trades = 0
         self.margin_locked = 0.0  # الهامش المحجوز
         
-        # نظام المحفظة للعملات المختلفة (للسوق الفوري)
+        # نظام المحفظة للعملات المختلفة (للسوق الفوري فقط)
         self.wallet: Dict[str, float] = {
             'USDT': initial_balance,  # العملة الأساسية
             'BTC': 0.0,
@@ -171,8 +171,8 @@ class TradingAccount:
             # يمكن إضافة المزيد من العملات حسب الحاجة
         }
         
-        # نظام محافظ الصفقات باستخدام ID الصفقة
-        self.position_wallets: Dict[str, Dict[str, float]] = {}
+        # نظام محافظ الصفقات للفيوتشر فقط باستخدام ID الصفقة
+        self.futures_position_wallets: Dict[str, Dict[str, float]] = {}
         
     def get_available_balance(self) -> float:
         """الحصول على الرصيد المتاح (الرصيد الكلي - الهامش المحجوز)"""
@@ -218,40 +218,40 @@ class TradingAccount:
             # إذا لم نتمكن من تحديد العملة، نعتبرها USDT
             return 'USDT'
     
-    def create_position_wallet(self, position_id: str, base_currency: str):
-        """إنشاء محفظة جديدة للصفقة"""
-        self.position_wallets[position_id] = {
+    def create_futures_position_wallet(self, position_id: str, base_currency: str):
+        """إنشاء محفظة جديدة للصفقة في الفيوتشر"""
+        self.futures_position_wallets[position_id] = {
             'USDT': 0.0,
             base_currency: 0.0
         }
-        logger.info(f"تم إنشاء محفظة جديدة للصفقة {position_id} مع العملة {base_currency}")
+        logger.info(f"تم إنشاء محفظة جديدة لصفقة الفيوتشر {position_id} مع العملة {base_currency}")
     
-    def add_to_position_wallet(self, position_id: str, currency: str, amount: float):
-        """إضافة عملة إلى محفظة الصفقة"""
-        if position_id not in self.position_wallets:
-            self.create_position_wallet(position_id, currency)
+    def add_to_futures_position_wallet(self, position_id: str, currency: str, amount: float):
+        """إضافة عملة إلى محفظة صفقة الفيوتشر"""
+        if position_id not in self.futures_position_wallets:
+            self.create_futures_position_wallet(position_id, currency)
         
-        if currency not in self.position_wallets[position_id]:
-            self.position_wallets[position_id][currency] = 0.0
+        if currency not in self.futures_position_wallets[position_id]:
+            self.futures_position_wallets[position_id][currency] = 0.0
         
-        self.position_wallets[position_id][currency] += amount
+        self.futures_position_wallets[position_id][currency] += amount
         
         # تحديث المحفظة الرئيسية إذا كانت العملة هي USDT
         if currency == 'USDT':
             self.add_to_wallet('USDT', amount)
     
-    def subtract_from_position_wallet(self, position_id: str, currency: str, amount: float) -> bool:
-        """خصم عملة من محفظة الصفقة"""
-        if position_id not in self.position_wallets:
+    def subtract_from_futures_position_wallet(self, position_id: str, currency: str, amount: float) -> bool:
+        """خصم عملة من محفظة صفقة الفيوتشر"""
+        if position_id not in self.futures_position_wallets:
             return False
         
-        if currency not in self.position_wallets[position_id]:
+        if currency not in self.futures_position_wallets[position_id]:
             return False
         
-        if self.position_wallets[position_id][currency] < amount:
+        if self.futures_position_wallets[position_id][currency] < amount:
             return False
         
-        self.position_wallets[position_id][currency] -= amount
+        self.futures_position_wallets[position_id][currency] -= amount
         
         # تحديث المحفظة الرئيسية إذا كانت العملة هي USDT
         if currency == 'USDT':
@@ -259,20 +259,20 @@ class TradingAccount:
         
         return True
     
-    def get_position_wallet_balance(self, position_id: str, currency: str = 'USDT') -> float:
-        """الحصول على رصيد عملة معينة في محفظة الصفقة"""
-        if position_id not in self.position_wallets:
+    def get_futures_position_wallet_balance(self, position_id: str, currency: str = 'USDT') -> float:
+        """الحصول على رصيد عملة معينة في محفظة صفقة الفيوتشر"""
+        if position_id not in self.futures_position_wallets:
             return 0.0
         
-        return self.position_wallets[position_id].get(currency, 0.0)
+        return self.futures_position_wallets[position_id].get(currency, 0.0)
     
-    def get_position_wallet_summary(self, position_id: str) -> dict:
-        """الحصول على ملخص محفظة الصفقة"""
-        if position_id not in self.position_wallets:
+    def get_futures_position_wallet_summary(self, position_id: str) -> dict:
+        """الحصول على ملخص محفظة صفقة الفيوتشر"""
+        if position_id not in self.futures_position_wallets:
             return {}
         
         wallet_summary = {}
-        for currency, amount in self.position_wallets[position_id].items():
+        for currency, amount in self.futures_position_wallets[position_id].items():
             if amount > 0:
                 wallet_summary[currency] = amount
         
@@ -311,7 +311,7 @@ class TradingAccount:
             return False, str(e)
     
     def open_spot_position(self, symbol: str, side: str, amount: float, price: float, position_id: str = None) -> tuple[bool, str]:
-        """فتح صفقة سبوت مع نظام محافظ الصفقات"""
+        """فتح صفقة سبوت مع المحفظة الواحدة (كشخص حقيقي)"""
         try:
             # استخدام ID الصفقة المحدد أو إنشاء واحد جديد
             if not position_id:
@@ -319,12 +319,8 @@ class TradingAccount:
             
             base_currency = self.extract_base_currency(symbol)
             
-            # إنشاء محفظة للصفقة إذا لم تكن موجودة
-            if position_id not in self.position_wallets:
-                self.create_position_wallet(position_id, base_currency)
-            
             if side.lower() == "buy":
-                # صفقة شراء: نشتري العملة بالدولار
+                # صفقة شراء: نشتري العملة بالدولار ونضيفها للمحفظة
                 usdt_cost = amount
                 
                 # التحقق من وجود رصيد كافي من USDT في المحفظة الرئيسية
@@ -334,8 +330,8 @@ class TradingAccount:
                 # حساب كمية العملة المشتراة
                 coins_bought = amount / price
                 
-                # إضافة العملة المشتراة إلى محفظة الصفقة
-                self.add_to_position_wallet(position_id, base_currency, coins_bought)
+                # إضافة العملة المشتراة إلى المحفظة الرئيسية
+                self.add_to_wallet(base_currency, coins_bought)
                 
                 # حفظ معلومات الصفقة
                 position_info = {
@@ -352,21 +348,21 @@ class TradingAccount:
                     'unrealized_pnl': 0.0
                 }
                 
-                logger.info(f"تم شراء {coins_bought:.8f} {base_currency} بسعر ${price:.2f} في محفظة الصفقة {position_id}")
+                logger.info(f"تم شراء {coins_bought:.8f} {base_currency} بسعر ${price:.2f} وإضافتها للمحفظة")
                 
             else:  # sell
-                # صفقة بيع: نبيع العملة الموجودة في محفظة الصفقة
+                # صفقة بيع: نبيع العملة الموجودة في المحفظة الرئيسية
                 coins_to_sell = amount / price
                 
-                # التحقق من وجود كمية كافية من العملة في محفظة الصفقة
-                if not self.subtract_from_position_wallet(position_id, base_currency, coins_to_sell):
-                    return False, f"رصيد {base_currency} غير كافي في محفظة الصفقة {position_id}. متاح: {self.get_position_wallet_balance(position_id, base_currency):.8f}, مطلوب: {coins_to_sell:.8f}"
+                # التحقق من وجود كمية كافية من العملة في المحفظة الرئيسية
+                if not self.subtract_from_wallet(base_currency, coins_to_sell):
+                    return False, f"رصيد {base_currency} غير كافي في المحفظة. متاح: {self.get_wallet_balance(base_currency):.8f}, مطلوب: {coins_to_sell:.8f}"
                 
                 # حساب قيمة البيع بالدولار
                 usdt_received = coins_to_sell * price
                 
-                # إضافة الدولار المستلم إلى محفظة الصفقة
-                self.add_to_position_wallet(position_id, 'USDT', usdt_received)
+                # إضافة الدولار المستلم إلى المحفظة الرئيسية
+                self.add_to_wallet('USDT', usdt_received)
                 
                 # حفظ معلومات الصفقة
                 position_info = {
@@ -384,7 +380,7 @@ class TradingAccount:
                     'unrealized_pnl': 0.0
                 }
                 
-                logger.info(f"تم بيع {coins_to_sell:.8f} {base_currency} بسعر ${price:.2f} وحصلنا على ${usdt_received:.2f} في محفظة الصفقة {position_id}")
+                logger.info(f"تم بيع {coins_to_sell:.8f} {base_currency} بسعر ${price:.2f} وحصلنا على ${usdt_received:.2f}")
             
             self.positions[position_id] = position_info
             
@@ -449,7 +445,7 @@ class TradingAccount:
             return False, {"error": str(e)}
     
     def close_spot_position(self, position_id: str, closing_price: float) -> tuple[bool, dict]:
-        """إغلاق صفقة سبوت مع نظام محافظ الصفقات"""
+        """إغلاق صفقة سبوت مع المحفظة الواحدة (كشخص حقيقي)"""
         try:
             if position_id not in self.positions:
                 return False, {"error": "الصفقة غير موجودة"}
@@ -465,15 +461,15 @@ class TradingAccount:
             
             # حساب الربح/الخسارة حسب نوع الصفقة
             if side.lower() == "buy":
-                # إغلاق صفقة شراء: نبيع العملة المشتراة من محفظة الصفقة
+                # إغلاق صفقة شراء: نبيع العملة المشتراة من المحفظة الرئيسية
                 coins_to_sell = position.get('coins_bought', 0)
                 
                 if coins_to_sell <= 0:
                     return False, {"error": "كمية العملة غير صحيحة"}
                 
-                # التحقق من وجود كمية كافية في محفظة الصفقة
-                if not self.subtract_from_position_wallet(position_id, base_currency, coins_to_sell):
-                    return False, {"error": f"رصيد {base_currency} غير كافي في محفظة الصفقة {position_id}"}
+                # التحقق من وجود كمية كافية في المحفظة الرئيسية
+                if not self.subtract_from_wallet(base_currency, coins_to_sell):
+                    return False, {"error": f"رصيد {base_currency} غير كافي في المحفظة"}
                 
                 # بيع العملة بسعر الإغلاق وإضافة USDT إلى المحفظة الرئيسية
                 usdt_received = coins_to_sell * closing_price
@@ -499,8 +495,8 @@ class TradingAccount:
                 if not self.subtract_from_wallet('USDT', usdt_cost):
                     return False, {"error": f"رصيد USDT غير كافي للشراء. متاح: {self.get_wallet_balance('USDT'):.2f}, مطلوب: {usdt_cost:.2f}"}
                 
-                # إضافة العملة المشتراة إلى محفظة الصفقة
-                self.add_to_position_wallet(position_id, base_currency, coins_to_buy)
+                # إضافة العملة المشتراة إلى المحفظة الرئيسية
+                self.add_to_wallet(base_currency, coins_to_buy)
                 
                 # حساب الربح/الخسارة
                 original_received = position.get('usdt_received', 0)
@@ -532,10 +528,8 @@ class TradingAccount:
             else:
                 self.losing_trades += 1
             
-            # حذف الصفقة ومحفظتها
+            # حذف الصفقة فقط (لا نحذف المحفظة لأنها مشتركة)
             del self.positions[position_id]
-            if position_id in self.position_wallets:
-                del self.position_wallets[position_id]
             
             logger.info(f"تم إغلاق صفقة سبوت: {position['symbol']} PnL: {pnl:.2f}")
             return True, trade_record
@@ -545,7 +539,7 @@ class TradingAccount:
             return False, {"error": str(e)}
     
     def close_spot_position_partial(self, position_id: str, percentage: float, closing_price: float) -> tuple[bool, dict]:
-        """إغلاق جزئي لصفقة سبوت مع نظام محافظ الصفقات"""
+        """إغلاق جزئي لصفقة سبوت مع المحفظة الواحدة (كشخص حقيقي)"""
         try:
             if position_id not in self.positions:
                 return False, {"error": "الصفقة غير موجودة"}
@@ -564,16 +558,16 @@ class TradingAccount:
             
             # حساب الكمية المراد إغلاقها جزئياً
             if side.lower() == "buy":
-                # إغلاق جزئي لصفقة شراء: نبيع جزء من العملة المشتراة من محفظة الصفقة
+                # إغلاق جزئي لصفقة شراء: نبيع جزء من العملة المشتراة من المحفظة الرئيسية
                 total_coins = position.get('coins_bought', 0)
                 coins_to_sell = total_coins * (percentage / 100)
                 
                 if coins_to_sell <= 0:
                     return False, {"error": "كمية العملة غير صحيحة"}
                 
-                # التحقق من وجود كمية كافية في محفظة الصفقة
-                if not self.subtract_from_position_wallet(position_id, base_currency, coins_to_sell):
-                    return False, {"error": f"رصيد {base_currency} غير كافي في محفظة الصفقة {position_id}"}
+                # التحقق من وجود كمية كافية في المحفظة الرئيسية
+                if not self.subtract_from_wallet(base_currency, coins_to_sell):
+                    return False, {"error": f"رصيد {base_currency} غير كافي في المحفظة"}
                 
                 # بيع جزء من العملة بسعر الإغلاق وإضافة USDT إلى المحفظة الرئيسية
                 usdt_received = coins_to_sell * closing_price
@@ -604,8 +598,8 @@ class TradingAccount:
                 if not self.subtract_from_wallet('USDT', usdt_cost):
                     return False, {"error": f"رصيد USDT غير كافي للشراء الجزئي. متاح: {self.get_wallet_balance('USDT'):.2f}, مطلوب: {usdt_cost:.2f}"}
                 
-                # إضافة العملة المشتراة جزئياً إلى محفظة الصفقة
-                self.add_to_position_wallet(position_id, base_currency, coins_to_buy_back)
+                # إضافة العملة المشتراة جزئياً إلى المحفظة الرئيسية
+                self.add_to_wallet(base_currency, coins_to_buy_back)
                 
                 # حساب الربح/الخسارة الجزئي
                 partial_received = position.get('usdt_received', 0) * (percentage / 100)
