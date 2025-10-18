@@ -2969,7 +2969,14 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
-        await update.callback_query.edit_message_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+        try:
+            await update.callback_query.edit_message_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as edit_error:
+            if "Message is not modified" in str(edit_error):
+                # الرسالة نفسها، لا نحتاج لتحديثها
+                pass
+            else:
+                raise edit_error
     elif update.message:
         await update.message.reply_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
 
@@ -3090,7 +3097,15 @@ async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_T
         status = "✅ مفعل" if risk_settings['enabled'] else "❌ معطل"
         message = f"🛡️ إدارة المخاطر: {status}"
         
-        await query.edit_message_text(message)
+        try:
+            await query.edit_message_text(message)
+        except Exception as edit_error:
+            if "Message is not modified" in str(edit_error):
+                # الرسالة نفسها، لا نحتاج لتحديثها
+                pass
+            else:
+                raise edit_error
+        
         await asyncio.sleep(1)
         await risk_management_menu(update, context)
         
@@ -3235,7 +3250,15 @@ async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFA
         status = "✅ مفعل" if risk_settings['stop_trading_on_loss'] else "❌ معطل"
         message = f"⏹️ إيقاف التداول عند الخسارة: {status}"
         
-        await query.edit_message_text(message)
+        try:
+            await query.edit_message_text(message)
+        except Exception as edit_error:
+            if "Message is not modified" in str(edit_error):
+                # الرسالة نفسها، لا نحتاج لتحديثها
+                pass
+            else:
+                raise edit_error
+        
         await asyncio.sleep(1)
         await risk_management_menu(update, context)
         
@@ -3303,7 +3326,14 @@ async def show_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(stats_message, reply_markup=reply_markup, parse_mode='Markdown')
+        try:
+            await query.edit_message_text(stats_message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as edit_error:
+            if "Message is not modified" in str(edit_error):
+                # الرسالة نفسها، لا نحتاج لتحديثها
+                pass
+            else:
+                raise edit_error
         
     except Exception as e:
         logger.error(f"خطأ في عرض إحصائيات المخاطر: {e}")
@@ -3328,7 +3358,15 @@ async def reset_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TY
         
         message = "🔄 تم إعادة تعيين إحصائيات المخاطر بنجاح"
         
-        await query.edit_message_text(message)
+        try:
+            await query.edit_message_text(message)
+        except Exception as edit_error:
+            if "Message is not modified" in str(edit_error):
+                # الرسالة نفسها، لا نحتاج لتحديثها
+                pass
+            else:
+                raise edit_error
+        
         await asyncio.sleep(1)
         await risk_management_menu(update, context)
         
@@ -4321,13 +4359,25 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """
         
         # إعدادات التداول المتقدمة
+        # فحص إعدادات إدارة المخاطر من بيانات المستخدم
+        risk_settings = user_data.get('risk_management', {
+            'enabled': True,
+            'max_loss_percent': 10.0,
+            'max_loss_amount': 1000.0,
+            'stop_trading_on_loss': True,
+            'daily_loss_limit': 500.0,
+            'weekly_loss_limit': 2000.0
+        })
+        
+        risk_management_status = "مفعل" if risk_settings.get('enabled', True) else "معطل"
+        
         status_message += f"""
 
 ⚙️ **إعدادات التداول المتقدمة:**
 🎯 Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
 🎯 Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
 🔄 Auto Close: {'مفعل' if trading_bot.user_settings.get('auto_close', False) else 'معطل'}
-📊 Risk Management: {'مفعل' if trading_bot.user_settings.get('risk_management', True) else 'معطل'}
+📊 Risk Management: {risk_management_status}
         """
         
         # معلومات النظام
@@ -7626,7 +7676,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة المئوي إلى: {percent}%")
-                        await risk_management_menu(update, context)
+                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
+                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
+                        ]]))
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال نسبة بين 1 و 50")
@@ -7647,7 +7700,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة بالمبلغ إلى: {amount} USDT")
-                        await risk_management_menu(update, context)
+                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
+                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
+                        ]]))
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -7668,7 +7724,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة اليومية إلى: {limit} USDT")
-                        await risk_management_menu(update, context)
+                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
+                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
+                        ]]))
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -7689,7 +7748,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة الأسبوعية إلى: {limit} USDT")
-                        await risk_management_menu(update, context)
+                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
+                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
+                        ]]))
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
