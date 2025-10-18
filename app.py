@@ -272,9 +272,6 @@ def start_web_server():
     pass
 
 if __name__ == "__main__":
-    print("مرحبا ايها القائد")
-    print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
     # إرسال رسالة الترحيب
     def send_startup_notification():
         """إرسال رسالة الترحيب عبر تلجرام"""
