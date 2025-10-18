@@ -2047,7 +2047,7 @@ class TradingBot:
                     await self.send_message_to_admin(
                         f"⚠️ لا توجد صفقات للإغلاق الجزئي\n\n"
                         f"📊 الرمز: {symbol}\n"
-                        f"🏪 السوق: {user_market_type.UPPER()}"
+                        f"🏪 السوق: {user_market_type.upper()}"
                     )
                     return
                 
@@ -2091,7 +2091,7 @@ class TradingBot:
                             if self.user_id:
                                 message += f"👤 المستخدم: {self.user_id}\n"
                             message += f"📊 الرمز: {symbol}\n"
-                            message += f"🔄 النوع: {pos_info.get('side', '').UPPER()}\n"
+                            message += f"🔄 النوع: {pos_info.get('side', '').upper()}\n"
                             message += f"📈 النسبة المغلقة: {percentage}%\n"
                             message += f"💰 الربح/الخسارة الجزئي: {partial_pnl:.2f}\n"
                             message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
@@ -2114,7 +2114,7 @@ class TradingBot:
                         logger.warning(f"⚠️ الإغلاق الجزئي غير مدعوم في Spot حالياً")
                         await self.send_message_to_admin(
                             f"⚠️ الإغلاق الجزئي مدعوم فقط في Futures\n\n"
-                            f"🏪 نوع السوق الحالي: {user_market_type.UPPER()}\n"
+                            f"🏪 نوع السوق الحالي: {user_market_type.upper()}\n"
                             f"💡 للإغلاق الجزئي، استخدم نوع سوق FUTURES"
                         )
                 
