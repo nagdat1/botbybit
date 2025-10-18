@@ -5475,6 +5475,105 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message is not None:
             await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {e}")
 
+async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض إحصائيات المستخدم المفصلة"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    user_data = user_manager.get_user(user_id)
+    
+    if not user_data:
+        await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+        return
+    
+    try:
+        # الحصول على معلومات الحساب التجريبي
+        spot_account = trading_bot.demo_account_spot
+        futures_account = trading_bot.demo_account_futures
+        
+        spot_info = spot_account.get_account_info()
+        futures_info = futures_account.get_account_info()
+        
+        # حساب الإجماليات
+        total_balance = spot_info['balance'] + futures_info['balance']
+        total_available = spot_info.get('available_balance', spot_info['balance']) + futures_info.get('available_balance', futures_info['balance'])
+        total_margin_locked = spot_info.get('margin_locked', 0) + futures_info.get('margin_locked', 0)
+        total_equity = spot_info.get('equity', spot_info['balance']) + futures_info.get('equity', futures_info['balance'])
+        total_pnl = spot_info['unrealized_pnl'] + futures_info['unrealized_pnl']
+        total_open_positions = spot_info['open_positions'] + futures_info['open_positions']
+        
+        # حساب إحصائيات التداول
+        total_trades = spot_info['total_trades'] + futures_info['total_trades']
+        total_winning_trades = spot_info['winning_trades'] + futures_info['winning_trades']
+        total_losing_trades = spot_info['losing_trades'] + futures_info['losing_trades']
+        total_win_rate = round((total_winning_trades / max(total_trades, 1)) * 100, 2)
+        
+        # تحديد حالة PnL
+        if total_pnl > 0:
+            total_pnl_arrow = "📈"
+            total_pnl_status = "ربح"
+        elif total_pnl < 0:
+            total_pnl_arrow = "📉"
+            total_pnl_status = "خسارة"
+        else:
+            total_pnl_arrow = "➖"
+            total_pnl_status = "متعادل"
+        
+        # حساب إحصائيات إضافية
+        profit_loss_ratio = 0
+        if total_losing_trades > 0:
+            profit_loss_ratio = total_winning_trades / total_losing_trades
+        
+        # حساب متوسط الربح/الخسارة
+        avg_profit = 0
+        avg_loss = 0
+        if total_winning_trades > 0:
+            avg_profit = total_pnl / total_winning_trades
+        if total_losing_trades > 0:
+            avg_loss = abs(total_pnl) / total_losing_trades
+        
+        message = f"""
+📊 **إحصائيات التداول المفصلة**
+
+💰 **الرصيد الحالي:**
+💳 الرصيد الكلي: {total_balance:.2f} USDT
+💳 الرصيد المتاح: {total_available:.2f} USDT
+🔒 الهامش المحجوز: {total_margin_locked:.2f} USDT
+💼 القيمة الصافية: {total_equity:.2f} USDT
+{total_pnl_arrow} إجمالي PnL: {total_pnl:.2f} USDT - {total_pnl_status}
+
+📈 **إحصائيات الأداء:**
+🔄 الصفقات المفتوحة: {total_open_positions}
+📊 إجمالي الصفقات: {total_trades}
+✅ الصفقات الرابحة: {total_winning_trades}
+❌ الصفقات الخاسرة: {total_losing_trades}
+🎯 معدل النجاح: {total_win_rate:.1f}%
+
+📊 **تحليل الأداء:**
+📈 متوسط الربح: {avg_profit:.2f} USDT
+📉 متوسط الخسارة: {avg_loss:.2f} USDT
+⚖️ نسبة الربح/الخسارة: {profit_loss_ratio:.2f}
+
+⚙️ **إعدادات التداول:**
+🏪 نوع السوق: {trading_bot.user_settings['market_type'].upper()}
+💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
+🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x
+🎯 Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
+🎯 Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
+
+📅 **معلومات الحساب:**
+👤 نوع الحساب: {user_data.get('account_type', 'تجريبي')}
+🔗 حالة API: {'🟢 مرتبط' if user_data.get('api_connected', False) else '🔴 غير مرتبط'}
+📡 آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
+        """
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض إحصائيات المستخدم: {e}")
+        await update.message.reply_text("❌ خطأ في عرض الإحصائيات")
+
 # باقي الوظائف تبقى كما هي مع بعض التحديثات...
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة الأزرار المضغوطة"""
@@ -7237,6 +7336,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trade_history(update, context)
     elif text == "💰 المحفظة":
         await wallet_overview(update, context)
+    elif text == "📊 إحصائيات":
+        await show_user_statistics(update, context)
     elif text == "▶️ تشغيل البوت":
         trading_bot.is_running = True
         if update.message is not None:
