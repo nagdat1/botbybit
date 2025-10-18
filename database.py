@@ -45,7 +45,8 @@ class DatabaseManager:
                         total_loss REAL DEFAULT 0.0,
                         last_reset_date TEXT,
                         last_reset_week TEXT,
-                        last_loss_update TEXT
+                        last_loss_update TEXT,
+                        risk_management TEXT DEFAULT '{"enabled": true, "max_loss_percent": 10.0, "max_loss_amount": 1000.0, "stop_trading_on_loss": true, "daily_loss_limit": 500.0, "weekly_loss_limit": 2000.0}'
                     )
                 """)
                 
@@ -171,7 +172,8 @@ class DatabaseManager:
                     ("total_loss", "REAL DEFAULT 0.0"),
                     ("last_reset_date", "TEXT"),
                     ("last_reset_week", "TEXT"),
-                    ("last_loss_update", "TEXT")
+                    ("last_loss_update", "TEXT"),
+                    ("risk_management", "TEXT DEFAULT '{\"enabled\": true, \"max_loss_percent\": 10.0, \"max_loss_amount\": 1000.0, \"stop_trading_on_loss\": true, \"daily_loss_limit\": 500.0, \"weekly_loss_limit\": 2000.0}'")
                 ]
                 
                 for column_name, column_def in columns_to_add:
@@ -259,6 +261,29 @@ class DatabaseManager:
                         user_data['partial_percents'] = [25, 50, 25]
                         user_data['tps_percents'] = [1.5, 3.0, 5.0]
                         user_data['preferred_symbols'] = ["BTCUSDT", "ETHUSDT"]
+                    
+                    # تحويل risk_management من JSON
+                    try:
+                        if user_data.get('risk_management'):
+                            user_data['risk_management'] = json.loads(user_data['risk_management'])
+                        else:
+                            user_data['risk_management'] = {
+                                'enabled': True,
+                                'max_loss_percent': 10.0,
+                                'max_loss_amount': 1000.0,
+                                'stop_trading_on_loss': True,
+                                'daily_loss_limit': 500.0,
+                                'weekly_loss_limit': 2000.0
+                            }
+                    except (json.JSONDecodeError, TypeError):
+                        user_data['risk_management'] = {
+                            'enabled': True,
+                            'max_loss_percent': 10.0,
+                            'max_loss_amount': 1000.0,
+                            'stop_trading_on_loss': True,
+                            'daily_loss_limit': 500.0,
+                            'weekly_loss_limit': 2000.0
+                        }
                     
                     return user_data
                 return None
@@ -401,9 +426,14 @@ class DatabaseManager:
                 values = []
                 
                 for key, value in data.items():
-                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active']:
-                        set_clauses.append(f"{key} = ?")
-                        values.append(value)
+                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management']:
+                        if key == 'risk_management':
+                            # تحويل risk_management إلى JSON string
+                            set_clauses.append(f"{key} = ?")
+                            values.append(json.dumps(value))
+                        else:
+                            set_clauses.append(f"{key} = ?")
+                            values.append(value)
                 
                 if not set_clauses:
                     return True  # لا يوجد شيء للتحديث

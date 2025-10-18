@@ -2942,10 +2942,10 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
 ⏹️ إيقاف التداول عند الخسارة: {stop_status}
 
 💰 **حدود الخسارة:**
-📉 الحد الأقصى للخسارة: {risk_settings['max_loss_percent']:.1f}%
-💸 الحد الأقصى بالمبلغ: {risk_settings['max_loss_amount']:.0f} USDT
-📅 الحد اليومي: {risk_settings['daily_loss_limit']:.0f} USDT
-📆 الحد الأسبوعي: {risk_settings['weekly_loss_limit']:.0f} USDT
+📉 الحد الأقصى للخسارة: {risk_settings.get('max_loss_percent', 10.0):.1f}%
+💸 الحد الأقصى بالمبلغ: {risk_settings.get('max_loss_amount', 1000.0):.0f} USDT
+📅 الحد اليومي: {risk_settings.get('daily_loss_limit', 500.0):.0f} USDT
+📆 الحد الأسبوعي: {risk_settings.get('weekly_loss_limit', 2000.0):.0f} USDT
 
 📊 **الإحصائيات الحالية:**
 💸 الخسارة اليومية: {user_data.get('daily_loss', 0):.2f} USDT
@@ -3105,12 +3105,12 @@ async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_T
         })
         
         # تبديل الحالة
-        risk_settings['enabled'] = not risk_settings['enabled']
+        risk_settings.get('enabled', True) = not risk_settings.get('enabled', True)
         
         # حفظ الإعدادات
         user_manager.update_user(user_id, {'risk_management': risk_settings})
         
-        status = "✅ مفعل" if risk_settings['enabled'] else "❌ معطل"
+        status = "✅ مفعل" if risk_settings.get('enabled', True) else "❌ معطل"
         message = f"🛡️ إدارة المخاطر: {status}"
         
         try:
@@ -3258,12 +3258,12 @@ async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFA
         })
         
         # تبديل الحالة
-        risk_settings['stop_trading_on_loss'] = not risk_settings['stop_trading_on_loss']
+        risk_settings.get('stop_trading_on_loss', True) = not risk_settings.get('stop_trading_on_loss', True)
         
         # حفظ الإعدادات
         user_manager.update_user(user_id, {'risk_management': risk_settings})
         
-        status = "✅ مفعل" if risk_settings['stop_trading_on_loss'] else "❌ معطل"
+        status = "✅ مفعل" if risk_settings.get('stop_trading_on_loss', True) else "❌ معطل"
         message = f"⏹️ إيقاف التداول عند الخسارة: {status}"
         
         try:
@@ -3446,10 +3446,10 @@ async def send_risk_management_menu(message, user_id: int):
 ⏹️ إيقاف التداول عند الخسارة: {stop_status}
 
 💰 **حدود الخسارة:**
-📉 الحد الأقصى للخسارة: {risk_settings['max_loss_percent']:.1f}%
-💸 الحد الأقصى بالمبلغ: {risk_settings['max_loss_amount']:.0f} USDT
-📅 الحد اليومي: {risk_settings['daily_loss_limit']:.0f} USDT
-📆 الحد الأسبوعي: {risk_settings['weekly_loss_limit']:.0f} USDT
+📉 الحد الأقصى للخسارة: {risk_settings.get('max_loss_percent', 10.0):.1f}%
+💸 الحد الأقصى بالمبلغ: {risk_settings.get('max_loss_amount', 1000.0):.0f} USDT
+📅 الحد اليومي: {risk_settings.get('daily_loss_limit', 500.0):.0f} USDT
+📆 الحد الأسبوعي: {risk_settings.get('weekly_loss_limit', 2000.0):.0f} USDT
 
 📊 **الإحصائيات الحالية:**
 💸 الخسارة اليومية: {user_data.get('daily_loss', 0):.2f} USDT
@@ -7886,7 +7886,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings['max_loss_percent'] = percent
+                        risk_settings.get('max_loss_percent', 10.0) = percent
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
@@ -7908,7 +7908,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings['max_loss_amount'] = amount
+                        risk_settings.get('max_loss_amount', 1000.0) = amount
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
@@ -7930,7 +7930,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings['daily_loss_limit'] = limit
+                        risk_settings.get('daily_loss_limit', 500.0) = limit
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
@@ -7952,7 +7952,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings['weekly_loss_limit'] = limit
+                        risk_settings.get('weekly_loss_limit', 2000.0) = limit
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
