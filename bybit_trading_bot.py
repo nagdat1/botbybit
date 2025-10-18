@@ -2930,8 +2930,8 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         'weekly_loss_limit': 2000.0  # حد الخسارة الأسبوعية
     })
     
-    enabled_status = "✅" if risk_settings['enabled'] else "❌"
-    stop_status = "✅" if risk_settings['stop_trading_on_loss'] else "❌"
+    enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
+    stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
     
     # بناء رسالة إدارة المخاطر
     risk_message = f"""
@@ -3434,8 +3434,8 @@ async def send_risk_management_menu(message, user_id: int):
             'weekly_loss_limit': 2000.0
         })
         
-        enabled_status = "✅" if risk_settings['enabled'] else "❌"
-        stop_status = "✅" if risk_settings['stop_trading_on_loss'] else "❌"
+        enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
+        stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
         
         # بناء رسالة إدارة المخاطر
         risk_message = f"""
@@ -3491,7 +3491,10 @@ async def send_risk_management_menu(message, user_id: int):
         
     except Exception as e:
         logger.error(f"خطأ في إرسال قائمة إدارة المخاطر: {e}")
-        await message.reply_text(f"❌ خطأ: {e}")
+        try:
+            await message.reply_text(f"❌ خطأ في إرسال قائمة إدارة المخاطر: {e}")
+        except Exception as reply_error:
+            logger.error(f"خطأ في إرسال رسالة الخطأ: {reply_error}")
 
 async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """شرح مفصل لنظام إدارة المخاطر"""
