@@ -7414,7 +7414,7 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
     """
     
     keyboard = [
-        [InlineKeyboardButton("🔙 رجوع", callback_data="usage_links")]
+        [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
