@@ -2909,29 +2909,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة إدارة المخاطر"""
-    if update.effective_user is None:
-        return
-    
-    user_id = update.effective_user.id
-    user_data = user_manager.get_user(user_id)
-    
-    if not user_data:
-        if update.message is not None:
-            await update.message.reply_text("❌ يرجى استخدام /start أولاً")
-        return
-    
-    # الحصول على إعدادات إدارة المخاطر
-    risk_settings = user_data.get('risk_management', {
-        'enabled': True,
-        'max_loss_percent': 10.0,  # الحد الأقصى للخسارة كنسبة مئوية
-        'max_loss_amount': 1000.0,  # الحد الأقصى للخسارة بالمبلغ
-        'stop_trading_on_loss': True,  # إيقاف التداول عند الوصول للحد
-        'daily_loss_limit': 500.0,  # حد الخسارة اليومية
-        'weekly_loss_limit': 2000.0  # حد الخسارة الأسبوعية
-    })
-    
-    enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
-    stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
+    try:
+        if update.effective_user is None:
+            return
+        
+        user_id = update.effective_user.id
+        user_data = user_manager.get_user(user_id)
+        
+        if not user_data:
+            if update.message is not None:
+                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+            return
+        
+        # الحصول على إعدادات إدارة المخاطر
+        risk_settings = user_data.get('risk_management', {
+            'enabled': True,
+            'max_loss_percent': 10.0,  # الحد الأقصى للخسارة كنسبة مئوية
+            'max_loss_amount': 1000.0,  # الحد الأقصى للخسارة بالمبلغ
+            'stop_trading_on_loss': True,  # إيقاف التداول عند الوصول للحد
+            'daily_loss_limit': 500.0,  # حد الخسارة اليومية
+            'weekly_loss_limit': 2000.0  # حد الخسارة الأسبوعية
+        })
+        
+        enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
+        stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
     
     # بناء رسالة إدارة المخاطر
     risk_message = f"""
@@ -2995,6 +2996,16 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
                 raise edit_error
     elif update.message:
         await update.message.reply_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+    
+    except Exception as e:
+        logger.error(f"خطأ في قائمة إدارة المخاطر: {e}")
+        if update.callback_query:
+            try:
+                await update.callback_query.edit_message_text(f"❌ خطأ في إدارة المخاطر: {e}")
+            except:
+                await update.callback_query.message.reply_text(f"❌ خطأ في إدارة المخاطر: {e}")
+        elif update.message:
+            await update.message.reply_text(f"❌ خطأ في إدارة المخاطر: {e}")
 
 async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة إعدادات التطبيق التلقائي"""
