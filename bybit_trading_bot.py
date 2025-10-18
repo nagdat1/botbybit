@@ -3415,6 +3415,84 @@ def _get_risk_recommendations(daily_percent, weekly_percent, total_loss, max_los
     
     return "\n".join(recommendations)
 
+async def send_risk_management_menu(message, user_id: int):
+    """إرسال قائمة إدارة المخاطر مباشرة"""
+    try:
+        user_data = user_manager.get_user(user_id)
+        
+        if not user_data:
+            await message.reply_text("❌ يرجى استخدام /start أولاً")
+            return
+        
+        # الحصول على إعدادات إدارة المخاطر
+        risk_settings = user_data.get('risk_management', {
+            'enabled': True,
+            'max_loss_percent': 10.0,
+            'max_loss_amount': 1000.0,
+            'stop_trading_on_loss': True,
+            'daily_loss_limit': 500.0,
+            'weekly_loss_limit': 2000.0
+        })
+        
+        enabled_status = "✅" if risk_settings['enabled'] else "❌"
+        stop_status = "✅" if risk_settings['stop_trading_on_loss'] else "❌"
+        
+        # بناء رسالة إدارة المخاطر
+        risk_message = f"""
+🛡️ **إدارة المخاطر**
+
+📊 **الحالة الحالية:**
+🛡️ إدارة المخاطر: {enabled_status}
+⏹️ إيقاف التداول عند الخسارة: {stop_status}
+
+💰 **حدود الخسارة:**
+📉 الحد الأقصى للخسارة: {risk_settings['max_loss_percent']:.1f}%
+💸 الحد الأقصى بالمبلغ: {risk_settings['max_loss_amount']:.0f} USDT
+📅 الحد اليومي: {risk_settings['daily_loss_limit']:.0f} USDT
+📆 الحد الأسبوعي: {risk_settings['weekly_loss_limit']:.0f} USDT
+
+📊 **الإحصائيات الحالية:**
+💸 الخسارة اليومية: {user_data.get('daily_loss', 0):.2f} USDT
+📈 الخسارة الأسبوعية: {user_data.get('weekly_loss', 0):.2f} USDT
+📉 إجمالي الخسارة: {user_data.get('total_loss', 0):.2f} USDT
+
+🔍 **الفرق بين الخيارات:**
+
+🛡️ **إدارة المخاطر:**
+• عند التفعيل: مراقبة مستمرة للخسائر وفحص الحدود
+• عند التعطيل: لا يوجد مراقبة أو فحص للحدود
+
+⏹️ **إيقاف التداول عند الخسارة:**
+• عند التفعيل: إيقاف البوت تلقائياً عند الوصول للحدود
+• عند التعطيل: البوت يستمر حتى لو وصل للحدود
+
+💡 **التوصيات:**
+• 🟢 الأفضل: تفعيل الاثنين معاً للحماية الكاملة
+• 🟡 مقبول: تفعيل إدارة المخاطر فقط (مراقبة بدون حماية)
+• 🔴 خطير: تعطيل الاثنين (لا يوجد حماية)
+        """
+        
+        # بناء الأزرار
+        keyboard = [
+            [InlineKeyboardButton(f"🛡️ تفعيل/إلغاء إدارة المخاطر", callback_data="toggle_risk_management")],
+            [InlineKeyboardButton("📉 تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
+            [InlineKeyboardButton("💸 تعديل حد الخسارة بالمبلغ", callback_data="set_max_loss_amount")],
+            [InlineKeyboardButton("📅 تعديل الحد اليومي", callback_data="set_daily_loss_limit")],
+            [InlineKeyboardButton("📆 تعديل الحد الأسبوعي", callback_data="set_weekly_loss_limit")],
+            [InlineKeyboardButton(f"⏹️ إيقاف التداول عند الخسارة", callback_data="toggle_stop_trading")],
+            [InlineKeyboardButton("📊 عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
+            [InlineKeyboardButton("🔄 إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
+            [InlineKeyboardButton("📖 شرح مفصل للخيارات", callback_data="risk_management_guide")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await message.reply_text(risk_message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"خطأ في إرسال قائمة إدارة المخاطر: {e}")
+        await message.reply_text(f"❌ خطأ: {e}")
+
 async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """شرح مفصل لنظام إدارة المخاطر"""
     try:
@@ -7811,8 +7889,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة المئوي إلى: {percent}%")
-                        # العودة مباشرة إلى قائمة إدارة المخاطر
-                        await risk_management_menu(update, context)
+                        # إرسال قائمة إدارة المخاطر مباشرة
+                        await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال نسبة بين 1 و 50")
@@ -7833,8 +7911,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة بالمبلغ إلى: {amount} USDT")
-                        # العودة مباشرة إلى قائمة إدارة المخاطر
-                        await risk_management_menu(update, context)
+                        # إرسال قائمة إدارة المخاطر مباشرة
+                        await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -7855,8 +7933,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة اليومية إلى: {limit} USDT")
-                        # العودة مباشرة إلى قائمة إدارة المخاطر
-                        await risk_management_menu(update, context)
+                        # إرسال قائمة إدارة المخاطر مباشرة
+                        await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -7877,8 +7955,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة الأسبوعية إلى: {limit} USDT")
-                        # العودة مباشرة إلى قائمة إدارة المخاطر
-                        await risk_management_menu(update, context)
+                        # إرسال قائمة إدارة المخاطر مباشرة
+                        await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
