@@ -274,7 +274,6 @@ def start_web_server():
 if __name__ == "__main__":
     print("مرحبا ايها القائد")
     print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🔗 المنفذ: {PORT}")
     
     # إرسال رسالة الترحيب
     def send_startup_notification():
@@ -301,9 +300,8 @@ if __name__ == "__main__":
                     message = f"مرحبا ايها القائد\n⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                     
                     await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
-                    print(f"✅ تم إرسال رسالة الترحيب إلى تلجرام")
                 except Exception as e:
-                    print(f"❌ خطأ في إرسال رسالة الترحيب: {e}")
+                    pass
             
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -311,7 +309,7 @@ if __name__ == "__main__":
             loop.close()
             
         except Exception as e:
-            print(f"❌ خطأ في إعداد رسالة الترحيب: {e}")
+            pass
     
     # بدء البوت
     start_bot()
@@ -320,5 +318,4 @@ if __name__ == "__main__":
     threading.Thread(target=send_startup_notification, daemon=True).start()
     
     # تشغيل تطبيق Flask الرئيسي
-    print(f"🌐 تشغيل السيرفر على http://0.0.0.0:{PORT}")
     app.run(host='0.0.0.0', port=PORT, debug=False)
