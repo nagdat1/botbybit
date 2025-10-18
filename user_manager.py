@@ -245,6 +245,22 @@ class UserManager:
             logger.error(f"خطأ في تحديث إعدادات المستخدم {user_id}: {e}")
             return False
     
+    def update_user(self, user_id: int, data: Dict) -> bool:
+        """تحديث بيانات المستخدم العامة"""
+        try:
+            # تحديث في قاعدة البيانات
+            success = db_manager.update_user_data(user_id, data)
+            if success:
+                # تحديث في الذاكرة المؤقتة
+                if user_id in self.users:
+                    self.users[user_id].update(data)
+                logger.info(f"تم تحديث بيانات المستخدم {user_id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"خطأ في تحديث بيانات المستخدم {user_id}: {e}")
+            return False
+    
     def is_user_active(self, user_id: int) -> bool:
         """التحقق من حالة المستخدم النشط"""
         user_data = self.get_user(user_id)

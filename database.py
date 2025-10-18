@@ -39,7 +39,13 @@ class DatabaseManager:
                         notifications BOOLEAN DEFAULT 1,
                         preferred_symbols TEXT DEFAULT '["BTCUSDT", "ETHUSDT"]',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        daily_loss REAL DEFAULT 0.0,
+                        weekly_loss REAL DEFAULT 0.0,
+                        total_loss REAL DEFAULT 0.0,
+                        last_reset_date TEXT,
+                        last_reset_week TEXT,
+                        last_loss_update TEXT
                     )
                 """)
                 
@@ -146,8 +152,44 @@ class DatabaseManager:
                 conn.commit()
                 logger.info("تم تهيئة قاعدة البيانات بنجاح")
                 
+                # إضافة الحقول الجديدة للجداول الموجودة
+                self._add_missing_columns()
+                
         except Exception as e:
             logger.error(f"خطأ في تهيئة قاعدة البيانات: {e}")
+    
+    def _add_missing_columns(self):
+        """إضافة الحقول المفقودة للجداول الموجودة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # إضافة حقول إدارة المخاطر لجدول users
+                columns_to_add = [
+                    ("daily_loss", "REAL DEFAULT 0.0"),
+                    ("weekly_loss", "REAL DEFAULT 0.0"),
+                    ("total_loss", "REAL DEFAULT 0.0"),
+                    ("last_reset_date", "TEXT"),
+                    ("last_reset_week", "TEXT"),
+                    ("last_loss_update", "TEXT")
+                ]
+                
+                for column_name, column_def in columns_to_add:
+                    try:
+                        cursor.execute(f"ALTER TABLE users ADD COLUMN {column_name} {column_def}")
+                        logger.info(f"تم إضافة العمود {column_name} لجدول users")
+                    except Exception as e:
+                        # العمود موجود بالفعل
+                        if "duplicate column name" in str(e).lower():
+                            logger.debug(f"العمود {column_name} موجود بالفعل")
+                        else:
+                            logger.error(f"خطأ في إضافة العمود {column_name}: {e}")
+                
+                conn.commit()
+                logger.info("تم تحديث قاعدة البيانات بالحقول الجديدة")
+                
+        except Exception as e:
+            logger.error(f"خطأ في إضافة الحقول المفقودة: {e}")
             raise
     
     @contextmanager
@@ -346,6 +388,37 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"خطأ في تحديث إعدادات المستخدم {user_id}: {e}")
+            return False
+    
+    def update_user_data(self, user_id: int, data: Dict) -> bool:
+        """تحديث بيانات المستخدم العامة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # بناء استعلام التحديث
+                set_clauses = []
+                values = []
+                
+                for key, value in data.items():
+                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active']:
+                        set_clauses.append(f"{key} = ?")
+                        values.append(value)
+                
+                if not set_clauses:
+                    return True  # لا يوجد شيء للتحديث
+                
+                query = f"UPDATE users SET {', '.join(set_clauses)} WHERE user_id = ?"
+                values.append(user_id)
+                
+                cursor.execute(query, values)
+                conn.commit()
+                
+                logger.info(f"تم تحديث بيانات المستخدم {user_id}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث بيانات المستخدم {user_id}: {e}")
             return False
     
     # إدارة الصفقات
