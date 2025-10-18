@@ -174,6 +174,10 @@ class TradingAccount:
         # نظام محافظ الصفقات للفيوتشر فقط باستخدام ID الصفقة
         self.futures_position_wallets: Dict[str, Dict[str, float]] = {}
         
+        # نظام أسماء الصفقات المخصصة
+        self.custom_position_names: Dict[str, str] = {}  # اسم مخصص -> ID الصفقة
+        self.position_custom_names: Dict[str, str] = {}  # ID الصفقة -> اسم مخصص
+        
     def get_available_balance(self) -> float:
         """الحصول على الرصيد المتاح (الرصيد الكلي - الهامش المحجوز)"""
         return self.balance - self.margin_locked
@@ -310,12 +314,22 @@ class TradingAccount:
             logger.error(f"خطأ في فتح صفقة الفيوتشر: {e}")
             return False, str(e)
     
-    def open_spot_position(self, symbol: str, side: str, amount: float, price: float, position_id: str = None) -> tuple[bool, str]:
+    def open_spot_position(self, symbol: str, side: str, amount: float, price: float, position_id: str = None, custom_name: str = None) -> tuple[bool, str]:
         """فتح صفقة سبوت مع المحفظة الواحدة (كشخص حقيقي)"""
         try:
             # استخدام ID الصفقة المحدد أو إنشاء واحد جديد
             if not position_id:
                 position_id = f"{symbol}_{int(time.time() * 1000000)}"
+            
+            # إذا تم تحديد اسم مخصص، استخدمه للبحث عن صفقة موجودة
+            if custom_name:
+                existing_position_id = self.get_position_by_custom_name(custom_name)
+                if existing_position_id and existing_position_id in self.positions:
+                    position_id = existing_position_id
+                    logger.info(f"تم العثور على صفقة موجودة بالاسم المخصص '{custom_name}': {position_id}")
+                else:
+                    # إنشاء صفقة جديدة وتعيين الاسم المخصص لها
+                    logger.info(f"إنشاء صفقة جديدة بالاسم المخصص '{custom_name}': {position_id}")
             
             base_currency = self.extract_base_currency(symbol)
             
@@ -384,6 +398,10 @@ class TradingAccount:
             
             self.positions[position_id] = position_info
             
+            # تعيين الاسم المخصص إذا تم تحديده
+            if custom_name:
+                self.set_custom_position_name(position_id, custom_name)
+            
             logger.info(f"تم فتح صفقة سبوت: {symbol} {side} {amount}, ID: {position_id}")
             return True, position_id
             
@@ -444,9 +462,18 @@ class TradingAccount:
             logger.error(f"خطأ في إغلاق صفقة الفيوتشر: {e}")
             return False, {"error": str(e)}
     
-    def close_spot_position(self, position_id: str, closing_price: float) -> tuple[bool, dict]:
+    def close_spot_position(self, position_id: str, closing_price: float, custom_name: str = None) -> tuple[bool, dict]:
         """إغلاق صفقة سبوت مع المحفظة الواحدة (كشخص حقيقي)"""
         try:
+            # إذا تم تحديد اسم مخصص، استخدمه للبحث عن الصفقة
+            if custom_name:
+                found_position_id = self.get_position_by_custom_name(custom_name)
+                if found_position_id:
+                    position_id = found_position_id
+                    logger.info(f"تم العثور على الصفقة بالاسم المخصص '{custom_name}': {position_id}")
+                else:
+                    return False, {"error": f"لم يتم العثور على صفقة بالاسم المخصص '{custom_name}'"}
+            
             if position_id not in self.positions:
                 return False, {"error": "الصفقة غير موجودة"}
             
@@ -528,8 +555,9 @@ class TradingAccount:
             else:
                 self.losing_trades += 1
             
-            # حذف الصفقة فقط (لا نحذف المحفظة لأنها مشتركة)
+            # حذف الصفقة والاسم المخصص
             del self.positions[position_id]
+            self.remove_custom_position_name(position_id)
             
             logger.info(f"تم إغلاق صفقة سبوت: {position['symbol']} PnL: {pnl:.2f}")
             return True, trade_record
@@ -538,9 +566,18 @@ class TradingAccount:
             logger.error(f"خطأ في إغلاق صفقة السبوت: {e}")
             return False, {"error": str(e)}
     
-    def close_spot_position_partial(self, position_id: str, percentage: float, closing_price: float) -> tuple[bool, dict]:
+    def close_spot_position_partial(self, position_id: str, percentage: float, closing_price: float, custom_name: str = None) -> tuple[bool, dict]:
         """إغلاق جزئي لصفقة سبوت مع المحفظة الواحدة (كشخص حقيقي)"""
         try:
+            # إذا تم تحديد اسم مخصص، استخدمه للبحث عن الصفقة
+            if custom_name:
+                found_position_id = self.get_position_by_custom_name(custom_name)
+                if found_position_id:
+                    position_id = found_position_id
+                    logger.info(f"تم العثور على الصفقة بالاسم المخصص '{custom_name}': {position_id}")
+                else:
+                    return False, {"error": f"لم يتم العثور على صفقة بالاسم المخصص '{custom_name}'"}
+            
             if position_id not in self.positions:
                 return False, {"error": "الصفقة غير موجودة"}
             
@@ -658,6 +695,91 @@ class TradingAccount:
         
         wallet_summary['total_value_usdt'] = total_value_usdt
         return wallet_summary
+    
+    def set_custom_position_name(self, position_id: str, custom_name: str) -> bool:
+        """تعيين اسم مخصص للصفقة"""
+        try:
+            if position_id not in self.positions:
+                return False
+            
+            # إزالة الاسم القديم إذا كان موجوداً
+            if position_id in self.position_custom_names:
+                old_name = self.position_custom_names[position_id]
+                if old_name in self.custom_position_names:
+                    del self.custom_position_names[old_name]
+            
+            # تعيين الاسم الجديد
+            self.custom_position_names[custom_name] = position_id
+            self.position_custom_names[position_id] = custom_name
+            
+            logger.info(f"تم تعيين الاسم المخصص '{custom_name}' للصفقة {position_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطأ في تعيين الاسم المخصص: {e}")
+            return False
+    
+    def get_position_by_custom_name(self, custom_name: str) -> str:
+        """الحصول على ID الصفقة من الاسم المخصص"""
+        return self.custom_position_names.get(custom_name, None)
+    
+    def get_custom_name_by_position(self, position_id: str) -> str:
+        """الحصول على الاسم المخصص من ID الصفقة"""
+        return self.position_custom_names.get(position_id, None)
+    
+    def remove_custom_position_name(self, position_id: str) -> bool:
+        """إزالة الاسم المخصص للصفقة"""
+        try:
+            if position_id in self.position_custom_names:
+                custom_name = self.position_custom_names[position_id]
+                del self.custom_position_names[custom_name]
+                del self.position_custom_names[position_id]
+                logger.info(f"تم إزالة الاسم المخصص '{custom_name}' للصفقة {position_id}")
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في إزالة الاسم المخصص: {e}")
+            return False
+    
+    def list_custom_position_names(self) -> dict:
+        """عرض جميع أسماء الصفقات المخصصة"""
+        return {
+            'custom_names': dict(self.custom_position_names),
+            'position_names': dict(self.position_custom_names)
+        }
+    
+    def get_position_info_with_custom_name(self, position_id: str = None, custom_name: str = None) -> dict:
+        """الحصول على معلومات الصفقة مع الاسم المخصص"""
+        try:
+            if custom_name:
+                position_id = self.get_position_by_custom_name(custom_name)
+                if not position_id:
+                    return {"error": f"لم يتم العثور على صفقة بالاسم المخصص '{custom_name}'"}
+            
+            if not position_id or position_id not in self.positions:
+                return {"error": "الصفقة غير موجودة"}
+            
+            position = self.positions[position_id]
+            custom_name = self.get_custom_name_by_position(position_id)
+            
+            position_info = {
+                'position_id': position_id,
+                'custom_name': custom_name,
+                'symbol': position['symbol'],
+                'side': position['side'],
+                'amount': position['amount'],
+                'price': position['price'],
+                'market_type': position['market_type'],
+                'timestamp': position['timestamp'],
+                'unrealized_pnl': position.get('unrealized_pnl', 0.0)
+            }
+            
+            return position_info
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات الصفقة: {e}")
+            return {"error": str(e)}
     
     def update_positions_pnl(self, prices: Dict[str, float]):
         """تحديث الربح/الخسارة غير المحققة لجميع الصفقات"""
