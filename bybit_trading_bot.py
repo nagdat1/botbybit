@@ -3105,7 +3105,7 @@ async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_T
         })
         
         # تبديل الحالة
-        risk_settings.get('enabled', True) = not risk_settings.get('enabled', True)
+        risk_settings['enabled'] = not risk_settings.get('enabled', True)
         
         # حفظ الإعدادات
         user_manager.update_user(user_id, {'risk_management': risk_settings})
@@ -3258,7 +3258,7 @@ async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFA
         })
         
         # تبديل الحالة
-        risk_settings.get('stop_trading_on_loss', True) = not risk_settings.get('stop_trading_on_loss', True)
+        risk_settings['stop_trading_on_loss'] = not risk_settings.get('stop_trading_on_loss', True)
         
         # حفظ الإعدادات
         user_manager.update_user(user_id, {'risk_management': risk_settings})
@@ -7886,7 +7886,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings.get('max_loss_percent', 10.0) = percent
+                        risk_settings['max_loss_percent'] = percent
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
@@ -7908,7 +7908,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings.get('max_loss_amount', 1000.0) = amount
+                        risk_settings['max_loss_amount'] = amount
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
@@ -7930,7 +7930,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings.get('daily_loss_limit', 500.0) = limit
+                        risk_settings['daily_loss_limit'] = limit
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
@@ -7952,7 +7952,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_data = user_manager.get_user(user_id)
                     if user_data:
                         risk_settings = user_data.get('risk_management', {})
-                        risk_settings.get('weekly_loss_limit', 2000.0) = limit
+                        risk_settings['weekly_loss_limit'] = limit
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
                     del user_input_state[user_id]
