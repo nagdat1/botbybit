@@ -282,16 +282,16 @@ class TradingAccount:
         
         return wallet_summary
     
-    def open_futures_position(self, symbol: str, side: str, margin_amount: float, price: float, leverage: int = 1) -> tuple[bool, str]:
-        """فتح صفقة فيوتشر جديدة"""
+    def open_futures_position(self, symbol: str, side: str, margin_amount: float, price: float, leverage: int = 1, custom_name: str = None) -> tuple[bool, str]:
+        """فتح صفقة فيوتشر جديدة - البيع والشراء صفقات منفصلة"""
         try:
             available_balance = self.get_available_balance()
             
             if available_balance < margin_amount:
                 return False, f"الرصيد غير كافي. متاح: {available_balance:.2f}, مطلوب: {margin_amount:.2f}"
             
-            # إنشاء معرف فريد لل صفقة
-            position_id = f"{symbol}_{int(time.time() * 1000000)}"
+            # إنشاء معرف فريد للصفقة (حتى لو كان الاسم موحد)
+            position_id = f"{symbol}_{side}_{int(time.time() * 1000000)}"
             
             # إنشاء صفقة جديدة
             position = FuturesPosition(
@@ -307,6 +307,13 @@ class TradingAccount:
             self.margin_locked += margin_amount
             self.positions[position_id] = position
             
+            # تعيين الاسم المخصص إذا تم تحديده (للاستخدام في الإغلاق والأهداف)
+            if custom_name:
+                # إضافة الجانب للاسم لتمييز البيع عن الشراء
+                side_specific_name = f"{custom_name}_{side.upper()}"
+                self.set_custom_position_name(position_id, side_specific_name)
+                logger.info(f"تم تعيين الاسم المخصص '{side_specific_name}' للصفقة {position_id}")
+            
             logger.info(f"تم فتح صفقة فيوتشر: {symbol} {side} {margin_amount} برافعة {leverage}x, ID: {position_id}")
             return True, position_id
             
@@ -315,12 +322,8 @@ class TradingAccount:
             return False, str(e)
     
     def open_spot_position(self, symbol: str, side: str, amount: float, price: float, position_id: str = None, custom_name: str = None) -> tuple[bool, str]:
-        """فتح صفقة سبوت مع المحفظة الواحدة (كشخص حقيقي)"""
+        """فتح صفقة سبوت مع المحفظة الواحدة - البيع والشراء نفس الصفقة"""
         try:
-            # استخدام ID الصفقة المحدد أو إنشاء واحد جديد
-            if not position_id:
-                position_id = f"{symbol}_{int(time.time() * 1000000)}"
-            
             # إذا تم تحديد اسم مخصص، استخدمه للبحث عن صفقة موجودة
             if custom_name:
                 existing_position_id = self.get_position_by_custom_name(custom_name)
@@ -329,7 +332,13 @@ class TradingAccount:
                     logger.info(f"تم العثور على صفقة موجودة بالاسم المخصص '{custom_name}': {position_id}")
                 else:
                     # إنشاء صفقة جديدة وتعيين الاسم المخصص لها
+                    if not position_id:
+                        position_id = f"{symbol}_{int(time.time() * 1000000)}"
                     logger.info(f"إنشاء صفقة جديدة بالاسم المخصص '{custom_name}': {position_id}")
+            else:
+                # استخدام ID الصفقة المحدد أو إنشاء واحد جديد
+                if not position_id:
+                    position_id = f"{symbol}_{int(time.time() * 1000000)}"
             
             base_currency = self.extract_base_currency(symbol)
             
@@ -409,11 +418,26 @@ class TradingAccount:
             logger.error(f"خطأ في فتح صفقة السبوت: {e}")
             return False, str(e)
     
-    def close_futures_position(self, position_id: str, closing_price: float) -> tuple[bool, dict]:
+    def close_futures_position(self, position_id: str, closing_price: float, custom_name: str = None, side: str = None) -> tuple[bool, dict]:
         """إغلاق صفقة فيوتشر"""
         try:
+            # إذا تم تحديد اسم مخصص، استخدمه للبحث عن الصفقة
+            if custom_name:
+                if side:
+                    # البحث عن صفقة الفيوتشر بالاسم والجانب
+                    found_position_id = self.get_futures_position_by_custom_name(custom_name, side)
+                else:
+                    # البحث عن أي صفقة بالاسم
+                    found_position_id = self.get_position_by_custom_name(custom_name)
+                
+                if found_position_id:
+                    position_id = found_position_id
+                    logger.info(f"تم العثور على صفقة الفيوتشر بالاسم المخصص '{custom_name}': {position_id}")
+                else:
+                    return False, {"error": f"لم يتم العثور على صفقة فيوتشر بالاسم المخصص '{custom_name}'"}
+            
             if position_id not in self.positions:
-                return False, {"error": "ال صفقة غير موجودة"}
+                return False, {"error": "الصفقة غير موجودة"}
             
             position = self.positions[position_id]
             
@@ -452,8 +476,9 @@ class TradingAccount:
             else:
                 self.losing_trades += 1
             
-            # حذف الصفقة
+            # حذف الصفقة والاسم المخصص
             del self.positions[position_id]
+            self.remove_custom_position_name(position_id)
             
             logger.info(f"تم إغلاق صفقة فيوتشر: {position.symbol} PnL: {realized_pnl:.2f}")
             return True, trade_record
@@ -723,6 +748,19 @@ class TradingAccount:
         """الحصول على ID الصفقة من الاسم المخصص"""
         return self.custom_position_names.get(custom_name, None)
     
+    def get_futures_position_by_custom_name(self, custom_name: str, side: str = None) -> str:
+        """الحصول على ID صفقة الفيوتشر من الاسم المخصص مع الجانب"""
+        if side:
+            # البحث عن الصفقة بالاسم والجانب المحدد
+            side_specific_name = f"{custom_name}_{side.upper()}"
+            return self.custom_position_names.get(side_specific_name, None)
+        else:
+            # البحث عن أي صفقة بالاسم الأساسي
+            for name, position_id in self.custom_position_names.items():
+                if name.startswith(f"{custom_name}_"):
+                    return position_id
+            return None
+    
     def get_custom_name_by_position(self, position_id: str) -> str:
         """الحصول على الاسم المخصص من ID الصفقة"""
         return self.position_custom_names.get(position_id, None)
@@ -779,6 +817,50 @@ class TradingAccount:
             
         except Exception as e:
             logger.error(f"خطأ في الحصول على معلومات الصفقة: {e}")
+            return {"error": str(e)}
+    
+    def list_all_positions_with_names(self) -> dict:
+        """عرض جميع الصفقات مع أسمائها المخصصة"""
+        try:
+            positions_info = {}
+            
+            for position_id, position in self.positions.items():
+                custom_name = self.get_custom_name_by_position(position_id)
+                
+                if isinstance(position, FuturesPosition):
+                    # صفقة فيوتشر
+                    positions_info[position_id] = {
+                        'custom_name': custom_name,
+                        'symbol': position.symbol,
+                        'side': position.side,
+                        'margin_amount': position.margin_amount,
+                        'entry_price': position.entry_price,
+                        'leverage': position.leverage,
+                        'market_type': 'futures',
+                        'timestamp': position.timestamp,
+                        'unrealized_pnl': position.unrealized_pnl
+                    }
+                else:
+                    # صفقة سبوت
+                    positions_info[position_id] = {
+                        'custom_name': custom_name,
+                        'symbol': position['symbol'],
+                        'side': position['side'],
+                        'amount': position['amount'],
+                        'price': position['price'],
+                        'market_type': 'spot',
+                        'timestamp': position['timestamp'],
+                        'unrealized_pnl': position.get('unrealized_pnl', 0.0)
+                    }
+            
+            return {
+                'total_positions': len(positions_info),
+                'positions': positions_info,
+                'custom_names': dict(self.custom_position_names)
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في عرض الصفقات: {e}")
             return {"error": str(e)}
     
     def update_positions_pnl(self, prices: Dict[str, float]):
