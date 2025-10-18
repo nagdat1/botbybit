@@ -5348,132 +5348,181 @@ exampleInputEmail: {time_str}
             await update.message.reply_text(f"❌ خطأ في عرض تاريخ التداول: {e}")
 
 async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض معلومات المحفظة مع تفاصيل الفيوتشر"""
+    """عرض نظرة عامة ذكية على المحفظة مع دعم متعدد المنصات"""
+    if update.effective_user is None:
+        return
+    
+    user_id = update.effective_user.id
+    user_data = user_manager.get_user(user_id)
+    
+    if not user_data:
+        await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+        return
+    
     try:
-        user_id = update.effective_user.id
-        user_data = user_manager.get_user(user_id)
-        
         # التحقق من نوع الحساب
-        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
-        exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
+        account_type = user_data.get('account_type', 'demo')
+        market_type = user_data.get('market_type', 'spot')
         
-        # إذا كان حساب حقيقي، جلب البيانات من المنصة
-        if account_type == 'real' and exchange:
-            from real_account_manager import real_account_manager
+        wallet_message = "💰 **المحفظة الذكية**\n\n"
+        
+        if account_type == 'demo':
+            # عرض الحساب التجريبي
+            wallet_message += "🟢 **الحساب التجريبي**\n"
             
-            real_account = real_account_manager.get_account(user_id)
+            # الحصول على بيانات الحسابات التجريبية
+            spot_account = trading_bot.demo_account_spot
+            futures_account = trading_bot.demo_account_futures
             
-            if real_account:
-                balance = real_account.get_wallet_balance()
-                
-                if balance:
-                    # عرض المحفظة الحقيقية
-                    total_equity = balance.get('total_equity', 0)
-                    available_balance = balance.get('available_balance', 0)
-                    unrealized_pnl = balance.get('unrealized_pnl', 0)
-                    
-                    pnl_emoji = "🟢💰" if unrealized_pnl >= 0 else "🔴💸"
-                    
-                    coins_text = ""
-                    for coin, info in balance.get('coins', {}).items():
-                        if info.get('equity', 0) > 0:
-                            coins_text += f"\n💎 {coin}: {info['equity']:.4f}"
-                    
-                    if not coins_text:
-                        coins_text = "\n• لا يوجد رصيد"
-                    
-                    wallet_message = f"""
-💰 **محفظة {exchange.upper()} الحقيقية**
+            spot_info = spot_account.get_account_info()
+            futures_info = futures_account.get_account_info()
+            
+            # حساب الإجماليات
+            total_balance = spot_info['balance'] + futures_info['balance']
+            total_available = spot_info.get('available_balance', spot_info['balance']) + futures_info.get('available_balance', futures_info['balance'])
+            total_margin_locked = spot_info.get('margin_locked', 0) + futures_info.get('margin_locked', 0)
+            total_equity = spot_info.get('equity', spot_info['balance']) + futures_info.get('equity', futures_info['balance'])
+            total_pnl = spot_info['unrealized_pnl'] + futures_info['unrealized_pnl']
+            total_open_positions = spot_info['open_positions'] + futures_info['open_positions']
+            
+            # حساب إحصائيات التداول
+            total_trades = spot_info['total_trades'] + futures_info['total_trades']
+            total_winning_trades = spot_info['winning_trades'] + futures_info['winning_trades']
+            total_losing_trades = spot_info['losing_trades'] + futures_info['losing_trades']
+            total_win_rate = round((total_winning_trades / max(total_trades, 1)) * 100, 2)
+            
+            # تحديد حالة PnL
+            if total_pnl > 0:
+                total_pnl_arrow = "📈"
+                total_pnl_status = "ربح"
+            elif total_pnl < 0:
+                total_pnl_arrow = "📉"
+                total_pnl_status = "خسارة"
+            else:
+                total_pnl_arrow = "➖"
+                total_pnl_status = "متعادل"
+            
+            wallet_message += f"""
+📊 **الرصيد التجريبي:**
+💳 الرصيد الكلي: {total_balance:.2f} USDT
+💳 الرصيد المتاح: {total_available:.2f} USDT
+🔒 الهامش المحجوز: {total_margin_locked:.2f} USDT
+💼 القيمة الصافية: {total_equity:.2f} USDT
+{total_pnl_arrow} إجمالي PnL: {total_pnl:.2f} USDT - {total_pnl_status}
 
-🔐 **نوع الحساب:** حقيقي ✅
-
-📊 **الملخص:**
-{pnl_emoji} القيمة الإجمالية: ${total_equity:,.2f}
-💳 الرصيد المتاح: ${available_balance:,.2f}
-📈 الربح/الخسارة غير المحققة: ${unrealized_pnl:,.2f}
-
-💎 **الأرصدة:**{coins_text}
-
-⚡ **البيانات مباشرة من المنصة**
-"""
-                    
-                    if update.message:
-                        await update.message.reply_text(wallet_message, parse_mode='Markdown')
-                    else:
-                        await update.callback_query.message.reply_text(wallet_message, parse_mode='Markdown')
-                    return
-        
-        # إذا كان حساب تجريبي، استخدم البيانات التجريبية
-        spot_account = trading_bot.demo_account_spot
-        futures_account = trading_bot.demo_account_futures
-        
-        spot_info = spot_account.get_account_info()
-        futures_info = futures_account.get_account_info()
-        
-        # حساب الإجمالي
-        total_balance = spot_info['balance'] + futures_info['balance']
-        total_available = spot_info.get('available_balance', spot_info['balance']) + futures_info.get('available_balance', futures_info['balance'])
-        total_margin_locked = spot_info.get('margin_locked', 0) + futures_info.get('margin_locked', 0)
-        total_equity = spot_info.get('equity', spot_info['balance']) + futures_info.get('equity', futures_info['balance'])
-        total_pnl = spot_info['unrealized_pnl'] + futures_info['unrealized_pnl']
-        total_trades = spot_info['total_trades'] + futures_info['total_trades']
-        total_open_positions = spot_info['open_positions'] + futures_info['open_positions']
-        
-        # تحديد مؤشرات الربح/الخسارة
-        total_pnl_emoji = "🟢💰" if total_pnl >= 0 else "🔴💸"
-        total_pnl_arrow = "⬆️💚" if total_pnl >= 0 else "⬇️💔"
-        total_pnl_status = "رابحة" if total_pnl >= 0 else "خاسرة"
-        
-        spot_pnl_emoji = "🟢💰" if spot_info['unrealized_pnl'] >= 0 else "🔴💸"
-        futures_pnl_emoji = "🟢💰" if futures_info['unrealized_pnl'] >= 0 else "🔴💸"
-        
-        # حساب معدل النجاح الإجمالي
-        total_winning_trades = spot_info['winning_trades'] + futures_info['winning_trades']
-        total_losing_trades = spot_info['losing_trades'] + futures_info['losing_trades']
-        total_win_rate = round((total_winning_trades / max(total_trades, 1)) * 100, 2)
-        
-        wallet_message = f"""
-💰 معلومات المحفظة الشاملة
-
-📊 ملخص الحسابات:
-{spot_pnl_emoji} السبوت: {spot_info['balance']:.2f}
-   💳 المتاح: {spot_info.get('available_balance', spot_info['balance']):.2f}
-   📈 PnL: {spot_info['unrealized_pnl']:.2f}
-
-{futures_pnl_emoji} الفيوتشر: {futures_info['balance']:.2f}
-   💳 المتاح: {futures_info.get('available_balance', futures_info['balance']):.2f}
-   🔒 الهامش المحجوز: {futures_info.get('margin_locked', 0):.2f}
-   💼 القيمة الصافية: {futures_info.get('equity', futures_info['balance']):.2f}
-   📈 PnL: {futures_info['unrealized_pnl']:.2f}
-   📊 نسبة الهامش: {futures_info.get('margin_ratio', '∞')}
-
-📈 الإجمالي:
-{total_pnl_emoji} الرصيد الكلي: {total_balance:.2f}
-💳 الرصيد المتاح: {total_available:.2f}
-🔒 الهامش المحجوز: {total_margin_locked:.2f}
-💼 القيمة الصافية: {total_equity:.2f}
-{total_pnl_arrow} إجمالي PnL: {total_pnl:.2f} - {total_pnl_status}
-
-📊 إحصائيات التداول:
+📈 **إحصائيات التداول:**
 🔄 الصفقات المفتوحة: {total_open_positions}
-📈 إجمالي الصفقات: {total_trades}
+📊 إجمالي الصفقات: {total_trades}
 ✅ الصفقات الرابحة: {total_winning_trades}
 ❌ الصفقات الخاسرة: {total_losing_trades}
 🎯 معدل النجاح: {total_win_rate}%
 
-⚡ إعدادات التداول الحالية:
-🏪 نوع السوق: {trading_bot.user_settings['market_type'].upper()}
-💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']}
+🏪 **تفاصيل الحسابات:**
+• السبوت: {spot_info['balance']:.2f} USDT
+• الفيوتشر: {futures_info['balance']:.2f} USDT
+            """
+            
+        else:
+            # عرض الحساب الحقيقي
+            wallet_message += "🔴 **الحساب الحقيقي**\n"
+            
+            # التحقق من المنصات المرتبطة
+            bybit_connected = user_data.get('bybit_api_connected', False)
+            mexc_connected = user_data.get('mexc_api_connected', False)
+            
+            total_real_balance = 0
+            total_real_available = 0
+            total_real_pnl = 0
+            total_real_positions = 0
+            
+            if bybit_connected:
+                try:
+                    # الحصول على بيانات Bybit
+                    bybit_account = user_manager.get_user_account(user_id, 'bybit')
+                    if bybit_account:
+                        bybit_info = bybit_account.get_account_info()
+                        total_real_balance += bybit_info.get('balance', 0)
+                        total_real_available += bybit_info.get('available_balance', 0)
+                        total_real_pnl += bybit_info.get('unrealized_pnl', 0)
+                        total_real_positions += bybit_info.get('open_positions', 0)
+                        
+                        wallet_message += f"""
+🏦 **Bybit:**
+💳 الرصيد: {bybit_info.get('balance', 0):.2f} USDT
+💳 المتاح: {bybit_info.get('available_balance', 0):.2f} USDT
+📈 PnL: {bybit_info.get('unrealized_pnl', 0):.2f} USDT
+🔄 الصفقات: {bybit_info.get('open_positions', 0)}
+                        """
+                except Exception as e:
+                    logger.error(f"خطأ في جلب بيانات Bybit: {e}")
+                    wallet_message += "\n🏦 **Bybit:** ❌ خطأ في الاتصال\n"
+            
+            if mexc_connected:
+                try:
+                    # الحصول على بيانات MEXC
+                    mexc_account = user_manager.get_user_account(user_id, 'mexc')
+                    if mexc_account:
+                        mexc_info = mexc_account.get_account_info()
+                        total_real_balance += mexc_info.get('balance', 0)
+                        total_real_available += mexc_info.get('available_balance', 0)
+                        total_real_pnl += mexc_info.get('unrealized_pnl', 0)
+                        total_real_positions += mexc_info.get('open_positions', 0)
+                        
+                        wallet_message += f"""
+🏦 **MEXC:**
+💳 الرصيد: {mexc_info.get('balance', 0):.2f} USDT
+💳 المتاح: {mexc_info.get('available_balance', 0):.2f} USDT
+📈 PnL: {mexc_info.get('unrealized_pnl', 0):.2f} USDT
+🔄 الصفقات: {mexc_info.get('open_positions', 0)}
+                        """
+                except Exception as e:
+                    logger.error(f"خطأ في جلب بيانات MEXC: {e}")
+                    wallet_message += "\n🏦 **MEXC:** ❌ خطأ في الاتصال\n"
+            
+            if not bybit_connected and not mexc_connected:
+                wallet_message += "\n⚠️ **لا توجد منصات مرتبطة**\n"
+                wallet_message += "اذهب إلى الإعدادات لربط حسابك الحقيقي\n"
+            else:
+                # عرض الإجمالي
+                if total_real_pnl > 0:
+                    total_pnl_arrow = "📈"
+                    total_pnl_status = "ربح"
+                elif total_real_pnl < 0:
+                    total_pnl_arrow = "📉"
+                    total_pnl_status = "خسارة"
+                else:
+                    total_pnl_arrow = "➖"
+                    total_pnl_status = "متعادل"
+                
+                wallet_message += f"""
+📊 **الإجمالي:**
+💳 الرصيد الكلي: {total_real_balance:.2f} USDT
+💳 الرصيد المتاح: {total_real_available:.2f} USDT
+{total_pnl_arrow} إجمالي PnL: {total_real_pnl:.2f} USDT - {total_pnl_status}
+🔄 الصفقات المفتوحة: {total_real_positions}
+                """
+        
+        # إضافة معلومات إضافية
+        wallet_message += f"""
+
+⚙️ **إعدادات التداول:**
+🏪 نوع السوق: {market_type.upper()}
+💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
 🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x
+🎯 Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
+🎯 Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
+
+📅 **معلومات الحساب:**
+👤 نوع الحساب: {account_type.upper()}
+🔗 حالة API: {'🟢 مرتبط' if user_data.get('api_connected', False) else '🔴 غير مرتبط'}
+📡 آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
         """
         
-        if update.message is not None:
-            await update.message.reply_text(wallet_message)
-            
+        await update.message.reply_text(wallet_message, parse_mode='Markdown')
+        
     except Exception as e:
         logger.error(f"خطأ في عرض المحفظة: {e}")
-        if update.message is not None:
-            await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {e}")
+        await update.message.reply_text("❌ خطأ في عرض معلومات المحفظة")
 
 async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض إحصائيات المستخدم المفصلة"""
