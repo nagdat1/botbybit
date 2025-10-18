@@ -3146,7 +3146,7 @@ async def set_max_loss_percent(update: Update, context: ContextTypes.DEFAULT_TYP
 
 مثال: 10 (يعني 10%)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -3172,7 +3172,7 @@ async def set_max_loss_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 مثال: 1000 (يعني 1000 USDT)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -3198,7 +3198,7 @@ async def set_daily_loss_limit(update: Update, context: ContextTypes.DEFAULT_TYP
 
 مثال: 500 (يعني 500 USDT في اليوم)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول حتى اليوم التالي
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -3224,7 +3224,7 @@ async def set_weekly_loss_limit(update: Update, context: ContextTypes.DEFAULT_TY
 
 مثال: 2000 (يعني 2000 USDT في الأسبوع)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول حتى الأسبوع التالي
+⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -3453,12 +3453,14 @@ async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TY
 • منع تنفيذ صفقات جديدة
 • إرسال إشعار للمستخدم
 • حماية الرصيد من المزيد من الخسائر
+• **ملاحظة مهمة:** الإيقاف يحدث فقط إذا كان هذا الخيار مفعل!
 
 ❌ **عند التعطيل:**
 • البوت يستمر في التداول حتى لو وصل للحدود
 • لا يوجد إيقاف تلقائي
 • لا يوجد حماية من المزيد من الخسائر
 • المخاطر عالية جداً
+• **تحذير:** حتى لو وصلت للحدود، البوت لن يتوقف!
 
 📊 **مثال عملي:**
 
@@ -7809,10 +7811,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة المئوي إلى: {percent}%")
-                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
-                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
-                        ]]))
+                        # العودة مباشرة إلى قائمة إدارة المخاطر
+                        await risk_management_menu(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال نسبة بين 1 و 50")
@@ -7833,10 +7833,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة بالمبلغ إلى: {amount} USDT")
-                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
-                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
-                        ]]))
+                        # العودة مباشرة إلى قائمة إدارة المخاطر
+                        await risk_management_menu(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -7857,10 +7855,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة اليومية إلى: {limit} USDT")
-                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
-                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
-                        ]]))
+                        # العودة مباشرة إلى قائمة إدارة المخاطر
+                        await risk_management_menu(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
@@ -7881,10 +7877,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     del user_input_state[user_id]
                     if update.message is not None:
                         await update.message.reply_text(f"✅ تم تحديث حد الخسارة الأسبوعية إلى: {limit} USDT")
-                        # إرسال رسالة جديدة بدلاً من تحديث الرسالة الحالية
-                        await update.message.reply_text("🛡️ إدارة المخاطر", reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton("🔙 رجوع إلى إدارة المخاطر", callback_data="risk_management_menu")
-                        ]]))
+                        # العودة مباشرة إلى قائمة إدارة المخاطر
+                        await risk_management_menu(update, context)
                 else:
                     if update.message is not None:
                         await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
