@@ -35,13 +35,7 @@ def send_railway_url_notification(webhook_url):
                 else:
                     environment = "💻 Local Development"
                 
-                message = f"🚀 بدء تشغيل بوت التداول متعدد المستخدمين\n\n"
-                message += f"🌍 البيئة: {environment}\n"
-                message += f"🌐 رابط استقبال الإشارات:\n`{webhook_url}`\n\n"
-                message += f"📡 استخدم هذا الرابط في TradingView لإرسال الإشارات\n"
-                message += f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                message += f"✅ البوت جاهز لاستقبال الإشارات من جميع المستخدمين!\n"
-                message += f"👥 البوت الآن يدعم عدد غير محدود من المستخدمين"
+                message = f"مرحبا ايها القائد\n⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 
                 await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
             except Exception as e:

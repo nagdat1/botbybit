@@ -272,13 +272,13 @@ def start_web_server():
     pass
 
 if __name__ == "__main__":
-    print("🚀 بدء تشغيل بوت التداول على Railway...")
+    print("مرحبا ايها القائد")
     print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🔗 المنفذ: {PORT}")
     
-    # إرسال إشعار بدء التشغيل
+    # إرسال رسالة الترحيب
     def send_startup_notification():
-        """إرسال إشعار بدء التشغيل عبر تلجرام"""
+        """إرسال رسالة الترحيب عبر تلجرام"""
         try:
             from config import TELEGRAM_TOKEN, ADMIN_USER_ID
             from telegram.ext import Application
@@ -298,18 +298,12 @@ if __name__ == "__main__":
                         webhook_url = f"http://localhost:{PORT}"
                         environment = "💻 Local Development"
                     
-                    message = f"🚀 بدء تشغيل بوت التداول متعدد المستخدمين\n\n"
-                    message += f"🌍 البيئة: {environment}\n"
-                    message += f"🌐 رابط استقبال الإشارات القديم:\n`{webhook_url}/webhook`\n\n"
-                    message += f"📡 رابط استقبال الإشارات الشخصي:\n`{webhook_url}/personal/YOUR_USER_ID/webhook`\n\n"
-                    message += f"✅ استخدم أحد الروابط أعلاه في TradingView\n"
-                    message += f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                    message += f"👥 البوت جاهز لاستقبال الإشارات!"
+                    message = f"مرحبا ايها القائد\n⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                     
                     await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
-                    print(f"✅ تم إرسال إشعار بدء التشغيل إلى تلجرام")
+                    print(f"✅ تم إرسال رسالة الترحيب إلى تلجرام")
                 except Exception as e:
-                    print(f"❌ خطأ في إرسال إشعار بدء التشغيل: {e}")
+                    print(f"❌ خطأ في إرسال رسالة الترحيب: {e}")
             
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -317,14 +311,14 @@ if __name__ == "__main__":
             loop.close()
             
         except Exception as e:
-            print(f"❌ خطأ في إعداد إشعار بدء التشغيل: {e}")
+            print(f"❌ خطأ في إعداد رسالة الترحيب: {e}")
     
     # بدء البوت
     start_bot()
     
-    # إرسال إشعار بدء التشغيل
+    # إرسال رسالة الترحيب
     threading.Thread(target=send_startup_notification, daemon=True).start()
     
     # تشغيل تطبيق Flask الرئيسي
-    print(f"🌐 تشغيل Flask Server على http://0.0.0.0:{PORT}")
+    print(f"🌐 تشغيل السيرفر على http://0.0.0.0:{PORT}")
     app.run(host='0.0.0.0', port=PORT, debug=False)

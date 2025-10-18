@@ -416,7 +416,7 @@ class WebServer:
             
             print(f"🌐 تم إعداد رابط Webhook: {self.current_url}")
             
-            # إرسال إشعار بدء التشغيل
+            # إرسال رسالة الترحيب
             self.send_startup_notification(self.current_url)
             
             return self.current_url
@@ -429,7 +429,7 @@ class WebServer:
             return local_url
 
     def send_startup_notification(self, current_url):
-        """إرسال إشعار بدء التشغيل"""
+        """إرسال رسالة الترحيب"""
         try:
             # التحقق مما إذا كان عنوان Railway متوفرًا
             railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
@@ -444,21 +444,19 @@ class WebServer:
                 display_url = current_url
                 
             notification_data = {
-                "رابط استقبال الإشارات": display_url,
-                "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                "الحالة": "السيرفر قيد التشغيل ✅"
+                "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             
             self.send_telegram_notification(
-                "🚀 بدء تشغيل السيرفر",
+                "مرحبا ايها القائد",
                 notification_data
             )
             
         except Exception as e:
-            print(f"❌ خطأ في إرسال إشعار بدء التشغيل: {e}")
+            print(f"❌ خطأ في إرسال رسالة الترحيب: {e}")
     
     def send_detailed_startup_notification(self, current_url, old_url=None):
-        """إرسال إشعار بدء التشغيل المفصل مع تفاصيل URL"""
+        """إرسال رسالة الترحيب المفصلة مع تفاصيل URL"""
         try:
             # If old_url is not provided, use the one from config
             if old_url is None:
@@ -494,18 +492,16 @@ class WebServer:
             else:
                 # Send notification for all other URLs
                 notification_data = {
-                    "الرابط الحالي": current_url,
-                    "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    "الحالة": "السيرفر قيد التشغيل ✅"
+                    "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }
                 
                 self.send_telegram_notification(
-                    "🚀 بدء تشغيل السيرفر",
+                    "مرحبا ايها القائد",
                     notification_data
                 )
             
         except Exception as e:
-            print(f"❌ خطأ في إرسال إشعار بدء التشغيل المفصل: {e}")
+            print(f"❌ خطأ في إرسال رسالة الترحيب المفصلة: {e}")
 
     def send_telegram_notification(self, title, data):
         """إرسال إشعار تلجرام"""

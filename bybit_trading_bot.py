@@ -2708,7 +2708,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("📖 دليل الإشارات"), KeyboardButton("🔙 الرجوع لحساب المطور")]
+            [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -2807,8 +2807,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-        [KeyboardButton("📖 دليل الإشارات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -3502,7 +3501,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # إضافة باقي الأزرار
     keyboard.extend([
         [InlineKeyboardButton(f"🤖 تطبيق تلقائي TP/SL {auto_status}", callback_data="auto_apply_menu")],
-        [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")]
+        [InlineKeyboardButton("🔗 رابط الإشارات", callback_data="webhook_url")],
+        [InlineKeyboardButton("📖 دليل الإشارات", callback_data="signal_guide")]
     ])
     
     # إضافة زر تشغيل/إيقاف البوت
@@ -5715,6 +5715,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_guide_tradingview(update, context)
     elif data == "guide_examples":
         await show_guide_examples(update, context)
+    elif data == "back_to_main":
+        await start(update, context)
     elif data == "auto_apply_menu":
         await auto_apply_settings_menu(update, context)
     elif data == "toggle_auto_apply":
@@ -8263,7 +8265,7 @@ def main():
     start_price_updates()
     
     # تشغيل البوت
-    logger.info("بدء تشغيل البوت...")
+    logger.info("مرحبا ايها القائد")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
