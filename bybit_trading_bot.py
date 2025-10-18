@@ -2922,14 +2922,33 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
             return
         
         # الحصول على إعدادات إدارة المخاطر
-        risk_settings = user_data.get('risk_management', {
-            'enabled': True,
-            'max_loss_percent': 10.0,  # الحد الأقصى للخسارة كنسبة مئوية
-            'max_loss_amount': 1000.0,  # الحد الأقصى للخسارة بالمبلغ
-            'stop_trading_on_loss': True,  # إيقاف التداول عند الوصول للحد
-            'daily_loss_limit': 500.0,  # حد الخسارة اليومية
-            'weekly_loss_limit': 2000.0  # حد الخسارة الأسبوعية
-        })
+        risk_management_raw = user_data.get('risk_management')
+        
+        # التأكد من أن risk_management هو dictionary
+        if isinstance(risk_management_raw, str):
+            try:
+                import json
+                risk_settings = json.loads(risk_management_raw)
+            except (json.JSONDecodeError, TypeError):
+                risk_settings = {
+                    'enabled': True,
+                    'max_loss_percent': 10.0,
+                    'max_loss_amount': 1000.0,
+                    'stop_trading_on_loss': True,
+                    'daily_loss_limit': 500.0,
+                    'weekly_loss_limit': 2000.0
+                }
+        elif isinstance(risk_management_raw, dict):
+            risk_settings = risk_management_raw
+        else:
+            risk_settings = {
+                'enabled': True,
+                'max_loss_percent': 10.0,
+                'max_loss_amount': 1000.0,
+                'stop_trading_on_loss': True,
+                'daily_loss_limit': 500.0,
+                'weekly_loss_limit': 2000.0
+            }
         
         enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
         stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
@@ -3106,14 +3125,7 @@ async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_T
             return
         
         # الحصول على إعدادات إدارة المخاطر الحالية
-        risk_settings = user_data.get('risk_management', {
-            'enabled': True,
-            'max_loss_percent': 10.0,
-            'max_loss_amount': 1000.0,
-            'stop_trading_on_loss': True,
-            'daily_loss_limit': 500.0,
-            'weekly_loss_limit': 2000.0
-        })
+        risk_settings = _get_risk_settings_safe(user_data)
         
         # تبديل الحالة
         risk_settings['enabled'] = not risk_settings.get('enabled', True)
@@ -3259,14 +3271,7 @@ async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFA
             return
         
         # الحصول على إعدادات إدارة المخاطر الحالية
-        risk_settings = user_data.get('risk_management', {
-            'enabled': True,
-            'max_loss_percent': 10.0,
-            'max_loss_amount': 1000.0,
-            'stop_trading_on_loss': True,
-            'daily_loss_limit': 500.0,
-            'weekly_loss_limit': 2000.0
-        })
+        risk_settings = _get_risk_settings_safe(user_data)
         
         # تبديل الحالة
         risk_settings['stop_trading_on_loss'] = not risk_settings.get('stop_trading_on_loss', True)
@@ -3313,7 +3318,7 @@ async def show_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         total_loss = user_data.get('total_loss', 0)
         
         # الحصول على إعدادات المخاطر
-        risk_settings = user_data.get('risk_management', {})
+        risk_settings = _get_risk_settings_safe(user_data)
         max_loss_percent = risk_settings.get('max_loss_percent', 10.0)
         max_loss_amount = risk_settings.get('max_loss_amount', 1000.0)
         daily_limit = risk_settings.get('daily_loss_limit', 500.0)
@@ -3402,6 +3407,30 @@ async def reset_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TY
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
+def _get_risk_settings_safe(user_data):
+    """الحصول على إعدادات إدارة المخاطر بشكل آمن"""
+    risk_management_raw = user_data.get('risk_management')
+    
+    # التأكد من أن risk_management هو dictionary
+    if isinstance(risk_management_raw, str):
+        try:
+            import json
+            return json.loads(risk_management_raw)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    elif isinstance(risk_management_raw, dict):
+        return risk_management_raw
+    
+    # القيم الافتراضية
+    return {
+        'enabled': True,
+        'max_loss_percent': 10.0,
+        'max_loss_amount': 1000.0,
+        'stop_trading_on_loss': True,
+        'daily_loss_limit': 500.0,
+        'weekly_loss_limit': 2000.0
+    }
+
 def _get_risk_recommendations(daily_percent, weekly_percent, total_loss, max_loss_amount):
     """الحصول على توصيات المخاطر"""
     recommendations = []
@@ -3436,14 +3465,33 @@ async def send_risk_management_menu(message, user_id: int):
             return
         
         # الحصول على إعدادات إدارة المخاطر
-        risk_settings = user_data.get('risk_management', {
-            'enabled': True,
-            'max_loss_percent': 10.0,
-            'max_loss_amount': 1000.0,
-            'stop_trading_on_loss': True,
-            'daily_loss_limit': 500.0,
-            'weekly_loss_limit': 2000.0
-        })
+        risk_management_raw = user_data.get('risk_management')
+        
+        # التأكد من أن risk_management هو dictionary
+        if isinstance(risk_management_raw, str):
+            try:
+                import json
+                risk_settings = json.loads(risk_management_raw)
+            except (json.JSONDecodeError, TypeError):
+                risk_settings = {
+                    'enabled': True,
+                    'max_loss_percent': 10.0,
+                    'max_loss_amount': 1000.0,
+                    'stop_trading_on_loss': True,
+                    'daily_loss_limit': 500.0,
+                    'weekly_loss_limit': 2000.0
+                }
+        elif isinstance(risk_management_raw, dict):
+            risk_settings = risk_management_raw
+        else:
+            risk_settings = {
+                'enabled': True,
+                'max_loss_percent': 10.0,
+                'max_loss_amount': 1000.0,
+                'stop_trading_on_loss': True,
+                'daily_loss_limit': 500.0,
+                'weekly_loss_limit': 2000.0
+            }
         
         enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
         stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
@@ -3634,14 +3682,7 @@ def check_risk_management(user_id: int, trade_result: dict) -> dict:
             return {'should_stop': False, 'message': 'No user data'}
         
         # الحصول على إعدادات إدارة المخاطر
-        risk_settings = user_data.get('risk_management', {
-            'enabled': True,
-            'max_loss_percent': 10.0,
-            'max_loss_amount': 1000.0,
-            'stop_trading_on_loss': True,
-            'daily_loss_limit': 500.0,
-            'weekly_loss_limit': 2000.0
-        })
+        risk_settings = _get_risk_settings_safe(user_data)
         
         if not risk_settings.get('enabled', True):
             return {'should_stop': False, 'message': 'Risk management disabled'}
@@ -4585,14 +4626,7 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # إعدادات التداول المتقدمة
         # فحص إعدادات إدارة المخاطر من بيانات المستخدم
-        risk_settings = user_data.get('risk_management', {
-            'enabled': True,
-            'max_loss_percent': 10.0,
-            'max_loss_amount': 1000.0,
-            'stop_trading_on_loss': True,
-            'daily_loss_limit': 500.0,
-            'weekly_loss_limit': 2000.0
-        })
+        risk_settings = _get_risk_settings_safe(user_data)
         
         risk_management_status = "مفعل" if risk_settings.get('enabled', True) else "معطل"
         
@@ -7896,7 +7930,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if 1 <= percent <= 50:
                     user_data = user_manager.get_user(user_id)
                     if user_data:
-                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings = _get_risk_settings_safe(user_data)
                         risk_settings['max_loss_percent'] = percent
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
@@ -7918,7 +7952,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if amount > 0:
                     user_data = user_manager.get_user(user_id)
                     if user_data:
-                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings = _get_risk_settings_safe(user_data)
                         risk_settings['max_loss_amount'] = amount
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
@@ -7940,7 +7974,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if limit > 0:
                     user_data = user_manager.get_user(user_id)
                     if user_data:
-                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings = _get_risk_settings_safe(user_data)
                         risk_settings['daily_loss_limit'] = limit
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
@@ -7962,7 +7996,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if limit > 0:
                     user_data = user_manager.get_user(user_id)
                     if user_data:
-                        risk_settings = user_data.get('risk_management', {})
+                        risk_settings = _get_risk_settings_safe(user_data)
                         risk_settings['weekly_loss_limit'] = limit
                         user_manager.update_user(user_id, {'risk_management': risk_settings})
                     
