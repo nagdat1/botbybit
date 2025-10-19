@@ -19,7 +19,18 @@ from bybit_trading_bot import trading_bot
 from web_server import WebServer
 from config import PORT
 
-# استيراد النظام المحسن
+# استيراد النظام المحسن والنظام الجديد
+try:
+    from signal_system_integration import signal_system_integration, process_signal_integrated
+    NEW_SYSTEM_AVAILABLE = signal_system_integration.is_available()
+    print(f"✅ نظام الإشارات الجديد متاح: {NEW_SYSTEM_AVAILABLE}")
+    if NEW_SYSTEM_AVAILABLE:
+        integration_status = signal_system_integration.get_integration_status()
+        print(f"📊 الأنظمة المتاحة: {integration_status['available_systems']}/{integration_status['total_systems']}")
+except ImportError as e:
+    NEW_SYSTEM_AVAILABLE = False
+    print(f"⚠️ نظام الإشارات الجديد غير متاح: {e}")
+
 try:
     from integrated_trading_system import IntegratedTradingSystem
     ENHANCED_SYSTEM_AVAILABLE = True
@@ -48,22 +59,38 @@ enhanced_system = None
 @app.route('/')
 def index():
     """الصفحة الرئيسية"""
-    system_status = "enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal"
+    system_status = "new" if NEW_SYSTEM_AVAILABLE else ("enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal")
+    
+    features = {}
+    if NEW_SYSTEM_AVAILABLE:
+        features = {
+            "advanced_signal_management": True,
+            "id_based_signal_linking": True,
+            "account_type_support": True,
+            "market_type_support": True,
+            "demo_real_accounts": True,
+            "spot_futures_support": True,
+            "enhanced_account_manager": True,
+            "complete_integration": True
+        }
+    elif ENHANCED_SYSTEM_AVAILABLE:
+        features = {
+            "advanced_risk_management": True,
+            "smart_signal_processing": True,
+            "optimized_trade_execution": True,
+            "portfolio_management": True,
+            "automatic_optimization": True
+        }
     
     return jsonify({
         "status": "running",
         "message": f"بوت التداول على Bybit يعمل بنجاح - النظام: {system_status}",
         "timestamp": datetime.now().isoformat(),
-        "version": "2.0.0" if ENHANCED_SYSTEM_AVAILABLE else "1.0.0",
+        "version": "3.0.0" if NEW_SYSTEM_AVAILABLE else ("2.0.0" if ENHANCED_SYSTEM_AVAILABLE else "1.0.0"),
         "system_type": system_status,
-        "enhanced_features": ENHANCED_SYSTEM_AVAILABLE,
-        "features": {
-            "advanced_risk_management": ENHANCED_SYSTEM_AVAILABLE,
-            "smart_signal_processing": ENHANCED_SYSTEM_AVAILABLE,
-            "optimized_trade_execution": ENHANCED_SYSTEM_AVAILABLE,
-            "portfolio_management": ENHANCED_SYSTEM_AVAILABLE,
-            "automatic_optimization": ENHANCED_SYSTEM_AVAILABLE
-        } if ENHANCED_SYSTEM_AVAILABLE else {}
+        "new_system_available": NEW_SYSTEM_AVAILABLE,
+        "enhanced_features": ENHANCED_SYSTEM_AVAILABLE or NEW_SYSTEM_AVAILABLE,
+        "features": features
     })
 
 @app.route('/health')
@@ -192,8 +219,12 @@ def personal_webhook(user_id):
                 
                 print(f"✅ [WEBHOOK شخصي - Thread] تم تطبيق إعدادات المستخدم {user_settings_copy['user_id']}")
                 
-                # معالجة الإشارة باستخدام النظام المحسن أو النظام العادي
-                if ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
+                # معالجة الإشارة باستخدام النظام الجديد أو المحسن أو العادي
+                if NEW_SYSTEM_AVAILABLE:
+                    print("🎯 معالجة الإشارة باستخدام النظام الجديد...")
+                    result = loop.run_until_complete(process_signal_integrated(data, user_settings_copy['user_id']))
+                    print(f"✅ [WEBHOOK جديد - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
+                elif ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
                     print("🚀 معالجة الإشارة باستخدام النظام المحسن...")
                     result = enhanced_system.process_signal(user_settings_copy['user_id'], data)
                     print(f"✅ [WEBHOOK محسن - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
@@ -220,8 +251,9 @@ def personal_webhook(user_id):
             "status": "success", 
             "message": f"Signal processing started for user {user_id}",
             "user_id": user_id,
-            "system_type": "enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal",
-            "enhanced_features": ENHANCED_SYSTEM_AVAILABLE
+            "system_type": "new" if NEW_SYSTEM_AVAILABLE else ("enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal"),
+            "new_system_available": NEW_SYSTEM_AVAILABLE,
+            "enhanced_features": ENHANCED_SYSTEM_AVAILABLE or NEW_SYSTEM_AVAILABLE
         }), 200
         
     except Exception as e:
@@ -373,7 +405,19 @@ if __name__ == "__main__":
     
     # عرض معلومات النظام
     print("\n" + "="*60)
-    if ENHANCED_SYSTEM_AVAILABLE:
+    if NEW_SYSTEM_AVAILABLE:
+        print("🎯 النظام الجديد متاح!")
+        print("✨ الميزات المتقدمة:")
+        print("   • إدارة إشارات متقدمة مع ID")
+        print("   • ربط الإشارات بنفس ID (اختياري)")
+        print("   • دعم الحسابات التجريبية والحقيقية")
+        print("   • دعم أسواق Spot و Futures")
+        print("   • إدارة حسابات محسنة")
+        print("   • معالجة إشارات متكاملة")
+        print("   • تتبع الصفقات والإحصائيات")
+        integration_status = signal_system_integration.get_integration_status()
+        print(f"   • الأنظمة المتاحة: {integration_status['available_systems']}/{integration_status['total_systems']}")
+    elif ENHANCED_SYSTEM_AVAILABLE:
         print("🚀 النظام المحسن متاح!")
         print("✨ الميزات المتقدمة:")
         print("   • إدارة مخاطر متقدمة")
@@ -383,7 +427,7 @@ if __name__ == "__main__":
         print("   • تحسين تلقائي")
     else:
         print("📝 النظام العادي يعمل")
-        print("⚠️ النظام المحسن غير متاح")
+        print("⚠️ الأنظمة المحسنة غير متاحة")
     print("="*60 + "\n")
     
     # تشغيل تطبيق Flask الرئيسي

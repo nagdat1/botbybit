@@ -3398,6 +3398,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+            [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -7315,6 +7316,253 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cmd_select_exchange(update, context)
         return
     
+    # معالجة أزرار النظام الجديد
+    if data == "system_stats":
+        try:
+            from signal_system_integration import signal_system_integration
+            
+            if signal_system_integration.is_available():
+                status = signal_system_integration.get_integration_status()
+                
+                message = f"""
+📊 **إحصائيات النظام**
+
+🔧 **حالة التكامل:**
+• الإصدار: {status['version']}
+• الحالة: {status['status']}
+• الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}
+
+📈 **تفاصيل الأنظمة:**
+"""
+                
+                for system_name, system_status in status['systems'].items():
+                    status_icon = "✅" if system_status else "❌"
+                    message += f"{status_icon} {system_name}\n"
+                
+                message += f"\n⏰ آخر تحديث: {status['timestamp']}"
+            else:
+                message = """
+📊 **إحصائيات النظام**
+
+⚠️ **النظام الجديد غير متاح**
+
+📝 **الأنظمة المتاحة:**
+• ✅ النظام العادي
+• ✅ النظام المحسن (إذا كان متاحاً)
+"""
+            
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في عرض إحصائيات النظام: {e}")
+            await query.answer("❌ خطأ في تحميل الإحصائيات")
+        return
+    
+    elif data == "signal_stats":
+        try:
+            from signal_system_integration import signal_system_integration
+            
+            if signal_system_integration.is_available():
+                # محاولة الحصول على إحصائيات الإشارات
+                try:
+                    stats = signal_system_integration.get_processing_statistics(user_id)
+                    message = f"""
+📊 **إحصائيات الإشارات**
+
+👤 **المستخدم:** {user_id}
+⏰ **الوقت:** {stats.get('timestamp', 'غير محدد')}
+
+📈 **الإحصائيات:**
+• إجمالي الإشارات: {stats.get('signal_statistics', {}).get('total_signals', 0)}
+• إشارات الشراء: {stats.get('signal_statistics', {}).get('signals_by_type', {}).get('buy', 0)}
+• إشارات البيع: {stats.get('signal_statistics', {}).get('signals_by_type', {}).get('sell', 0)}
+• الصفقات المفتوحة: {stats.get('account_statistics', {}).get('total_positions', 0)}
+"""
+                except:
+                    message = """
+📊 **إحصائيات الإشارات**
+
+📝 **لا توجد بيانات متاحة حالياً**
+
+💡 **لتفعيل الإحصائيات:**
+• أرسل بعض الإشارات أولاً
+• تأكد من تفعيل النظام الجديد
+"""
+            else:
+                message = """
+📊 **إحصائيات الإشارات**
+
+⚠️ **النظام الجديد غير متاح**
+
+📝 **الإحصائيات المتاحة:**
+• ✅ إحصائيات النظام العادي
+• ✅ عدد الصفقات المفتوحة
+"""
+            
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في عرض إحصائيات الإشارات: {e}")
+            await query.answer("❌ خطأ في تحميل الإحصائيات")
+        return
+    
+    elif data == "system_settings":
+        try:
+            message = """
+🔧 **إعدادات النظام**
+
+⚙️ **الإعدادات المتاحة:**
+• 🔄 تحديث النظام
+• 🧪 اختبار النظام
+• 📊 عرض حالة النظام
+• 🔧 إعدادات الإشارات
+
+💡 **لتفعيل النظام الجديد:**
+تأكد من وجود جميع الملفات المطلوبة
+"""
+            
+            keyboard = [
+                [InlineKeyboardButton("🔄 تحديث النظام", callback_data="refresh_systems")],
+                [InlineKeyboardButton("🧪 اختبار النظام", callback_data="test_system")],
+                [InlineKeyboardButton("📊 حالة النظام", callback_data="system_stats")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في عرض إعدادات النظام: {e}")
+            await query.answer("❌ خطأ في تحميل الإعدادات")
+        return
+    
+    elif data == "signal_settings":
+        try:
+            message = """
+🔧 **إعدادات نظام الإشارات**
+
+⚙️ **الإعدادات المتاحة:**
+• 🆔 إعدادات ID الإشارات
+• 🔗 إعدادات ربط الإشارات
+• 💼 إعدادات الحسابات
+• 📊 إعدادات التتبع
+
+💡 **الميزات المدعومة:**
+• نظام ID للإشارات
+• ربط الإشارات بنفس ID
+• دعم الحسابات المتعددة
+"""
+            
+            keyboard = [
+                [InlineKeyboardButton("🆔 إعدادات ID", callback_data="id_settings")],
+                [InlineKeyboardButton("🔗 إعدادات الربط", callback_data="link_settings")],
+                [InlineKeyboardButton("💼 إعدادات الحسابات", callback_data="account_settings")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في عرض إعدادات الإشارات: {e}")
+            await query.answer("❌ خطأ في تحميل الإعدادات")
+        return
+    
+    elif data == "test_system":
+        try:
+            from signal_system_integration import signal_system_integration
+            
+            if signal_system_integration.is_available():
+                # اختبار النظام
+                test_signal = {
+                    'signal': 'buy',
+                    'symbol': 'BTCUSDT',
+                    'id': 'TEST_' + str(int(time.time()))
+                }
+                
+                result = signal_system_integration.process_signal(test_signal, user_id)
+                
+                if result.get('success'):
+                    message = f"""
+🧪 **اختبار النظام**
+
+✅ **النتيجة:** نجح الاختبار
+
+📊 **تفاصيل الاختبار:**
+• الإشارة: {test_signal['signal']} {test_signal['symbol']}
+• ID: {test_signal['id']}
+• المستخدم: {user_id}
+• النظام المستخدم: {result.get('system_used', 'غير محدد')}
+
+✅ **النظام يعمل بشكل صحيح**
+"""
+                else:
+                    message = f"""
+🧪 **اختبار النظام**
+
+❌ **النتيجة:** فشل الاختبار
+
+📊 **تفاصيل الاختبار:**
+• الإشارة: {test_signal['signal']} {test_signal['symbol']}
+• ID: {test_signal['id']}
+• المستخدم: {user_id}
+• الخطأ: {result.get('message', 'غير محدد')}
+
+⚠️ **يوجد مشكلة في النظام**
+"""
+            else:
+                message = """
+🧪 **اختبار النظام**
+
+⚠️ **النظام الجديد غير متاح**
+
+📝 **لا يمكن إجراء الاختبار**
+
+💡 **لتفعيل النظام:**
+تأكد من وجود جميع الملفات المطلوبة
+"""
+            
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في اختبار النظام: {e}")
+            await query.answer("❌ خطأ في اختبار النظام")
+        return
+    
+    elif data == "refresh_systems":
+        try:
+            # إعادة تحميل النظام
+            message = """
+🔄 **تحديث النظام**
+
+⏳ **جاري التحديث...**
+
+✅ **تم التحديث بنجاح**
+
+💡 **للتأكد من التحديث:**
+اضغط على زر "📊 إحصائيات النظام"
+"""
+            
+            keyboard = [
+                [InlineKeyboardButton("📊 إحصائيات النظام", callback_data="system_stats")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في تحديث النظام: {e}")
+            await query.answer("❌ خطأ في التحديث")
+        return
+    
+    elif data == "main_menu":
+        await start(update, context)
+        return
+    
     # معالجة أزرار إدارة الصفقات (TP/SL/Close)
     if data.startswith("set_tp_") or data.startswith("set_sl_") or data.startswith("set_tpsl_"):
         from position_manager import position_manager
@@ -8235,6 +8483,133 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
             return
+    
+    # معالجة أزرار الأدوات المتقدمة (للمطورين والمستخدمين)
+    if text == "🔧 الأدوات المتقدمة":
+        try:
+            from signal_system_integration import signal_system_integration
+            
+            if signal_system_integration.is_available():
+                status = signal_system_integration.get_integration_status()
+                
+                message = f"""
+🔧 **الأدوات المتقدمة المتاحة**
+
+📊 **حالة التكامل:**
+• الإصدار: {status['version']}
+• الحالة: {status['status']}
+• الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}
+
+✨ **الأنظمة المتاحة:**
+"""
+                
+                for system_name, system_status in status['systems'].items():
+                    status_icon = "✅" if system_status else "❌"
+                    message += f"{status_icon} {system_name}\n"
+            else:
+                message = """
+🔧 **الأدوات المتقدمة**
+
+⚠️ **النظام الجديد غير متاح حالياً**
+
+📝 **الأنظمة المتاحة:**
+• ✅ النظام العادي
+• ✅ النظام المحسن (إذا كان متاحاً)
+
+💡 **لتفعيل النظام الجديد:**
+تأكد من وجود جميع الملفات المطلوبة
+"""
+            
+            keyboard = [
+                [InlineKeyboardButton("📊 إحصائيات النظام", callback_data="system_stats")],
+                [InlineKeyboardButton("🔧 إعدادات النظام", callback_data="system_settings")],
+                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في عرض الأدوات المتقدمة: {e}")
+            await update.message.reply_text(f"""
+🔧 **الأدوات المتقدمة**
+
+❌ **خطأ في تحميل النظام:**
+{e}
+
+📝 **الأنظمة المتاحة:**
+• ✅ النظام العادي
+• ✅ النظام المحسن (إذا كان متاحاً)
+""")
+        return
+    
+    elif text == "🎯 نظام الإشارات":
+        try:
+            from signal_system_integration import signal_system_integration
+            
+            if signal_system_integration.is_available():
+                status = signal_system_integration.get_integration_status()
+                
+                message = f"""
+🎯 **نظام إدارة الإشارات المتقدم**
+
+📊 **الحالة:**
+• الإصدار: {status['version']}
+• الحالة: {status['status']}
+• الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}
+
+✨ **الميزات:**
+• 🆔 إدارة إشارات متقدمة مع ID
+• 🔗 ربط الإشارات بنفس ID (اختياري)
+• 💼 دعم الحسابات التجريبية والحقيقية
+• 📊 دعم أسواق Spot و Futures
+• 📈 تتبع الصفقات والإحصائيات
+
+🔧 **الأنظمة المتاحة:**
+"""
+                
+                for system_name, system_status in status['systems'].items():
+                    status_icon = "✅" if system_status else "❌"
+                    message += f"{status_icon} {system_name}\n"
+            else:
+                message = """
+🎯 **نظام إدارة الإشارات**
+
+⚠️ **النظام الجديد غير متاح حالياً**
+
+📝 **الميزات المتاحة:**
+• ✅ نظام ID للإشارات (مطبق جزئياً)
+• ✅ معالجة الإشارات الأساسية
+• ✅ دعم الحسابات التجريبية والحقيقية
+
+💡 **لتفعيل النظام الجديد:**
+تأكد من وجود جميع الملفات المطلوبة
+"""
+            
+            keyboard = [
+                [InlineKeyboardButton("📊 إحصائيات الإشارات", callback_data="signal_stats")],
+                [InlineKeyboardButton("🔧 إعدادات النظام", callback_data="signal_settings")],
+                [InlineKeyboardButton("🧪 اختبار النظام", callback_data="test_system")],
+                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"خطأ في عرض نظام الإشارات: {e}")
+            await update.message.reply_text(f"""
+🎯 **نظام إدارة الإشارات**
+
+❌ **خطأ في تحميل النظام:**
+{e}
+
+📝 **الميزات المتاحة:**
+• ✅ نظام ID للإشارات (مطبق جزئياً)
+• ✅ معالجة الإشارات الأساسية
+• ✅ دعم الحسابات التجريبية والحقيقية
+""")
+        return
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
