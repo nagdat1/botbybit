@@ -19,6 +19,21 @@ from bybit_trading_bot import trading_bot
 from web_server import WebServer
 from config import PORT
 
+# استيراد النظام المحسن
+try:
+    from integrated_trading_system import IntegratedTradingSystem
+    ENHANCED_SYSTEM_AVAILABLE = True
+    print("✅ النظام المحسن الكامل متاح")
+except ImportError as e:
+    try:
+        from simple_enhanced_system import SimpleEnhancedSystem
+        ENHANCED_SYSTEM_AVAILABLE = True
+        print("✅ النظام المحسن المبسط متاح")
+    except ImportError as e2:
+        ENHANCED_SYSTEM_AVAILABLE = False
+        print(f"⚠️ النظام المحسن غير متاح: {e2}")
+        print("📝 سيتم استخدام النظام العادي")
+
 # إنشاء تطبيق Flask
 app = Flask(__name__)
 
@@ -28,15 +43,27 @@ app.config['SECRET_KEY'] = 'trading_bot_secret_key_2024'
 # متغيرات عامة
 web_server = None
 bot_thread = None
+enhanced_system = None
 
 @app.route('/')
 def index():
     """الصفحة الرئيسية"""
+    system_status = "enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal"
+    
     return jsonify({
         "status": "running",
-        "message": "بوت التداول على Bybit يعمل بنجاح",
+        "message": f"بوت التداول على Bybit يعمل بنجاح - النظام: {system_status}",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": "2.0.0" if ENHANCED_SYSTEM_AVAILABLE else "1.0.0",
+        "system_type": system_status,
+        "enhanced_features": ENHANCED_SYSTEM_AVAILABLE,
+        "features": {
+            "advanced_risk_management": ENHANCED_SYSTEM_AVAILABLE,
+            "smart_signal_processing": ENHANCED_SYSTEM_AVAILABLE,
+            "optimized_trade_execution": ENHANCED_SYSTEM_AVAILABLE,
+            "portfolio_management": ENHANCED_SYSTEM_AVAILABLE,
+            "automatic_optimization": ENHANCED_SYSTEM_AVAILABLE
+        } if ENHANCED_SYSTEM_AVAILABLE else {}
     })
 
 @app.route('/health')
@@ -165,10 +192,15 @@ def personal_webhook(user_id):
                 
                 print(f"✅ [WEBHOOK شخصي - Thread] تم تطبيق إعدادات المستخدم {user_settings_copy['user_id']}")
                 
-                # معالجة الإشارة
-                loop.run_until_complete(trading_bot.process_signal(data))
-                
-                print(f"✅ [WEBHOOK شخصي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
+                # معالجة الإشارة باستخدام النظام المحسن أو النظام العادي
+                if ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
+                    print("🚀 معالجة الإشارة باستخدام النظام المحسن...")
+                    result = enhanced_system.process_signal(user_settings_copy['user_id'], data)
+                    print(f"✅ [WEBHOOK محسن - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
+                else:
+                    print("📝 معالجة الإشارة باستخدام النظام العادي...")
+                    loop.run_until_complete(trading_bot.process_signal(data))
+                    print(f"✅ [WEBHOOK عادي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
             except Exception as e:
                 print(f"❌ [WEBHOOK شخصي - Thread] خطأ في معالجة الإشارة: {e}")
                 import traceback
@@ -186,7 +218,9 @@ def personal_webhook(user_id):
         return jsonify({
             "status": "success", 
             "message": f"Signal processing started for user {user_id}",
-            "user_id": user_id
+            "user_id": user_id,
+            "system_type": "enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal",
+            "enhanced_features": ENHANCED_SYSTEM_AVAILABLE
         }), 200
         
     except Exception as e:
@@ -199,11 +233,28 @@ def personal_webhook(user_id):
 
 def start_bot():
     """بدء تشغيل البوت"""
-    global bot_thread
+    global bot_thread, enhanced_system
     
     def run_bot():
         """تشغيل البوت في thread منفصل"""
         try:
+            # تهيئة النظام المحسن إذا كان متاحاً
+            if ENHANCED_SYSTEM_AVAILABLE:
+                try:
+                    print("🚀 تهيئة النظام المحسن الكامل...")
+                    enhanced_system = IntegratedTradingSystem()
+                    print("✅ تم تهيئة النظام المحسن الكامل بنجاح")
+                except Exception as e:
+                    try:
+                        print("🚀 تهيئة النظام المحسن المبسط...")
+                        enhanced_system = SimpleEnhancedSystem()
+                        print("✅ تم تهيئة النظام المحسن المبسط بنجاح")
+                    except Exception as e2:
+                        print(f"⚠️ فشل في تهيئة النظام المحسن: {e2}")
+                        enhanced_system = None
+            else:
+                print("📝 استخدام النظام العادي")
+            
             # إعداد Telegram bot
             from telegram.ext import Application
             from bybit_trading_bot import (
@@ -318,6 +369,21 @@ if __name__ == "__main__":
     
     # إرسال رسالة الترحيب
     threading.Thread(target=send_startup_notification, daemon=True).start()
+    
+    # عرض معلومات النظام
+    print("\n" + "="*60)
+    if ENHANCED_SYSTEM_AVAILABLE:
+        print("🚀 النظام المحسن متاح!")
+        print("✨ الميزات المتقدمة:")
+        print("   • إدارة مخاطر متقدمة")
+        print("   • معالجة إشارات ذكية")
+        print("   • تنفيذ صفقات محسن")
+        print("   • إدارة محفظة متقدمة")
+        print("   • تحسين تلقائي")
+    else:
+        print("📝 النظام العادي يعمل")
+        print("⚠️ النظام المحسن غير متاح")
+    print("="*60 + "\n")
     
     # تشغيل تطبيق Flask الرئيسي
     app.run(host='0.0.0.0', port=PORT, debug=False)

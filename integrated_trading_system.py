@@ -828,7 +828,7 @@ class IntegratedTradingSystem:
             logger.info("تم تنظيف جميع موارد النظام")
             
         except Exception as e:
-            logger.error(f"خطأ في تنظيف الموارد: { طور e}")
+            logger.error(f"خطأ في تنظيف الموارد: {e}")
     
     def update_system_configuration(self, new_config: Dict[str, Any]) -> bool:
         """تحديث إعدادات النظام"""
