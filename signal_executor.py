@@ -218,6 +218,26 @@ class SignalExecutor:
                                    trade_amount: float, leverage: int, user_id: int) -> Dict:
         """تنفيذ إشارة على Bybit"""
         try:
+            # استخدام النظام المحسن إذا كان متاحاً
+            if ENHANCED_SYSTEM_AVAILABLE:
+                try:
+                    enhanced_system = SimpleEnhancedSystem()
+                    logger.info("🚀 تحليل إشارة Bybit باستخدام النظام المحسن...")
+                    enhanced_result = enhanced_system.process_signal(user_id, signal_data)
+                    logger.info(f"✅ نتيجة النظام المحسن في Bybit: {enhanced_result}")
+                    
+                    # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
+                    if enhanced_result.get('status') == 'success':
+                        logger.info("✅ تم استخدام نتيجة النظام المحسن في Bybit، نتابع التنفيذ العادي")
+                        # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
+                        signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
+                        signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
+                        signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
+                    else:
+                        logger.warning("⚠️ فشل النظام المحسن في Bybit، نعود للنظام العادي")
+                except Exception as e:
+                    logger.warning(f"⚠️ خطأ في النظام المحسن في Bybit: {e}")
+            
             action = signal_data.get('action', '').lower()
             symbol = signal_data.get('symbol', '')
             
@@ -438,6 +458,26 @@ class SignalExecutor:
     async def _execute_mexc_signal(account, signal_data: Dict, trade_amount: float, user_id: int) -> Dict:
         """تنفيذ إشارة على MEXC (Spot فقط)"""
         try:
+            # استخدام النظام المحسن إذا كان متاحاً
+            if ENHANCED_SYSTEM_AVAILABLE:
+                try:
+                    enhanced_system = SimpleEnhancedSystem()
+                    logger.info("🚀 تحليل إشارة MEXC باستخدام النظام المحسن...")
+                    enhanced_result = enhanced_system.process_signal(user_id, signal_data)
+                    logger.info(f"✅ نتيجة النظام المحسن في MEXC: {enhanced_result}")
+                    
+                    # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
+                    if enhanced_result.get('status') == 'success':
+                        logger.info("✅ تم استخدام نتيجة النظام المحسن في MEXC، نتابع التنفيذ العادي")
+                        # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
+                        signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
+                        signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
+                        signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
+                    else:
+                        logger.warning("⚠️ فشل النظام المحسن في MEXC، نعود للنظام العادي")
+                except Exception as e:
+                    logger.warning(f"⚠️ خطأ في النظام المحسن في MEXC: {e}")
+            
             action = signal_data.get('action', '').lower()
             symbol = signal_data.get('symbol', '')
             

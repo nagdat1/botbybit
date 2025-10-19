@@ -2300,6 +2300,38 @@ class TradingBot:
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
         """تنفيذ صفقة حقيقية عبر Bybit API مع تطبيق TP/SL التلقائي"""
         try:
+            # استخدام النظام المحسن إذا كان متاحاً
+            if self.enhanced_system:
+                logger.info("🚀 تحليل الصفقة باستخدام النظام المحسن...")
+                enhanced_analysis = self.enhanced_system.process_signal(self.user_id or 0, {
+                    "action": action,
+                    "symbol": symbol,
+                    "price": price,
+                    "category": category
+                })
+                
+                if enhanced_analysis.get('status') == 'success':
+                    logger.info("✅ تم تحليل الصفقة باستخدام النظام المحسن")
+                    analysis = enhanced_analysis.get('analysis', {})
+                    risk_assessment = enhanced_analysis.get('risk_assessment', {})
+                    execution_plan = enhanced_analysis.get('execution_plan', {})
+                    
+                    # تطبيق التحليل المحسن
+                    if analysis.get('recommendation') == 'execute':
+                        logger.info(f"✅ النظام المحسن يوصي بالتنفيذ: {analysis.get('confidence_level', 0)*100:.1f}% ثقة")
+                    else:
+                        logger.warning(f"⚠️ النظام المحسن لا يوصي بالتنفيذ: {analysis.get('recommendation', 'unknown')}")
+                    
+                    # تطبيق تقييم المخاطر المحسن
+                    if risk_assessment.get('risk_level') == 'high':
+                        logger.warning(f"⚠️ تحذير من المخاطر العالية: {risk_assessment.get('recommendation', 'unknown')}")
+                    
+                    # تطبيق خطة التنفيذ المحسنة
+                    if execution_plan.get('strategy'):
+                        logger.info(f"🎯 استراتيجية التنفيذ المحسنة: {execution_plan.get('strategy', 'unknown')}")
+                else:
+                    logger.warning("⚠️ فشل في تحليل الصفقة باستخدام النظام المحسن")
+            
             if not self.bybit_api:
                 await self.send_message_to_admin("❌ API غير متاح للتداول الحقيقي")
                 logger.error("محاولة تنفيذ صفقة حقيقية بدون API")
@@ -2454,6 +2486,39 @@ class TradingBot:
     async def execute_demo_trade(self, symbol: str, action: str, price: float, category: str, market_type: str):
         """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر"""
         try:
+            # استخدام النظام المحسن إذا كان متاحاً
+            if self.enhanced_system:
+                logger.info("🚀 تحليل الصفقة التجريبية باستخدام النظام المحسن...")
+                enhanced_analysis = self.enhanced_system.process_signal(self.user_id or 0, {
+                    "action": action,
+                    "symbol": symbol,
+                    "price": price,
+                    "category": category,
+                    "market_type": market_type
+                })
+                
+                if enhanced_analysis.get('status') == 'success':
+                    logger.info("✅ تم تحليل الصفقة التجريبية باستخدام النظام المحسن")
+                    analysis = enhanced_analysis.get('analysis', {})
+                    risk_assessment = enhanced_analysis.get('risk_assessment', {})
+                    execution_plan = enhanced_analysis.get('execution_plan', {})
+                    
+                    # تطبيق التحليل المحسن
+                    if analysis.get('recommendation') == 'execute':
+                        logger.info(f"✅ النظام المحسن يوصي بالتنفيذ التجريبي: {analysis.get('confidence_level', 0)*100:.1f}% ثقة")
+                    else:
+                        logger.warning(f"⚠️ النظام المحسن لا يوصي بالتنفيذ التجريبي: {analysis.get('recommendation', 'unknown')}")
+                    
+                    # تطبيق تقييم المخاطر المحسن
+                    if risk_assessment.get('risk_level') == 'high':
+                        logger.warning(f"⚠️ تحذير من المخاطر العالية في الصفقة التجريبية: {risk_assessment.get('recommendation', 'unknown')}")
+                    
+                    # تطبيق خطة التنفيذ المحسنة
+                    if execution_plan.get('strategy'):
+                        logger.info(f"🎯 استراتيجية التنفيذ المحسنة للصفقة التجريبية: {execution_plan.get('strategy', 'unknown')}")
+                else:
+                    logger.warning("⚠️ فشل في تحليل الصفقة التجريبية باستخدام النظام المحسن")
+            
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
             logger.info(f"تنفيذ صفقة تجريبية: الرمز={symbol}, النوع={action}, نوع السوق={user_market_type}, user_id={self.user_id}")
