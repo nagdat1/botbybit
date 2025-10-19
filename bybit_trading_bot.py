@@ -300,7 +300,7 @@ class TradingAccount:
         
         return wallet_summary
     
-    def open_futures_position(self, symbol: str, side: str, margin_amount: float, price: float, leverage: int = 1, custom_name: str = None) -> tuple[bool, str]:
+    def open_futures_position(self, symbol: str, side: str, margin_amount: float, price: float, leverage: int = 1, custom_name: str = None, position_id: str = None) -> tuple[bool, str]:
         """فتح صفقة فيوتشر جديدة - البيع والشراء صفقات منفصلة"""
         try:
             available_balance = self.get_available_balance()
@@ -308,8 +308,11 @@ class TradingAccount:
             if available_balance < margin_amount:
                 return False, f"الرصيد غير كافي. متاح: {available_balance:.2f}, مطلوب: {margin_amount:.2f}"
             
-            # إنشاء معرف فريد للصفقة (حتى لو كان الاسم موحد)
-            position_id = f"{symbol}_{side}_{int(time.time() * 1000000)}"
+            # 🆔 استخدام ID المخصص إذا كان متاحاً، وإلا إنشاء معرف فريد
+            if not position_id:
+                position_id = f"{symbol}_{side}_{int(time.time() * 1000000)}"
+            else:
+                logger.info(f"🆔 استخدام ID مخصص للصفقة: {position_id}")
             
             # إنشاء صفقة جديدة
             position = FuturesPosition(
@@ -2205,6 +2208,15 @@ class TradingBot:
             # حفظ بيانات الإشارة للاستخدام في execute_demo_trade
             self._current_signal_data = signal_data
             
+            # 🆔 استخراج ID الإشارة لاستخدامه كمعرف للصفقة
+            signal_id = signal_data.get('signal_id') or signal_data.get('id') or signal_data.get('original_signal', {}).get('id')
+            if signal_id:
+                logger.info(f"🆔 تم استخراج ID الإشارة: {signal_id}")
+                self._current_signal_id = signal_id
+            else:
+                logger.info("⚠️ لا يوجد ID في الإشارة - سيتم توليد ID عشوائي")
+                self._current_signal_id = None
+            
             symbol = signal_data.get('symbol', '').upper()
             action = signal_data.get('action', '').lower()  # buy أو sell أو close
             
@@ -2757,12 +2769,19 @@ class TradingBot:
                 margin_amount = self.user_settings['trade_amount']  # مبلغ الهامش
                 leverage = self.user_settings['leverage']
                 
+                # 🆔 استخدام ID الإشارة كمعرف للصفقة إذا كان متاحاً
+                custom_position_id = None
+                if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                    custom_position_id = self._current_signal_id
+                    logger.info(f"🆔 استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
+                
                 success, result = account.open_futures_position(
                     symbol=symbol,
                     side=action,
                     margin_amount=margin_amount,
                     price=price,
-                    leverage=leverage
+                    leverage=leverage,
+                    position_id=custom_position_id
                 )
                 
                 if success:
@@ -2814,6 +2833,10 @@ class TradingBot:
                         message += f"📊 عدد العقود: {position.contracts:.6f}\n"
                         message += f"🆔 رقم الصفقة: {position_id}\n"
                         
+                        # إضافة معلومات ID الإشارة إذا كان متاحاً
+                        if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                            message += f"🎯 ID الإشارة: {self._current_signal_id}\n"
+                        
                         # إضافة معلومات الحساب
                         account_info = account.get_account_info()
                         message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
@@ -2838,11 +2861,18 @@ class TradingBot:
             else:  # spot
                 amount = self.user_settings['trade_amount']
                 
+                # 🆔 استخدام ID الإشارة كمعرف للصفقة إذا كان متاحاً
+                custom_position_id = None
+                if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                    custom_position_id = self._current_signal_id
+                    logger.info(f"🆔 استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
+                
                 success, result = account.open_spot_position(
                     symbol=symbol,
                     side=action,
                     amount=amount,
-                    price=price
+                    price=price,
+                    position_id=custom_position_id
                 )
                 
                 if success:
@@ -2883,6 +2913,10 @@ class TradingBot:
                     message += f"💲 سعر الدخول: {price:.6f}\n"
                     message += f"🏪 السوق: SPOT\n"
                     message += f"🆔 رقم الصفقة: {position_id}\n"
+                    
+                    # إضافة معلومات ID الإشارة إذا كان متاحاً
+                    if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                        message += f"🎯 ID الإشارة: {self._current_signal_id}\n"
                     
                     # إضافة معلومات الحساب
                     account_info = account.get_account_info()
