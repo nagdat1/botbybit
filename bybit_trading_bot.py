@@ -3398,7 +3398,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -7274,63 +7273,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     logger.info(f"📥 Callback received: {data} from user {user_id}")
     
-    # معالجة أزرار الأدوات المتقدمة
-    if data.startswith("tool_"):
-        tool_name = data.replace("tool_", "")
-        
-        try:
-            from unified_tools_manager import get_tool_info
-            
-            tool_info = get_tool_info(tool_name)
-            
-            if tool_info:
-                message = f"""
-🔧 **{tool_info['name']}**
-
-📊 **الحالة:** {tool_info['status']}
-
-✨ **الميزات:**
-"""
-                for feature in tool_info['features']:
-                    message += f"• {feature}\n"
-                
-                keyboard = [
-                    [InlineKeyboardButton("📖 مزيد من المعلومات", callback_data=f"tool_info_{tool_name}")],
-                    [InlineKeyboardButton("🔙 رجوع", callback_data="tools_menu")]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-            else:
-                await query.answer("❌ الأداة غير متاحة")
-        except Exception as e:
-            logger.error(f"خطأ في عرض معلومات الأداة: {e}")
-            await query.answer("❌ خطأ في تحميل معلومات الأداة")
-        return
-    
-    # معالجة زر العودة لقائمة الأدوات
-    if data == "tools_menu":
-        try:
-            from unified_tools_manager import get_system_summary, get_tools_menu_buttons
-            
-            summary = get_system_summary()
-            tools_buttons_data = get_tools_menu_buttons()
-            
-            keyboard = []
-            for row in tools_buttons_data:
-                button_row = []
-                for btn in row:
-                    button_row.append(InlineKeyboardButton(btn['text'], callback_data=btn['callback_data']))
-                keyboard.append(button_row)
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(summary, reply_markup=reply_markup)
-        except Exception as e:
-            logger.error(f"خطأ في عرض قائمة الأدوات: {e}")
-            await query.answer("❌ خطأ في تحميل قائمة الأدوات")
-        return
-    
     # معالجة زر اختيار المنصة
     if data == "select_exchange":
         from exchange_commands import cmd_select_exchange
@@ -8293,74 +8235,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
             return
-    
-    # معالجة أزرار الأدوات المتقدمة (للمطورين والمستخدمين)
-    if text == "🔧 الأدوات المتقدمة":
-        try:
-            from unified_tools_manager import get_system_summary, get_tools_menu_buttons
-            
-            # عرض ملخص النظام
-            summary = get_system_summary()
-            
-            # الحصول على أزرار الأدوات
-            tools_buttons_data = get_tools_menu_buttons()
-            
-            # تحويل إلى InlineKeyboardButton
-            keyboard = []
-            for row in tools_buttons_data:
-                button_row = []
-                for btn in row:
-                    button_row.append(InlineKeyboardButton(btn['text'], callback_data=btn['callback_data']))
-                keyboard.append(button_row)
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(summary, reply_markup=reply_markup)
-        except Exception as e:
-            logger.error(f"خطأ في عرض الأدوات المتقدمة: {e}")
-            await update.message.reply_text("❌ خطأ في تحميل الأدوات المتقدمة")
-        return
-    
-    elif text == "🎯 نظام الإشارات":
-        try:
-            from signal_system_integration import get_integration_status
-            
-            status = get_integration_status()
-            
-            message = f"""
-🎯 **نظام إدارة الإشارات المتقدم**
-
-📊 **الحالة:**
-• الإصدار: {status['version']}
-• الحالة: {status['status']}
-• الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}
-
-✨ **الميزات:**
-• 🆔 إدارة إشارات متقدمة مع ID
-• 🔗 ربط الإشارات بنفس ID (اختياري)
-• 💼 دعم الحسابات التجريبية والحقيقية
-• 📊 دعم أسواق Spot و Futures
-• 📈 تتبع الصفقات والإحصائيات
-
-🔧 **الأنظمة المتاحة:**
-"""
-            
-            for system_name, system_status in status['systems'].items():
-                status_icon = "✅" if system_status else "❌"
-                message += f"{status_icon} {system_name}\n"
-            
-            keyboard = [
-                [InlineKeyboardButton("📊 إحصائيات الإشارات", callback_data="signal_stats")],
-                [InlineKeyboardButton("🔧 إعدادات النظام", callback_data="signal_settings")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في عرض نظام الإشارات: {e}")
-            await update.message.reply_text("❌ خطأ في تحميل نظام الإشارات")
-        return
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
