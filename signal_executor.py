@@ -31,6 +31,15 @@ except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     print(f"⚠️ النظام المحسن غير متاح في signal_executor.py: {e}")
 
+# استيراد مدير معرفات الإشارات
+try:
+    from signal_id_manager import get_position_id_from_signal, get_signal_id_manager
+    SIGNAL_ID_MANAGER_AVAILABLE = True
+    print("✅ مدير معرفات الإشارات متاح في signal_executor.py")
+except ImportError as e:
+    SIGNAL_ID_MANAGER_AVAILABLE = False
+    print(f"⚠️ مدير معرفات الإشارات غير متاح في signal_executor.py: {e}")
+
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
     

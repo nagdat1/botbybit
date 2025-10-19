@@ -25,6 +25,15 @@ except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     print(f"⚠️ النظام المحسن غير متاح في signal_converter.py: {e}")
 
+# استيراد مدير معرفات الإشارات
+try:
+    from signal_id_manager import process_signal_id, get_signal_id_manager
+    SIGNAL_ID_MANAGER_AVAILABLE = True
+    print("✅ مدير معرفات الإشارات متاح في signal_converter.py")
+except ImportError as e:
+    SIGNAL_ID_MANAGER_AVAILABLE = False
+    print(f"⚠️ مدير معرفات الإشارات غير متاح في signal_converter.py: {e}")
+
 class SignalConverter:
     """محول الإشارات من التنسيق البسيط إلى التنسيق الداخلي"""
     
@@ -52,6 +61,14 @@ class SignalConverter:
             بيانات الإشارة بالتنسيق الداخلي أو None في حالة الخطأ
         """
         try:
+            # معالجة ID الإشارة أولاً
+            if SIGNAL_ID_MANAGER_AVAILABLE:
+                try:
+                    signal_data = process_signal_id(signal_data)
+                    logger.info(f"🆔 تم معالجة ID الإشارة: {signal_data.get('id')} -> رقم الصفقة: {signal_data.get('position_id')}")
+                except Exception as e:
+                    logger.warning(f"⚠️ خطأ في معالجة ID الإشارة: {e}")
+            
             # استخدام النظام المحسن إذا كان متاحاً
             if ENHANCED_SYSTEM_AVAILABLE:
                 try:
@@ -113,6 +130,18 @@ class SignalConverter:
             converted_signal['signal_id'] = signal_id
             converted_signal['timestamp'] = datetime.now().isoformat()
             converted_signal['original_signal'] = signal_data.copy()
+            
+            # إضافة معلومات ID الإشارة ورقم الصفقة
+            if 'position_id' in signal_data:
+                converted_signal['position_id'] = signal_data['position_id']
+                logger.info(f"📍 رقم الصفقة المرتبط: {signal_data['position_id']}")
+            
+            if 'generated_id' in signal_data:
+                converted_signal['generated_id'] = signal_data['generated_id']
+                if signal_data['generated_id']:
+                    logger.info(f"🆔 تم توليد ID عشوائي للإشارة: {signal_id}")
+                else:
+                    logger.info(f"🆔 تم استخدام ID محدد للإشارة: {signal_id}")
             
             # إضافة معلومات إضافية للـ ID
             if signal_id:
