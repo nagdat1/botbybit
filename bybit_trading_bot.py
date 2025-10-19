@@ -2187,6 +2187,10 @@ class TradingBot:
                 # تحويل الإشارة إلى التنسيق الداخلي
                 converted_signal = convert_simple_signal(signal_data, self.user_settings)
                 
+                # حفظ بيانات الإشارة للربط مع الصفقة
+                if converted_signal:
+                    self.current_signal_data = converted_signal
+                
                 if not converted_signal:
                     logger.error(f"❌ فشل تحويل الإشارة")
                     await self.send_message_to_admin(
@@ -2783,6 +2787,18 @@ class TradingBot:
                             'pnl_percent': 0.0
                         }
                         
+                        # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
+                        if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
+                            try:
+                                from signal_id_manager import get_signal_id_manager
+                                manager = get_signal_id_manager()
+                                signal_id = self.current_signal_data.get('signal_id')
+                                if signal_id:
+                                    manager.link_signal_to_position(signal_id, position_id)
+                                    logger.info(f"🔗 تم ربط ID الإشارة {signal_id} برقم الصفقة {position_id}")
+                            except Exception as e:
+                                logger.warning(f"خطأ في ربط ID الإشارة: {e}")
+                        
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}, user_id={self.user_id}")
                         
                         message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
@@ -2843,6 +2859,18 @@ class TradingBot:
                         'current_price': price,
                         'pnl_percent': 0.0
                     }
+                    
+                    # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
+                    if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
+                        try:
+                            from signal_id_manager import get_signal_id_manager
+                            manager = get_signal_id_manager()
+                            signal_id = self.current_signal_data.get('signal_id')
+                            if signal_id:
+                                manager.link_signal_to_position(signal_id, position_id)
+                                logger.info(f"🔗 تم ربط ID الإشارة {signal_id} برقم الصفقة {position_id}")
+                        except Exception as e:
+                            logger.warning(f"خطأ في ربط ID الإشارة: {e}")
                     
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}, user_id={self.user_id}")
                     
@@ -5477,6 +5505,18 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
             pnl_status = "رابح" if pnl_value >= 0 else "خاسر"
             arrow = "⬆️" if pnl_value >= 0 else "⬇️"
             
+            # إضافة ID الإشارة إذا كان متاحاً
+            signal_id_display = ""
+            if SIGNAL_ID_MANAGER_AVAILABLE:
+                try:
+                    from signal_id_manager import get_signal_id_manager
+                    manager = get_signal_id_manager()
+                    signal_id = manager.get_signal_id_from_position(position_id)
+                    if signal_id:
+                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                except Exception as e:
+                    logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
+            
             spot_text += f"""
 {pnl_emoji} {symbol}
 🔄 النوع: {side.upper()}
@@ -5484,16 +5524,28 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
 💲 السعر الحالي: {current_price:.6f}
 💰 المبلغ: {amount:.2f}
 {arrow} الربح/الخسارة: {pnl_value:.2f} ({pnl_percent:.2f}%) - {pnl_status}
-🆔 رقم الصفقة: {position_id}
+{signal_id_display}🆔 رقم الصفقة: {position_id}
             """
         else:
+            # إضافة ID الإشارة إذا كان متاحاً
+            signal_id_display = ""
+            if SIGNAL_ID_MANAGER_AVAILABLE:
+                try:
+                    from signal_id_manager import get_signal_id_manager
+                    manager = get_signal_id_manager()
+                    signal_id = manager.get_signal_id_from_position(position_id)
+                    if signal_id:
+                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                except Exception as e:
+                    logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
+            
             spot_text += f"""
 📊 {symbol}
 🔄 النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: غير متاح
 💰 المبلغ: {amount:.2f}
-🆔 رقم الصفقة: {position_id}
+{signal_id_display}🆔 رقم الصفقة: {position_id}
             """
         
         # إضافة أزرار إدارة الصفقة
@@ -5587,6 +5639,18 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
             pnl_status = "رابح" if unrealized_pnl >= 0 else "خاسر"
             arrow = "⬆️" if unrealized_pnl >= 0 else "⬇️"
             
+            # إضافة ID الإشارة إذا كان متاحاً
+            signal_id_display = ""
+            if SIGNAL_ID_MANAGER_AVAILABLE:
+                try:
+                    from signal_id_manager import get_signal_id_manager
+                    manager = get_signal_id_manager()
+                    signal_id = manager.get_signal_id_from_position(position_id)
+                    if signal_id:
+                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                except Exception as e:
+                    logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
+            
             futures_text += f"""
 {liquidation_warning}{pnl_emoji} {symbol}
 🔄 النوع: {side.upper()}
@@ -5598,9 +5662,21 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 ⚡ الرافعة: {leverage}x
 ⚠️ سعر التصفية: {actual_position.liquidation_price:.6f}
 📊 عدد العقود: {actual_position.contracts:.6f}
-🆔 رقم الصفقة: {position_id}
+{signal_id_display}🆔 رقم الصفقة: {position_id}
             """
         else:
+            # إضافة ID الإشارة إذا كان متاحاً
+            signal_id_display = ""
+            if SIGNAL_ID_MANAGER_AVAILABLE:
+                try:
+                    from signal_id_manager import get_signal_id_manager
+                    manager = get_signal_id_manager()
+                    signal_id = manager.get_signal_id_from_position(position_id)
+                    if signal_id:
+                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                except Exception as e:
+                    logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
+            
             futures_text += f"""
 📊 {symbol}
 🔄 النوع: {side.upper()}
@@ -5610,7 +5686,7 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
 📈 حجم الصفقة: {position_size:.2f}
 ⚡ الرافعة: {leverage}x
 ⚠️ سعر التصفية: {liquidation_price:.6f}
-🆔 رقم الصفقة: {position_id}
+{signal_id_display}🆔 رقم الصفقة: {position_id}
             """
         
         # إضافة أزرار إدارة الصفقة
