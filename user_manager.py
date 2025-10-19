@@ -26,11 +26,6 @@ class UserManager:
         self.TradingAccount = trading_account_class
         self.BybitAPI = bybit_api_class
         
-        # تهيئة user_manager إذا لم يكن موجوداً
-        if user_manager is None:
-            global user_manager
-            user_manager = self
-        
         # تحميل المستخدمين من قاعدة البيانات
         # سيتم استدعاء load_all_users يدوياً بعد تهيئة الفئات
         # self.load_all_users()
