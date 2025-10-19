@@ -16,6 +16,15 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# استيراد النظام المحسن
+try:
+    from simple_enhanced_system import SimpleEnhancedSystem
+    ENHANCED_SYSTEM_AVAILABLE = True
+    print("✅ النظام المحسن متاح في signal_converter.py")
+except ImportError as e:
+    ENHANCED_SYSTEM_AVAILABLE = False
+    print(f"⚠️ النظام المحسن غير متاح في signal_converter.py: {e}")
+
 class SignalConverter:
     """محول الإشارات من التنسيق البسيط إلى التنسيق الداخلي"""
     
@@ -43,6 +52,23 @@ class SignalConverter:
             بيانات الإشارة بالتنسيق الداخلي أو None في حالة الخطأ
         """
         try:
+            # استخدام النظام المحسن إذا كان متاحاً
+            if ENHANCED_SYSTEM_AVAILABLE:
+                try:
+                    enhanced_system = SimpleEnhancedSystem()
+                    logger.info("🚀 تحويل الإشارة باستخدام النظام المحسن في signal_converter...")
+                    enhanced_result = enhanced_system.process_signal(0, signal_data)
+                    logger.info(f"✅ نتيجة النظام المحسن في signal_converter: {enhanced_result}")
+                    
+                    # إذا نجح النظام المحسن، نستخدم النتيجة
+                    if enhanced_result.get('status') == 'success':
+                        logger.info("✅ تم استخدام نتيجة النظام المحسن في signal_converter")
+                        return enhanced_result
+                    else:
+                        logger.warning("⚠️ فشل النظام المحسن في signal_converter، نعود للنظام العادي")
+                except Exception as e:
+                    logger.warning(f"⚠️ خطأ في النظام المحسن في signal_converter: {e}")
+            
             # التحقق من صحة البيانات الأساسية
             if not signal_data:
                 logger.error("❌ بيانات الإشارة فارغة")

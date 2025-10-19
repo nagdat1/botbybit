@@ -28,6 +28,15 @@ import threading
 # استيراد الإعدادات من ملف منفصل
 from config import *
 
+# استيراد النظام المحسن
+try:
+    from simple_enhanced_system import SimpleEnhancedSystem
+    ENHANCED_SYSTEM_AVAILABLE = True
+    print("✅ النظام المحسن متاح في bybit_trading_bot.py")
+except ImportError as e:
+    ENHANCED_SYSTEM_AVAILABLE = False
+    print(f"⚠️ النظام المحسن غير متاح في bybit_trading_bot.py: {e}")
+
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
 from user_manager import user_manager
@@ -1782,6 +1791,17 @@ class TradingBot:
         # قائمة الصفقات المفتوحة (مرتبطة بحسابات المستخدم)
         self.open_positions = {}  # {position_id: position_info}
         
+        # تهيئة النظام المحسن
+        if ENHANCED_SYSTEM_AVAILABLE:
+            try:
+                self.enhanced_system = SimpleEnhancedSystem()
+                print("✅ تم تهيئة النظام المحسن في TradingBot")
+            except Exception as e:
+                print(f"⚠️ فشل في تهيئة النظام المحسن: {e}")
+                self.enhanced_system = None
+        else:
+            self.enhanced_system = None
+        
         # قائمة الأزواج المتاحة (cache)
         self.available_pairs = {
             'spot': [],
@@ -2119,6 +2139,20 @@ class TradingBot:
             if not self.is_running:
                 logger.info("البوت متوقف، تم تجاهل الإشارة")
                 return
+            
+            # استخدام النظام المحسن إذا كان متاحاً
+            if self.enhanced_system:
+                logger.info("🚀 معالجة الإشارة باستخدام النظام المحسن...")
+                enhanced_result = self.enhanced_system.process_signal(self.user_id or 0, signal_data)
+                logger.info(f"✅ نتيجة النظام المحسن: {enhanced_result}")
+                
+                # إذا فشل النظام المحسن، نعود للنظام العادي
+                if enhanced_result.get('status') == 'error':
+                    logger.warning("⚠️ فشل النظام المحسن، نعود للنظام العادي")
+                else:
+                    # النظام المحسن نجح، نستخدم النتيجة
+                    logger.info("✅ تم استخدام نتيجة النظام المحسن")
+                    return enhanced_result
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
             from signal_converter import convert_simple_signal, validate_simple_signal

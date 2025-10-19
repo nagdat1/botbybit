@@ -22,6 +22,15 @@ except ImportError:
     def reset_daily_loss_if_needed(user_id):
         pass
 
+# استيراد النظام المحسن
+try:
+    from simple_enhanced_system import SimpleEnhancedSystem
+    ENHANCED_SYSTEM_AVAILABLE = True
+    print("✅ النظام المحسن متاح في signal_executor.py")
+except ImportError as e:
+    ENHANCED_SYSTEM_AVAILABLE = False
+    print(f"⚠️ النظام المحسن غير متاح في signal_executor.py: {e}")
+
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
     
@@ -39,6 +48,23 @@ class SignalExecutor:
             نتيجة التنفيذ
         """
         try:
+            # استخدام النظام المحسن إذا كان متاحاً
+            if ENHANCED_SYSTEM_AVAILABLE:
+                try:
+                    enhanced_system = SimpleEnhancedSystem()
+                    logger.info("🚀 معالجة الإشارة باستخدام النظام المحسن في signal_executor...")
+                    enhanced_result = enhanced_system.process_signal(user_id, signal_data)
+                    logger.info(f"✅ نتيجة النظام المحسن في signal_executor: {enhanced_result}")
+                    
+                    # إذا نجح النظام المحسن، نستخدم النتيجة
+                    if enhanced_result.get('status') == 'success':
+                        logger.info("✅ تم استخدام نتيجة النظام المحسن في signal_executor")
+                        return enhanced_result
+                    else:
+                        logger.warning("⚠️ فشل النظام المحسن في signal_executor، نعود للنظام العادي")
+                except Exception as e:
+                    logger.warning(f"⚠️ خطأ في النظام المحسن في signal_executor: {e}")
+            
             account_type = user_data.get('account_type', 'demo')
             exchange = user_data.get('exchange', 'bybit')
             market_type = user_data.get('market_type', 'spot')
