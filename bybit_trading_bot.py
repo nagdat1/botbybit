@@ -3511,7 +3511,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+        [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -8466,7 +8467,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [
                 [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
                 [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-                [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+                [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+                [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")]
             ]
             
             # إضافة زر مخفي للمطور للعودة لوضع المطور (يظهر فقط للمطورين)
