@@ -8531,6 +8531,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
         except Exception as e:
             logger.error(f"خطأ في عرض الأدوات المتقدمة: {e}")
+            keyboard = [
+                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(f"""
 🔧 **الأدوات المتقدمة**
 
@@ -8540,7 +8545,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📝 **الأنظمة المتاحة:**
 • ✅ النظام العادي
 • ✅ النظام المحسن (إذا كان متاحاً)
-""")
+""", reply_markup=reply_markup, parse_mode='Markdown')
         return
     
     elif text == "🎯 نظام الإشارات":
@@ -8598,6 +8603,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
         except Exception as e:
             logger.error(f"خطأ في عرض نظام الإشارات: {e}")
+            keyboard = [
+                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(f"""
 🎯 **نظام إدارة الإشارات**
 
@@ -8608,7 +8618,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • ✅ نظام ID للإشارات (مطبق جزئياً)
 • ✅ معالجة الإشارات الأساسية
 • ✅ دعم الحسابات التجريبية والحقيقية
-""")
+""", reply_markup=reply_markup, parse_mode='Markdown')
         return
     
     # معالجة أزرار المستخدمين العاديين
