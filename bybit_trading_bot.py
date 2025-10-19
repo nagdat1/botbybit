@@ -2146,13 +2146,15 @@ class TradingBot:
                 enhanced_result = self.enhanced_system.process_signal(self.user_id or 0, signal_data)
                 logger.info(f"✅ نتيجة النظام المحسن: {enhanced_result}")
                 
-                # إذا فشل النظام المحسن، نعود للنظام العادي
-                if enhanced_result.get('status') == 'error':
-                    logger.warning("⚠️ فشل النظام المحسن، نعود للنظام العادي")
+                # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
+                if enhanced_result.get('status') == 'success':
+                    logger.info("✅ تم استخدام نتيجة النظام المحسن، نتابع التنفيذ العادي")
+                    # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
+                    signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
+                    signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
+                    signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
                 else:
-                    # النظام المحسن نجح، نستخدم النتيجة
-                    logger.info("✅ تم استخدام نتيجة النظام المحسن")
-                    return enhanced_result
+                    logger.warning("⚠️ فشل النظام المحسن، نعود للنظام العادي")
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
             from signal_converter import convert_simple_signal, validate_simple_signal

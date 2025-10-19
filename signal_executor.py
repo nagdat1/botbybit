@@ -56,10 +56,13 @@ class SignalExecutor:
                     enhanced_result = enhanced_system.process_signal(user_id, signal_data)
                     logger.info(f"✅ نتيجة النظام المحسن في signal_executor: {enhanced_result}")
                     
-                    # إذا نجح النظام المحسن، نستخدم النتيجة
+                    # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
                     if enhanced_result.get('status') == 'success':
-                        logger.info("✅ تم استخدام نتيجة النظام المحسن في signal_executor")
-                        return enhanced_result
+                        logger.info("✅ تم استخدام نتيجة النظام المحسن في signal_executor، نتابع التنفيذ العادي")
+                        # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
+                        signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
+                        signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
+                        signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
                     else:
                         logger.warning("⚠️ فشل النظام المحسن في signal_executor، نعود للنظام العادي")
                 except Exception as e:
