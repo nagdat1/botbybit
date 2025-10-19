@@ -204,6 +204,8 @@ class SignalExecutor:
                 side = 'Sell'
             elif action == 'close':
                 # إغلاق الصفقة المفتوحة بالكامل
+                has_signal_id = signal_data.get('has_signal_id', False)
+                signal_id = signal_data.get('signal_id', '')
                 if has_signal_id and signal_id:
                     # إغلاق الصفقات المرتبطة بالـ ID
                     return await SignalExecutor._close_signal_positions(
@@ -244,6 +246,8 @@ class SignalExecutor:
                         'error': 'INVALID_PERCENTAGE'
                     }
                 
+                has_signal_id = signal_data.get('has_signal_id', False)
+                signal_id = signal_data.get('signal_id', '')
                 if has_signal_id and signal_id:
                     # إغلاق جزئي للصفقات المرتبطة بالـ ID
                     return await SignalExecutor._partial_close_signal_positions(

@@ -97,6 +97,11 @@ def personal_webhook(user_id):
         from user_manager import user_manager
         from database import db_manager
         
+        # التأكد من تهيئة user_manager
+        if user_manager is None:
+            print(f"❌ [WEBHOOK شخصي] user_manager غير مهيأ")
+            return jsonify({"status": "error", "message": "User manager not initialized"}), 500
+        
         if not user_manager:
             print(f"❌ [WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
             return jsonify({"status": "error", "message": "User manager not initialized"}), 500

@@ -20,7 +20,7 @@ class SignalConverter:
     """محول الإشارات من التنسيق البسيط إلى التنسيق الداخلي"""
     
     # تعريف أنواع الإشارات المدعومة
-    ALL_SIGNALS = ['buy', 'sell', 'close', 'partial_close']
+    ALL_SIGNALS = ['buy', 'sell', 'close', 'partial_close', 'long', 'short', 'close_long', 'close_short']
     
     @staticmethod
     def convert_signal(signal_data: Dict, user_settings: Optional[Dict] = None) -> Optional[Dict]:
@@ -124,17 +124,17 @@ class SignalConverter:
             }
             
             # إشارة شراء (BUY)
-            if signal_type == 'buy':
+            if signal_type in ['buy', 'long']:
                 converted['action'] = 'buy'
                 logger.info(f"🟢 إشارة شراء: {symbol}")
             
             # إشارة بيع (SELL)
-            elif signal_type == 'sell':
+            elif signal_type in ['sell', 'short']:
                 converted['action'] = 'sell'
                 logger.info(f"🔴 إشارة بيع: {symbol}")
             
             # إشارة إغلاق كامل (CLOSE)
-            elif signal_type == 'close':
+            elif signal_type in ['close', 'close_long', 'close_short']:
                 converted['action'] = 'close'
                 logger.info(f"⚪ إشارة إغلاق كامل: {symbol}")
             

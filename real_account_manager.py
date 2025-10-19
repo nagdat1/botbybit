@@ -297,6 +297,37 @@ class BybitRealAccount:
                 })
         
         return orders
+    
+    def get_ticker(self, category: str, symbol: str) -> Optional[Dict]:
+        """الحصول على معلومات السعر"""
+        try:
+            # استخدام دالة get_ticker_price الموجودة
+            price = self.get_ticker_price(symbol, category)
+            if price:
+                return {'lastPrice': str(price)}
+            return None
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على السعر: {e}")
+            return None
+    
+    def get_ticker_price(self, symbol: str, category: str = "spot") -> Optional[float]:
+        """الحصول على سعر الرمز الحالي"""
+        try:
+            endpoint = "/v5/market/tickers"
+            # تحويل futures إلى linear للتوافق مع Bybit API
+            api_category = "linear" if category == "futures" else category
+            params = {"category": api_category, "symbol": symbol}
+            
+            result = self._make_request('GET', endpoint, params)
+            
+            if result and 'list' in result and result['list']:
+                return float(result['list'][0].get('lastPrice', 0))
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على السعر: {e}")
+            return None
 
 
 class MEXCRealAccount:
@@ -342,6 +373,13 @@ class MEXCRealAccount:
     def get_trade_history(self, symbol: str, limit: int = 50) -> List[Dict]:
         """الحصول على سجل التداولات"""
         return self.bot.get_trade_history(symbol, limit)
+    
+    def get_ticker(self, category: str, symbol: str) -> Optional[Dict]:
+        """الحصول على معلومات السعر"""
+        price = self.bot.get_ticker_price(symbol)
+        if price:
+            return {'lastPrice': str(price)}
+        return None
 
 
 class RealAccountManager:

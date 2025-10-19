@@ -173,7 +173,12 @@ class DatabaseManager:
                     ("last_reset_date", "TEXT"),
                     ("last_reset_week", "TEXT"),
                     ("last_loss_update", "TEXT"),
-                    ("risk_management", "TEXT DEFAULT '{\"enabled\": true, \"max_loss_percent\": 10.0, \"max_loss_amount\": 1000.0, \"stop_trading_on_loss\": true, \"daily_loss_limit\": 500.0, \"weekly_loss_limit\": 2000.0}'")
+                    ("risk_management", "TEXT DEFAULT '{\"enabled\": true, \"max_loss_percent\": 10.0, \"max_loss_amount\": 1000.0, \"stop_trading_on_loss\": true, \"daily_loss_limit\": 500.0, \"weekly_loss_limit\": 2000.0}'"),
+                    ("exchange", "TEXT DEFAULT 'bybit'"),
+                    ("bybit_api_key", "TEXT"),
+                    ("bybit_api_secret", "TEXT"),
+                    ("mexc_api_key", "TEXT"),
+                    ("mexc_api_secret", "TEXT")
                 ]
                 
                 for column_name, column_def in columns_to_add:
@@ -426,7 +431,7 @@ class DatabaseManager:
                 values = []
                 
                 for key, value in data.items():
-                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management']:
+                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'bybit_api_key', 'bybit_api_secret', 'mexc_api_key', 'mexc_api_secret']:
                         if key == 'risk_management':
                             # تحويل risk_management إلى JSON string
                             set_clauses.append(f"{key} = ?")
