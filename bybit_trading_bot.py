@@ -48,6 +48,7 @@ except ImportError as e:
 
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
+from enhanced_portfolio_manager import portfolio_factory
 from user_manager import user_manager
 
 # استيراد نظام المطورين
@@ -2806,6 +2807,36 @@ class TradingBot:
                             'pnl_percent': 0.0
                         }
                         
+                        # حفظ الصفقة في قاعدة البيانات
+                        if self.user_id:
+                            try:
+                                portfolio_manager = portfolio_factory.get_portfolio_manager(self.user_id)
+                                position_data = {
+                                    'order_id': position_id,
+                                    'user_id': self.user_id,
+                                    'symbol': symbol,
+                                    'side': action,
+                                    'entry_price': price,
+                                    'quantity': position.position_size,
+                                    'market_type': user_market_type,
+                                    'exchange': 'bybit',
+                                    'leverage': leverage,
+                                    'status': 'OPEN',
+                                    'notes': f'صفقة فيوتشر تجريبية - {category}'
+                                }
+                                
+                                # إضافة signal_id إذا كان متاحاً
+                                if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                                    position_data['signal_id'] = self._current_signal_id
+                                
+                                success = portfolio_manager.add_position(position_data)
+                                if success:
+                                    logger.info(f"✅ تم حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
+                                else:
+                                    logger.warning(f"⚠️ فشل في حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
+                            except Exception as e:
+                                logger.error(f"❌ خطأ في حفظ صفقة الفيوتشر في قاعدة البيانات: {e}")
+                        
                         # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                         if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
                             try:
@@ -2889,6 +2920,36 @@ class TradingBot:
                         'current_price': price,
                         'pnl_percent': 0.0
                     }
+                    
+                    # حفظ الصفقة في قاعدة البيانات
+                    if self.user_id:
+                        try:
+                            portfolio_manager = portfolio_factory.get_portfolio_manager(self.user_id)
+                            position_data = {
+                                'order_id': position_id,
+                                'user_id': self.user_id,
+                                'symbol': symbol,
+                                'side': action,
+                                'entry_price': price,
+                                'quantity': amount,
+                                'market_type': user_market_type,
+                                'exchange': 'bybit',
+                                'leverage': 1,
+                                'status': 'OPEN',
+                                'notes': f'صفقة سبوت تجريبية - {category}'
+                            }
+                            
+                            # إضافة signal_id إذا كان متاحاً
+                            if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                                position_data['signal_id'] = self._current_signal_id
+                            
+                            success = portfolio_manager.add_position(position_data)
+                            if success:
+                                logger.info(f"✅ تم حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
+                            else:
+                                logger.warning(f"⚠️ فشل في حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
+                        except Exception as e:
+                            logger.error(f"❌ خطأ في حفظ صفقة السبوت في قاعدة البيانات: {e}")
                     
                     # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                     if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
@@ -5348,10 +5409,18 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ خطأ في عرض حالة الحساب")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
+    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - محسن"""
     try:
         # الحصول على معرف المستخدم
         user_id = update.effective_user.id if update.effective_user else None
+        
+        if not user_id:
+            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+        
+        # استخدام مدير المحفظة المحسن
+        portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
+        portfolio_data = portfolio_manager.get_user_portfolio(force_refresh=True)
         
         # جمع جميع الصفقات المفتوحة من المصادر المختلفة
         all_positions = {}
@@ -5362,6 +5431,24 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         market_type = user_settings.get('market_type', 'spot') if user_settings else 'spot'
         
         logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
+        
+        # إضافة الصفقات من قاعدة البيانات (مدير المحفظة المحسن)
+        open_positions_db = portfolio_data.get('open_positions', [])
+        for position in open_positions_db:
+            position_id = position.get('order_id', f"db_{position.get('symbol')}_{position.get('open_time', '')}")
+            all_positions[position_id] = {
+                'symbol': position.get('symbol'),
+                'entry_price': position.get('entry_price', 0),
+                'side': position.get('side', 'buy'),
+                'account_type': position.get('market_type', market_type),
+                'leverage': position.get('leverage', 1),
+                'exchange': position.get('exchange', 'bybit'),
+                'position_size': position.get('quantity', 0),
+                'current_price': position.get('current_price', position.get('entry_price', 0)),
+                'pnl_percent': position.get('pnl_percent', 0),
+                'is_real_position': False,  # من قاعدة البيانات
+                'table_source': position.get('table_source', 'database')
+            }
         
         if account_type == 'real':
             # 🔴 حساب حقيقي - جلب الصفقات من المنصة
@@ -6954,7 +7041,7 @@ exampleInputEmail: {time_str}
             await update.message.reply_text(f"❌ خطأ في عرض تاريخ التداول: {e}")
 
 async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض نظرة عامة ذكية على المحفظة مع دعم متعدد المنصات"""
+    """عرض نظرة عامة ذكية على المحفظة مع دعم متعدد المنصات - محسن"""
     if update.effective_user is None:
         return
     
@@ -6966,11 +7053,15 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
+        # استخدام مدير المحفظة المحسن
+        portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
+        portfolio_data = portfolio_manager.get_user_portfolio(force_refresh=True)
+        
         # التحقق من نوع الحساب
         account_type = user_data.get('account_type', 'demo')
         market_type = user_data.get('market_type', 'spot')
         
-        wallet_message = "💰 **المحفظة الذكية**\n\n"
+        wallet_message = "💰 **المحفظة الذكية المحسنة**\n\n"
         
         if account_type == 'demo':
             # عرض الحساب التجريبي
@@ -6996,6 +7087,10 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             total_winning_trades = spot_info['winning_trades'] + futures_info['winning_trades']
             total_losing_trades = spot_info['losing_trades'] + futures_info['losing_trades']
             total_win_rate = round((total_winning_trades / max(total_trades, 1)) * 100, 2)
+            
+            # إضافة بيانات من مدير المحفظة المحسن
+            portfolio_summary = portfolio_data.get('summary', {})
+            portfolio_stats = portfolio_data.get('portfolio_stats', {})
             
             # تحديد حالة PnL
             if total_pnl > 0:
@@ -7026,6 +7121,12 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🏪 **تفاصيل الحسابات:**
 • السبوت: {spot_info['balance']:.2f} USDT
 • الفيوتشر: {futures_info['balance']:.2f} USDT
+
+🗄️ **بيانات قاعدة البيانات المحسنة:**
+• الصفقات المحفوظة: {portfolio_summary.get('total_open_positions', 0)}
+• الصفقات المغلقة: {portfolio_summary.get('total_closed_positions', 0)}
+• الرموز المتداولة: {portfolio_summary.get('total_symbols', 0)}
+• قيمة المحفظة: {portfolio_summary.get('portfolio_value', 0):.2f} USDT
             """
             
         else:
