@@ -124,26 +124,175 @@ class EnhancedPortfolioManager:
             }
     
     def add_position(self, position_data: Dict[str, Any]) -> bool:
-        """إضافة صفقة جديدة للمحفظة"""
+        """إضافة صفقة جديدة للمحفظة مع منطق السبوت والفيوتشر"""
         try:
             # إضافة البيانات المطلوبة
             position_data['user_id'] = self.user_id
             position_data['status'] = 'OPEN'
             position_data['open_time'] = datetime.now().isoformat()
             
-            # حفظ الصفقة
-            success = db_manager.create_comprehensive_position(position_data)
+            # تحديد نوع السوق
+            market_type = position_data.get('market_type', 'spot')
+            symbol = position_data.get('symbol', '')
+            signal_id = position_data.get('signal_id', '')
+            side = position_data.get('side', 'buy')
+            
+            # منطق مختلف حسب نوع السوق
+            if market_type == 'spot':
+                # في السبوت: معاملة كمحفظة حقيقية
+                success = self._handle_spot_position(position_data)
+            else:
+                # في الفيوتشر: تجميع حسب ID
+                success = self._handle_futures_position(position_data)
             
             if success:
                 # إعادة تحميل المحفظة
                 self.get_user_portfolio(force_refresh=True)
-                logger.info(f"تم إضافة صفقة جديدة للمستخدم {self.user_id}: {position_data.get('symbol')}")
+                logger.info(f"تم إضافة صفقة جديدة للمستخدم {self.user_id}: {symbol} ({market_type})")
             
             return success
             
         except Exception as e:
             logger.error(f"خطأ في إضافة صفقة للمستخدم {self.user_id}: {e}")
             return False
+    
+    def _handle_spot_position(self, position_data: Dict[str, Any]) -> bool:
+        """معالجة صفقة السبوت كمحفظة حقيقية"""
+        try:
+            symbol = position_data.get('symbol', '')
+            side = position_data.get('side', 'buy')
+            quantity = position_data.get('quantity', 0)
+            entry_price = position_data.get('entry_price', 0)
+            
+            # البحث عن صفقة موجودة للرمز
+            existing_position = db_manager.get_position_by_symbol_and_user(symbol, self.user_id, 'spot')
+            
+            if existing_position:
+                # تعديل الكمية الموجودة
+                if side.lower() == 'buy':
+                    # شراء: إضافة كمية
+                    new_quantity = existing_position['quantity'] + quantity
+                    # حساب متوسط السعر المرجح
+                    total_value = (existing_position['quantity'] * existing_position['entry_price']) + (quantity * entry_price)
+                    new_average_price = total_value / new_quantity
+                    
+                    # تحديث الصفقة الموجودة
+                    updates = {
+                        'quantity': new_quantity,
+                        'entry_price': new_average_price,
+                        'last_update': datetime.now().isoformat()
+                    }
+                    success = db_manager.update_order(existing_position['order_id'], updates)
+                    
+                else:  # sell
+                    # بيع: تقليل كمية
+                    if existing_position['quantity'] >= quantity:
+                        new_quantity = existing_position['quantity'] - quantity
+                        if new_quantity > 0:
+                            # تحديث الكمية المتبقية
+                            updates = {
+                                'quantity': new_quantity,
+                                'last_update': datetime.now().isoformat()
+                            }
+                            success = db_manager.update_order(existing_position['order_id'], updates)
+                        else:
+                            # إغلاق الصفقة بالكامل
+                            success = db_manager.close_order(existing_position['order_id'], entry_price, 0)
+                    else:
+                        logger.warning(f"كمية البيع {quantity} أكبر من الكمية المتاحة {existing_position['quantity']}")
+                        return False
+            else:
+                # صفقة جديدة
+                if side.lower() == 'buy':
+                    # إنشاء صفقة جديدة للشراء
+                    position_data['order_id'] = f"SPOT_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    success = db_manager.create_comprehensive_position(position_data)
+                else:
+                    # محاولة بيع بدون رصيد
+                    logger.warning(f"محاولة بيع {symbol} بدون رصيد متاح")
+                    return False
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة صفقة السبوت: {e}")
+            return False
+    
+    def _handle_futures_position(self, position_data: Dict[str, Any]) -> bool:
+        """معالجة صفقة الفيوتشر مع تجميع حسب ID"""
+        try:
+            symbol = position_data.get('symbol', '')
+            side = position_data.get('side', 'buy')
+            quantity = position_data.get('quantity', 0)
+            entry_price = position_data.get('entry_price', 0)
+            signal_id = position_data.get('signal_id', '')
+            
+            # إنشاء ID عشوائي إذا لم يكن موجوداً
+            if not signal_id:
+                signal_id = self._generate_random_id(symbol)
+                position_data['signal_id'] = signal_id
+                logger.info(f"تم إنشاء ID عشوائي: {signal_id}")
+            
+            # البحث عن صفقة موجودة بنفس ID
+            existing_position = db_manager.get_position_by_signal_id(signal_id, self.user_id, symbol)
+            
+            if existing_position:
+                # تجميع الصفقات بنفس ID
+                if side.lower() == 'buy' and existing_position['side'].lower() == 'buy':
+                    # تعزيز Long
+                    new_quantity = existing_position['quantity'] + quantity
+                    # حساب متوسط السعر المرجح
+                    total_value = (existing_position['quantity'] * existing_position['entry_price']) + (quantity * entry_price)
+                    new_average_price = total_value / new_quantity
+                    
+                    # تحديث الصفقة الموجودة
+                    updates = {
+                        'quantity': new_quantity,
+                        'entry_price': new_average_price,
+                        'last_update': datetime.now().isoformat()
+                    }
+                    success = db_manager.update_signal_position(signal_id, self.user_id, symbol, updates)
+                    
+                elif side.lower() == 'sell' and existing_position['side'].lower() == 'sell':
+                    # تعزيز Short
+                    new_quantity = existing_position['quantity'] + quantity
+                    # حساب متوسط السعر المرجح
+                    total_value = (existing_position['quantity'] * existing_position['entry_price']) + (quantity * entry_price)
+                    new_average_price = total_value / new_quantity
+                    
+                    # تحديث الصفقة الموجودة
+                    updates = {
+                        'quantity': new_quantity,
+                        'entry_price': new_average_price,
+                        'last_update': datetime.now().isoformat()
+                    }
+                    success = db_manager.update_signal_position(signal_id, self.user_id, symbol, updates)
+                    
+                else:
+                    # اتجاه معاكس - إنشاء صفقة منفصلة
+                    position_data['order_id'] = f"FUTURES_{symbol}_{signal_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    success = db_manager.create_comprehensive_position(position_data)
+                    
+            else:
+                # صفقة جديدة
+                position_data['order_id'] = f"FUTURES_{symbol}_{signal_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                success = db_manager.create_comprehensive_position(position_data)
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"خطأ في معالجة صفقة الفيوتشر: {e}")
+            return False
+    
+    def _generate_random_id(self, symbol: str) -> str:
+        """إنشاء ID عشوائي للصفقة"""
+        import random
+        import string
+        
+        # صيغة: SYMBOL-YYYYMMDD-HHMMSS-RAND4
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        return f"{symbol}-{timestamp}-{random_part}"
     
     def close_position(self, order_id: str, close_price: float = None) -> bool:
         """إغلاق صفقة"""
@@ -302,3 +451,4 @@ class PortfolioManagerFactory:
 
 # مثيل عام
 portfolio_factory = PortfolioManagerFactory()
+

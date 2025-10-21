@@ -1234,6 +1234,56 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على جميع صفقات المستخدم: {e}")
             return []
+    
+    def get_position_by_symbol_and_user(self, symbol: str, user_id: int, market_type: str) -> Optional[Dict]:
+        """الحصول على صفقة محددة بالرمز والمستخدم ونوع السوق"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # البحث في جدول orders أولاً
+                cursor.execute("""
+                    SELECT * FROM orders 
+                    WHERE user_id = ? AND symbol = ? AND status = 'OPEN'
+                    ORDER BY open_time DESC
+                    LIMIT 1
+                """, (user_id, symbol))
+                
+                row = cursor.fetchone()
+                if row:
+                    order = dict(row)
+                    # تحويل النصوص JSON إلى قوائم
+                    try:
+                        order['tps'] = json.loads(order['tps'])
+                        order['partial_close'] = json.loads(order['partial_close'])
+                    except (json.JSONDecodeError, TypeError):
+                        order['tps'] = []
+                        order['partial_close'] = []
+                    
+                    # إضافة market_type إذا لم يكن موجوداً
+                    if 'market_type' not in order:
+                        order['market_type'] = market_type
+                    
+                    return order
+                
+                # إذا لم توجد في orders، البحث في signal_positions
+                cursor.execute("""
+                    SELECT * FROM signal_positions 
+                    WHERE user_id = ? AND symbol = ? AND status = 'OPEN' AND market_type = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (user_id, symbol, market_type))
+                
+                row = cursor.fetchone()
+                if row:
+                    position = dict(row)
+                    return position
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على صفقة بالرمز: {e}")
+            return None
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

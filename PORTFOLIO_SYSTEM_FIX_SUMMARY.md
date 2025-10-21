@@ -119,3 +119,4 @@ portfolio_data = portfolio_manager.get_user_portfolio()
 **تاريخ الإصلاح:** $(date)
 **المطور:** AI Assistant
 **الحالة:** مكتمل ✅
+
