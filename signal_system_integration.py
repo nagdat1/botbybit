@@ -179,15 +179,15 @@ if __name__ == "__main__":
     
     # حالة النظام
     status = get_integration_status()
-    print(f"\n📊 حالة النظام:")
+    print(f"\nحالة النظام:")
     print(f"   الحالة: {status['status']}")
     print(f"   الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}")
     
     # قائمة الأنظمة
-    print(f"\n🔧 الأنظمة المتاحة:")
+    print(f"\nالأنظمة المتاحة:")
     for system_name, is_available in status['systems'].items():
-        status_icon = "✅" if is_available else "❌"
-        print(f"   {status_icon} {system_name}")
+        status_icon = "متاح" if is_available else "غير متاح"
+        print(f"   {status_icon}: {system_name}")
     
     # اختبار معالجة إشارة
     if is_system_available():
@@ -198,10 +198,10 @@ if __name__ == "__main__":
         }
         
         result = process_signal_integrated(test_signal, 12345)
-        print(f"\n🧪 نتيجة اختبار الإشارة: {result['success']}")
+        print(f"\nنتيجة اختبار الإشارة: {result['success']}")
         if result['success']:
             print(f"   النظام المستخدم: {result.get('system_used', 'غير محدد')}")
         else:
             print(f"   الخطأ: {result.get('message', 'غير محدد')}")
     else:
-        print("\n⚠️ لا توجد أنظمة متاحة للاختبار")
+        print("\nلا توجد أنظمة متاحة للاختبار")
