@@ -5418,10 +5418,6 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # استخدام مدير المحفظة المحسن
         portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
-        portfolio_data = portfolio_manager.get_user_portfolio(force_refresh=True)
-        
-        # جمع جميع الصفقات المفتوحة من المصادر المختلفة
-        all_positions = {}
         
         # 🔍 التحقق من نوع الحساب
         user_settings = user_manager.get_user_settings(user_id) if user_id else None
@@ -5430,10 +5426,13 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
         
-        # إضافة الصفقات من قاعدة البيانات (مدير المحفظة المحسن)
-        open_positions_db = portfolio_data.get('open_positions', [])
-        for position in open_positions_db:
-            position_id = position.get('order_id', f"db_{position.get('symbol')}_{position.get('open_time', '')}")
+        # استخدام الدالة الموحدة لجمع جميع الصفقات
+        all_positions_list = portfolio_manager.get_all_user_positions_unified(account_type)
+        
+        # تحويل القائمة إلى قاموس
+        all_positions = {}
+        for position in all_positions_list:
+            position_id = position.get('order_id', f"pos_{position.get('symbol')}_{len(all_positions)}")
             all_positions[position_id] = {
                 'symbol': position.get('symbol'),
                 'entry_price': position.get('entry_price', 0),
@@ -5444,73 +5443,15 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'position_size': position.get('quantity', 0),
                 'current_price': position.get('current_price', position.get('entry_price', 0)),
                 'pnl_percent': position.get('pnl_percent', 0),
-                'is_real_position': False,  # من قاعدة البيانات
-                'table_source': position.get('table_source', 'database')
+                'is_real_position': position.get('is_real', False),
+                'source': position.get('source', 'unknown')
             }
-        
-        if account_type == 'real':
-            # 🔴 حساب حقيقي - جلب الصفقات من المنصة
-            from real_account_manager import real_account_manager
             
-            real_account = real_account_manager.get_account(user_id)
-            user_data = user_manager.get_user(user_id)
-            exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
-            
-            logger.info(f"🔴 جلب الصفقات الحقيقية من منصة {exchange.upper()}...")
-            
-            try:
-                platform_positions = []
-                
-                if real_account:
-                    if exchange == 'bybit' and hasattr(real_account, 'get_open_positions'):
-                        # تحديد الفئة بناءً على نوع السوق
-                        category = "linear" if market_type == 'futures' else "spot"
-                        platform_positions = real_account.get_open_positions(category)
-                    elif exchange == 'mexc' and hasattr(real_account, 'get_open_orders'):
-                        # MEXC تدعم Spot فقط - جلب الأوامر المفتوحة
-                        platform_positions = real_account.get_open_orders()
-                
-                if platform_positions:
-                    logger.info(f"✅ تم جلب {len(platform_positions)} صفقة من المنصة")
-                    
-                    # تحويل الصفقات من صيغة المنصة إلى صيغة البوت
-                    for idx, pos in enumerate(platform_positions):
-                        position_id = f"real_{pos.get('symbol')}_{idx}"
-                        
-                        all_positions[position_id] = {
-                            'symbol': pos.get('symbol'),
-                            'entry_price': float(pos.get('entry_price', pos.get('avgPrice', pos.get('price', 0)))),
-                            'side': pos.get('side', 'Buy').lower(),
-                            'account_type': market_type,
-                            'leverage': int(pos.get('leverage', 1)),
-                            'exchange': exchange,
-                            'position_size': float(pos.get('size', 0)),
-                            'current_price': float(pos.get('mark_price', pos.get('markPrice', pos.get('avgPrice', 0)))),
-                            'pnl_percent': float(pos.get('unrealized_pnl', pos.get('unrealisedPnl', 0))),
-                            'liquidation_price': float(pos.get('liquidation_price', pos.get('liqPrice', 0))) if market_type == 'futures' else 0,
-                            'is_real_position': True  # علامة للتمييز
-                        }
-                        
-                        logger.info(f"📊 صفقة حقيقية: {pos.get('symbol')} - {pos.get('side')}")
-                else:
-                    logger.info("لا توجد صفقات مفتوحة على المنصة")
-                    
-            except Exception as e:
-                logger.error(f"❌ خطأ في جلب الصفقات من المنصة: {e}")
-                await update.message.reply_text(f"⚠️ تعذر جلب الصفقات من المنصة: {e}\n\nسيتم عرض الصفقات المحلية فقط.")
-        
-        else:
-            # 🟢 حساب تجريبي - جلب الصفقات من داخل البوت
-            logger.info("🟢 عرض الصفقات التجريبية من داخل البوت...")
-            
-            # إضافة صفقات المستخدم من user_manager
-            if user_id and user_id in user_manager.user_positions:
-                user_positions = user_manager.user_positions[user_id]
-                all_positions.update(user_positions)
-                logger.info(f"تم العثور على {len(user_positions)} صفقة تجريبية للمستخدم {user_id}")
-            
-            # إضافة الصفقات من trading_bot.open_positions (للإشارات القديمة)
-            all_positions.update(trading_bot.open_positions)
+            # إضافة معلومات إضافية للفيوتشر
+            if position.get('market_type') == 'futures':
+                all_positions[position_id]['liquidation_price'] = position.get('liquidation_price', 0)
+                all_positions[position_id]['margin_amount'] = position.get('margin_amount', 0)
+                all_positions[position_id]['contracts'] = position.get('contracts', 0)
         
         logger.info(f"📊 إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
         

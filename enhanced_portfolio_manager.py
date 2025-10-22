@@ -21,9 +21,60 @@ class EnhancedPortfolioManager:
         self.portfolio_cache = {}
         self.last_update = None
         
+    def sync_positions_with_memory(self) -> bool:
+        """مزامنة الصفقات بين الذاكرة وقاعدة البيانات"""
+        try:
+            logger.info(f"مزامنة الصفقات للمستخدم {self.user_id}...")
+            
+            # جلب الصفقات من الذاكرة
+            memory_positions = user_manager.user_positions.get(self.user_id, {})
+            
+            # جلب الصفقات من قاعدة البيانات
+            db_positions = db_manager.get_user_orders(self.user_id, status='OPEN')
+            db_position_ids = {pos.get('order_id') for pos in db_positions if pos.get('order_id')}
+            
+            # حفظ الصفقات المفقودة في قاعدة البيانات
+            synced_count = 0
+            for position_id, position_info in memory_positions.items():
+                if position_id not in db_position_ids:
+                    # صفقة موجودة في الذاكرة ولكن ليست في قاعدة البيانات
+                    position_data = {
+                        'order_id': position_id,
+                        'user_id': self.user_id,
+                        'symbol': position_info.get('symbol'),
+                        'side': position_info.get('side'),
+                        'entry_price': position_info.get('entry_price'),
+                        'quantity': position_info.get('position_size', position_info.get('amount', 0)),
+                        'market_type': position_info.get('account_type', 'spot'),
+                        'exchange': position_info.get('exchange', 'bybit'),
+                        'leverage': position_info.get('leverage', 1),
+                        'status': 'OPEN',
+                        'notes': 'مزامنة تلقائية من الذاكرة'
+                    }
+                    
+                    if 'signal_id' in position_info:
+                        position_data['signal_id'] = position_info['signal_id']
+                    
+                    success = self.add_position(position_data)
+                    if success:
+                        synced_count += 1
+                        logger.info(f"تمت مزامنة الصفقة: {position_id}")
+            
+            if synced_count > 0:
+                logger.info(f"تمت مزامنة {synced_count} صفقة مع قاعدة البيانات")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطأ في مزامنة الصفقات: {e}")
+            return False
+    
     def get_user_portfolio(self, force_refresh: bool = False) -> Dict[str, Any]:
         """الحصول على محفظة المستخدم الشاملة"""
         try:
+            # مزامنة الصفقات أولاً
+            self.sync_positions_with_memory()
+            
             # التحقق من التخزين المؤقت
             if not force_refresh and self.portfolio_cache and self.last_update:
                 time_diff = datetime.now() - self.last_update
@@ -349,6 +400,107 @@ class EnhancedPortfolioManager:
             
         except Exception as e:
             logger.error(f"خطأ في الحصول على صفقات الرمز {symbol}: {e}")
+            return []
+    
+    def get_all_user_positions_unified(self, account_type: str = 'demo') -> List[Dict]:
+        """جمع جميع الصفقات من جميع المصادر بشكل موحد"""
+        try:
+            logger.info(f"جمع جميع الصفقات للمستخدم {self.user_id} - نوع الحساب: {account_type}")
+            
+            all_positions = []
+            position_ids_seen = set()
+            
+            if account_type == 'demo':
+                # 1. من الذاكرة (user_manager.user_positions)
+                memory_positions = user_manager.user_positions.get(self.user_id, {})
+                logger.info(f"صفقات من الذاكرة: {len(memory_positions)}")
+                
+                for position_id, position_info in memory_positions.items():
+                    if position_id not in position_ids_seen:
+                        all_positions.append({
+                            'order_id': position_id,
+                            'symbol': position_info.get('symbol'),
+                            'side': position_info.get('side'),
+                            'entry_price': position_info.get('entry_price'),
+                            'quantity': position_info.get('position_size', position_info.get('amount', 0)),
+                            'market_type': position_info.get('account_type', 'spot'),
+                            'exchange': position_info.get('exchange', 'bybit'),
+                            'leverage': position_info.get('leverage', 1),
+                            'current_price': position_info.get('current_price', position_info.get('entry_price')),
+                            'pnl_percent': position_info.get('pnl_percent', 0),
+                            'status': 'OPEN',
+                            'source': 'memory'
+                        })
+                        position_ids_seen.add(position_id)
+                
+                # 2. من قاعدة البيانات (للتأكد)
+                db_positions = db_manager.get_user_orders(self.user_id, status='OPEN')
+                logger.info(f"صفقات من قاعدة البيانات: {len(db_positions)}")
+                
+                for pos in db_positions:
+                    position_id = pos.get('order_id')
+                    if position_id and position_id not in position_ids_seen:
+                        all_positions.append({
+                            **pos,
+                            'source': 'database'
+                        })
+                        position_ids_seen.add(position_id)
+                
+            else:  # real account
+                # 1. من المنصة (مصدر الحقيقة)
+                try:
+                    from real_account_manager import real_account_manager
+                    real_account = real_account_manager.get_account(self.user_id)
+                    
+                    if real_account:
+                        user_data = user_manager.get_user(self.user_id)
+                        market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
+                        
+                        if hasattr(real_account, 'get_open_positions'):
+                            category = "linear" if market_type == 'futures' else "spot"
+                            platform_positions = real_account.get_open_positions(category)
+                            logger.info(f"صفقات من المنصة: {len(platform_positions)}")
+                            
+                            for idx, pos in enumerate(platform_positions):
+                                position_id = f"real_{pos.get('symbol')}_{idx}"
+                                if position_id not in position_ids_seen:
+                                    all_positions.append({
+                                        'order_id': position_id,
+                                        'symbol': pos.get('symbol'),
+                                        'side': pos.get('side', 'Buy').lower(),
+                                        'entry_price': float(pos.get('entry_price', pos.get('avgPrice', 0))),
+                                        'quantity': float(pos.get('size', 0)),
+                                        'market_type': market_type,
+                                        'exchange': user_data.get('exchange', 'bybit') if user_data else 'bybit',
+                                        'leverage': int(pos.get('leverage', 1)),
+                                        'current_price': float(pos.get('mark_price', pos.get('markPrice', 0))),
+                                        'pnl_percent': float(pos.get('unrealized_pnl', 0)),
+                                        'status': 'OPEN',
+                                        'source': 'platform',
+                                        'is_real': True
+                                    })
+                                    position_ids_seen.add(position_id)
+                except Exception as e:
+                    logger.error(f"خطأ في جلب الصفقات من المنصة: {e}")
+                
+                # 2. من قاعدة البيانات المحلية (للمتابعة)
+                db_positions = db_manager.get_user_orders(self.user_id, status='OPEN')
+                logger.info(f"صفقات من قاعدة البيانات المحلية: {len(db_positions)}")
+                
+                for pos in db_positions:
+                    position_id = pos.get('order_id')
+                    if position_id and position_id not in position_ids_seen:
+                        all_positions.append({
+                            **pos,
+                            'source': 'database_local'
+                        })
+                        position_ids_seen.add(position_id)
+            
+            logger.info(f"إجمالي الصفقات الفريدة: {len(all_positions)}")
+            return all_positions
+            
+        except Exception as e:
+            logger.error(f"خطأ في جمع الصفقات: {e}")
             return []
     
     def calculate_portfolio_pnl(self, current_prices: Dict[str, float]) -> Dict[str, Any]:
