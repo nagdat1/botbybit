@@ -5652,10 +5652,10 @@ async def show_demo_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE
                 profit_text = f"{profit:.2f} USDT ({profit_percent:+.2f}%)"
                 
                 message += f"{profit_emoji} {currency}\n"
-                message += f"   💰 الكمية: {amount:.6f}\n"
+                message += f"   💰 عدد العملات: {amount:.6f} {currency}\n"
                 message += f"   💲 متوسط السعر: {avg_price:.2f} USDT\n"
                 message += f"   💲 السعر الحالي: {current_price:.2f} USDT\n"
-                message += f"   📊 القيمة: {current_value:.2f} USDT\n"
+                message += f"   📊 القيمة الإجمالية: {current_value:.2f} USDT\n"
                 message += f"   ⬆️ الربح/الخسارة: {profit_text}\n"
                 message += f"   🆔 الرمز: {symbol}\n\n"
             
@@ -5738,11 +5738,11 @@ async def show_real_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE
                     
                     # إضافة العملة للرسالة
                     message += f"💰 {currency}\n"
-                    message += f"   💰 الكمية الإجمالية: {amount:.6f}\n"
-                    message += f"   💳 متاح: {free:.6f}\n"
-                    message += f"   🔒 مقفل: {locked:.6f}\n"
+                    message += f"   💰 عدد العملات الإجمالي: {amount:.6f} {currency}\n"
+                    message += f"   💳 متاح للتداول: {free:.6f} {currency}\n"
+                    message += f"   🔒 مقفل في صفقات: {locked:.6f} {currency}\n"
                     message += f"   💲 السعر الحالي: {current_price:.2f} USDT\n"
-                    message += f"   📊 القيمة: {value_usdt:.2f} USDT\n\n"
+                    message += f"   📊 القيمة الإجمالية: {value_usdt:.2f} USDT\n\n"
                 
                 message += f"💎 إجمالي قيمة المحفظة: {total_value:.2f} USDT"
             else:
