@@ -2794,7 +2794,7 @@ class TradingBot:
                     # التأكد من أن position هو FuturesPosition
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في قائمة المستخدم
-                        user_positions[position_id] = {
+                        position_data_dict = {
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -2808,6 +2808,15 @@ class TradingBot:
                             'current_price': price,
                             'pnl_percent': 0.0
                         }
+                        
+                        user_positions[position_id] = position_data_dict
+                        
+                        # حفظ مباشرة في user_manager.user_positions للتأكد
+                        if self.user_id:
+                            if self.user_id not in user_manager.user_positions:
+                                user_manager.user_positions[self.user_id] = {}
+                            user_manager.user_positions[self.user_id][position_id] = position_data_dict.copy()
+                            logger.info(f"✅ تم حفظ صفقة الفيوتشر مباشرة في user_manager.user_positions[{self.user_id}][{position_id}]")
                         
                         # حفظ الصفقة في قاعدة البيانات
                         if self.user_id:
@@ -2914,6 +2923,10 @@ class TradingBot:
                 if success:
                     position_id = result
                     
+                    logger.info(f"🔍 DEBUG: قبل الحفظ - user_positions = {user_positions}")
+                    logger.info(f"🔍 DEBUG: قبل الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
+                    
+                    # حفظ الصفقة في user_positions (المرجع المحلي)
                     user_positions[position_id] = {
                         'symbol': symbol,
                         'entry_price': price,
@@ -2925,6 +2938,26 @@ class TradingBot:
                         'current_price': price,
                         'pnl_percent': 0.0
                     }
+                    
+                    # حفظ مباشرة في user_manager.user_positions للتأكد
+                    if self.user_id:
+                        if self.user_id not in user_manager.user_positions:
+                            user_manager.user_positions[self.user_id] = {}
+                        user_manager.user_positions[self.user_id][position_id] = {
+                            'symbol': symbol,
+                            'entry_price': price,
+                            'side': action,
+                            'account_type': user_market_type,
+                            'leverage': 1,
+                            'category': category,
+                            'amount': amount,
+                            'current_price': price,
+                            'pnl_percent': 0.0
+                        }
+                        logger.info(f"✅ تم حفظ الصفقة مباشرة في user_manager.user_positions[{self.user_id}][{position_id}]")
+                    
+                    logger.info(f"🔍 DEBUG: بعد الحفظ - user_positions = {user_positions}")
+                    logger.info(f"🔍 DEBUG: بعد الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
                     
                     # حفظ الصفقة في قاعدة البيانات
                     if self.user_id:

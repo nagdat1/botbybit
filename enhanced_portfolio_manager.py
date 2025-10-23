@@ -412,7 +412,9 @@ class EnhancedPortfolioManager:
             
             if account_type == 'demo':
                 # 1. من الذاكرة (user_manager.user_positions)
+                logger.info(f"🔍 DEBUG: user_manager.user_positions = {user_manager.user_positions}")
                 memory_positions = user_manager.user_positions.get(self.user_id, {})
+                logger.info(f"🔍 DEBUG: memory_positions للمستخدم {self.user_id} = {memory_positions}")
                 logger.info(f"صفقات من الذاكرة: {len(memory_positions)}")
                 
                 for position_id, position_info in memory_positions.items():
