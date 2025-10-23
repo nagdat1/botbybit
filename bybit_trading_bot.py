@@ -5516,12 +5516,13 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
             
             # إضافة معلومات إضافية للفيوتشر
-            if position.get('market_type') == 'futures':
-                all_positions[position_id]['liquidation_price'] = position.get('liquidation_price', 0)
-                all_positions[position_id]['margin_amount'] = position.get('margin_amount', 0)
-                all_positions[position_id]['contracts'] = position.get('contracts', 0)
+            if position_info.get('account_type') == 'futures':
+                all_positions[position_id]['liquidation_price'] = position_info.get('liquidation_price', 0)
+                all_positions[position_id]['margin_amount'] = position_info.get('margin_amount', 0)
+                all_positions[position_id]['contracts'] = position_info.get('contracts', 0)
         
         logger.info(f"📊 إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
+        logger.info(f"🔍 DEBUG: all_positions = {all_positions}")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
