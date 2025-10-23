@@ -25,7 +25,7 @@ class AdvancedPortfolioManager:
             logger.info(f"🔍 جاري تحضير المحفظة الشاملة للمستخدم {user_id}")
             
             # الحصول على إعدادات المستخدم
-            user_data = user_manager.get_user_data(user_id)
+            user_data = user_manager.get_user(user_id)
             if not user_data:
                 return {"error": "لم يتم العثور على بيانات المستخدم"}
             
@@ -38,7 +38,7 @@ class AdvancedPortfolioManager:
                 return await self._get_demo_portfolio(user_id, market_type)
             else:
                 return await self._get_real_portfolio(user_id, market_type)
-                
+            
         except Exception as e:
             logger.error(f"❌ خطأ في الحصول على المحفظة الشاملة: {e}")
             return {"error": f"خطأ في تحضير المحفظة: {str(e)}"}
@@ -116,7 +116,7 @@ class AdvancedPortfolioManager:
                     "profit_percent": ((current_price - weighted_price) / weighted_price * 100) if weighted_price > 0 else 0,
                     "last_update": datetime.now().isoformat()
                 })
-            else:
+                    else:
                 # عملة جديدة
                 total_value = amount * current_price
                 profit_loss = (current_price - entry_price) * amount
@@ -132,7 +132,7 @@ class AdvancedPortfolioManager:
                     "profit_percent": profit_percent,
                     "last_update": datetime.now().isoformat()
                 }
-                
+            
         except Exception as e:
             logger.error(f"❌ خطأ في معالجة صفقة سبوت: {e}")
     
@@ -164,7 +164,7 @@ class AdvancedPortfolioManager:
                     "profit_loss": (current_price - weighted_price) * total_amount if side == 'buy' else (weighted_price - current_price) * total_amount,
                     "last_update": datetime.now().isoformat()
                 })
-            else:
+                else:
                 # صفقة جديدة
                 total_value = amount * current_price
                 profit_loss = (current_price - entry_price) * amount if side == 'buy' else (entry_price - current_price) * amount
@@ -179,7 +179,7 @@ class AdvancedPortfolioManager:
                     "profit_loss": profit_loss,
                     "last_update": datetime.now().isoformat()
                 }
-                
+            
         except Exception as e:
             logger.error(f"❌ خطأ في معالجة صفقة فيوتشر: {e}")
     
@@ -198,8 +198,9 @@ class AdvancedPortfolioManager:
             }
             
             # الحصول على مفاتيح API
-            api_key = user_manager.get_user_api_key(user_id)
-            api_secret = user_manager.get_user_api_secret(user_id)
+            user_data = user_manager.get_user(user_id)
+            api_key = user_data.get('api_key') if user_data else None
+            api_secret = user_data.get('api_secret') if user_data else None
             
             if not api_key or not api_secret:
                 portfolio["error"] = "مفاتيح API غير موجودة"
@@ -254,7 +255,7 @@ class AdvancedPortfolioManager:
                                 "total_value": total_amount * current_price,
                                 "last_update": datetime.now().isoformat()
                             }
-                            
+            
         except Exception as e:
             logger.error(f"❌ خطأ في جلب العملات الحقيقية: {e}")
     
@@ -286,7 +287,7 @@ class AdvancedPortfolioManager:
                             "profit_loss": unrealized_pnl,
                             "last_update": datetime.now().isoformat()
                         }
-                        
+                
         except Exception as e:
             logger.error(f"❌ خطأ في جلب صفقات الفيوتشر: {e}")
     
@@ -298,7 +299,7 @@ class AdvancedPortfolioManager:
             return symbol.replace('BTC', '')
         elif symbol.endswith('ETH'):
             return symbol.replace('ETH', '')
-        else:
+                    else:
             return symbol.split('/')[0] if '/' in symbol else symbol
     
     async def format_portfolio_message(self, portfolio: Dict[str, Any]) -> str:
@@ -352,7 +353,7 @@ class AdvancedPortfolioManager:
             if not portfolio["spot_currencies"] and not portfolio["futures_positions"]:
                 message += "📭 لا توجد عملات أو صفقات في المحفظة حالياً\n\n"
                 message += "💡 قم بشراء عملات في سوق Spot أو فتح صفقات فيوتشر لتظهر هنا"
-            else:
+                        else:
                 message += f"💎 **إجمالي قيمة المحفظة: {portfolio['total_value']:.2f} USDT**"
             
             return message

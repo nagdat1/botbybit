@@ -3000,15 +3000,15 @@ class TradingBot:
                             # إنشاء مركز جديد للعملة
                             if action.lower() == 'buy':
                                 user_manager.user_positions[self.user_id][unified_position_id] = {
-                                    'symbol': symbol,
+                        'symbol': symbol,
                                     'base_currency': base_currency,
-                                    'entry_price': price,
+                        'entry_price': price,
                                     'side': 'buy',  # دائماً buy للمركز الموحد
-                                    'account_type': user_market_type,
-                                    'leverage': 1,
-                                    'category': category,
-                                    'amount': amount,
-                                    'current_price': price,
+                        'account_type': user_market_type,
+                        'leverage': 1,
+                        'category': category,
+                        'amount': amount,
+                        'current_price': price,
                                     'pnl_percent': 0.0,
                                     'created_at': datetime.now().isoformat(),
                                     'last_update': datetime.now().isoformat()
@@ -3102,14 +3102,14 @@ class TradingBot:
                     else:
                         # مركز جديد
                         message = f"📈 تم إنشاء مركز موحد جديد\n"
-                        if self.user_id:
-                            message += f"👤 المستخدم: {self.user_id}\n"
+                    if self.user_id:
+                        message += f"👤 المستخدم: {self.user_id}\n"
                         message += f"📊 العملة: {base_currency}\n"
                         message += f"🔄 العملية: {action.upper()}\n"
                         message += f"💰 الكمية: {amount}\n"
-                        message += f"💲 سعر الدخول: {price:.6f}\n"
-                        message += f"🏪 السوق: SPOT\n"
-                        message += f"🆔 معرف المركز: {unified_position_id}\n"
+                    message += f"💲 سعر الدخول: {price:.6f}\n"
+                    message += f"🏪 السوق: SPOT\n"
+                    message += f"🆔 معرف المركز: {unified_position_id}\n"
                     
                     # إضافة معلومات ID الإشارة إذا كان متاحاً
                     if hasattr(self, '_current_signal_id') and self._current_signal_id:
@@ -5823,7 +5823,7 @@ async def show_portfolio_details(update: Update, context: ContextTypes.DEFAULT_T
 async def show_portfolio_settings(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
     """عرض إعدادات المحفظة"""
     try:
-        user_data = user_manager.get_user_data(user_id)
+        user_data = user_manager.get_user(user_id)
         
         message = "⚙️ **إعدادات المحفظة:**\n\n"
         message += f"🏦 **نوع الحساب:** {user_data.get('account_type', 'demo').upper()}\n"
