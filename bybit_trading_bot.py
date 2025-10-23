@@ -5466,12 +5466,21 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         market_type = user_settings.get('market_type', 'spot') if user_settings else 'spot'
         
         logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
+        logger.info(f"🔍 DEBUG: user_settings = {user_settings}")
         
         # استخدام الدالة الموحدة لجمع جميع الصفقات
         all_positions_list = portfolio_manager.get_all_user_positions_unified(account_type)
+        logger.info(f"🔍 DEBUG: all_positions_list = {all_positions_list}")
+        
+        # إضافة الصفقات مباشرة من user_manager.user_positions كإصلاح مؤقت
+        logger.info(f"🔍 DEBUG: جلب الصفقات مباشرة من user_manager.user_positions")
+        direct_positions = user_manager.user_positions.get(user_id, {})
+        logger.info(f"🔍 DEBUG: direct_positions = {direct_positions}")
         
         # تحويل القائمة إلى قاموس
         all_positions = {}
+        
+        # إضافة الصفقات من الدالة الموحدة
         for position in all_positions_list:
             position_id = position.get('order_id', f"pos_{position.get('symbol')}_{len(all_positions)}")
             all_positions[position_id] = {
@@ -5487,6 +5496,24 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'is_real_position': position.get('is_real', False),
                 'source': position.get('source', 'unknown')
             }
+        
+        # إضافة الصفقات مباشرة من user_manager.user_positions
+        for position_id, position_info in direct_positions.items():
+            if position_id not in all_positions:
+                logger.info(f"🔍 DEBUG: إضافة صفقة مباشرة: {position_id} = {position_info}")
+                all_positions[position_id] = {
+                    'symbol': position_info.get('symbol'),
+                    'entry_price': position_info.get('entry_price', 0),
+                    'side': position_info.get('side', 'buy'),
+                    'account_type': position_info.get('account_type', market_type),
+                    'leverage': position_info.get('leverage', 1),
+                    'exchange': 'bybit',
+                    'position_size': position_info.get('amount', position_info.get('position_size', 0)),
+                    'current_price': position_info.get('current_price', position_info.get('entry_price', 0)),
+                    'pnl_percent': position_info.get('pnl_percent', 0),
+                    'is_real_position': False,
+                    'source': 'direct_memory'
+                }
             
             # إضافة معلومات إضافية للفيوتشر
             if position.get('market_type') == 'futures':

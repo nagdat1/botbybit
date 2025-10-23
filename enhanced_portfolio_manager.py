@@ -413,9 +413,19 @@ class EnhancedPortfolioManager:
             if account_type == 'demo':
                 # 1. من الذاكرة (user_manager.user_positions)
                 logger.info(f"🔍 DEBUG: user_manager.user_positions = {user_manager.user_positions}")
+                logger.info(f"🔍 DEBUG: self.user_id = {self.user_id}")
+                logger.info(f"🔍 DEBUG: type(self.user_id) = {type(self.user_id)}")
+                
                 memory_positions = user_manager.user_positions.get(self.user_id, {})
                 logger.info(f"🔍 DEBUG: memory_positions للمستخدم {self.user_id} = {memory_positions}")
+                logger.info(f"🔍 DEBUG: type(memory_positions) = {type(memory_positions)}")
                 logger.info(f"صفقات من الذاكرة: {len(memory_positions)}")
+                
+                # فحص مفصل لكل صفقة
+                for pos_id, pos_info in memory_positions.items():
+                    logger.info(f"🔍 DEBUG: صفقة {pos_id} = {pos_info}")
+                    logger.info(f"🔍 DEBUG: account_type في الصفقة = {pos_info.get('account_type')}")
+                    logger.info(f"🔍 DEBUG: market_type في الصفقة = {pos_info.get('market_type')}")
                 
                 for position_id, position_info in memory_positions.items():
                     if position_id not in position_ids_seen:
