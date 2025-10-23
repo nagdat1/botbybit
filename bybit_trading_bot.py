@@ -2926,18 +2926,7 @@ class TradingBot:
                     logger.info(f"🔍 DEBUG: قبل الحفظ - user_positions = {user_positions}")
                     logger.info(f"🔍 DEBUG: قبل الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
                     
-                    # حفظ الصفقة في user_positions (المرجع المحلي)
-                    user_positions[position_id] = {
-                        'symbol': symbol,
-                        'entry_price': price,
-                        'side': action,
-                        'account_type': user_market_type,
-                        'leverage': 1,
-                        'category': category,
-                        'amount': amount,
-                        'current_price': price,
-                        'pnl_percent': 0.0
-                    }
+                    # لا نحفظ في user_positions القديم - سنستخدم النظام الجديد فقط
                     
                     # استخدام منطق المحفظة الموحدة للصفقات (مثل المحفظة الحقيقية)
                     if self.user_id:
@@ -5715,7 +5704,11 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         symbol = position_info['symbol']
         entry_price = position_info['entry_price']
         side = position_info['side']
-        amount = position_info.get('amount', position_info.get('margin_amount', 0))
+        # الحصول على الكمية من البيانات (النظام الجديد يستخدم amount فقط)
+        amount = position_info.get('amount', 0)
+        if amount == 0:
+            # محاولة الحصول من الحقول الأخرى للتوافق مع النظام القديم
+            amount = position_info.get('position_size', position_info.get('margin_amount', 0))
         
         # الحصول على السعر الحالي من البيانات المحدثة
         current_price = position_info.get('current_price')

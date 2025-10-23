@@ -208,65 +208,94 @@ class EnhancedPortfolioManager:
             return False
     
     def _handle_spot_position(self, position_data: Dict[str, Any]) -> bool:
-        """معالجة صفقة السبوت كمحفظة حقيقية"""
+        """معالجة صفقة السبوت كمحفظة حقيقية موحدة"""
         try:
             symbol = position_data.get('symbol', '')
             side = position_data.get('side', 'buy')
             quantity = position_data.get('quantity', 0)
             entry_price = position_data.get('entry_price', 0)
             
-            # البحث عن صفقة موجودة للرمز
-            existing_position = db_manager.get_position_by_symbol_and_user(symbol, self.user_id, 'spot')
+            # إنشاء معرف موحد للعملة (بدون /USDT)
+            base_currency = symbol.replace('USDT', '').replace('BTC', '').replace('ETH', '')
+            if symbol.endswith('USDT'):
+                base_currency = symbol.replace('USDT', '')
+            elif symbol.endswith('BTC'):
+                base_currency = symbol.replace('BTC', '')
+            elif symbol.endswith('ETH'):
+                base_currency = symbol.replace('ETH', '')
+            else:
+                base_currency = symbol.split('/')[0] if '/' in symbol else symbol
+            
+            # معرف موحد للمركز (مركز واحد لكل عملة)
+            unified_position_id = f"SPOT_{base_currency}_spot"
+            
+            # البحث عن المركز الموحد في قاعدة البيانات
+            existing_position = db_manager.get_order(unified_position_id)
             
             if existing_position:
-                # تعديل الكمية الموجودة
+                # تحديث المركز الموجود
                 if side.lower() == 'buy':
-                    # شراء: إضافة كمية
-                    new_quantity = existing_position['quantity'] + quantity
+                    # شراء: إضافة كمية وحساب متوسط السعر المرجح
+                    old_quantity = existing_position.get('quantity', 0)
+                    old_price = existing_position.get('entry_price', 0)
+                    new_quantity = old_quantity + quantity
+                    
                     # حساب متوسط السعر المرجح
-                    total_value = (existing_position['quantity'] * existing_position['entry_price']) + (quantity * entry_price)
+                    total_value = (old_quantity * old_price) + (quantity * entry_price)
                     new_average_price = total_value / new_quantity
                     
-                    # تحديث الصفقة الموجودة
+                    # تحديث المركز الموحد
                     updates = {
                         'quantity': new_quantity,
                         'entry_price': new_average_price,
                         'last_update': datetime.now().isoformat()
                     }
-                    success = db_manager.update_order(existing_position['order_id'], updates)
+                    success = db_manager.update_order(unified_position_id, updates)
+                    
+                    logger.info(f"✅ تم تحديث المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
                     
                 else:  # sell
-                    # بيع: تقليل كمية
-                    if existing_position['quantity'] >= quantity:
-                        new_quantity = existing_position['quantity'] - quantity
+                    # بيع: تقليل كمية وحساب الربح
+                    old_quantity = existing_position.get('quantity', 0)
+                    if old_quantity >= quantity:
+                        new_quantity = old_quantity - quantity
+                        
+                        # حساب الربح من البيع
+                        profit_usdt = (entry_price - existing_position.get('entry_price', 0)) * quantity
+                        
                         if new_quantity > 0:
                             # تحديث الكمية المتبقية
                             updates = {
                                 'quantity': new_quantity,
                                 'last_update': datetime.now().isoformat()
                             }
-                            success = db_manager.update_order(existing_position['order_id'], updates)
+                            success = db_manager.update_order(unified_position_id, updates)
+                            logger.info(f"✅ تم تقليل كمية المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, ربح البيع={profit_usdt:.2f} USDT")
                         else:
-                            # إغلاق الصفقة بالكامل
-                            success = db_manager.close_order(existing_position['order_id'], entry_price, 0)
+                            # إغلاق المركز بالكامل
+                            success = db_manager.close_order(unified_position_id, entry_price, profit_usdt)
+                            logger.info(f"✅ تم إغلاق المركز الموحد {unified_position_id} بالكامل، ربح إجمالي={profit_usdt:.2f} USDT")
                     else:
-                        logger.warning(f"كمية البيع {quantity} أكبر من الكمية المتاحة {existing_position['quantity']}")
+                        logger.warning(f"⚠️ كمية البيع {quantity} أكبر من الكمية المتاحة {old_quantity}")
                         return False
             else:
-                # صفقة جديدة
+                # إنشاء مركز جديد للعملة
                 if side.lower() == 'buy':
-                    # إنشاء صفقة جديدة للشراء
-                    position_data['order_id'] = f"SPOT_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    # تحديث معرف المركز الموحد
+                    position_data['order_id'] = unified_position_id
+                    position_data['base_currency'] = base_currency
+                    position_data['market_type'] = 'spot'
+                    
                     success = db_manager.create_comprehensive_position(position_data)
+                    logger.info(f"✅ تم إنشاء مركز موحد جديد {unified_position_id}: كمية={quantity}, سعر={entry_price:.6f}")
                 else:
-                    # محاولة بيع بدون رصيد
-                    logger.warning(f"محاولة بيع {symbol} بدون رصيد متاح")
+                    logger.warning(f"⚠️ محاولة بيع {symbol} بدون رصيد متاح")
                     return False
             
             return success
             
         except Exception as e:
-            logger.error(f"خطأ في معالجة صفقة السبوت: {e}")
+            logger.error(f"خطأ في معالجة صفقة السبوت الموحدة: {e}")
             return False
     
     def _handle_futures_position(self, position_data: Dict[str, Any]) -> bool:
