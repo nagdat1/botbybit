@@ -2939,19 +2939,31 @@ class TradingBot:
                         'pnl_percent': 0.0
                     }
                     
-                    # استخدام منطق التجميع للصفقات (مثل محفظة حقيقية)
+                    # استخدام منطق المحفظة الموحدة للصفقات (مثل المحفظة الحقيقية)
                     if self.user_id:
-                        # البحث عن صفقة موجودة لنفس الرمز
-                        existing_position_id = None
-                        for pos_id, pos_info in user_manager.user_positions.get(self.user_id, {}).items():
-                            if (pos_info.get('symbol') == symbol and 
-                                pos_info.get('account_type') == user_market_type):
-                                existing_position_id = pos_id
-                                break
+                        # إنشاء معرف موحد للعملة (بدون /USDT)
+                        base_currency = symbol.replace('USDT', '').replace('BTC', '').replace('ETH', '')
+                        if symbol.endswith('USDT'):
+                            base_currency = symbol.replace('USDT', '')
+                        elif symbol.endswith('BTC'):
+                            base_currency = symbol.replace('BTC', '')
+                        elif symbol.endswith('ETH'):
+                            base_currency = symbol.replace('ETH', '')
+                        else:
+                            base_currency = symbol.split('/')[0] if '/' in symbol else symbol
                         
-                        if existing_position_id:
-                            # تجميع مع الصفقة الموجودة
-                            existing_pos = user_manager.user_positions[self.user_id][existing_position_id]
+                        # معرف موحد للمركز (مركز واحد لكل عملة)
+                        unified_position_id = f"SPOT_{base_currency}_{user_market_type}"
+                        
+                        # التأكد من وجود قاموس الصفقات للمستخدم
+                        if self.user_id not in user_manager.user_positions:
+                            user_manager.user_positions[self.user_id] = {}
+                        
+                        # البحث عن المركز الموحد للعملة
+                        if unified_position_id in user_manager.user_positions[self.user_id]:
+                            # تحديث المركز الموجود
+                            existing_pos = user_manager.user_positions[self.user_id][unified_position_id]
+                            
                             if action.lower() == 'buy':
                                 # شراء: إضافة كمية وحساب متوسط السعر المرجح
                                 old_quantity = existing_pos.get('amount', 0)
@@ -2962,47 +2974,59 @@ class TradingBot:
                                 total_value = (old_quantity * old_price) + (amount * price)
                                 new_average_price = total_value / new_quantity
                                 
-                                # تحديث الصفقة الموجودة
-                                user_manager.user_positions[self.user_id][existing_position_id].update({
+                                # تحديث المركز الموحد
+                                user_manager.user_positions[self.user_id][unified_position_id].update({
                                     'amount': new_quantity,
                                     'entry_price': new_average_price,
-                                    'current_price': price
+                                    'current_price': price,
+                                    'last_update': datetime.now().isoformat()
                                 })
                                 
-                                logger.info(f"✅ تم تجميع صفقة Spot مع الصفقة الموجودة {existing_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
-                            else:
-                                # بيع: تقليل كمية
+                                logger.info(f"✅ تم تحديث المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
+                                
+                            else:  # sell
+                                # بيع: تقليل كمية وحساب الربح
                                 old_quantity = existing_pos.get('amount', 0)
                                 if old_quantity >= amount:
                                     new_quantity = old_quantity - amount
+                                    
+                                    # حساب الربح من البيع
+                                    profit_usdt = (price - existing_pos.get('entry_price', 0)) * amount
+                                    
                                     if new_quantity > 0:
-                                        user_manager.user_positions[self.user_id][existing_position_id].update({
+                                        # تحديث الكمية المتبقية
+                                        user_manager.user_positions[self.user_id][unified_position_id].update({
                                             'amount': new_quantity,
-                                            'current_price': price
+                                            'current_price': price,
+                                            'last_update': datetime.now().isoformat()
                                         })
-                                        logger.info(f"✅ تم تقليل كمية صفقة Spot {existing_position_id}: كمية جديدة={new_quantity}")
+                                        logger.info(f"✅ تم تقليل كمية المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, ربح البيع={profit_usdt:.2f} USDT")
                                     else:
-                                        # إغلاق الصفقة بالكامل
-                                        del user_manager.user_positions[self.user_id][existing_position_id]
-                                        logger.info(f"✅ تم إغلاق صفقة Spot {existing_position_id} بالكامل")
+                                        # إغلاق المركز بالكامل
+                                        del user_manager.user_positions[self.user_id][unified_position_id]
+                                        logger.info(f"✅ تم إغلاق المركز الموحد {unified_position_id} بالكامل، ربح إجمالي={profit_usdt:.2f} USDT")
                                 else:
                                     logger.warning(f"⚠️ كمية البيع {amount} أكبر من الكمية المتاحة {old_quantity}")
                         else:
-                            # صفقة جديدة
-                            if self.user_id not in user_manager.user_positions:
-                                user_manager.user_positions[self.user_id] = {}
-                            user_manager.user_positions[self.user_id][position_id] = {
-                                'symbol': symbol,
-                                'entry_price': price,
-                                'side': action,
-                                'account_type': user_market_type,
-                                'leverage': 1,
-                                'category': category,
-                                'amount': amount,
-                                'current_price': price,
-                                'pnl_percent': 0.0
-                            }
-                            logger.info(f"✅ تم إنشاء صفقة Spot جديدة {position_id}")
+                            # إنشاء مركز جديد للعملة
+                            if action.lower() == 'buy':
+                                user_manager.user_positions[self.user_id][unified_position_id] = {
+                                    'symbol': symbol,
+                                    'base_currency': base_currency,
+                                    'entry_price': price,
+                                    'side': 'buy',  # دائماً buy للمركز الموحد
+                                    'account_type': user_market_type,
+                                    'leverage': 1,
+                                    'category': category,
+                                    'amount': amount,
+                                    'current_price': price,
+                                    'pnl_percent': 0.0,
+                                    'created_at': datetime.now().isoformat(),
+                                    'last_update': datetime.now().isoformat()
+                                }
+                                logger.info(f"✅ تم إنشاء مركز موحد جديد {unified_position_id}: كمية={amount}, سعر={price:.6f}")
+                            else:
+                                logger.warning(f"⚠️ محاولة بيع {symbol} بدون رصيد متاح")
                     
                     logger.info(f"🔍 DEBUG: بعد الحفظ - user_positions = {user_positions}")
                     logger.info(f"🔍 DEBUG: بعد الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
@@ -3052,27 +3076,48 @@ class TradingBot:
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}, user_id={self.user_id}")
                     
                     # تحديد نوع الرسالة بناءً على ما حدث
-                    if existing_position_id and action.lower() == 'buy':
-                        # تم تجميع مع صفقة موجودة
-                        message = f"📈 تم تجميع صفقة سبوت مع الصفقة الموجودة\n"
+                    if unified_position_id in user_manager.user_positions.get(self.user_id, {}) and action.lower() == 'buy':
+                        # تم تحديث مركز موجود
+                        message = f"📈 تم تحديث المركز الموحد للعملة\n"
                         message += f"👤 المستخدم: {self.user_id}\n"
-                        message += f"📊 الرمز: {symbol}\n"
-                        message += f"🔄 النوع: {action.upper()} (مجمعة)\n"
-                        message += f"💰 المبلغ المضاف: {amount}\n"
+                        message += f"📊 العملة: {base_currency}\n"
+                        message += f"🔄 العملية: {action.upper()} (مجمعة)\n"
+                        message += f"💰 الكمية المضافة: {amount}\n"
                         message += f"💲 متوسط السعر الجديد: {new_average_price:.6f}\n"
                         message += f"🏪 السوق: SPOT\n"
-                        message += f"🆔 رقم الصفقة: {existing_position_id}\n"
+                        message += f"🆔 معرف المركز: {unified_position_id}\n"
+                    elif action.lower() == 'sell' and unified_position_id in user_manager.user_positions.get(self.user_id, {}):
+                        # تم بيع جزئي أو كامل
+                        old_quantity = user_manager.user_positions[self.user_id][unified_position_id].get('amount', 0)
+                        if old_quantity > amount:
+                            message = f"📉 تم بيع جزئي من المركز\n"
+                            message += f"👤 المستخدم: {self.user_id}\n"
+                            message += f"📊 العملة: {base_currency}\n"
+                            message += f"🔄 العملية: {action.upper()}\n"
+                            message += f"💰 الكمية المباعة: {amount}\n"
+                            message += f"💲 السعر الحالي: {price:.6f}\n"
+                            message += f"🏪 السوق: SPOT\n"
+                            message += f"🆔 معرف المركز: {unified_position_id}\n"
+                        else:
+                            message = f"📉 تم إغلاق المركز بالكامل\n"
+                            message += f"👤 المستخدم: {self.user_id}\n"
+                            message += f"📊 العملة: {base_currency}\n"
+                            message += f"🔄 العملية: {action.upper()}\n"
+                            message += f"💰 الكمية المباعة: {amount}\n"
+                            message += f"💲 السعر النهائي: {price:.6f}\n"
+                            message += f"🏪 السوق: SPOT\n"
+                            message += f"🆔 معرف المركز: {unified_position_id}\n"
                     else:
-                        # صفقة جديدة
-                        message = f"📈 تم فتح صفقة سبوت تجريبية\n"
+                        # مركز جديد
+                        message = f"📈 تم إنشاء مركز موحد جديد\n"
                         if self.user_id:
                             message += f"👤 المستخدم: {self.user_id}\n"
-                        message += f"📊 الرمز: {symbol}\n"
-                        message += f"🔄 النوع: {action.upper()}\n"
-                        message += f"💰 المبلغ: {amount}\n"
+                        message += f"📊 العملة: {base_currency}\n"
+                        message += f"🔄 العملية: {action.upper()}\n"
+                        message += f"💰 الكمية: {amount}\n"
                         message += f"💲 سعر الدخول: {price:.6f}\n"
                         message += f"🏪 السوق: SPOT\n"
-                        message += f"🆔 رقم الصفقة: {position_id}\n"
+                        message += f"🆔 معرف المركز: {unified_position_id}\n"
                     
                     # إضافة معلومات ID الإشارة إذا كان متاحاً
                     if hasattr(self, '_current_signal_id') and self._current_signal_id:
