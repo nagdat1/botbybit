@@ -3722,11 +3722,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    # إضافة معالج المحفظة
-    if update.message and update.message.text == "💰 المحفظة":
-        await portfolio_handler(update, context)
-        return
-    
     # الحصول على معلومات حساب المستخدم
     market_type = user_data.get('market_type', 'spot')
     account = user_manager.get_user_account(user_id, market_type)
@@ -9716,7 +9711,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "📈 تاريخ التداول":
         await trade_history(update, context)
     elif text == "💰 المحفظة":
-        await wallet_overview(update, context)
+        await portfolio_handler(update, context)
     elif text == "📊 إحصائيات":
         await show_user_statistics(update, context)
     elif text == "▶️ تشغيل البوت":
