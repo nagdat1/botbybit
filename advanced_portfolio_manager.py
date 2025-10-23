@@ -59,12 +59,17 @@ class AdvancedPortfolioManager:
             
             # الحصول على جميع الصفقات من user_positions
             user_positions = user_manager.user_positions.get(user_id, {})
+            logger.info(f"🔍 DEBUG: الصفقات الموجودة للمستخدم {user_id}: {len(user_positions)} صفقة")
             
             for position_id, position_info in user_positions.items():
+                logger.info(f"🔍 DEBUG: معالجة صفقة {position_id}: {position_info}")
+                
                 if position_info.get('account_type') != 'demo':
+                    logger.info(f"🔍 DEBUG: تخطي صفقة {position_id} - نوع الحساب: {position_info.get('account_type')}")
                     continue
                 
                 pos_market_type = position_info.get('market_type', 'spot')
+                logger.info(f"🔍 DEBUG: معالجة صفقة {position_id} - نوع السوق: {pos_market_type}")
                 
                 if pos_market_type == 'spot':
                     await self._process_demo_spot_position(portfolio, position_info)
@@ -79,6 +84,7 @@ class AdvancedPortfolioManager:
             )
             
             logger.info(f"✅ تم تحضير المحفظة التجريبية: {len(portfolio['spot_currencies'])} عملات سبوت، {len(portfolio['futures_positions'])} صفقات فيوتشر")
+            logger.info(f"🔍 DEBUG: تفاصيل المحفظة النهائية: {portfolio}")
             return portfolio
             
         except Exception as e:
@@ -90,13 +96,21 @@ class AdvancedPortfolioManager:
         try:
             symbol = position_info.get('symbol', '')
             base_currency = self._extract_base_currency(symbol)
+            logger.info(f"🔍 DEBUG: معالجة صفقة سبوت {symbol} -> العملة الأساسية: {base_currency}")
             
             if not base_currency:
+                logger.warning(f"⚠️ DEBUG: لم يتم العثور على العملة الأساسية للرمز {symbol}")
                 return
             
             amount = position_info.get('amount', 0)
             entry_price = position_info.get('entry_price', 0)
             current_price = position_info.get('current_price', entry_price)
+            
+            logger.info(f"🔍 DEBUG: بيانات الصفقة - الكمية: {amount}, سعر الدخول: {entry_price}, السعر الحالي: {current_price}")
+            
+            if amount <= 0:
+                logger.warning(f"⚠️ DEBUG: كمية الصفقة صفر أو سالبة: {amount}")
+                return
             
             if base_currency in portfolio["spot_currencies"]:
                 # تجميع مع العملة الموجودة
@@ -132,7 +146,8 @@ class AdvancedPortfolioManager:
                     "profit_percent": profit_percent,
                     "last_update": datetime.now().isoformat()
                 }
-            
+                logger.info(f"✅ DEBUG: تم إضافة عملة جديدة {base_currency} إلى المحفظة")
+                
         except Exception as e:
             logger.error(f"❌ خطأ في معالجة صفقة سبوت: {e}")
     
@@ -164,7 +179,7 @@ class AdvancedPortfolioManager:
                     "profit_loss": (current_price - weighted_price) * total_amount if side == 'buy' else (weighted_price - current_price) * total_amount,
                     "last_update": datetime.now().isoformat()
                 })
-            else:
+                else:
                 # صفقة جديدة
                 total_value = amount * current_price
                 profit_loss = (current_price - entry_price) * amount if side == 'buy' else (entry_price - current_price) * amount
@@ -299,7 +314,7 @@ class AdvancedPortfolioManager:
             return symbol.replace('BTC', '')
         elif symbol.endswith('ETH'):
             return symbol.replace('ETH', '')
-        else:
+                    else:
             return symbol.split('/')[0] if '/' in symbol else symbol
     
     async def format_portfolio_message(self, portfolio: Dict[str, Any]) -> str:
@@ -353,7 +368,7 @@ class AdvancedPortfolioManager:
             if not portfolio["spot_currencies"] and not portfolio["futures_positions"]:
                 message += "📭 لا توجد عملات أو صفقات في المحفظة حالياً\n\n"
                 message += "💡 قم بشراء عملات في سوق Spot أو فتح صفقات فيوتشر لتظهر هنا"
-            else:
+                        else:
                 message += f"💎 **إجمالي قيمة المحفظة: {portfolio['total_value']:.2f} USDT**"
             
             return message

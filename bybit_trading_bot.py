@@ -5821,25 +5821,28 @@ async def show_portfolio_details(update: Update, context: ContextTypes.DEFAULT_T
         await update.callback_query.edit_message_text(f"❌ خطأ في عرض التفاصيل: {str(e)}")
 
 async def show_portfolio_settings(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
-    """عرض إعدادات المحفظة"""
+    """عرض إعدادات المحفظة مع تقرير مفصل للرصيد"""
     try:
         user_data = user_manager.get_user(user_id)
+        account_type = user_data.get('account_type', 'demo')
         
         message = "⚙️ **إعدادات المحفظة:**\n\n"
-        message += f"🏦 **نوع الحساب:** {user_data.get('account_type', 'demo').upper()}\n"
+        message += f"🏦 **نوع الحساب:** {account_type.upper()}\n"
         message += f"📈 **نوع السوق:** {user_data.get('market_type', 'spot').upper()}\n"
-        message += f"💰 **مبلغ التداول:** {user_data.get('trade_amount', 100)}\n\n"
+        message += f"💰 **مبلغ التداول:** {user_data.get('trade_amount', 100)} USDT\n\n"
         
-        message += "🔧 **الخيارات المتاحة:**\n"
-        message += "• تغيير نوع الحساب\n"
-        message += "• تغيير نوع السوق\n"
-        message += "• تعديل مبلغ التداول\n"
-        message += "• إعدادات التنبيهات\n"
+        # عرض الرصيد حسب نوع الحساب
+        if account_type == 'demo':
+            message += "📊 **الرصيد التجريبي:**\n"
+            await show_demo_balance_details(message, user_id, user_data)
+        else:
+            message += "📊 **الرصيد الحقيقي:**\n"
+            await show_real_balance_details(message, user_id, user_data)
         
         keyboard = [
-            [InlineKeyboardButton("🏦 تغيير نوع الحساب", callback_data="change_account_type")],
-            [InlineKeyboardButton("📈 تغيير نوع السوق", callback_data="change_market_type")],
-            [InlineKeyboardButton("💰 تعديل مبلغ التداول", callback_data="change_trade_amount")],
+            [InlineKeyboardButton("🔄 تحديث الرصيد", callback_data="refresh_balance")],
+            [InlineKeyboardButton("📊 تقرير مفصل", callback_data="detailed_report")],
+            [InlineKeyboardButton("⚙️ إعدادات الحساب", callback_data="account_settings")],
             [InlineKeyboardButton("🔙 العودة للمحفظة", callback_data="refresh_advanced_portfolio")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -5849,6 +5852,251 @@ async def show_portfolio_settings(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         logger.error(f"❌ خطأ في عرض إعدادات المحفظة: {e}")
         await update.callback_query.edit_message_text(f"❌ خطأ في عرض الإعدادات: {str(e)}")
+
+async def show_demo_balance_details(message: str, user_id: int, user_data: Dict) -> str:
+    """عرض تفاصيل الرصيد التجريبي"""
+    try:
+        # الحصول على الحسابات التجريبية
+        spot_account = user_manager.get_user_account(user_id, 'spot')
+        futures_account = user_manager.get_user_account(user_id, 'futures')
+        
+        # رصيد السبوت
+        if spot_account:
+            spot_info = spot_account.get_account_info()
+            message += f"\n🟢 **السبوت:**\n"
+            message += f"   💳 الرصيد الكلي: {spot_info.get('balance', 0):.2f} USDT\n"
+            message += f"   💰 الرصيد المتاح: {spot_info.get('available_balance', 0):.2f} USDT\n"
+            message += f"   🔒 الهامش المحجوز: {spot_info.get('margin', 0):.2f} USDT\n"
+            message += f"   📊 القيمة الصافية: {spot_info.get('net_value', 0):.2f} USDT\n"
+        else:
+            message += f"\n🟢 **السبوت:**\n"
+            message += f"   💳 الرصيد الكلي: {user_data.get('balance', 10000):.2f} USDT\n"
+            message += f"   💰 الرصيد المتاح: {user_data.get('balance', 10000):.2f} USDT\n"
+            message += f"   🔒 الهامش المحجوز: 0.00 USDT\n"
+            message += f"   📊 القيمة الصافية: {user_data.get('balance', 10000):.2f} USDT\n"
+        
+        # رصيد الفيوتشر
+        if futures_account:
+            futures_info = futures_account.get_account_info()
+            message += f"\n⚡ **الفيوتشر:**\n"
+            message += f"   💳 الرصيد الكلي: {futures_info.get('balance', 0):.2f} USDT\n"
+            message += f"   💰 الرصيد المتاح: {futures_info.get('available_balance', 0):.2f} USDT\n"
+            message += f"   🔒 الهامش المحجوز: {futures_info.get('margin', 0):.2f} USDT\n"
+            message += f"   📊 القيمة الصافية: {futures_info.get('net_value', 0):.2f} USDT\n"
+        else:
+            message += f"\n⚡ **الفيوتشر:**\n"
+            message += f"   💳 الرصيد الكلي: {user_data.get('balance', 10000):.2f} USDT\n"
+            message += f"   💰 الرصيد المتاح: {user_data.get('balance', 10000):.2f} USDT\n"
+            message += f"   🔒 الهامش المحجوز: 0.00 USDT\n"
+            message += f"   📊 القيمة الصافية: {user_data.get('balance', 10000):.2f} USDT\n"
+        
+        return message
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض الرصيد التجريبي: {e}")
+        return message + f"\n❌ خطأ في عرض الرصيد: {str(e)}"
+
+async def show_real_balance_details(message: str, user_id: int, user_data: Dict) -> str:
+    """عرض تفاصيل الرصيد الحقيقي من API"""
+    try:
+        # الحصول على مفاتيح API
+        api_key = user_data.get('api_key')
+        api_secret = user_data.get('api_secret')
+        
+        if not api_key or not api_secret:
+            message += "\n❌ **مفاتيح API غير موجودة**\n"
+            message += "⚙️ يرجى إضافة مفاتيح API من الإعدادات\n"
+            return message
+        
+        # الحصول على الرصيد من API
+        from real_account_manager import RealAccountManager
+        account_manager = RealAccountManager()
+        
+        # رصيد السبوت
+        try:
+            spot_balance = account_manager.get_account_balance(api_key, api_secret, 'spot')
+            if spot_balance and 'result' in spot_balance:
+                message += f"\n🟢 **السبوت:**\n"
+                total_spot_balance = 0
+                for coin_data in spot_balance['result']['list']:
+                    coin = coin_data['coin']
+                    free = float(coin_data['free'])
+                    locked = float(coin_data['locked'])
+                    total = free + locked
+                    if total > 0:
+                        # الحصول على السعر الحالي
+                        ticker = account_manager.get_ticker_price(f"{coin}USDT")
+                        if ticker and 'result' in ticker:
+                            price = float(ticker['result']['price'])
+                            usdt_value = total * price
+                            total_spot_balance += usdt_value
+                            message += f"   💰 {coin}: {total:.6f} = {usdt_value:.2f} USDT\n"
+                
+                message += f"   📊 إجمالي القيمة: {total_spot_balance:.2f} USDT\n"
+            else:
+                message += f"\n🟢 **السبوت:**\n"
+                message += "   ❌ خطأ في الحصول على الرصيد\n"
+        except Exception as e:
+            message += f"\n🟢 **السبوت:**\n"
+            message += f"   ❌ خطأ في API: {str(e)}\n"
+        
+        # رصيد الفيوتشر
+        try:
+            futures_balance = account_manager.get_account_balance(api_key, api_secret, 'linear')
+            if futures_balance and 'result' in futures_balance:
+                message += f"\n⚡ **الفيوتشر:**\n"
+                for coin_data in futures_balance['result']['list']:
+                    coin = coin_data['coin']
+                    free = float(coin_data['free'])
+                    locked = float(coin_data['locked'])
+                    total = free + locked
+                    if total > 0:
+                        message += f"   💰 {coin}: {total:.6f}\n"
+                
+                # الحصول على الصفقات المفتوحة
+                positions = account_manager.get_open_positions(api_key, api_secret)
+                if positions and 'result' in positions:
+                    total_pnl = 0
+                    for position in positions['result']['list']:
+                        unrealized_pnl = float(position['unrealisedPnl'])
+                        total_pnl += unrealized_pnl
+                    
+                    if total_pnl != 0:
+                        message += f"   📊 إجمالي PnL: {total_pnl:.2f} USDT\n"
+            else:
+                message += f"\n⚡ **الفيوتشر:**\n"
+                message += "   ❌ خطأ في الحصول على الرصيد\n"
+        except Exception as e:
+            message += f"\n⚡ **الفيوتشر:**\n"
+            message += f"   ❌ خطأ في API: {str(e)}\n"
+        
+        return message
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض الرصيد الحقيقي: {e}")
+        return message + f"\n❌ خطأ في عرض الرصيد: {str(e)}"
+
+async def show_detailed_report(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """عرض تقرير مفصل للمحفظة"""
+    try:
+        from advanced_portfolio_manager import advanced_portfolio_manager
+        
+        portfolio = await advanced_portfolio_manager.get_comprehensive_portfolio(user_id)
+        
+        if "error" in portfolio:
+            await update.callback_query.edit_message_text(f"❌ {portfolio['error']}")
+            return
+        
+        # إنشاء تقرير مفصل
+        message = "📊 **تقرير مفصل للمحفظة:**\n\n"
+        
+        # معلومات عامة
+        message += f"🏦 **نوع الحساب:** {portfolio['type'].upper()}\n"
+        message += f"📈 **نوع السوق:** {portfolio['market_type'].upper()}\n"
+        message += f"💰 **إجمالي القيمة:** {portfolio['total_value']:.2f} USDT\n"
+        message += f"🕒 **آخر تحديث:** {portfolio['last_update']}\n\n"
+        
+        # تقرير عملات السبوت
+        if portfolio["spot_currencies"]:
+            message += "🟢 **تقرير عملات السبوت:**\n"
+            total_spot_value = 0
+            total_spot_profit = 0
+            
+            for currency, data in portfolio["spot_currencies"].items():
+                message += f"\n**{currency}:**\n"
+                message += f"  • الرمز: {data['symbol']}\n"
+                message += f"  • الكمية: {data['total_amount']:.6f} {currency}\n"
+                message += f"  • متوسط السعر: {data['average_price']:.2f} USDT\n"
+                message += f"  • السعر الحالي: {data['current_price']:.2f} USDT\n"
+                message += f"  • القيمة: {data['total_value']:.2f} USDT\n"
+                message += f"  • الربح/الخسارة: {data['profit_loss']:.2f} USDT ({data['profit_percent']:+.2f}%)\n"
+                
+                total_spot_value += data['total_value']
+                total_spot_profit += data['profit_loss']
+            
+            message += f"\n📊 **ملخص السبوت:**\n"
+            message += f"  • إجمالي القيمة: {total_spot_value:.2f} USDT\n"
+            message += f"  • إجمالي الربح/الخسارة: {total_spot_profit:.2f} USDT\n"
+        else:
+            message += "🟢 **تقرير عملات السبوت:**\n"
+            message += "  📭 لا توجد عملات في السبوت\n"
+        
+        # تقرير صفقات الفيوتشر
+        if portfolio["futures_positions"]:
+            message += "\n⚡ **تقرير صفقات الفيوتشر:**\n"
+            total_futures_value = 0
+            total_futures_profit = 0
+            
+            for position_key, data in portfolio["futures_positions"].items():
+                message += f"\n**{data['symbol']} ({data['side'].upper()}):**\n"
+                message += f"  • الحجم: {data['total_amount']:.6f}\n"
+                message += f"  • متوسط السعر: {data['average_price']:.2f} USDT\n"
+                message += f"  • السعر الحالي: {data['current_price']:.2f} USDT\n"
+                message += f"  • القيمة: {data['total_value']:.2f} USDT\n"
+                message += f"  • الربح/الخسارة: {data['profit_loss']:.2f} USDT\n"
+                
+                total_futures_value += data['total_value']
+                total_futures_profit += data['profit_loss']
+            
+            message += f"\n📊 **ملخص الفيوتشر:**\n"
+            message += f"  • إجمالي القيمة: {total_futures_value:.2f} USDT\n"
+            message += f"  • إجمالي الربح/الخسارة: {total_futures_profit:.2f} USDT\n"
+        else:
+            message += "\n⚡ **تقرير صفقات الفيوتشر:**\n"
+            message += "  📭 لا توجد صفقات في الفيوتشر\n"
+        
+        # ملخص عام
+        message += f"\n💎 **الملخص العام:**\n"
+        message += f"  • إجمالي قيمة المحفظة: {portfolio['total_value']:.2f} USDT\n"
+        message += f"  • عدد العملات: {len(portfolio['spot_currencies'])}\n"
+        message += f"  • عدد الصفقات: {len(portfolio['futures_positions'])}\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 العودة للإعدادات", callback_data="portfolio_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض التقرير المفصل: {e}")
+        await update.callback_query.edit_message_text(f"❌ خطأ في عرض التقرير: {str(e)}")
+
+async def show_account_settings(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """عرض إعدادات الحساب"""
+    try:
+        user_data = user_manager.get_user(user_id)
+        
+        message = "⚙️ **إعدادات الحساب:**\n\n"
+        message += f"🏦 **نوع الحساب:** {user_data.get('account_type', 'demo').upper()}\n"
+        message += f"📈 **نوع السوق:** {user_data.get('market_type', 'spot').upper()}\n"
+        message += f"💰 **مبلغ التداول:** {user_data.get('trade_amount', 100)} USDT\n"
+        message += f"🔢 **الرافعة المالية:** {user_data.get('leverage', 10)}x\n"
+        message += f"🎯 **Stop Loss:** {user_data.get('stop_loss', 'غير محدد')}%\n"
+        message += f"🎯 **Take Profit:** {user_data.get('take_profit', 'غير محدد')}%\n\n"
+        
+        message += "🔧 **الخيارات المتاحة:**\n"
+        message += "• تغيير نوع الحساب\n"
+        message += "• تغيير نوع السوق\n"
+        message += "• تعديل مبلغ التداول\n"
+        message += "• تعديل الرافعة المالية\n"
+        message += "• إعدادات Stop Loss/Take Profit\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("🏦 تغيير نوع الحساب", callback_data="change_account_type")],
+            [InlineKeyboardButton("📈 تغيير نوع السوق", callback_data="change_market_type")],
+            [InlineKeyboardButton("💰 تعديل مبلغ التداول", callback_data="change_trade_amount")],
+            [InlineKeyboardButton("🔢 تعديل الرافعة المالية", callback_data="change_leverage")],
+            [InlineKeyboardButton("🎯 إعدادات SL/TP", callback_data="change_sl_tp")],
+            [InlineKeyboardButton("🔙 العودة للإعدادات", callback_data="portfolio_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض إعدادات الحساب: {e}")
+        await update.callback_query.edit_message_text(f"❌ خطأ في عرض إعدادات الحساب: {str(e)}")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - محسن"""
@@ -7866,6 +8114,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "portfolio_settings":
         await query.answer("⚙️ إعدادات المحفظة")
         await show_portfolio_settings(update, context, user_id)
+        return
+    
+    if data == "refresh_balance":
+        await query.answer("🔄 جاري تحديث الرصيد...")
+        await show_portfolio_settings(update, context, user_id)
+        return
+    
+    if data == "detailed_report":
+        await query.answer("📊 تقرير مفصل")
+        await show_detailed_report(update, context, user_id)
+        return
+    
+    if data == "account_settings":
+        await query.answer("⚙️ إعدادات الحساب")
+        await show_account_settings(update, context, user_id)
         return
     
     # معالجة أزرار المحفظة القديمة (للتوافق)
