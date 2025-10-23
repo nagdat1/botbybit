@@ -5551,32 +5551,37 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ خطأ في عرض حالة الحساب")
 
 async def portfolio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج المحفظة - يعرض العملات حسب نوع الحساب"""
+    """معالج المحفظة المتقدم - يعرض العملات مع ربط كامل بالصفقات"""
     try:
         user_id = update.effective_user.id
-        logger.info(f"🔍 معالجة طلب المحفظة للمستخدم {user_id}")
+        logger.info(f"🔍 معالجة طلب المحفظة المتقدمة للمستخدم {user_id}")
         
-        # الحصول على إعدادات المستخدم
-        user_data = user_manager.get_user_data(user_id)
-        if not user_data:
-            await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+        # استيراد مدير المحفظة المتقدم
+        from advanced_portfolio_manager import advanced_portfolio_manager
+        
+        # الحصول على المحفظة الشاملة
+        portfolio = await advanced_portfolio_manager.get_comprehensive_portfolio(user_id)
+        
+        if "error" in portfolio:
+            await update.message.reply_text(f"❌ {portfolio['error']}")
             return
         
-        market_type = user_data.get('market_type', 'spot')
-        account_type = user_data.get('account_type', 'demo')
+        # تنسيق رسالة المحفظة
+        message = await advanced_portfolio_manager.format_portfolio_message(portfolio)
         
-        logger.info(f"📊 نوع السوق: {market_type}, نوع الحساب: {account_type}")
+        # إضافة أزرار التحكم
+        keyboard = [
+            [InlineKeyboardButton("🔄 تحديث المحفظة", callback_data="refresh_advanced_portfolio")],
+            [InlineKeyboardButton("📊 تفاصيل مفصلة", callback_data="portfolio_details")],
+            [InlineKeyboardButton("⚙️ إعدادات المحفظة", callback_data="portfolio_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         
-        if account_type == 'demo':
-            # عرض العملات التجريبية
-            await show_demo_portfolio(update, context, user_id, market_type)
-        else:
-            # عرض العملات الحقيقية من المنصة
-            await show_real_portfolio(update, context, user_id, market_type)
-            
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
     except Exception as e:
-        logger.error(f"❌ خطأ في معالجة المحفظة: {e}")
-        await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {str(e)}")
+        logger.error(f"❌ خطأ في معالجة المحفظة المتقدمة: {e}")
+        await update.message.reply_text(f"❌ خطأ في عرض المحفظة المتقدمة: {str(e)}")
 
 async def show_demo_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, market_type: str):
     """عرض المحفظة التجريبية - العملات المشتراة في Spot"""
@@ -5765,6 +5770,90 @@ async def show_real_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logger.error(f"❌ خطأ في عرض المحفظة الحقيقية: {e}")
         await update.message.reply_text(f"❌ خطأ في عرض المحفظة الحقيقية: {str(e)}")
+
+async def show_portfolio_details(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """عرض تفاصيل مفصلة للمحفظة"""
+    try:
+        from advanced_portfolio_manager import advanced_portfolio_manager
+        
+        portfolio = await advanced_portfolio_manager.get_comprehensive_portfolio(user_id)
+        
+        if "error" in portfolio:
+            await update.callback_query.edit_message_text(f"❌ {portfolio['error']}")
+            return
+        
+        # إنشاء رسالة تفصيلية
+        message = "📊 **تفاصيل مفصلة للمحفظة:**\n\n"
+        
+        # معلومات عامة
+        message += f"🏦 **نوع الحساب:** {portfolio['type'].upper()}\n"
+        message += f"📈 **نوع السوق:** {portfolio['market_type'].upper()}\n"
+        message += f"💰 **إجمالي القيمة:** {portfolio['total_value']:.2f} USDT\n"
+        message += f"🕒 **آخر تحديث:** {portfolio['last_update']}\n\n"
+        
+        # تفاصيل عملات السبوت
+        if portfolio["spot_currencies"]:
+            message += "🟢 **تفاصيل عملات السبوت:**\n"
+            for currency, data in portfolio["spot_currencies"].items():
+                message += f"\n**{currency}:**\n"
+                message += f"  • الرمز: {data['symbol']}\n"
+                message += f"  • الكمية: {data['total_amount']:.6f}\n"
+                message += f"  • متوسط السعر: {data['average_price']:.2f}\n"
+                message += f"  • السعر الحالي: {data['current_price']:.2f}\n"
+                message += f"  • القيمة: {data['total_value']:.2f} USDT\n"
+                message += f"  • الربح/الخسارة: {data['profit_loss']:.2f} USDT\n"
+        
+        # تفاصيل صفقات الفيوتشر
+        if portfolio["futures_positions"]:
+            message += "\n⚡ **تفاصيل صفقات الفيوتشر:**\n"
+            for position_key, data in portfolio["futures_positions"].items():
+                message += f"\n**{data['symbol']} ({data['side'].upper()}):**\n"
+                message += f"  • الحجم: {data['total_amount']:.6f}\n"
+                message += f"  • متوسط السعر: {data['average_price']:.2f}\n"
+                message += f"  • السعر الحالي: {data['current_price']:.2f}\n"
+                message += f"  • القيمة: {data['total_value']:.2f} USDT\n"
+                message += f"  • الربح/الخسارة: {data['profit_loss']:.2f} USDT\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 العودة للمحفظة", callback_data="refresh_advanced_portfolio")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض تفاصيل المحفظة: {e}")
+        await update.callback_query.edit_message_text(f"❌ خطأ في عرض التفاصيل: {str(e)}")
+
+async def show_portfolio_settings(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """عرض إعدادات المحفظة"""
+    try:
+        user_data = user_manager.get_user_data(user_id)
+        
+        message = "⚙️ **إعدادات المحفظة:**\n\n"
+        message += f"🏦 **نوع الحساب:** {user_data.get('account_type', 'demo').upper()}\n"
+        message += f"📈 **نوع السوق:** {user_data.get('market_type', 'spot').upper()}\n"
+        message += f"💰 **مبلغ التداول:** {user_data.get('trade_amount', 100)}\n\n"
+        
+        message += "🔧 **الخيارات المتاحة:**\n"
+        message += "• تغيير نوع الحساب\n"
+        message += "• تغيير نوع السوق\n"
+        message += "• تعديل مبلغ التداول\n"
+        message += "• إعدادات التنبيهات\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("🏦 تغيير نوع الحساب", callback_data="change_account_type")],
+            [InlineKeyboardButton("📈 تغيير نوع السوق", callback_data="change_market_type")],
+            [InlineKeyboardButton("💰 تعديل مبلغ التداول", callback_data="change_trade_amount")],
+            [InlineKeyboardButton("🔙 العودة للمحفظة", callback_data="refresh_advanced_portfolio")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض إعدادات المحفظة: {e}")
+        await update.callback_query.edit_message_text(f"❌ خطأ في عرض الإعدادات: {str(e)}")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - محسن"""
@@ -7757,7 +7846,34 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cmd_select_exchange(update, context)
         return
     
-    # معالجة أزرار المحفظة
+    # معالجة أزرار المحفظة المتقدمة
+    if data == "refresh_advanced_portfolio":
+        await query.answer("🔄 جاري تحديث المحفظة المتقدمة...")
+        from advanced_portfolio_manager import advanced_portfolio_manager
+        portfolio = await advanced_portfolio_manager.get_comprehensive_portfolio(user_id)
+        message = await advanced_portfolio_manager.format_portfolio_message(portfolio)
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 تحديث المحفظة", callback_data="refresh_advanced_portfolio")],
+            [InlineKeyboardButton("📊 تفاصيل مفصلة", callback_data="portfolio_details")],
+            [InlineKeyboardButton("⚙️ إعدادات المحفظة", callback_data="portfolio_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        return
+    
+    if data == "portfolio_details":
+        await query.answer("📊 تفاصيل مفصلة")
+        await show_portfolio_details(update, context, user_id)
+        return
+    
+    if data == "portfolio_settings":
+        await query.answer("⚙️ إعدادات المحفظة")
+        await show_portfolio_settings(update, context, user_id)
+        return
+    
+    # معالجة أزرار المحفظة القديمة (للتوافق)
     if data == "refresh_portfolio":
         await query.answer("🔄 جاري تحديث المحفظة...")
         user_data = user_manager.get_user_data(user_id)
@@ -7767,12 +7883,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "currency_details":
         await query.answer("📊 تفاصيل العملة")
-        # يمكن إضافة منطق تفاصيل العملة هنا
-        return
-    
-    if data == "portfolio_settings":
-        await query.answer("⚙️ إعدادات المحفظة")
-        # يمكن إضافة منطق إعدادات المحفظة هنا
         return
     
     if data == "refresh_real_portfolio":
@@ -7784,12 +7894,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "real_currency_details":
         await query.answer("📊 تفاصيل العملة الحقيقية")
-        # يمكن إضافة منطق تفاصيل العملة الحقيقية هنا
         return
     
     if data == "real_portfolio_settings":
         await query.answer("⚙️ إعدادات المحفظة الحقيقية")
-        # يمكن إضافة منطق إعدادات المحفظة الحقيقية هنا
         return
     
     elif data == "main_menu":
