@@ -3722,6 +3722,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
+    # إضافة معالج المحفظة
+    if update.message and update.message.text == "💰 المحفظة":
+        await portfolio_handler(update, context)
+        return
+    
     # الحصول على معلومات حساب المستخدم
     market_type = user_data.get('market_type', 'spot')
     account = user_manager.get_user_account(user_id, market_type)
@@ -5545,6 +5550,222 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"خطأ في عرض حالة الحساب: {e}")
         await update.message.reply_text("❌ خطأ في عرض حالة الحساب")
 
+async def portfolio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالج المحفظة - يعرض العملات حسب نوع الحساب"""
+    try:
+        user_id = update.effective_user.id
+        logger.info(f"🔍 معالجة طلب المحفظة للمستخدم {user_id}")
+        
+        # الحصول على إعدادات المستخدم
+        user_data = user_manager.get_user_data(user_id)
+        if not user_data:
+            await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+            return
+        
+        market_type = user_data.get('market_type', 'spot')
+        account_type = user_data.get('account_type', 'demo')
+        
+        logger.info(f"📊 نوع السوق: {market_type}, نوع الحساب: {account_type}")
+        
+        if account_type == 'demo':
+            # عرض العملات التجريبية
+            await show_demo_portfolio(update, context, user_id, market_type)
+        else:
+            # عرض العملات الحقيقية من المنصة
+            await show_real_portfolio(update, context, user_id, market_type)
+            
+    except Exception as e:
+        logger.error(f"❌ خطأ في معالجة المحفظة: {e}")
+        await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {str(e)}")
+
+async def show_demo_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, market_type: str):
+    """عرض المحفظة التجريبية - العملات المشتراة في Spot"""
+    try:
+        logger.info(f"🎯 عرض المحفظة التجريبية للمستخدم {user_id}")
+        
+        # الحصول على العملات من النظام الموحد
+        demo_currencies = {}
+        
+        # البحث في user_positions للعملات التجريبية
+        user_positions = user_manager.user_positions.get(user_id, {})
+        for position_id, position_info in user_positions.items():
+            if (position_info.get('account_type') == 'demo' and 
+                position_info.get('market_type') == 'spot' and
+                position_info.get('amount', 0) > 0):
+                
+                symbol = position_info.get('symbol', '')
+                base_currency = symbol.replace('USDT', '').replace('BTC', '').replace('ETH', '')
+                
+                if symbol.endswith('USDT'):
+                    base_currency = symbol.replace('USDT', '')
+                elif symbol.endswith('BTC'):
+                    base_currency = symbol.replace('BTC', '')
+                elif symbol.endswith('ETH'):
+                    base_currency = symbol.replace('ETH', '')
+                
+                if base_currency:
+                    if base_currency in demo_currencies:
+                        # تجميع العملات المتعددة
+                        old_amount = demo_currencies[base_currency]['amount']
+                        old_price = demo_currencies[base_currency]['average_price']
+                        new_amount = position_info.get('amount', 0)
+                        new_price = position_info.get('entry_price', 0)
+                        
+                        total_amount = old_amount + new_amount
+                        weighted_price = ((old_amount * old_price) + (new_amount * new_price)) / total_amount
+                        
+                        demo_currencies[base_currency] = {
+                            'amount': total_amount,
+                            'average_price': weighted_price,
+                            'current_price': position_info.get('current_price', new_price),
+                            'symbol': symbol
+                        }
+                    else:
+                        demo_currencies[base_currency] = {
+                            'amount': position_info.get('amount', 0),
+                            'average_price': position_info.get('entry_price', 0),
+                            'current_price': position_info.get('current_price', position_info.get('entry_price', 0)),
+                            'symbol': symbol
+                        }
+        
+        # إنشاء رسالة المحفظة التجريبية
+        if demo_currencies:
+            message = "💰 المحفظة التجريبية (Spot):\n\n"
+            total_value = 0
+            
+            for currency, data in demo_currencies.items():
+                amount = data['amount']
+                avg_price = data['average_price']
+                current_price = data['current_price']
+                symbol = data['symbol']
+                
+                # حساب القيمة الحالية والربح
+                current_value = amount * current_price
+                total_cost = amount * avg_price
+                profit = current_value - total_cost
+                profit_percent = (profit / total_cost * 100) if total_cost > 0 else 0
+                
+                total_value += current_value
+                
+                # إضافة العملة للرسالة
+                profit_emoji = "📈" if profit >= 0 else "📉"
+                profit_text = f"{profit:.2f} USDT ({profit_percent:+.2f}%)"
+                
+                message += f"{profit_emoji} {currency}\n"
+                message += f"   💰 الكمية: {amount:.6f}\n"
+                message += f"   💲 متوسط السعر: {avg_price:.2f} USDT\n"
+                message += f"   💲 السعر الحالي: {current_price:.2f} USDT\n"
+                message += f"   📊 القيمة: {current_value:.2f} USDT\n"
+                message += f"   ⬆️ الربح/الخسارة: {profit_text}\n"
+                message += f"   🆔 الرمز: {symbol}\n\n"
+            
+            message += f"💎 إجمالي قيمة المحفظة: {total_value:.2f} USDT"
+        else:
+            message = "💰 المحفظة التجريبية (Spot):\n\n📭 لا توجد عملات في المحفظة حالياً\n\n💡 قم بشراء عملات في سوق Spot لتظهر هنا"
+        
+        # إضافة أزرار التحكم
+        keyboard = [
+            [InlineKeyboardButton("🔄 تحديث المحفظة", callback_data="refresh_portfolio")],
+            [InlineKeyboardButton("📊 تفاصيل العملة", callback_data="currency_details")],
+            [InlineKeyboardButton("⚙️ إعدادات المحفظة", callback_data="portfolio_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(message, reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض المحفظة التجريبية: {e}")
+        await update.message.reply_text(f"❌ خطأ في عرض المحفظة التجريبية: {str(e)}")
+
+async def show_real_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, market_type: str):
+    """عرض المحفظة الحقيقية - العملات من المنصة"""
+    try:
+        logger.info(f"🎯 عرض المحفظة الحقيقية للمستخدم {user_id}")
+        
+        # الحصول على معلومات API
+        api_key = user_manager.get_user_api_key(user_id)
+        api_secret = user_manager.get_user_api_secret(user_id)
+        
+        if not api_key or not api_secret:
+            await update.message.reply_text("❌ لم يتم العثور على مفاتيح API\n\n⚙️ يرجى إضافة مفاتيح API من الإعدادات")
+            return
+        
+        # الحصول على العملات من المنصة
+        real_currencies = {}
+        
+        try:
+            if market_type == 'spot':
+                # الحصول على رصيد Spot من Bybit
+                from real_account_manager import RealAccountManager
+                account_manager = RealAccountManager()
+                
+                # الحصول على الرصيد
+                balance_data = account_manager.get_account_balance(api_key, api_secret, 'spot')
+                
+                if balance_data and 'result' in balance_data:
+                    for coin_data in balance_data['result']['list']:
+                        coin = coin_data['coin']
+                        free_amount = float(coin_data['free'])
+                        locked_amount = float(coin_data['locked'])
+                        total_amount = free_amount + locked_amount
+                        
+                        if total_amount > 0:
+                            # الحصول على السعر الحالي
+                            ticker_data = account_manager.get_ticker_price(f"{coin}USDT")
+                            current_price = float(ticker_data['result']['price']) if ticker_data else 0
+                            
+                            real_currencies[coin] = {
+                                'amount': total_amount,
+                                'free': free_amount,
+                                'locked': locked_amount,
+                                'current_price': current_price,
+                                'value_usdt': total_amount * current_price
+                            }
+            
+            # إنشاء رسالة المحفظة الحقيقية
+            if real_currencies:
+                message = "💰 المحفظة الحقيقية (Spot):\n\n"
+                total_value = 0
+                
+                for currency, data in real_currencies.items():
+                    amount = data['amount']
+                    free = data['free']
+                    locked = data['locked']
+                    current_price = data['current_price']
+                    value_usdt = data['value_usdt']
+                    
+                    total_value += value_usdt
+                    
+                    # إضافة العملة للرسالة
+                    message += f"💰 {currency}\n"
+                    message += f"   💰 الكمية الإجمالية: {amount:.6f}\n"
+                    message += f"   💳 متاح: {free:.6f}\n"
+                    message += f"   🔒 مقفل: {locked:.6f}\n"
+                    message += f"   💲 السعر الحالي: {current_price:.2f} USDT\n"
+                    message += f"   📊 القيمة: {value_usdt:.2f} USDT\n\n"
+                
+                message += f"💎 إجمالي قيمة المحفظة: {total_value:.2f} USDT"
+            else:
+                message = "💰 المحفظة الحقيقية (Spot):\n\n📭 لا توجد عملات في المحفظة حالياً\n\n💡 قم بإيداع عملات في حسابك على المنصة"
+                
+        except Exception as api_error:
+            logger.error(f"❌ خطأ في الاتصال بالمنصة: {api_error}")
+            message = "💰 المحفظة الحقيقية (Spot):\n\n❌ خطأ في الاتصال بالمنصة\n\n🔧 يرجى التحقق من مفاتيح API والإعدادات"
+        
+        # إضافة أزرار التحكم
+        keyboard = [
+            [InlineKeyboardButton("🔄 تحديث المحفظة", callback_data="refresh_real_portfolio")],
+            [InlineKeyboardButton("📊 تفاصيل العملة", callback_data="real_currency_details")],
+            [InlineKeyboardButton("⚙️ إعدادات المحفظة", callback_data="real_portfolio_settings")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(message, reply_markup=reply_markup)
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض المحفظة الحقيقية: {e}")
+        await update.message.reply_text(f"❌ خطأ في عرض المحفظة الحقيقية: {str(e)}")
+
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - محسن"""
     try:
@@ -5709,6 +5930,14 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         if amount == 0:
             # محاولة الحصول من الحقول الأخرى للتوافق مع النظام القديم
             amount = position_info.get('position_size', position_info.get('margin_amount', 0))
+        
+        # إضافة سجل للتشخيص
+        logger.info(f"🔍 DEBUG: عرض الصفقة {position_id}: amount={amount}, position_info={position_info}")
+        
+        # التأكد من أن الكمية أكبر من 0
+        if amount <= 0:
+            logger.warning(f"⚠️ الكمية صفر أو سالبة للصفقة {position_id}: {amount}")
+            amount = 0.001  # قيمة افتراضية للعرض
         
         # الحصول على السعر الحالي من البيانات المحدثة
         current_price = position_info.get('current_price')
@@ -7528,6 +7757,40 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cmd_select_exchange(update, context)
         return
     
+    # معالجة أزرار المحفظة
+    if data == "refresh_portfolio":
+        await query.answer("🔄 جاري تحديث المحفظة...")
+        user_data = user_manager.get_user_data(user_id)
+        market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
+        await show_demo_portfolio(update, context, user_id, market_type)
+        return
+    
+    if data == "currency_details":
+        await query.answer("📊 تفاصيل العملة")
+        # يمكن إضافة منطق تفاصيل العملة هنا
+        return
+    
+    if data == "portfolio_settings":
+        await query.answer("⚙️ إعدادات المحفظة")
+        # يمكن إضافة منطق إعدادات المحفظة هنا
+        return
+    
+    if data == "refresh_real_portfolio":
+        await query.answer("🔄 جاري تحديث المحفظة الحقيقية...")
+        user_data = user_manager.get_user_data(user_id)
+        market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
+        await show_real_portfolio(update, context, user_id, market_type)
+        return
+    
+    if data == "real_currency_details":
+        await query.answer("📊 تفاصيل العملة الحقيقية")
+        # يمكن إضافة منطق تفاصيل العملة الحقيقية هنا
+        return
+    
+    if data == "real_portfolio_settings":
+        await query.answer("⚙️ إعدادات المحفظة الحقيقية")
+        # يمكن إضافة منطق إعدادات المحفظة الحقيقية هنا
+        return
     
     elif data == "main_menu":
         await start(update, context)
