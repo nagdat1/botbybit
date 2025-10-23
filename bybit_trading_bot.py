@@ -3077,13 +3077,16 @@ class TradingBot:
                     
                     # تحديد نوع الرسالة بناءً على ما حدث
                     if unified_position_id in user_manager.user_positions.get(self.user_id, {}) and action.lower() == 'buy':
-                        # تم تحديث مركز موجود
+                        # تم تحديث مركز موجود - الحصول على متوسط السعر من المركز المحدث
+                        updated_position = user_manager.user_positions[self.user_id][unified_position_id]
+                        current_avg_price = updated_position.get('entry_price', price)
+                        
                         message = f"📈 تم تحديث المركز الموحد للعملة\n"
                         message += f"👤 المستخدم: {self.user_id}\n"
                         message += f"📊 العملة: {base_currency}\n"
                         message += f"🔄 العملية: {action.upper()} (مجمعة)\n"
                         message += f"💰 الكمية المضافة: {amount}\n"
-                        message += f"💲 متوسط السعر الجديد: {new_average_price:.6f}\n"
+                        message += f"💲 متوسط السعر الجديد: {current_avg_price:.6f}\n"
                         message += f"🏪 السوق: SPOT\n"
                         message += f"🆔 معرف المركز: {unified_position_id}\n"
                     elif action.lower() == 'sell' and unified_position_id in user_manager.user_positions.get(self.user_id, {}):
