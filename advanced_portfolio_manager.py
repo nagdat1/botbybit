@@ -116,7 +116,7 @@ class AdvancedPortfolioManager:
                     "profit_percent": ((current_price - weighted_price) / weighted_price * 100) if weighted_price > 0 else 0,
                     "last_update": datetime.now().isoformat()
                 })
-                    else:
+            else:
                 # عملة جديدة
                 total_value = amount * current_price
                 profit_loss = (current_price - entry_price) * amount
@@ -164,7 +164,7 @@ class AdvancedPortfolioManager:
                     "profit_loss": (current_price - weighted_price) * total_amount if side == 'buy' else (weighted_price - current_price) * total_amount,
                     "last_update": datetime.now().isoformat()
                 })
-                else:
+            else:
                 # صفقة جديدة
                 total_value = amount * current_price
                 profit_loss = (current_price - entry_price) * amount if side == 'buy' else (entry_price - current_price) * amount
@@ -299,7 +299,7 @@ class AdvancedPortfolioManager:
             return symbol.replace('BTC', '')
         elif symbol.endswith('ETH'):
             return symbol.replace('ETH', '')
-                    else:
+        else:
             return symbol.split('/')[0] if '/' in symbol else symbol
     
     async def format_portfolio_message(self, portfolio: Dict[str, Any]) -> str:
@@ -353,7 +353,7 @@ class AdvancedPortfolioManager:
             if not portfolio["spot_currencies"] and not portfolio["futures_positions"]:
                 message += "📭 لا توجد عملات أو صفقات في المحفظة حالياً\n\n"
                 message += "💡 قم بشراء عملات في سوق Spot أو فتح صفقات فيوتشر لتظهر هنا"
-                        else:
+            else:
                 message += f"💎 **إجمالي قيمة المحفظة: {portfolio['total_value']:.2f} USDT**"
             
             return message
