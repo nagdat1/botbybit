@@ -642,13 +642,24 @@ class SignalExecutor:
             quantity = trade_amount / price
             
             # التحقق من أن الكمية ليست صغيرة جداً
-            if quantity < 0.000001:  # أقل من 0.000001
-                logger.error(f"الكمية صغيرة جداً لـ {symbol}: {quantity}")
-                return {
-                    'success': False,
-                    'message': f'Quantity too small for {symbol}: {quantity}',
-                    'error': 'QUANTITY_TOO_SMALL'
-                }
+            # الحد الأدنى لـ BTC هو حوالي 0.00001 BTC
+            min_quantity = 0.00001 if 'BTC' in symbol else 0.000001
+            
+            if quantity < min_quantity:
+                logger.error(f"الكمية صغيرة جداً لـ {symbol}: {quantity} (الحد الأدنى: {min_quantity})")
+                
+                # محاولة زيادة الكمية تلقائياً
+                adjusted_amount = min_quantity * price
+                if adjusted_amount <= trade_amount * 2:  # لا نزيد أكثر من الضعف
+                    logger.info(f"تعديل مبلغ التداول من {trade_amount} إلى {adjusted_amount}")
+                    trade_amount = adjusted_amount
+                    quantity = min_quantity
+                else:
+                    return {
+                        'success': False,
+                        'message': f'Quantity too small for {symbol}: {quantity}. Minimum required: {min_quantity} BTC (${min_quantity * price:.2f})',
+                        'error': 'QUANTITY_TOO_SMALL'
+                    }
             
             logger.info(f"الكمية المحسوبة: {quantity} {symbol} بسعر {price}")
             

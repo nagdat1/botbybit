@@ -101,6 +101,17 @@ class MEXCTradingBot:
             if response.status_code != 200:
                 logger.error(f"خطأ في استجابة MEXC: {response.status_code}")
                 logger.error(f"محتوى الخطأ: {response.text}")
+                
+                # محاولة تحليل الخطأ
+                try:
+                    error_data = response.json()
+                    if 'msg' in error_data:
+                        logger.error(f"رسالة الخطأ من MEXC: {error_data['msg']}")
+                    if 'code' in error_data:
+                        logger.error(f"كود الخطأ من MEXC: {error_data['code']}")
+                except:
+                    pass
+                
                 return None
             
             response_data = response.json()
@@ -108,6 +119,8 @@ class MEXCTradingBot:
             # التحقق من وجود خطأ في الاستجابة
             if 'code' in response_data and response_data['code'] != 0:
                 logger.error(f"خطأ من MEXC API: {response_data}")
+                if 'msg' in response_data:
+                    logger.error(f"رسالة الخطأ: {response_data['msg']}")
                 return None
             
             logger.info(f"استجابة MEXC ناجحة: {response_data}")
