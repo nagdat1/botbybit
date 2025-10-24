@@ -8205,6 +8205,25 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await test_exchange_connection(update, context)
         return
     
+    # معالجة إلغاء إعداد API
+    if data == "cancel_api_setup":
+        # مسح البيانات المؤقتة
+        context.user_data.pop('awaiting_exchange_keys', None)
+        context.user_data.pop('temp_api_key', None)
+        context.user_data.pop('detected_exchange', None)
+        
+        await query.edit_message_text(
+            "❌ **تم إلغاء إعداد API**\n\n"
+            "يمكنك البدء من جديد من القائمة الرئيسية.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # معالجة زر الرجوع للقائمة الرئيسية
+    if data == "main_menu":
+        await start(update, context)
+        return
+    
     if data == "exchange_menu":
         from exchange_commands import cmd_select_exchange
         await cmd_select_exchange(update, context)
@@ -9298,6 +9317,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("❌ فشل في المتابعة")
             return
     
+    # معالجة API Keys المرسلة مباشرة (بدون عملية الإعداد)
+    if _is_likely_api_key(text):
+        await _handle_direct_api_key_input(update, context, text)
+        return
+    
     # معالجة إدخال مفاتيح المنصات (Bybit/MEXC)
     if context.user_data.get('awaiting_exchange_keys'):
         from exchange_commands import handle_api_keys_input
@@ -10198,8 +10222,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if "الصفقات المفتوحة" in text or "🔄" in text:
             await open_positions(update, context)
         elif update.message is not None:
-            # تصحيح مؤقت لإظهار النص الفعلي لتتبع المشكلة
-            await update.message.reply_text(f"❌ أمر غير مدعوم: '{text}'")
+            # رسالة توضيحية محسنة للأوامر غير المعروفة
+            await _handle_unknown_command(update, context, text)
 
 # دالة لمعالجة الإشارات الخارجية
 async def process_external_signal(symbol: str, action: str):
@@ -10594,6 +10618,166 @@ async def show_portfolio_report(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=reply_markup, 
             parse_mode='Markdown'
         )
+
+def _is_likely_api_key(text: str) -> bool:
+    """فحص إذا كان النص يشبه API Key"""
+    if not text or len(text) < 10:
+        return False
+    
+    # فحص أنماط API Keys الشائعة
+    # Bybit API keys عادة تبدأ بـ "yYe" أو "E7j" أو تحتوي على أحرف وأرقام
+    # MEXC API keys عادة تبدأ بـ "mx" أو تحتوي على أحرف وأرقام
+    text_clean = text.strip()
+    
+    # فحص طول معقول (10-100 حرف)
+    if len(text_clean) < 10 or len(text_clean) > 100:
+        return False
+    
+    # فحص أن يحتوي على أحرف وأرقام فقط (مع بعض الرموز الخاصة)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', text_clean):
+        return False
+    
+    # فحص أنماط محددة لـ API Keys
+    bybit_patterns = [
+        r'^yYe[A-Za-z0-9]+$',  # Bybit pattern
+        r'^E7j[A-Za-z0-9]+$',  # Bybit pattern
+    ]
+    
+    mexc_patterns = [
+        r'^mx[A-Za-z0-9]+$',   # MEXC pattern
+    ]
+    
+    # فحص الأنماط
+    for pattern in bybit_patterns + mexc_patterns:
+        if re.match(pattern, text_clean):
+            return True
+    
+    # فحص إضافي: إذا كان النص يحتوي على مزيج من الأحرف والأرقام بنسبة معقولة
+    alpha_count = sum(1 for c in text_clean if c.isalpha())
+    digit_count = sum(1 for c in text_clean if c.isdigit())
+    total_chars = len(text_clean)
+    
+    # يجب أن يحتوي على أحرف وأرقام بنسبة معقولة
+    if alpha_count > 0 and digit_count > 0 and total_chars >= 15:
+        return True
+    
+    return False
+
+async def _handle_direct_api_key_input(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    """معالجة API Key المرسل مباشرة"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    if not user_id:
+        return
+    
+    # تحديد نوع المنصة بناءً على نمط API Key
+    exchange_type = "unknown"
+    if text.startswith(('yYe', 'E7j')):
+        exchange_type = "bybit"
+    elif text.startswith('mx'):
+        exchange_type = "mexc"
+    else:
+        # محاولة تحديد المنصة بناءً على الطول والنمط
+        if len(text) > 30:
+            exchange_type = "bybit"  # Bybit keys عادة أطول
+        else:
+            exchange_type = "mexc"   # MEXC keys عادة أقصر
+    
+    message = f"""
+🔑 **تم اكتشاف API Key!**
+
+📊 **المنصة المقترحة:** {exchange_type.upper()}
+🔑 **API Key:** `{text[:10]}...`
+
+⚠️ **ملاحظة مهمة:**
+لربط API Key بنجاح، تحتاج إلى إرسال **API Secret** أيضاً.
+
+💡 **الخطوات التالية:**
+1. أرسل **API Secret** الآن
+2. أو ابدأ عملية الربط من القائمة الرئيسية
+
+📝 **أرسل API Secret الآن:**
+"""
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="main_menu")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_api_setup")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        message,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+    
+    # حفظ API Key والانتقال للخطوة التالية
+    context.user_data['temp_api_key'] = text
+    context.user_data['awaiting_exchange_keys'] = f'{exchange_type}_step2'
+    context.user_data['detected_exchange'] = exchange_type
+
+async def _handle_unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    """معالجة الأوامر غير المعروفة مع توجيه مفيد"""
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    # فحص إذا كان النص يشبه API Key أو Secret
+    if _is_likely_api_key(text) or _is_likely_api_secret(text):
+        await _handle_direct_api_key_input(update, context, text)
+        return
+    
+    # رسالة توضيحية للأوامر غير المعروفة
+    message = f"""
+❓ **لم أفهم هذا الأمر:** `{text[:20]}{'...' if len(text) > 20 else ''}`
+
+💡 **الأوامر المتاحة:**
+• استخدم الأزرار في القائمة الرئيسية
+• أو ابدأ بـ `/start` للعودة للقائمة
+
+🔑 **لربط API Keys:**
+• اذهب إلى "🏦 إعداد المنصات"
+• اختر المنصة (Bybit أو MEXC)
+• اتبع التعليمات خطوة بخطوة
+
+📊 **للحصول على المساعدة:**
+• اضغط على "❓ المساعدة" في القائمة الرئيسية
+• أو استخدم `/start` للعودة للقائمة
+"""
+    
+    keyboard = [
+        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")],
+        [InlineKeyboardButton("🏦 إعداد المنصات", callback_data="select_exchange")],
+        [InlineKeyboardButton("❓ المساعدة", callback_data="help")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        message,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+def _is_likely_api_secret(text: str) -> bool:
+    """فحص إذا كان النص يشبه API Secret"""
+    if not text or len(text) < 20:
+        return False
+    
+    text_clean = text.strip()
+    
+    # API Secrets عادة أطول من API Keys
+    if len(text_clean) < 20 or len(text_clean) > 200:
+        return False
+    
+    # فحص أن يحتوي على أحرف وأرقام فقط
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', text_clean):
+        return False
+    
+    # فحص أن يحتوي على مزيج من الأحرف والأرقام
+    alpha_count = sum(1 for c in text_clean if c.isalpha())
+    digit_count = sum(1 for c in text_clean if c.isdigit())
+    
+    return alpha_count > 0 and digit_count > 0
 
 def main():
     """الدالة الرئيسية"""
