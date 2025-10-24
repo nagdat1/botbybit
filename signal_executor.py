@@ -638,28 +638,61 @@ class SignalExecutor:
                     'error': 'INVALID_PRICE'
                 }
             
-            # حساب الكمية بناءً على مبلغ التداول
+            # 🔧 إصلاح احترافي: تحويل المبلغ من USDT إلى الكمية الصحيحة
+            # MEXC تريد الكمية الفعلية من العملة الأساسية، وليس المبلغ بالدولار
+            
+            # حساب الكمية الصحيحة بناءً على المبلغ المطلوب
             quantity = trade_amount / price
             
-            # التحقق من أن الكمية ليست صغيرة جداً
-            # الحد الأدنى لـ BTC هو حوالي 0.00001 BTC
-            min_quantity = 0.00001 if 'BTC' in symbol else 0.000001
+            # تحديد الحد الأدنى للكمية حسب نوع العملة
+            min_quantities = {
+                'BTC': 0.00001,    # BTC الحد الأدنى
+                'ETH': 0.0001,     # ETH الحد الأدنى  
+                'BNB': 0.001,      # BNB الحد الأدنى
+                'ADA': 1.0,        # ADA الحد الأدنى
+                'SOL': 0.01,       # SOL الحد الأدنى
+                'MATIC': 1.0,      # MATIC الحد الأدنى
+                'DOT': 0.01,       # DOT الحد الأدنى
+                'AVAX': 0.01,      # AVAX الحد الأدنى
+                'LINK': 0.01,      # LINK الحد الأدنى
+                'UNI': 0.01,       # UNI الحد الأدنى
+            }
             
+            # استخراج العملة الأساسية من الرمز
+            base_asset = symbol.replace('USDT', '').replace('BUSD', '').replace('USDC', '')
+            min_quantity = min_quantities.get(base_asset, 0.000001)  # افتراضي للعملات الأخرى
+            
+            logger.info(f"💰 المبلغ المطلوب: ${trade_amount}")
+            logger.info(f"📊 السعر الحالي: ${price:,.2f}")
+            logger.info(f"🔢 الكمية المحسوبة: {quantity:.8f} {base_asset}")
+            logger.info(f"📏 الحد الأدنى المطلوب: {min_quantity} {base_asset}")
+            
+            # التحقق من الحد الأدنى للكمية
             if quantity < min_quantity:
-                logger.error(f"الكمية صغيرة جداً لـ {symbol}: {quantity} (الحد الأدنى: {min_quantity})")
+                logger.warning(f"⚠️ الكمية صغيرة جداً: {quantity:.8f} < {min_quantity}")
                 
-                # محاولة زيادة الكمية تلقائياً
-                adjusted_amount = min_quantity * price
-                if adjusted_amount <= trade_amount * 2:  # لا نزيد أكثر من الضعف
-                    logger.info(f"تعديل مبلغ التداول من {trade_amount} إلى {adjusted_amount}")
-                    trade_amount = adjusted_amount
+                # حساب المبلغ المطلوب للوصول للحد الأدنى
+                required_amount = min_quantity * price
+                
+                # إذا كان المبلغ المطلوب معقول (أقل من 3 أضعاف المبلغ الأصلي)
+                if required_amount <= trade_amount * 3:
+                    logger.info(f"🔄 تعديل تلقائي: ${trade_amount} → ${required_amount:.2f}")
+                    trade_amount = required_amount
                     quantity = min_quantity
                 else:
+                    # إذا كان المبلغ المطلوب كبير جداً، نرفض الطلب
                     return {
                         'success': False,
-                        'message': f'Quantity too small for {symbol}: {quantity}. Minimum required: {min_quantity} BTC (${min_quantity * price:.2f})',
-                        'error': 'QUANTITY_TOO_SMALL'
+                        'message': f'Amount too small for {symbol}. Minimum required: ${required_amount:.2f} (${min_quantity} {base_asset})',
+                        'error': 'AMOUNT_TOO_SMALL',
+                        'required_amount': required_amount,
+                        'min_quantity': min_quantity
                     }
+            
+            # تقريب الكمية إلى 6 أرقام عشرية (معيار MEXC)
+            quantity = round(quantity, 6)
+            
+            logger.info(f"✅ الكمية النهائية: {quantity} {base_asset} (${trade_amount:.2f})")
             
             logger.info(f"الكمية المحسوبة: {quantity} {symbol} بسعر {price}")
             

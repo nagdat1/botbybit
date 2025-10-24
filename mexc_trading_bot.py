@@ -244,17 +244,44 @@ class MEXCTradingBot:
             الكمية المنسقة
         """
         try:
-            lot_size_filter = symbol_info['filters'].get('LOT_SIZE', {})
-            step_size = float(lot_size_filter.get('stepSize', '1'))
+            # الحصول على فلاتر الرمز
+            filters = symbol_info.get('filters', [])
+            lot_size_filter = None
             
-            # حساب عدد الأرقام العشرية
+            # البحث عن فلتر LOT_SIZE
+            for filter_item in filters:
+                if filter_item.get('filterType') == 'LOT_SIZE':
+                    lot_size_filter = filter_item
+                    break
+            
+            if not lot_size_filter:
+                logger.warning("لم يتم العثور على فلتر LOT_SIZE، استخدام القيم الافتراضية")
+                return f"{quantity:.6f}".rstrip('0').rstrip('.')
+            
+            step_size = float(lot_size_filter.get('stepSize', '1'))
+            min_qty = float(lot_size_filter.get('minQty', '0'))
+            max_qty = float(lot_size_filter.get('maxQty', '0'))
+            
+            logger.info(f"فلاتر الكمية - Step: {step_size}, Min: {min_qty}, Max: {max_qty}")
+            
+            # التحقق من الحد الأدنى
+            if quantity < min_qty:
+                logger.error(f"الكمية أقل من الحد الأدنى: {quantity} < {min_qty}")
+                return f"{min_qty:.6f}".rstrip('0').rstrip('.')
+            
+            # التحقق من الحد الأقصى
+            if max_qty > 0 and quantity > max_qty:
+                logger.error(f"الكمية أكبر من الحد الأقصى: {quantity} > {max_qty}")
+                return f"{max_qty:.6f}".rstrip('0').rstrip('.')
+            
+            # حساب عدد الأرقام العشرية من step_size
             step_str = f"{step_size:.10f}".rstrip('0')
             if '.' in step_str:
                 decimals = len(step_str.split('.')[1])
             else:
                 decimals = 0
             
-            # تقريب الكمية
+            # تقريب الكمية إلى مضاعف step_size
             quantity_decimal = Decimal(str(quantity))
             step_decimal = Decimal(str(step_size))
             
@@ -262,11 +289,18 @@ class MEXCTradingBot:
             quantity_decimal = (quantity_decimal // step_decimal) * step_decimal
             
             # تنسيق النتيجة
-            return f"{float(quantity_decimal):.{decimals}f}"
+            if decimals > 0:
+                formatted = f"{float(quantity_decimal):.{decimals}f}"
+            else:
+                formatted = f"{int(quantity_decimal)}"
             
+            logger.info(f"الكمية المنسقة: {formatted}")
+            return formatted
+                
         except Exception as e:
             logger.error(f"خطأ في تنسيق الكمية: {e}")
-            return f"{quantity:.8f}".rstrip('0').rstrip('.')
+            # في حالة الخطأ، نعيد الكمية بتنسيق آمن
+            return f"{quantity:.6f}".rstrip('0').rstrip('.')
     
     def place_spot_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET', 
                         price: Optional[float] = None) -> Optional[Dict]:
@@ -299,9 +333,14 @@ class MEXCTradingBot:
                 logger.error(f"التداول الفوري غير مسموح لـ {symbol}")
                 return None
             
-            # تنسيق الكمية
+            # تنسيق الكمية بناءً على متطلبات الرمز
             formatted_quantity = self._format_quantity(quantity, symbol_info)
             logger.info(f"الكمية المنسقة: {formatted_quantity}")
+            
+            # التحقق من أن الكمية المنسقة ليست صفر
+            if float(formatted_quantity) <= 0:
+                logger.error(f"الكمية المنسقة صفر أو سالبة: {formatted_quantity}")
+                return None
             
             # بناء معاملات الأمر
             params = {
