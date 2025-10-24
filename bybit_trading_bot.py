@@ -2971,8 +2971,8 @@ class TradingBot:
                         
                         # إعداد بيانات الصفقة
                         position_data = {
-                            'symbol': symbol,
-                            'side': action,
+                        'symbol': symbol,
+                        'side': action,
                             'quantity': amount,
                             'entry_price': price,
                             'market_type': user_market_type,
@@ -3069,10 +3069,10 @@ class TradingBot:
                                     'side': 'buy',  # دائماً buy للمركز الموحد
                                     'account_type': 'demo',
                                     'market_type': user_market_type,
-                                    'leverage': 1,
-                                    'category': category,
-                                    'amount': amount,
-                                    'current_price': price,
+                        'leverage': 1,
+                        'category': category,
+                        'amount': amount,
+                        'current_price': price,
                                     'pnl_percent': 0.0,
                                     'created_at': datetime.now().isoformat(),
                                     'last_update': datetime.now().isoformat()
@@ -6243,7 +6243,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             position_id = db_position.get('order_id', f"db_{db_position.get('symbol')}_{len(all_positions)}")
             if position_id not in all_positions:
                 logger.info(f"🔍 DEBUG: إضافة صفقة من قاعدة البيانات: {position_id}")
-                all_positions[position_id] = {
+                        all_positions[position_id] = {
                     'symbol': db_position.get('symbol'),
                     'entry_price': db_position.get('entry_price', 0),
                     'side': db_position.get('side', 'buy'),
