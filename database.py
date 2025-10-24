@@ -463,12 +463,6 @@ class DatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # التحقق من وجود الصفقة مسبقاً
-                cursor.execute("SELECT order_id FROM orders WHERE order_id = ?", (order_data['order_id'],))
-                if cursor.fetchone():
-                    logger.warning(f"الصفقة {order_data['order_id']} موجودة بالفعل")
-                    return True
-                
                 cursor.execute("""
                     INSERT INTO orders (
                         order_id, user_id, symbol, side, entry_price, quantity,
@@ -489,7 +483,6 @@ class DatabaseManager:
                 ))
                 
                 conn.commit()
-                logger.info(f"تم إنشاء صفقة جديدة: {order_data['order_id']} - {order_data['symbol']}")
                 return True
                 
         except Exception as e:
@@ -649,31 +642,6 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"خطأ في الحصول على المستخدمين النشطين: {e}")
-            return []
-    
-    def get_user_open_positions(self, user_id: int) -> List[Dict]:
-        """الحصول على الصفقات المفتوحة للمستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM orders 
-                    WHERE user_id = ? AND status = 'OPEN'
-                    ORDER BY order_id DESC
-                """, (user_id,))
-                
-                rows = cursor.fetchall()
-                positions = []
-                
-                for row in rows:
-                    position_data = dict(row)
-                    positions.append(position_data)
-                
-                return positions
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على الصفقات المفتوحة للمستخدم {user_id}: {e}")
             return []
     
     def get_user_statistics(self, user_id: int) -> Dict:
@@ -1119,195 +1087,6 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"خطأ في الحصول على الصفقة بالـ ID: {e}")
-            return None
-    
-    def get_user_portfolio_summary(self, user_id: int) -> Dict:
-        """الحصول على ملخص محفظة المستخدم"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # إجمالي الصفقات المفتوحة
-                cursor.execute("""
-                    SELECT COUNT(*) as total_open FROM orders 
-                    WHERE user_id = ? AND status = 'OPEN'
-                """, (user_id,))
-                total_open = cursor.fetchone()['total_open']
-                
-                # إجمالي الصفقات المغلقة
-                cursor.execute("""
-                    SELECT COUNT(*) as total_closed FROM orders 
-                    WHERE user_id = ? AND status = 'CLOSED'
-                """, (user_id,))
-                total_closed = cursor.fetchone()['total_closed']
-                
-                # الصفقات المفتوحة حسب الرمز
-                cursor.execute("""
-                    SELECT symbol, COUNT(*) as count, SUM(quantity * entry_price) as total_value
-                    FROM orders 
-                    WHERE user_id = ? AND status = 'OPEN'
-                    GROUP BY symbol
-                """, (user_id,))
-                positions_by_symbol = cursor.fetchall()
-                
-                # الصفقات المفتوحة بالتفصيل
-                cursor.execute("""
-                    SELECT symbol, side, entry_price, quantity, open_time, notes
-                    FROM orders 
-                    WHERE user_id = ? AND status = 'OPEN'
-                    ORDER BY open_time DESC
-                """, (user_id,))
-                open_positions = cursor.fetchall()
-                
-                return {
-                    'total_open_positions': total_open,
-                    'total_closed_positions': total_closed,
-                    'positions_by_symbol': [dict(row) for row in positions_by_symbol],
-                    'open_positions_details': [dict(row) for row in open_positions],
-                    'portfolio_value': sum(row['total_value'] or 0 for row in positions_by_symbol)
-                }
-                
-        except Exception as e:
-            logger.error(f"Oops, error in get_user_portfolio_summary: {e}")
-            return {
-                'total_open_positions': 0,
-                'total_closed_positions': 0,
-                'positions_by_symbol': [],
-                'open_positions_details': [],
-                'portfolio_value': 0
-            }
-    
-    def create_comprehensive_position(self, position_data: Dict) -> bool:
-        """إنشاء صفقة شاملة مع حفظ في جدولين"""
-        try:
-            # حفظ في جدول orders
-            order_success = self.create_order(position_data)
-            
-            # حفظ في جدول signal_positions إذا كان هناك signal_id
-            signal_success = True
-            if 'signal_id' in position_data:
-                signal_position_data = {
-                    'signal_id': position_data['signal_id'],
-                    'user_id': position_data['user_id'],
-                    'symbol': position_data['symbol'],
-                    'side': position_data['side'],
-                    'entry_price': position_data['entry_price'],
-                    'quantity': position_data['quantity'],
-                    'exchange': position_data.get('exchange', 'bybit'),
-                    'market_type': position_data.get('market_type', 'spot'),
-                    'order_id': position_data['order_id'],
-                    'status': position_data.get('status', 'OPEN'),
-                    'notes': position_data.get('notes', '')
-                }
-                signal_success = self.create_signal_position(signal_position_data)
-            
-            return order_success and signal_success
-            
-        except Exception as e:
-            logger.error(f"خطأ في إنشاء الصفقة الشاملة: {e}")
-            return False
-    
-    def update_position_status(self, order_id: str, new_status: str, close_price: float = None) -> bool:
-        """تحديث حالة الصفقة"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                if new_status == 'CLOSED':
-                    cursor.execute("""
-                        UPDATE orders 
-                        SET status = ?, close_time = CURRENT_TIMESTAMP
-                        WHERE order_id = ?
-                    """, (new_status, order_id))
-                else:
-                    cursor.execute("""
-                        UPDATE orders 
-                        SET status = ?
-                        WHERE order_id = ?
-                    """, (new_status, order_id))
-                
-                conn.commit()
-                logger.info(f"تم تحديث حالة الصفقة {order_id} إلى {new_status}")
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            logger.error(f"خطأ في تحديث حالة الصفقة: {e}")
-            return False
-    
-    def get_all_user_positions(self, user_id: int) -> List[Dict]:
-        """الحصول على جميع صفقات المستخدم من جميع الجداول"""
-        try:
-            all_positions = []
-            
-            # الصفقات من جدول orders
-            orders = self.get_user_orders(user_id)
-            for order in orders:
-                order['table_source'] = 'orders'
-                all_positions.append(order)
-            
-            # الصفقات من جدول signal_positions
-            signal_positions = self.get_user_signal_positions(user_id)
-            for position in signal_positions:
-                position['table_source'] = 'signal_positions'
-                all_positions.append(position)
-            
-            # ترتيب حسب وقت الإنشاء
-            all_positions.sort(key=lambda x: x.get('created_at', x.get('open_time', '')), reverse=True)
-            
-            return all_positions
-            
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على جميع صفقات المستخدم: {e}")
-            return []
-    
-    def get_position_by_symbol_and_user(self, symbol: str, user_id: int, market_type: str) -> Optional[Dict]:
-        """الحصول على صفقة محددة بالرمز والمستخدم ونوع السوق"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # البحث في جدول orders أولاً
-                cursor.execute("""
-                    SELECT * FROM orders 
-                    WHERE user_id = ? AND symbol = ? AND status = 'OPEN'
-                    ORDER BY open_time DESC
-                    LIMIT 1
-                """, (user_id, symbol))
-                
-                row = cursor.fetchone()
-                if row:
-                    order = dict(row)
-                    # تحويل النصوص JSON إلى قوائم
-                    try:
-                        order['tps'] = json.loads(order['tps'])
-                        order['partial_close'] = json.loads(order['partial_close'])
-                    except (json.JSONDecodeError, TypeError):
-                        order['tps'] = []
-                        order['partial_close'] = []
-                    
-                    # إضافة market_type إذا لم يكن موجوداً
-                    if 'market_type' not in order:
-                        order['market_type'] = market_type
-                    
-                    return order
-                
-                # إذا لم توجد في orders، البحث في signal_positions
-                cursor.execute("""
-                    SELECT * FROM signal_positions 
-                    WHERE user_id = ? AND symbol = ? AND status = 'OPEN' AND market_type = ?
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                """, (user_id, symbol, market_type))
-                
-                row = cursor.fetchone()
-                if row:
-                    position = dict(row)
-                    return position
-                
-                return None
-                
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على صفقة بالرمز: {e}")
             return None
 
 # إنشاء مثيل عام لقاعدة البيانات

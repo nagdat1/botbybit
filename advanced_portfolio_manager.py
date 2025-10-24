@@ -1,422 +1,885 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-نظام المحفظة المتقدم - يربط جميع الصفقات ويعرض العملات بوضوح
-يدعم الحسابات التجريبية والحقيقية مع تحديث فوري
+مدير المحفظة المتقدم - Advanced Portfolio Manager
+يدعم إدارة المحافظ المتقدمة مع إعادة التوازن التلقائي وتحسين الأداء
 """
 
 import logging
-from datetime import datetime
-from typing import Dict, List, Any, Optional
-from database import db_manager
-from user_manager import user_manager
-from real_account_manager import RealAccountManager
+import json
+import time
+import asyncio
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple, Any, Union
+from dataclasses import dataclass, field
+from enum import Enum
+import statistics
+import numpy as np
+from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
 
+class PortfolioStrategy(Enum):
+    """استراتيجية المحفظة"""
+    EQUAL_WEIGHT = "equal_weight"
+    MARKET_CAP_WEIGHT = "market_cap_weight"
+    VOLATILITY_ADJUSTED = "volatility_adjusted"
+    MOMENTUM_BASED = "momentum_based"
+    MEAN_REVERSION = "mean_reversion"
+    BLACK_LITTERMAN = "black_litterman"
+    RISK_PARITY = "risk_parity"
+
+class RebalancingFrequency(Enum):
+    """تكرار إعادة التوازن"""
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    ON_SIGNAL = "on_signal"
+
+class RiskModel(Enum):
+    """نموذج المخاطر"""
+    HISTORICAL = "historical"
+    GARCH = "garch"
+    EWMA = "ewma"
+    MONTE_CARLO = "monte_carlo"
+
+@dataclass
+class Asset:
+    """أصل مالي"""
+    symbol: str
+    name: str
+    current_price: float
+    quantity: float
+    weight: float
+    market_value: float
+    cost_basis: float
+    unrealized_pnl: float
+    unrealized_pnl_percent: float
+    volatility: float
+    beta: float
+    correlation: Dict[str, float] = field(default_factory=dict)
+    last_updated: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class PortfolioMetrics:
+    """مقاييس المحفظة"""
+    total_value: float
+    total_cost: float
+    unrealized_pnl: float
+    unrealized_pnl_percent: float
+    daily_pnl: float
+    weekly_pnl: float
+    monthly_pnl: float
+    volatility: float
+    sharpe_ratio: float
+    max_drawdown: float
+    var_95: float  # Value at Risk 95%
+    cvar_95: float  # Conditional Value at Risk 95%
+    diversification_ratio: float
+    concentration_ratio: float
+    last_updated: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class RebalancingSignal:
+    """إشارة إعادة التوازن"""
+    symbol: str
+    current_weight: float
+    target_weight: float
+    weight_difference: float
+    action: str  # 'buy', 'sell', 'hold'
+    quantity: float
+    priority: int
+    reason: str
+
 class AdvancedPortfolioManager:
-    """مدير المحفظة المتقدم - يربط جميع الصفقات ويعرض العملات بوضوح"""
+    """مدير المحفظة المتقدم"""
     
-    def __init__(self):
-        self.real_account_manager = RealAccountManager()
-        logger.info("🚀 تم تهيئة نظام المحفظة المتقدم")
+    def __init__(self, user_id: int, initial_capital: float = 10000.0):
+        self.user_id = user_id
+        self.initial_capital = initial_capital
+        self.current_capital = initial_capital
+        
+        # المحفظة
+        self.assets: Dict[str, Asset] = {}
+        self.cash_balance = initial_capital
+        self.portfolio_strategy = PortfolioStrategy.EQUAL_WEIGHT
+        self.rebalancing_frequency = RebalancingFrequency.WEEKLY
+        self.risk_model = RiskModel.HISTORICAL
+        
+        # إعدادات إعادة التوازن
+        self.rebalancing_threshold = 0.05  # 5%
+        self.min_weight = 0.01  # 1%
+        self.max_weight = 0.4  # 40%
+        self.rebalancing_enabled = True
+        
+        # مقاييس الأداء
+        self.portfolio_metrics = PortfolioMetrics(
+            total_value=initial_capital,
+            total_cost=initial_capital,
+            unrealized_pnl=0.0,
+            unrealized_pnl_percent=0.0,
+            daily_pnl=0.0,
+            weekly_pnl=0.0,
+            monthly_pnl=0.0,
+            volatility=0.0,
+            sharpe_ratio=0.0,
+            max_drawdown=0.0,
+            var_95=0.0,
+            cvar_95=0.0,
+            diversification_ratio=0.0,
+            concentration_ratio=0.0
+        )
+        
+        # تاريخ المحفظة
+        self.portfolio_history: List[PortfolioMetrics] = []
+        self.rebalancing_history: List[RebalancingSignal] = []
+        
+        # إعدادات التحسين
+        self.optimization_enabled = True
+        self.risk_free_rate = 0.02  # 2%
+        self.risk_aversion = 1.0
+        self.transaction_costs = 0.001  # 0.1%
+        
+        logger.info(f"تم تهيئة مدير المحفظة المتقدم للمستخدم {user_id}")
     
-    async def get_comprehensive_portfolio(self, user_id: int) -> Dict[str, Any]:
-        """الحصول على المحفظة الشاملة للمستخدم"""
+    def add_asset(self, symbol: str, name: str, quantity: float, 
+                  current_price: float, cost_basis: float = None) -> bool:
+        """إضافة أصل للمحفظة"""
         try:
-            logger.info(f"🔍 جاري تحضير المحفظة الشاملة للمستخدم {user_id}")
+            if symbol in self.assets:
+                logger.warning(f"الأصل {symbol} موجود بالفعل في المحفظة")
+                return False
             
-            # الحصول على إعدادات المستخدم
-            user_data = user_manager.get_user(user_id)
-            if not user_data:
-                return {"error": "لم يتم العثور على بيانات المستخدم"}
+            if cost_basis is None:
+                cost_basis = current_price
             
-            account_type = user_data.get('account_type', 'demo')
-            market_type = user_data.get('market_type', 'spot')
+            market_value = quantity * current_price
+            unrealized_pnl = (current_price - cost_basis) * quantity
+            unrealized_pnl_percent = (current_price - cost_basis) / cost_basis * 100
             
-            logger.info(f"📊 نوع الحساب: {account_type}, نوع السوق: {market_type}")
-            
-            if account_type == 'demo':
-                return await self._get_demo_portfolio(user_id, market_type)
-            else:
-                return await self._get_real_portfolio(user_id, market_type)
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على المحفظة الشاملة: {e}")
-            return {"error": f"خطأ في تحضير المحفظة: {str(e)}"}
-    
-    async def _get_demo_portfolio(self, user_id: int, market_type: str) -> Dict[str, Any]:
-        """الحصول على المحفظة التجريبية مع ربط كامل بالصفقات"""
-        try:
-            logger.info(f"🎯 تحضير المحفظة التجريبية للمستخدم {user_id}")
-            
-            portfolio = {
-                "type": "demo",
-                "market_type": market_type,
-                "spot_currencies": {},
-                "futures_positions": {},
-                "total_value": 0,
-                "last_update": datetime.now().isoformat()
-            }
-            
-            # الحصول على جميع الصفقات من user_positions
-            user_positions = user_manager.user_positions.get(user_id, {})
-            logger.info(f"🔍 DEBUG: الصفقات الموجودة للمستخدم {user_id}: {len(user_positions)} صفقة")
-            
-            for position_id, position_info in user_positions.items():
-                logger.info(f"🔍 DEBUG: معالجة صفقة {position_id}: {position_info}")
-                
-                if position_info.get('account_type') != 'demo':
-                    logger.info(f"🔍 DEBUG: تخطي صفقة {position_id} - نوع الحساب: {position_info.get('account_type')}")
-                    continue
-                
-                pos_market_type = position_info.get('market_type', 'spot')
-                logger.info(f"🔍 DEBUG: معالجة صفقة {position_id} - نوع السوق: {pos_market_type}")
-                
-                if pos_market_type == 'spot':
-                    await self._process_demo_spot_position(portfolio, position_info)
-                elif pos_market_type == 'futures':
-                    await self._process_demo_futures_position(portfolio, position_info)
-            
-            # حساب إجمالي قيمة المحفظة
-            portfolio["total_value"] = sum(
-                currency["total_value"] for currency in portfolio["spot_currencies"].values()
-            ) + sum(
-                position["total_value"] for position in portfolio["futures_positions"].values()
+            asset = Asset(
+                symbol=symbol,
+                name=name,
+                current_price=current_price,
+                quantity=quantity,
+                weight=0.0,  # سيتم حسابها لاحقاً
+                market_value=market_value,
+                cost_basis=cost_basis,
+                unrealized_pnl=unrealized_pnl,
+                unrealized_pnl_percent=unrealized_pnl_percent,
+                volatility=0.02,  # افتراضي
+                beta=1.0  # افتراضي
             )
             
-            logger.info(f"✅ تم تحضير المحفظة التجريبية: {len(portfolio['spot_currencies'])} عملات سبوت، {len(portfolio['futures_positions'])} صفقات فيوتشر")
-            logger.info(f"🔍 DEBUG: تفاصيل المحفظة النهائية: {portfolio}")
-            return portfolio
+            self.assets[symbol] = asset
+            
+            # تحديث رصيد النقد
+            self.cash_balance -= market_value
+            
+            # إعادة حساب الأوزان والمقاييس
+            self._update_portfolio_metrics()
+            
+            logger.info(f"تم إضافة الأصل {symbol} للمحفظة: {quantity} بسعر {current_price}")
+            return True
             
         except Exception as e:
-            logger.error(f"❌ خطأ في المحفظة التجريبية: {e}")
-            return {"error": f"خطأ في المحفظة التجريبية: {str(e)}"}
+            logger.error(f"خطأ في إضافة الأصل {symbol}: {e}")
+            return False
     
-    async def _process_demo_spot_position(self, portfolio: Dict, position_info: Dict):
-        """معالجة صفقة سبوت تجريبية"""
+    def remove_asset(self, symbol: str) -> bool:
+        """إزالة أصل من المحفظة"""
         try:
-            symbol = position_info.get('symbol', '')
-            base_currency = self._extract_base_currency(symbol)
-            logger.info(f"🔍 DEBUG: معالجة صفقة سبوت {symbol} -> العملة الأساسية: {base_currency}")
+            if symbol not in self.assets:
+                logger.warning(f"الأصل {symbol} غير موجود في المحفظة")
+                return False
             
-            if not base_currency:
-                logger.warning(f"⚠️ DEBUG: لم يتم العثور على العملة الأساسية للرمز {symbol}")
+            asset = self.assets[symbol]
+            
+            # إضافة القيمة السوقية إلى رصيد النقد
+            self.cash_balance += asset.market_value
+            
+            # إزالة الأصل
+            del self.assets[symbol]
+            
+            # إعادة حساب الأوزان والمقاييس
+            self._update_portfolio_metrics()
+            
+            logger.info(f"تم إزالة الأصل {symbol} من المحفظة")
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطأ في إزالة الأصل {symbol}: {e}")
+            return False
+    
+    def update_asset_price(self, symbol: str, new_price: float) -> bool:
+        """تحديث سعر الأصل"""
+        try:
+            if symbol not in self.assets:
+                logger.warning(f"الأصل {symbol} غير موجود في المحفظة")
+                return False
+            
+            asset = self.assets[symbol]
+            old_price = asset.current_price
+            
+            # تحديث السعر والقيمة السوقية
+            asset.current_price = new_price
+            asset.market_value = asset.quantity * new_price
+            asset.unrealized_pnl = (new_price - asset.cost_basis) * asset.quantity
+            asset.unrealized_pnl_percent = (new_price - asset.cost_basis) / asset.cost_basis * 100
+            asset.last_updated = datetime.now()
+            
+            # إعادة حساب الأوزان والمقاييس
+            self._update_portfolio_metrics()
+            
+            logger.info(f"تم تحديث سعر {symbol} من {old_price} إلى {new_price}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحديث سعر الأصل {symbol}: {e}")
+            return False
+    
+    def _update_portfolio_metrics(self):
+        """تحديث مقاييس المحفظة"""
+        try:
+            if not self.assets:
                 return
             
-            amount = position_info.get('amount', 0)
-            entry_price = position_info.get('entry_price', 0)
-            current_price = position_info.get('current_price', entry_price)
+            # حساب القيمة الإجمالية
+            total_market_value = sum(asset.market_value for asset in self.assets.values())
+            total_cost = sum(asset.quantity * asset.cost_basis for asset in self.assets.values())
             
-            logger.info(f"🔍 DEBUG: بيانات الصفقة - الكمية: {amount}, سعر الدخول: {entry_price}, السعر الحالي: {current_price}")
+            # حساب الربح/الخسارة غير المحققة
+            unrealized_pnl = total_market_value - total_cost
+            unrealized_pnl_percent = (unrealized_pnl / total_cost * 100) if total_cost > 0 else 0.0
             
-            if amount <= 0:
-                logger.warning(f"⚠️ DEBUG: كمية الصفقة صفر أو سالبة: {amount}")
-                return
+            # تحديث الأوزان
+            for asset in self.assets.values():
+                asset.weight = asset.market_value / total_market_value if total_market_value > 0 else 0.0
             
-            if base_currency in portfolio["spot_currencies"]:
-                # تجميع مع العملة الموجودة
-                existing = portfolio["spot_currencies"][base_currency]
-                
-                # حساب متوسط السعر المرجح
-                total_amount = existing["total_amount"] + amount
-                weighted_price = ((existing["total_amount"] * existing["average_price"]) + 
-                                (amount * entry_price)) / total_amount
-                
-                existing.update({
-                    "total_amount": total_amount,
-                    "average_price": weighted_price,
-                    "current_price": current_price,
-                    "total_value": total_amount * current_price,
-                    "profit_loss": (current_price - weighted_price) * total_amount,
-                    "profit_percent": ((current_price - weighted_price) / weighted_price * 100) if weighted_price > 0 else 0,
-                    "last_update": datetime.now().isoformat()
-                })
+            # حساب التقلبات
+            volatility = self._calculate_portfolio_volatility()
+            
+            # حساب نسبة شارب
+            sharpe_ratio = self._calculate_sharpe_ratio()
+            
+            # حساب الحد الأقصى للانخفاض
+            max_drawdown = self._calculate_max_drawdown()
+            
+            # حساب VaR و CVaR
+            var_95, cvar_95 = self._calculate_var_cvar()
+            
+            # حساب نسبة التنويع
+            diversification_ratio = self._calculate_diversification_ratio()
+            
+            # حساب نسبة التركيز
+            concentration_ratio = self._calculate_concentration_ratio()
+            
+            # تحديث المقاييس
+            self.portfolio_metrics = PortfolioMetrics(
+                total_value=total_market_value + self.cash_balance,
+                total_cost=total_cost + (self.initial_capital - self.cash_balance),
+                unrealized_pnl=unrealized_pnl,
+                unrealized_pnl_percent=unrealized_pnl_percent,
+                daily_pnl=0.0,  # سيتم تحديثه لاحقاً
+                weekly_pnl=0.0,
+                monthly_pnl=0.0,
+                volatility=volatility,
+                sharpe_ratio=sharpe_ratio,
+                max_drawdown=max_drawdown,
+                var_95=var_95,
+                cvar_95=cvar_95,
+                diversification_ratio=diversification_ratio,
+                concentration_ratio=concentration_ratio,
+                last_updated=datetime.now()
+            )
+            
+            # حفظ التاريخ
+            self.portfolio_history.append(self.portfolio_metrics)
+            
+            # الاحتفاظ بآخر 1000 سجل فقط
+            if len(self.portfolio_history) > 1000:
+                self.portfolio_history = self.portfolio_history[-1000:]
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحديث مقاييس المحفظة: {e}")
+    
+    def _calculate_portfolio_volatility(self) -> float:
+        """حساب تقلبات المحفظة"""
+        try:
+            if len(self.assets) < 2:
+                return 0.0
+            
+            # حساب مصفوفة التباين-التغاير
+            symbols = list(self.assets.keys())
+            n = len(symbols)
+            cov_matrix = np.zeros((n, n))
+            
+            for i, symbol1 in enumerate(symbols):
+                for j, symbol2 in enumerate(symbols):
+                    if i == j:
+                        cov_matrix[i, j] = self.assets[symbol1].volatility ** 2
                     else:
-                # عملة جديدة
-                total_value = amount * current_price
-                profit_loss = (current_price - entry_price) * amount
-                profit_percent = ((current_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
-                
-                portfolio["spot_currencies"][base_currency] = {
-                    "symbol": symbol,
-                    "total_amount": amount,
-                    "average_price": entry_price,
-                    "current_price": current_price,
-                    "total_value": total_value,
-                    "profit_loss": profit_loss,
-                    "profit_percent": profit_percent,
-                    "last_update": datetime.now().isoformat()
-                }
-                logger.info(f"✅ DEBUG: تم إضافة عملة جديدة {base_currency} إلى المحفظة")
+                        correlation = self.assets[symbol1].correlation.get(symbol2, 0.0)
+                        cov_matrix[i, j] = (
+                            self.assets[symbol1].volatility * 
+                            self.assets[symbol2].volatility * 
+                            correlation
+                        )
+            
+            # حساب أوزان المحفظة
+            weights = np.array([self.assets[symbol].weight for symbol in symbols])
+            
+            # حساب التقلبات
+            portfolio_variance = np.dot(weights, np.dot(cov_matrix, weights))
+            portfolio_volatility = np.sqrt(portfolio_variance)
+            
+            return portfolio_volatility
             
         except Exception as e:
-            logger.error(f"❌ خطأ في معالجة صفقة سبوت: {e}")
+            logger.error(f"خطأ في حساب تقلبات المحفظة: {e}")
+            return 0.0
     
-    async def _process_demo_futures_position(self, portfolio: Dict, position_info: Dict):
-        """معالجة صفقة فيوتشر تجريبية"""
+    def _calculate_sharpe_ratio(self) -> float:
+        """حساب نسبة شارب"""
         try:
-            symbol = position_info.get('symbol', '')
-            side = position_info.get('side', 'buy')
-            amount = position_info.get('amount', 0)
-            entry_price = position_info.get('entry_price', 0)
-            current_price = position_info.get('current_price', entry_price)
+            if self.portfolio_metrics.volatility == 0:
+                return 0.0
             
-            position_key = f"{symbol}_{side}"
+            # حساب العائد المتوقع
+            expected_return = sum(
+                asset.weight * asset.unrealized_pnl_percent / 100 
+                for asset in self.assets.values()
+            )
             
-            if position_key in portfolio["futures_positions"]:
-                # تجميع مع الصفقة الموجودة
-                existing = portfolio["futures_positions"][position_key]
-                
-                # حساب متوسط السعر المرجح
-                total_amount = existing["total_amount"] + amount
-                weighted_price = ((existing["total_amount"] * existing["average_price"]) + 
-                                (amount * entry_price)) / total_amount
-                
-                existing.update({
-                    "total_amount": total_amount,
-                    "average_price": weighted_price,
-                    "current_price": current_price,
-                    "total_value": total_amount * current_price,
-                    "profit_loss": (current_price - weighted_price) * total_amount if side == 'buy' else (weighted_price - current_price) * total_amount,
-                    "last_update": datetime.now().isoformat()
-                })
+            # حساب نسبة شارب
+            sharpe_ratio = (expected_return - self.risk_free_rate) / self.portfolio_metrics.volatility
+            
+            return sharpe_ratio
+            
+        except Exception as e:
+            logger.error(f"خطأ في حساب نسبة شارب: {e}")
+            return 0.0
+    
+    def _calculate_max_drawdown(self) -> float:
+        """حساب الحد الأقصى للانخفاض"""
+        try:
+            if len(self.portfolio_history) < 2:
+                return 0.0
+            
+            values = [metrics.total_value for metrics in self.portfolio_history]
+            peak = values[0]
+            max_dd = 0.0
+            
+            for value in values[1:]:
+                if value > peak:
+                    peak = value
                 else:
-                # صفقة جديدة
-                total_value = amount * current_price
-                profit_loss = (current_price - entry_price) * amount if side == 'buy' else (entry_price - current_price) * amount
-                
-                portfolio["futures_positions"][position_key] = {
-                    "symbol": symbol,
-                    "side": side,
-                    "total_amount": amount,
-                    "average_price": entry_price,
-                    "current_price": current_price,
-                    "total_value": total_value,
-                    "profit_loss": profit_loss,
-                    "last_update": datetime.now().isoformat()
-                }
+                    drawdown = (peak - value) / peak
+                    max_dd = max(max_dd, drawdown)
+            
+            return max_dd
             
         except Exception as e:
-            logger.error(f"❌ خطأ في معالجة صفقة فيوتشر: {e}")
+            logger.error(f"خطأ في حساب الحد الأقصى للانخفاض: {e}")
+            return 0.0
     
-    async def _get_real_portfolio(self, user_id: int, market_type: str) -> Dict[str, Any]:
-        """الحصول على المحفظة الحقيقية من API"""
+    def _calculate_var_cvar(self, confidence_level: float = 0.95) -> Tuple[float, float]:
+        """حساب VaR و CVaR"""
         try:
-            logger.info(f"🎯 تحضير المحفظة الحقيقية للمستخدم {user_id}")
+            if len(self.portfolio_history) < 30:
+                return 0.0, 0.0
             
-            portfolio = {
-                "type": "real",
-                "market_type": market_type,
-                "spot_currencies": {},
-                "futures_positions": {},
-                "total_value": 0,
-                "last_update": datetime.now().isoformat()
-            }
+            # حساب العوائد اليومية
+            returns = []
+            for i in range(1, len(self.portfolio_history)):
+                prev_value = self.portfolio_history[i-1].total_value
+                curr_value = self.portfolio_history[i].total_value
+                if prev_value > 0:
+                    returns.append((curr_value - prev_value) / prev_value)
             
-            # الحصول على مفاتيح API
-            user_data = user_manager.get_user(user_id)
-            api_key = user_data.get('api_key') if user_data else None
-            api_secret = user_data.get('api_secret') if user_data else None
+            if not returns:
+                return 0.0, 0.0
             
-            if not api_key or not api_secret:
-                portfolio["error"] = "مفاتيح API غير موجودة"
-                return portfolio
+            # حساب VaR
+            returns_sorted = sorted(returns)
+            var_index = int((1 - confidence_level) * len(returns_sorted))
+            var_95 = abs(returns_sorted[var_index])
             
-            # الحصول على العملات من API
-            if market_type == 'spot':
-                await self._fetch_real_spot_currencies(portfolio, api_key, api_secret)
+            # حساب CVaR
+            tail_returns = returns_sorted[:var_index]
+            cvar_95 = abs(np.mean(tail_returns)) if tail_returns else 0.0
             
-            # الحصول على صفقات الفيوتشر من API
-            await self._fetch_real_futures_positions(portfolio, api_key, api_secret)
+            return var_95, cvar_95
             
-            # حساب إجمالي قيمة المحفظة
-            portfolio["total_value"] = sum(
-                currency["total_value"] for currency in portfolio["spot_currencies"].values()
-            ) + sum(
-                position["total_value"] for position in portfolio["futures_positions"].values()
+        except Exception as e:
+            logger.error(f"خطأ في حساب VaR و CVaR: {e}")
+            return 0.0, 0.0
+    
+    def _calculate_diversification_ratio(self) -> float:
+        """حساب نسبة التنويع"""
+        try:
+            if len(self.assets) < 2:
+                return 0.0
+            
+            # حساب متوسط التقلبات المرجحة
+            weighted_avg_volatility = sum(
+                asset.weight * asset.volatility 
+                for asset in self.assets.values()
             )
             
-            logger.info(f"✅ تم تحضير المحفظة الحقيقية: {len(portfolio['spot_currencies'])} عملات سبوت، {len(portfolio['futures_positions'])} صفقات فيوتشر")
-            return portfolio
+            # حساب تقلبات المحفظة
+            portfolio_volatility = self.portfolio_metrics.volatility
+            
+            if portfolio_volatility == 0:
+                return 0.0
+            
+            # حساب نسبة التنويع
+            diversification_ratio = weighted_avg_volatility / portfolio_volatility
+            
+            return diversification_ratio
             
         except Exception as e:
-            logger.error(f"❌ خطأ في المحفظة الحقيقية: {e}")
-            return {"error": f"خطأ في المحفظة الحقيقية: {str(e)}"}
+            logger.error(f"خطأ في حساب نسبة التنويع: {e}")
+            return 0.0
     
-    async def _fetch_real_spot_currencies(self, portfolio: Dict, api_key: str, api_secret: str):
-        """جلب العملات الحقيقية من API"""
+    def _calculate_concentration_ratio(self) -> float:
+        """حساب نسبة التركيز"""
         try:
-            # الحصول على الرصيد من Bybit
-            balance_data = self.real_account_manager.get_account_balance(api_key, api_secret, 'spot')
+            if not self.assets:
+                return 0.0
             
-            if balance_data and 'result' in balance_data:
-                for coin_data in balance_data['result']['list']:
-                    coin = coin_data['coin']
-                    free_amount = float(coin_data['free'])
-                    locked_amount = float(coin_data['locked'])
-                    total_amount = free_amount + locked_amount
-                    
-                    if total_amount > 0:
-                        # الحصول على السعر الحالي
-                        ticker_data = self.real_account_manager.get_ticker_price(f"{coin}USDT")
-                        current_price = float(ticker_data['result']['price']) if ticker_data else 0
-                        
-                        if current_price > 0:
-                            portfolio["spot_currencies"][coin] = {
-                                "symbol": f"{coin}USDT",
-                                "total_amount": total_amount,
-                                "free_amount": free_amount,
-                                "locked_amount": locked_amount,
-                                "current_price": current_price,
-                                "total_value": total_amount * current_price,
-                                "last_update": datetime.now().isoformat()
-                            }
+            # حساب نسبة التركيز (أكبر 5 أصول)
+            weights = [asset.weight for asset in self.assets.values()]
+            weights_sorted = sorted(weights, reverse=True)
+            
+            # أخذ أكبر 5 أو جميع الأصول إذا كان العدد أقل من 5
+            top_weights = weights_sorted[:min(5, len(weights_sorted))]
+            concentration_ratio = sum(top_weights)
+            
+            return concentration_ratio
             
         except Exception as e:
-            logger.error(f"❌ خطأ في جلب العملات الحقيقية: {e}")
+            logger.error(f"خطأ في حساب نسبة التركيز: {e}")
+            return 0.0
     
-    async def _fetch_real_futures_positions(self, portfolio: Dict, api_key: str, api_secret: str):
-        """جلب صفقات الفيوتشر الحقيقية من API"""
+    def optimize_portfolio(self, target_return: float = None) -> Dict[str, float]:
+        """تحسين المحفظة"""
         try:
-            # الحصول على الصفقات المفتوحة من Bybit
-            positions_data = self.real_account_manager.get_open_positions(api_key, api_secret)
+            if len(self.assets) < 2:
+                return {}
             
-            if positions_data and 'result' in positions_data:
-                for position_data in positions_data['result']['list']:
-                    symbol = position_data['symbol']
-                    side = position_data['side']
-                    size = float(position_data['size'])
-                    entry_price = float(position_data['entryPrice'])
-                    mark_price = float(position_data['markPrice'])
-                    unrealized_pnl = float(position_data['unrealisedPnl'])
-                    
-                    if size > 0:
-                        position_key = f"{symbol}_{side}"
-                        
-                        portfolio["futures_positions"][position_key] = {
-                            "symbol": symbol,
-                            "side": side,
-                            "total_amount": size,
-                            "average_price": entry_price,
-                            "current_price": mark_price,
-                            "total_value": size * mark_price,
-                            "profit_loss": unrealized_pnl,
-                            "last_update": datetime.now().isoformat()
-                        }
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في جلب صفقات الفيوتشر: {e}")
-    
-    def _extract_base_currency(self, symbol: str) -> str:
-        """استخراج العملة الأساسية من الرمز"""
-        if symbol.endswith('USDT'):
-            return symbol.replace('USDT', '')
-        elif symbol.endswith('BTC'):
-            return symbol.replace('BTC', '')
-        elif symbol.endswith('ETH'):
-            return symbol.replace('ETH', '')
+            symbols = list(self.assets.keys())
+            n = len(symbols)
+            
+            # حساب مصفوفة التباين-التغاير
+            cov_matrix = np.zeros((n, n))
+            expected_returns = np.zeros(n)
+            
+            for i, symbol1 in enumerate(symbols):
+                expected_returns[i] = self.assets[symbol1].unrealized_pnl_percent / 100
+                for j, symbol2 in enumerate(symbols):
+                    if i == j:
+                        cov_matrix[i, j] = self.assets[symbol1].volatility ** 2
                     else:
-            return symbol.split('/')[0] if '/' in symbol else symbol
-    
-    async def format_portfolio_message(self, portfolio: Dict[str, Any]) -> str:
-        """تنسيق رسالة المحفظة"""
-        try:
-            if "error" in portfolio:
-                return f"❌ {portfolio['error']}"
+                        correlation = self.assets[symbol1].correlation.get(symbol2, 0.0)
+                        cov_matrix[i, j] = (
+                            self.assets[symbol1].volatility * 
+                            self.assets[symbol2].volatility * 
+                            correlation
+                        )
             
-            portfolio_type = portfolio.get("type", "unknown")
-            market_type = portfolio.get("market_type", "spot")
+            # دالة الهدف (تقليل التباين)
+            def objective(weights):
+                return np.dot(weights, np.dot(cov_matrix, weights))
             
-            if portfolio_type == "demo":
-                return await self._format_demo_portfolio_message(portfolio, market_type)
+            # قيود
+            constraints = [
+                {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0}  # مجموع الأوزان = 1
+            ]
+            
+            if target_return is not None:
+                constraints.append({
+                    'type': 'eq', 
+                    'fun': lambda w: np.dot(w, expected_returns) - target_return
+                })
+            
+            # حدود
+            bounds = [(self.min_weight, self.max_weight) for _ in range(n)]
+            
+            # نقطة البداية (أوزان متساوية)
+            x0 = np.ones(n) / n
+            
+            # التحسين
+            result = minimize(objective, x0, method='SLSQP', 
+                            bounds=bounds, constraints=constraints)
+            
+            if result.success:
+                optimized_weights = {}
+                for i, symbol in enumerate(symbols):
+                    optimized_weights[symbol] = result.x[i]
+                
+                logger.info(f"تم تحسين المحفظة بنجاح")
+                return optimized_weights
             else:
-                return await self._format_real_portfolio_message(portfolio, market_type)
+                logger.warning(f"فشل في تحسين المحفظة: {result.message}")
+                return {}
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في تنسيق رسالة المحفظة: {e}")
-            return f"❌ خطأ في تنسيق المحفظة: {str(e)}"
+            logger.error(f"خطأ في تحسين المحفظة: {e}")
+            return {}
     
-    async def _format_demo_portfolio_message(self, portfolio: Dict, market_type: str) -> str:
-        """تنسيق رسالة المحفظة التجريبية"""
+    def generate_rebalancing_signals(self) -> List[RebalancingSignal]:
+        """توليد إشارات إعادة التوازن"""
         try:
-            message = f"💰 المحفظة التجريبية ({market_type.upper()}):\n\n"
+            if not self.rebalancing_enabled:
+                return []
             
-            # عرض عملات السبوت
-            if portfolio["spot_currencies"]:
-                message += "🟢 **عملات السبوت:**\n"
-                for currency, data in portfolio["spot_currencies"].items():
-                    profit_emoji = "📈" if data["profit_loss"] >= 0 else "📉"
-                    message += f"{profit_emoji} **{currency}**\n"
-                    message += f"   💰 عدد العملات: {data['total_amount']:.6f} {currency}\n"
-                    message += f"   💲 متوسط السعر: {data['average_price']:.2f} USDT\n"
-                    message += f"   💲 السعر الحالي: {data['current_price']:.2f} USDT\n"
-                    message += f"   📊 القيمة الإجمالية: {data['total_value']:.2f} USDT\n"
-                    message += f"   ⬆️ الربح/الخسارة: {data['profit_loss']:.2f} USDT ({data['profit_percent']:+.2f}%)\n\n"
+            signals = []
             
-            # عرض صفقات الفيوتشر
-            if portfolio["futures_positions"]:
-                message += "⚡ **صفقات الفيوتشر:**\n"
-                for position_key, data in portfolio["futures_positions"].items():
-                    profit_emoji = "📈" if data["profit_loss"] >= 0 else "📉"
-                    side_emoji = "🟢" if data["side"] == "buy" else "🔴"
-                    message += f"{profit_emoji} {side_emoji} **{data['symbol']}** ({data['side'].upper()})\n"
-                    message += f"   💰 الحجم: {data['total_amount']:.6f}\n"
-                    message += f"   💲 متوسط السعر: {data['average_price']:.2f} USDT\n"
-                    message += f"   💲 السعر الحالي: {data['current_price']:.2f} USDT\n"
-                    message += f"   📊 القيمة الإجمالية: {data['total_value']:.2f} USDT\n"
-                    message += f"   ⬆️ الربح/الخسارة: {data['profit_loss']:.2f} USDT\n\n"
+            # حساب الأوزان المستهدفة
+            target_weights = self._calculate_target_weights()
             
-            if not portfolio["spot_currencies"] and not portfolio["futures_positions"]:
-                message += "📭 لا توجد عملات أو صفقات في المحفظة حالياً\n\n"
-                message += "💡 قم بشراء عملات في سوق Spot أو فتح صفقات فيوتشر لتظهر هنا"
-                        else:
-                message += f"💎 **إجمالي قيمة المحفظة: {portfolio['total_value']:.2f} USDT**"
+            # فحص الحاجة لإعادة التوازن
+            for symbol, asset in self.assets.items():
+                current_weight = asset.weight
+                target_weight = target_weights.get(symbol, 0.0)
+                weight_difference = abs(current_weight - target_weight)
+                
+                # إذا كان الفرق أكبر من العتبة
+                if weight_difference > self.rebalancing_threshold:
+                    # تحديد الإجراء
+                    if current_weight > target_weight:
+                        action = 'sell'
+                        quantity = asset.quantity * (current_weight - target_weight) / current_weight
+                    else:
+                        action = 'buy'
+                        quantity = asset.quantity * (target_weight - current_weight) / current_weight
                     
-            return message
+                    # تحديد الأولوية
+                    priority = int(weight_difference * 100)  # الأولوية حسب حجم الفرق
+                    
+                    # إنشاء الإشارة
+                    signal = RebalancingSignal(
+                        symbol=symbol,
+                        current_weight=current_weight,
+                        target_weight=target_weight,
+                        weight_difference=weight_difference,
+                        action=action,
+                        quantity=quantity,
+                        priority=priority,
+                        reason=f"إعادة توازن - الفرق: {weight_difference:.2%}"
+                    )
+                    
+                    signals.append(signal)
+            
+            # ترتيب الإشارات حسب الأولوية
+            signals.sort(key=lambda x: x.priority, reverse=True)
+            
+            # حفظ التاريخ
+            self.rebalancing_history.extend(signals)
+            
+            logger.info(f"تم توليد {len(signals)} إشارة إعادة توازن")
+            return signals
+            
+        except Exception as e:
+            logger.error(f"خطأ في توليد إشارات إعادة التوازن: {e}")
+            return []
+    
+    def _calculate_target_weights(self) -> Dict[str, float]:
+        """حساب الأوزان المستهدفة"""
+        try:
+            if self.portfolio_strategy == PortfolioStrategy.EQUAL_WEIGHT:
+                # أوزان متساوية
+                n = len(self.assets)
+                return {symbol: 1.0 / n for symbol in self.assets.keys()}
+            
+            elif self.portfolio_strategy == PortfolioStrategy.VOLATILITY_ADJUSTED:
+                # أوزان معكوسة للتقلبات
+                inv_volatilities = {}
+                total_inv_vol = 0.0
+                
+                for symbol, asset in self.assets.items():
+                    inv_vol = 1.0 / asset.volatility if asset.volatility > 0 else 0.0
+                    inv_volatilities[symbol] = inv_vol
+                    total_inv_vol += inv_vol
+                
+                return {
+                    symbol: inv_vol / total_inv_vol 
+                    for symbol, inv_vol in inv_volatilities.items()
+                }
+            
+            elif self.portfolio_strategy == PortfolioStrategy.MOMENTUM_BASED:
+                # أوزان بناءً على الزخم
+                momentums = {}
+                total_momentum = 0.0
+                
+                for symbol, asset in self.assets.items():
+                    momentum = max(0.0, asset.unrealized_pnl_percent / 100)
+                    momentums[symbol] = momentum
+                    total_momentum += momentum
+                
+                if total_momentum == 0:
+                    # إذا لم يكن هناك زخم، استخدام أوزان متساوية
+                    n = len(self.assets)
+                    return {symbol: 1.0 / n for symbol in self.assets.keys()}
+                
+                return {
+                    symbol: momentum / total_momentum 
+                    for symbol, momentum in momentums.items()
+                }
+            
+            else:
+                # افتراضي: أوزان متساوية
+                n = len(self.assets)
+                return {symbol: 1.0 / n for symbol in self.assets.keys()}
+                
+        except Exception as e:
+            logger.error(f"خطأ في حساب الأوزان المستهدفة: {e}")
+            n = len(self.assets)
+            return {symbol: 1.0 / n for symbol in self.assets.keys()}
+    
+    def rebalance_portfolio(self, signals: List[RebalancingSignal] = None) -> Dict[str, Any]:
+        """إعادة توازن المحفظة"""
+        try:
+            if signals is None:
+                signals = self.generate_rebalancing_signals()
+            
+            if not signals:
+                return {
+                    'success': True,
+                    'message': 'لا توجد حاجة لإعادة التوازن',
+                    'trades_executed': 0,
+                    'total_cost': 0.0
+                }
+            
+            trades_executed = 0
+            total_cost = 0.0
+            executed_trades = []
+            
+            for signal in signals:
+                try:
+                    # تنفيذ التداول
+                    if signal.action == 'sell':
+                        # بيع جزء من الأصل
+                        sell_quantity = signal.quantity
+                        sell_price = self.assets[signal.symbol].current_price
+                        sell_value = sell_quantity * sell_price
+                        
+                        # تحديث الكمية
+                        self.assets[signal.symbol].quantity -= sell_quantity
+                        
+                        # إضافة إلى رصيد النقد
+                        self.cash_balance += sell_value
+                        
+                        # حساب تكلفة المعاملة
+                        transaction_cost = sell_value * self.transaction_costs
+                        total_cost += transaction_cost
+                        
+                        executed_trades.append({
+                            'symbol': signal.symbol,
+                            'action': 'sell',
+                            'quantity': sell_quantity,
+                            'price': sell_price,
+                            'value': sell_value,
+                            'cost': transaction_cost
+                        })
+                        
+                    elif signal.action == 'buy':
+                        # شراء جزء من الأصل
+                        buy_quantity = signal.quantity
+                        buy_price = self.assets[signal.symbol].current_price
+                        buy_value = buy_quantity * buy_price
+                        
+                        # التحقق من توفر النقد
+                        if self.cash_balance >= buy_value:
+                            # تحديث الكمية
+                            self.assets[signal.symbol].quantity += buy_quantity
+                            
+                            # خصم من رصيد النقد
+                            self.cash_balance -= buy_value
+                            
+                            # حساب تكلفة المعاملة
+                            transaction_cost = buy_value * self.transaction_costs
+                            total_cost += transaction_cost
+                            
+                            executed_trades.append({
+                                'symbol': signal.symbol,
+                                'action': 'buy',
+                                'quantity': buy_quantity,
+                                'price': buy_price,
+                                'value': buy_value,
+                                'cost': transaction_cost
+                            })
+                        
+                        else:
+                            logger.warning(f"رصيد النقد غير كافي لشراء {signal.symbol}")
+                            continue
+                    
+                    trades_executed += 1
                     
                 except Exception as e:
-            logger.error(f"❌ خطأ في تنسيق المحفظة التجريبية: {e}")
-            return f"❌ خطأ في تنسيق المحفظة التجريبية: {str(e)}"
-    
-    async def _format_real_portfolio_message(self, portfolio: Dict, market_type: str) -> str:
-        """تنسيق رسالة المحفظة الحقيقية"""
-        try:
-            message = f"💰 المحفظة الحقيقية ({market_type.upper()}):\n\n"
+                    logger.error(f"خطأ في تنفيذ إشارة إعادة التوازن: {e}")
+                    continue
             
-            # عرض عملات السبوت
-            if portfolio["spot_currencies"]:
-                message += "🟢 **عملات السبوت:**\n"
-                for currency, data in portfolio["spot_currencies"].items():
-                    message += f"💰 **{currency}**\n"
-                    message += f"   💰 عدد العملات الإجمالي: {data['total_amount']:.6f} {currency}\n"
-                    message += f"   💳 متاح للتداول: {data['free_amount']:.6f} {currency}\n"
-                    message += f"   🔒 مقفل في صفقات: {data['locked_amount']:.6f} {currency}\n"
-                    message += f"   💲 السعر الحالي: {data['current_price']:.2f} USDT\n"
-                    message += f"   📊 القيمة الإجمالية: {data['total_value']:.2f} USDT\n\n"
+            # إعادة حساب المقاييس
+            self._update_portfolio_metrics()
             
-            # عرض صفقات الفيوتشر
-            if portfolio["futures_positions"]:
-                message += "⚡ **صفقات الفيوتشر:**\n"
-                for position_key, data in portfolio["futures_positions"].items():
-                    profit_emoji = "📈" if data["profit_loss"] >= 0 else "📉"
-                    side_emoji = "🟢" if data["side"] == "buy" else "🔴"
-                    message += f"{profit_emoji} {side_emoji} **{data['symbol']}** ({data['side'].upper()})\n"
-                    message += f"   💰 الحجم: {data['total_amount']:.6f}\n"
-                    message += f"   💲 متوسط السعر: {data['average_price']:.2f} USDT\n"
-                    message += f"   💲 السعر الحالي: {data['current_price']:.2f} USDT\n"
-                    message += f"   📊 القيمة الإجمالية: {data['total_value']:.2f} USDT\n"
-                    message += f"   ⬆️ الربح/الخسارة: {data['profit_loss']:.2f} USDT\n\n"
+            logger.info(f"تم تنفيذ {trades_executed} عملية إعادة توازن")
             
-            if not portfolio["spot_currencies"] and not portfolio["futures_positions"]:
-                message += "📭 لا توجد عملات أو صفقات في المحفظة حالياً\n\n"
-                message += "💡 قم بإيداع عملات في حسابك على المنصة أو فتح صفقات فيوتشر"
-            else:
-                message += f"💎 **إجمالي قيمة المحفظة: {portfolio['total_value']:.2f} USDT**"
-            
-            return message
+            return {
+                'success': True,
+                'message': f'تم تنفيذ {trades_executed} عملية إعادة توازن',
+                'trades_executed': trades_executed,
+                'total_cost': total_cost,
+                'executed_trades': executed_trades
+            }
             
         except Exception as e:
-            logger.error(f"❌ خطأ في تنسيق المحفظة الحقيقية: {e}")
-            return f"❌ خطأ في تنسيق المحفظة الحقيقية: {str(e)}"
+            logger.error(f"خطأ في إعادة توازن المحفظة: {e}")
+            return {
+                'success': False,
+                'message': f'خطأ في إعادة توازن المحفظة: {e}',
+                'trades_executed': 0,
+                'total_cost': 0.0
+            }
+    
+    def get_portfolio_report(self) -> Dict[str, Any]:
+        """الحصول على تقرير المحفظة"""
+        try:
+            return {
+                'user_id': self.user_id,
+                'portfolio_metrics': {
+                    'total_value': self.portfolio_metrics.total_value,
+                    'total_cost': self.portfolio_metrics.total_cost,
+                    'unrealized_pnl': self.portfolio_metrics.unrealized_pnl,
+                    'unrealized_pnl_percent': self.portfolio_metrics.unrealized_pnl_percent,
+                    'volatility': self.portfolio_metrics.volatility,
+                    'sharpe_ratio': self.portfolio_metrics.sharpe_ratio,
+                    'max_drawdown': self.portfolio_metrics.max_drawdown,
+                    'var_95': self.portfolio_metrics.var_95,
+                    'cvar_95': self.portfolio_metrics.cvar_95,
+                    'diversification_ratio': self.portfolio_metrics.diversification_ratio,
+                    'concentration_ratio': self.portfolio_metrics.concentration_ratio,
+                    'last_updated': self.portfolio_metrics.last_updated.isoformat()
+                },
+                'assets': {
+                    symbol: {
+                        'name': asset.name,
+                        'current_price': asset.current_price,
+                        'quantity': asset.quantity,
+                        'weight': asset.weight,
+                        'market_value': asset.market_value,
+                        'cost_basis': asset.cost_basis,
+                        'unrealized_pnl': asset.unrealized_pnl,
+                        'unrealized_pnl_percent': asset.unrealized_pnl_percent,
+                        'volatility': asset.volatility,
+                        'beta': asset.beta,
+                        'last_updated': asset.last_updated.isoformat()
+                    }
+                    for symbol, asset in self.assets.items()
+                },
+                'cash_balance': self.cash_balance,
+                'portfolio_strategy': self.portfolio_strategy.value,
+                'rebalancing_frequency': self.rebalancing_frequency.value,
+                'risk_model': self.risk_model.value,
+                'rebalancing_enabled': self.rebalancing_enabled,
+                'total_assets': len(self.assets),
+                'recent_rebalancing_signals': [
+                    {
+                        'symbol': signal.symbol,
+                        'current_weight': signal.current_weight,
+                        'target_weight': signal.target_weight,
+                        'weight_difference': signal.weight_difference,
+                        'action': signal.action,
+                        'quantity': signal.quantity,
+                        'priority': signal.priority,
+                        'reason': signal.reason
+                    }
+                    for signal in self.rebalancing_history[-10:]  # آخر 10 إشارات
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء تقرير المحفظة: {e}")
+            return {'error': str(e)}
+    
+    def update_strategy(self, new_strategy: PortfolioStrategy) -> bool:
+        """تحديث استراتيجية المحفظة"""
+        try:
+            self.portfolio_strategy = new_strategy
+            logger.info(f"تم تحديث استراتيجية المحفظة إلى {new_strategy.value}")
+            return True
+        except Exception as e:
+            logger.error(f"خطأ في تحديث استراتيجية المحفظة: {e}")
+            return False
+    
+    def update_rebalancing_settings(self, settings: Dict[str, Any]) -> bool:
+        """تحديث إعدادات إعادة التوازن"""
+        try:
+            for key, value in settings.items():
+                if hasattr(self, key):
+                    setattr(self, key, value)
+            
+            logger.info(f"تم تحديث إعدادات إعادة التوازن للمستخدم {self.user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"خطأ في تحديث إعدادات إعادة التوازن: {e}")
+            return False
 
-# إنشاء مثيل عام للمدير
-advanced_portfolio_manager = AdvancedPortfolioManager()
+
+# مدير المحافظ العام
+class GlobalPortfolioManager:
+    """مدير المحافظ العام لجميع المستخدمين"""
+    
+    def __init__(self):
+        self.user_portfolios: Dict[int, AdvancedPortfolioManager] = {}
+        self.global_statistics = {
+            'total_users': 0,
+            'total_assets_under_management': 0.0,
+            'average_portfolio_value': 0.0,
+            'average_sharpe_ratio': 0.0,
+            'total_rebalancing_operations': 0
+        }
+    
+    def get_portfolio_manager(self, user_id: int, initial_capital: float = 10000.0) -> AdvancedPortfolioManager:
+        """الحصول على مدير المحفظة للمستخدم"""
+        if user_id not in self.user_portfolios:
+            self.user_portfolios[user_id] = AdvancedPortfolioManager(user_id, initial_capital)
+        return self.user_portfolios[user_id]
+    
+    def get_global_statistics(self) -> Dict[str, Any]:
+        """الحصول على الإحصائيات العامة"""
+        try:
+            total_value = 0.0
+            total_sharpe = 0.0
+            total_rebalancing = 0
+            
+            user_stats = {}
+            for user_id, portfolio in self.user_portfolios.items():
+                report = portfolio.get_portfolio_report()
+                user_stats[user_id] = report
+                
+                total_value += portfolio.portfolio_metrics.total_value
+                total_sharpe += portfolio.portfolio_metrics.sharpe_ratio
+                total_rebalancing += len(portfolio.rebalancing_history)
+            
+            # تحديث الإحصائيات العامة
+            self.global_statistics['total_users'] = len(self.user_portfolios)
+            self.global_statistics['total_assets_under_management'] = total_value
+            self.global_statistics['average_portfolio_value'] = total_value / len(self.user_portfolios) if self.user_portfolios else 0.0
+            self.global_statistics['average_sharpe_ratio'] = total_sharpe / len(self.user_portfolios) if self.user_portfolios else 0.0
+            self.global_statistics['total_rebalancing_operations'] = total_rebalancing
+            
+            return {
+                'global_statistics': self.global_statistics,
+                'user_statistics': user_stats
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الإحصائيات العامة: {e}")
+            return {'error': str(e)}
+
+
+# مثيل عام لمدير المحافظ
+global_portfolio_manager = GlobalPortfolioManager()

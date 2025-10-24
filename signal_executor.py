@@ -371,7 +371,7 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
-            # حساب الكمية بناءً على مبلغ التداول ونوع السوق
+            # حساب الكمية بناءً على مبلغ التداول
             if category == 'linear':
                 # للفيوتشر مع الرافعة
                 qty = (trade_amount * leverage) / float(signal_data.get('price', 1))
@@ -388,17 +388,17 @@ class SignalExecutor:
             if stop_loss:
                 stop_loss = float(stop_loss)
             
-            # تطبيق المنطق الجديد حسب نوع السوق
-            if category == 'spot':
-                # منطق السبوت: معاملة كمحفظة حقيقية
-                result = await SignalExecutor._handle_spot_order(
-                    account, signal_data, side, qty, price, market_type, user_id
-                )
-            else:
-                # منطق الفيوتشر: تجميع حسب ID
-                result = await SignalExecutor._handle_futures_order(
-                    account, signal_data, side, qty, leverage, take_profit, stop_loss, market_type, user_id
-                )
+            # وضع الأمر
+            result = account.place_order(
+                category=category,
+                symbol=symbol,
+                side=side,
+                order_type='Market',
+                qty=round(qty, 4),
+                leverage=leverage if category == 'linear' else None,
+                take_profit=take_profit,
+                stop_loss=stop_loss
+            )
             
             if result:
                 logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
@@ -504,22 +504,8 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
-            # جلب السعر الحالي من MEXC
-            try:
-                current_price = account.get_ticker_price(symbol)
-                if current_price:
-                    price = current_price
-                    logger.info(f"📊 تم جلب السعر الحالي من MEXC: {symbol} = {price}")
-                else:
-                    # استخدام السعر من الإشارة كبديل
-                    price = float(signal_data.get('price', 1))
-                    logger.warning(f"⚠️ لم يتم جلب السعر من MEXC، استخدام السعر من الإشارة: {price}")
-            except Exception as price_error:
-                logger.error(f"❌ خطأ في جلب السعر من MEXC: {price_error}")
-                price = float(signal_data.get('price', 1))
-                logger.warning(f"⚠️ استخدام السعر من الإشارة كبديل: {price}")
-            
             # حساب الكمية
+            price = float(signal_data.get('price', 1))
             quantity = trade_amount / price
             
             # وضع الأمر
@@ -709,222 +695,6 @@ class SignalExecutor:
                 'message': f'Error partial closing signal positions: {str(e)}',
                 'error': 'PARTIAL_CLOSE_ERROR'
             }
-    
-    @staticmethod
-    async def _handle_spot_order(account, signal_data: Dict, side: str, qty: float, 
-                                price: float, market_type: str, user_id: int) -> Dict:
-        """معالجة أمر السبوت كمحفظة حقيقية"""
-        try:
-            symbol = signal_data.get('symbol', '')
-            has_signal_id = signal_data.get('has_signal_id', False)
-            signal_id = signal_data.get('signal_id', '')
-            
-            # في السبوت: الشراء يزيد الكمية، البيع يقلل الكمية
-            if side.lower() == 'buy':
-                # شراء: إضافة كمية للمحفظة
-                result = account.place_order(
-                    category='spot',
-                    symbol=symbol,
-                    side=side,
-                    order_type='Market',
-                    qty=round(qty, 4)
-                )
-                
-                if result and has_signal_id and signal_id:
-                    # حفظ في قاعدة البيانات كمحفظة
-                    position_data = {
-                        'signal_id': signal_id,
-                        'user_id': user_id,
-                        'symbol': symbol,
-                        'side': 'buy',
-                        'entry_price': price,
-                        'quantity': qty,
-                        'exchange': 'bybit',
-                        'market_type': 'spot',
-                        'order_id': result.get('order_id', ''),
-                        'status': 'OPEN',
-                        'notes': f'Spot portfolio - buy {qty} {symbol}'
-                    }
-                    
-                    from enhanced_portfolio_manager import portfolio_factory
-                    portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
-                    portfolio_manager.add_position(position_data)
-                    
-            else:  # sell
-                # بيع: تقليل كمية من المحفظة
-                # التحقق من وجود رصيد كافي
-                positions = account.get_open_positions('spot')
-                symbol_position = next((p for p in positions if p['symbol'] == symbol), None)
-                
-                if not symbol_position:
-                    return {
-                        'success': False,
-                        'message': f'No {symbol} balance available for selling',
-                        'error': 'INSUFFICIENT_BALANCE'
-                    }
-                
-                available_qty = float(symbol_position.get('size', 0))
-                if available_qty < qty:
-                    return {
-                        'success': False,
-                        'message': f'Insufficient balance. Available: {available_qty}, Requested: {qty}',
-                        'error': 'INSUFFICIENT_BALANCE'
-                    }
-                
-                # تنفيذ البيع
-                result = account.place_order(
-                    category='spot',
-                    symbol=symbol,
-                    side=side,
-                    order_type='Market',
-                    qty=round(qty, 4)
-                )
-                
-                if result and has_signal_id and signal_id:
-                    # تحديث المحفظة
-                    position_data = {
-                        'signal_id': signal_id,
-                        'user_id': user_id,
-                        'symbol': symbol,
-                        'side': 'sell',
-                        'entry_price': price,
-                        'quantity': qty,
-                        'exchange': 'bybit',
-                        'market_type': 'spot',
-                        'order_id': result.get('order_id', ''),
-                        'status': 'OPEN',
-                        'notes': f'Spot portfolio - sell {qty} {symbol}'
-                    }
-                    
-                    from enhanced_portfolio_manager import portfolio_factory
-                    portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
-                    portfolio_manager.add_position(position_data)
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة أمر السبوت: {e}")
-            return {
-                'success': False,
-                'message': str(e),
-                'error': 'SPOT_ORDER_ERROR'
-            }
-    
-    @staticmethod
-    async def _handle_futures_order(account, signal_data: Dict, side: str, qty: float,
-                                   leverage: int, take_profit: float, stop_loss: float,
-                                   market_type: str, user_id: int) -> Dict:
-        """معالجة أمر الفيوتشر مع تجميع حسب ID"""
-        try:
-            symbol = signal_data.get('symbol', '')
-            has_signal_id = signal_data.get('has_signal_id', False)
-            signal_id = signal_data.get('signal_id', '')
-            
-            # إنشاء ID عشوائي إذا لم يكن موجوداً
-            if not signal_id:
-                signal_id = SignalExecutor._generate_random_id(symbol)
-                logger.info(f"تم إنشاء ID عشوائي للفيوتشر: {signal_id}")
-            
-            # البحث عن صفقة موجودة بنفس ID
-            from database import db_manager
-            existing_position = db_manager.get_position_by_signal_id(signal_id, user_id, symbol)
-            
-            if existing_position:
-                # تجميع الصفقات بنفس ID
-                if side.lower() == 'buy' and existing_position['side'].lower() == 'buy':
-                    # تعزيز Long - زيادة الكمية
-                    new_qty = existing_position['quantity'] + qty
-                    result = account.place_order(
-                        category='linear',
-                        symbol=symbol,
-                        side=side,
-                        order_type='Market',
-                        qty=round(qty, 4),  # الكمية الإضافية فقط
-                        leverage=leverage,
-                        take_profit=take_profit,
-                        stop_loss=stop_loss
-                    )
-                    
-                elif side.lower() == 'sell' and existing_position['side'].lower() == 'sell':
-                    # تعزيز Short - زيادة الكمية
-                    new_qty = existing_position['quantity'] + qty
-                    result = account.place_order(
-                        category='linear',
-                        symbol=symbol,
-                        side=side,
-                        order_type='Market',
-                        qty=round(qty, 4),  # الكمية الإضافية فقط
-                        leverage=leverage,
-                        take_profit=take_profit,
-                        stop_loss=stop_loss
-                    )
-                    
-                else:
-                    # اتجاه معاكس - إنشاء صفقة منفصلة
-                    result = account.place_order(
-                        category='linear',
-                        symbol=symbol,
-                        side=side,
-                        order_type='Market',
-                        qty=round(qty, 4),
-                        leverage=leverage,
-                        take_profit=take_profit,
-                        stop_loss=stop_loss
-                    )
-            else:
-                # صفقة جديدة
-                result = account.place_order(
-                    category='linear',
-                    symbol=symbol,
-                    side=side,
-                    order_type='Market',
-                    qty=round(qty, 4),
-                    leverage=leverage,
-                    take_profit=take_profit,
-                    stop_loss=stop_loss
-                )
-            
-            # حفظ الصفقة في قاعدة البيانات
-            if result and has_signal_id:
-                position_data = {
-                    'signal_id': signal_id,
-                    'user_id': user_id,
-                    'symbol': symbol,
-                    'side': side,
-                    'entry_price': signal_data.get('price', 0),
-                    'quantity': qty,
-                    'exchange': 'bybit',
-                    'market_type': 'futures',
-                    'order_id': result.get('order_id', ''),
-                    'status': 'OPEN',
-                    'notes': f'Futures position - {side} {qty} {symbol} (ID: {signal_id})'
-                }
-                
-                from enhanced_portfolio_manager import portfolio_factory
-                portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
-                portfolio_manager.add_position(position_data)
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة أمر الفيوتشر: {e}")
-            return {
-                'success': False,
-                'message': str(e),
-                'error': 'FUTURES_ORDER_ERROR'
-            }
-    
-    @staticmethod
-    def _generate_random_id(symbol: str) -> str:
-        """إنشاء ID عشوائي للصفقة"""
-        import random
-        import string
-        from datetime import datetime
-        
-        # صيغة: SYMBOL-YYYYMMDD-HHMMSS-RAND4
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-        random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-        return f"{symbol}-{timestamp}-{random_part}"
 
 
 # مثيل عام

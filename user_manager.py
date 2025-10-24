@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    # النظام المحسن متاح في user_manager.py
+    print("✅ النظام المحسن متاح في user_manager.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     print(f"⚠️ النظام المحسن غير متاح في user_manager.py: {e}")
@@ -39,7 +39,7 @@ class UserManager:
         if ENHANCED_SYSTEM_AVAILABLE:
             try:
                 self.enhanced_system = SimpleEnhancedSystem()
-                # تم تهيئة النظام المحسن في UserManager
+                print("✅ تم تهيئة النظام المحسن في UserManager")
             except Exception as e:
                 print(f"⚠️ فشل في تهيئة النظام المحسن في UserManager: {e}")
                 self.enhanced_system = None

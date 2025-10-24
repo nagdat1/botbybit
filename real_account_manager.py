@@ -380,15 +380,6 @@ class MEXCRealAccount:
         if price:
             return {'lastPrice': str(price)}
         return None
-    
-    def get_ticker_price(self, symbol: str) -> Optional[float]:
-        """الحصول على سعر الرمز الحالي"""
-        try:
-            price = self.bot.get_ticker_price(symbol)
-            return price
-        except Exception as e:
-            logger.error(f"خطأ في الحصول على سعر {symbol} من MEXC: {e}")
-            return None
 
 
 class RealAccountManager:
