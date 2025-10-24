@@ -1,141 +1,0 @@
-2025-10-24 04:30:38,642 - __main__ - INFO - 🚀 بدء الاختبار الشامل للنظام
-2025-10-24 04:30:38,642 - __main__ - INFO - ================================================================================
-2025-10-24 04:30:38,642 - __main__ - INFO - 🔍 اختبار استيراد المكونات...
-2025-10-24 04:30:38,818 - database - INFO - تم تهيئة قاعدة البيانات بنجاح
-2025-10-24 04:30:38,819 - database - INFO - تم تحديث قاعدة البيانات بالحقول الجديدة
-2025-10-24 04:30:39,187 - simple_enhanced_system - INFO - تهيئة النظام المحسن المبسط...
-2025-10-24 04:30:39,188 - simple_enhanced_system - INFO - تم تهيئة النظام المحسن المبسط بنجاح
-2025-10-24 04:30:39,191 - developer_manager - INFO - تم تحميل 2 مطور
-2025-10-24 04:30:39,196 - simple_enhanced_system - INFO - تهيئة النظام المحسن المبسط...
-2025-10-24 04:30:39,196 - simple_enhanced_system - INFO - تم تهيئة النظام المحسن المبسط بنجاح
-2025-10-24 04:30:39,196 - __main__ - ERROR - ❌ خطأ في الاختبار: 'charmap' codec can't encode characters in position 0-1: character maps to <undefined>
-2025-10-24 04:30:39,196 - __main__ - INFO - 🔍 اختبار إنشاء بوت MEXC...
-2025-10-24 04:30:39,197 - mexc_trading_bot - INFO - تم تهيئة MEXC Trading Bot - Base URL: https://api.mexc.com
-2025-10-24 04:30:39,197 - __main__ - INFO - ✅ بوت MEXC تم إنشاؤه بنجاح مع جميع الدوال
-2025-10-24 04:30:39,197 - __main__ - INFO - 🔍 اختبار تحويل الإشارات...
-2025-10-24 04:30:39,200 - signal_id_manager - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST1
-2025-10-24 04:30:39,200 - signal_id_manager - INFO - 📍 تم توليد رقم صفقة: POS-TEST1 للإشارة: TEST1
-2025-10-24 04:30:39,200 - signal_id_manager - INFO - 🔗 تم ربط الإشارة TEST1 بالصفقة POS-TEST1
-2025-10-24 04:30:39,200 - signal_id_manager - INFO - ✅ تم معالجة ID الإشارة: TEST1 -> رقم الصفقة: POS-TEST1
-2025-10-24 04:30:39,201 - signal_converter - INFO - 🆔 تم معالجة ID الإشارة: TEST1 -> رقم الصفقة: POS-TEST1
-2025-10-24 04:30:39,201 - simple_enhanced_system - INFO - تهيئة النظام المحسن المبسط...
-2025-10-24 04:30:39,201 - simple_enhanced_system - INFO - تم تهيئة النظام المحسن المبسط بنجاح
-2025-10-24 04:30:39,201 - signal_converter - INFO - 🚀 تحويل الإشارة باستخدام النظام المحسن في signal_converter...
-2025-10-24 04:30:39,201 - simple_enhanced_system - INFO - 🚀 معالجة إشارة محسنة للمستخدم 0
-2025-10-24 04:30:39,201 - simple_enhanced_system - INFO - ✅ تم معالجة الإشارة بنجاح: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,202 - signal_converter - INFO - ✅ نتيجة النظام المحسن في signal_converter: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,202 - signal_converter - INFO - ✅ تم استخدام نتيجة النظام المحسن في signal_converter، نتابع التحويل العادي
-2025-10-24 04:30:39,202 - signal_converter - INFO - 🔄 تحويل الإشارة: BUY BTCUSDT
-2025-10-24 04:30:39,202 - signal_converter - INFO - 🟢 إشارة شراء: BTCUSDT
-2025-10-24 04:30:39,202 - signal_converter - INFO - 💰 مبلغ التداول: 10.0
-2025-10-24 04:30:39,202 - signal_converter - WARNING - ⚠️ عدم توافق نوع السوق: الإشارة=None, المستخدم=spot
-2025-10-24 04:30:39,202 - signal_converter - INFO - ✅ استخدام نوع السوق من الإشارة: None
-2025-10-24 04:30:39,202 - signal_converter - INFO - 📍 رقم الصفقة المرتبط: POS-TEST1
-2025-10-24 04:30:39,202 - signal_converter - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST1
-2025-10-24 04:30:39,202 - signal_converter - INFO - 🆔 الإشارة مرتبطة بالـ ID: TEST1
-2025-10-24 04:30:39,203 - signal_converter - INFO - ✅ تم تحويل الإشارة بنجاح: {'symbol': 'BTCUSDT', 'signal_type': 'buy', 'action': 'buy', 'amount': 10.0, 'leverage': 1, 'exchange': 'mexc', 'account_type': 'real', 'signal_id': 'TEST1', 'timestamp': '2025-10-24T04:30:39.202275', 'original_signal': {'signal': 'buy', 'symbol': 'BTCUSDT', 'id': 'TEST1', 'generated_id': False, 'position_id': 'POS-TEST1', 'enhanced_analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'enhanced_risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'enhanced_execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}}, 'position_id': 'POS-TEST1', 'generated_id': False, 'has_signal_id': True}
-2025-10-24 04:30:39,203 - __main__ - INFO - ✅ تم تحويل الإشارة: buy
-2025-10-24 04:30:39,203 - signal_id_manager - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST2
-2025-10-24 04:30:39,203 - signal_id_manager - INFO - 📍 تم توليد رقم صفقة: POS-TEST2 للإشارة: TEST2
-2025-10-24 04:30:39,203 - signal_id_manager - INFO - 🔗 تم ربط الإشارة TEST2 بالصفقة POS-TEST2
-2025-10-24 04:30:39,203 - signal_id_manager - INFO - ✅ تم معالجة ID الإشارة: TEST2 -> رقم الصفقة: POS-TEST2
-2025-10-24 04:30:39,203 - signal_converter - INFO - 🆔 تم معالجة ID الإشارة: TEST2 -> رقم الصفقة: POS-TEST2
-2025-10-24 04:30:39,203 - simple_enhanced_system - INFO - تهيئة النظام المحسن المبسط...
-2025-10-24 04:30:39,203 - simple_enhanced_system - INFO - تم تهيئة النظام المحسن المبسط بنجاح
-2025-10-24 04:30:39,203 - signal_converter - INFO - 🚀 تحويل الإشارة باستخدام النظام المحسن في signal_converter...
-2025-10-24 04:30:39,204 - simple_enhanced_system - INFO - 🚀 معالجة إشارة محسنة للمستخدم 0
-2025-10-24 04:30:39,204 - simple_enhanced_system - INFO - ✅ تم معالجة الإشارة بنجاح: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'stablecoin_pair', 'volatility': 'medium'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'immediate', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '1_minute'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,204 - signal_converter - INFO - ✅ نتيجة النظام المحسن في signal_converter: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'stablecoin_pair', 'volatility': 'medium'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'immediate', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '1_minute'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,204 - signal_converter - INFO - ✅ تم استخدام نتيجة النظام المحسن في signal_converter، نتابع التحويل العادي
-2025-10-24 04:30:39,204 - signal_converter - INFO - 🔄 تحويل الإشارة: SELL ETHUSDT
-2025-10-24 04:30:39,204 - signal_converter - INFO - 🔴 إشارة بيع: ETHUSDT
-2025-10-24 04:30:39,204 - signal_converter - INFO - 💰 مبلغ التداول: 10.0
-2025-10-24 04:30:39,204 - signal_converter - WARNING - ⚠️ عدم توافق نوع السوق: الإشارة=None, المستخدم=spot
-2025-10-24 04:30:39,204 - signal_converter - INFO - ✅ استخدام نوع السوق من الإشارة: None
-2025-10-24 04:30:39,205 - signal_converter - INFO - 📍 رقم الصفقة المرتبط: POS-TEST2
-2025-10-24 04:30:39,205 - signal_converter - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST2
-2025-10-24 04:30:39,205 - signal_converter - INFO - 🆔 الإشارة مرتبطة بالـ ID: TEST2
-2025-10-24 04:30:39,205 - signal_converter - INFO - ✅ تم تحويل الإشارة بنجاح: {'symbol': 'ETHUSDT', 'signal_type': 'sell', 'action': 'sell', 'amount': 10.0, 'leverage': 1, 'exchange': 'mexc', 'account_type': 'real', 'signal_id': 'TEST2', 'timestamp': '2025-10-24T04:30:39.205549', 'original_signal': {'signal': 'sell', 'symbol': 'ETHUSDT', 'id': 'TEST2', 'generated_id': False, 'position_id': 'POS-TEST2', 'enhanced_analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'stablecoin_pair', 'volatility': 'medium'}, 'enhanced_risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'enhanced_execution_plan': {'strategy': 'immediate', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '1_minute'}}, 'position_id': 'POS-TEST2', 'generated_id': False, 'has_signal_id': True}
-2025-10-24 04:30:39,205 - __main__ - INFO - ✅ تم تحويل الإشارة: sell
-2025-10-24 04:30:39,205 - signal_id_manager - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST3
-2025-10-24 04:30:39,205 - signal_id_manager - INFO - 📍 تم توليد رقم صفقة: POS-TEST3 للإشارة: TEST3
-2025-10-24 04:30:39,206 - signal_id_manager - INFO - 🔗 تم ربط الإشارة TEST3 بالصفقة POS-TEST3
-2025-10-24 04:30:39,206 - signal_id_manager - INFO - ✅ تم معالجة ID الإشارة: TEST3 -> رقم الصفقة: POS-TEST3
-2025-10-24 04:30:39,206 - signal_converter - INFO - 🆔 تم معالجة ID الإشارة: TEST3 -> رقم الصفقة: POS-TEST3
-2025-10-24 04:30:39,206 - simple_enhanced_system - INFO - تهيئة النظام المحسن المبسط...
-2025-10-24 04:30:39,207 - simple_enhanced_system - INFO - تم تهيئة النظام المحسن المبسط بنجاح
-2025-10-24 04:30:39,207 - signal_converter - INFO - 🚀 تحويل الإشارة باستخدام النظام المحسن في signal_converter...
-2025-10-24 04:30:39,207 - simple_enhanced_system - INFO - 🚀 معالجة إشارة محسنة للمستخدم 0
-2025-10-24 04:30:39,207 - simple_enhanced_system - INFO - ✅ تم معالجة الإشارة بنجاح: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,207 - signal_converter - INFO - ✅ نتيجة النظام المحسن في signal_converter: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,207 - signal_converter - INFO - ✅ تم استخدام نتيجة النظام المحسن في signal_converter، نتابع التحويل العادي
-2025-10-24 04:30:39,207 - signal_converter - INFO - 🔄 تحويل الإشارة: CLOSE BTCUSDT
-2025-10-24 04:30:39,207 - signal_converter - INFO - ⚪ إشارة إغلاق كامل: BTCUSDT
-2025-10-24 04:30:39,207 - signal_converter - INFO - 💰 مبلغ التداول: 10.0
-2025-10-24 04:30:39,207 - signal_converter - WARNING - ⚠️ عدم توافق نوع السوق: الإشارة=None, المستخدم=spot
-2025-10-24 04:30:39,207 - signal_converter - INFO - ✅ استخدام نوع السوق من الإشارة: None
-2025-10-24 04:30:39,207 - signal_converter - INFO - 📍 رقم الصفقة المرتبط: POS-TEST3
-2025-10-24 04:30:39,207 - signal_converter - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST3
-2025-10-24 04:30:39,208 - signal_converter - INFO - 🆔 الإشارة مرتبطة بالـ ID: TEST3
-2025-10-24 04:30:39,208 - signal_converter - INFO - ✅ تم تحويل الإشارة بنجاح: {'symbol': 'BTCUSDT', 'signal_type': 'close', 'action': 'close', 'amount': 10.0, 'leverage': 1, 'exchange': 'mexc', 'account_type': 'real', 'signal_id': 'TEST3', 'timestamp': '2025-10-24T04:30:39.207052', 'original_signal': {'signal': 'close', 'symbol': 'BTCUSDT', 'id': 'TEST3', 'generated_id': False, 'position_id': 'POS-TEST3', 'enhanced_analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'enhanced_risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'enhanced_execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}}, 'position_id': 'POS-TEST3', 'generated_id': False, 'has_signal_id': True}
-2025-10-24 04:30:39,208 - __main__ - INFO - ✅ تم تحويل الإشارة: close
-2025-10-24 04:30:39,208 - signal_id_manager - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST4
-2025-10-24 04:30:39,208 - signal_id_manager - INFO - 📍 تم توليد رقم صفقة: POS-TEST4 للإشارة: TEST4
-2025-10-24 04:30:39,208 - signal_id_manager - INFO - 🔗 تم ربط الإشارة TEST4 بالصفقة POS-TEST4
-2025-10-24 04:30:39,208 - signal_id_manager - INFO - ✅ تم معالجة ID الإشارة: TEST4 -> رقم الصفقة: POS-TEST4
-2025-10-24 04:30:39,208 - signal_converter - INFO - 🆔 تم معالجة ID الإشارة: TEST4 -> رقم الصفقة: POS-TEST4
-2025-10-24 04:30:39,208 - simple_enhanced_system - INFO - تهيئة النظام المحسن المبسط...
-2025-10-24 04:30:39,208 - simple_enhanced_system - INFO - تم تهيئة النظام المحسن المبسط بنجاح
-2025-10-24 04:30:39,208 - signal_converter - INFO - 🚀 تحويل الإشارة باستخدام النظام المحسن في signal_converter...
-2025-10-24 04:30:39,209 - simple_enhanced_system - INFO - 🚀 معالجة إشارة محسنة للمستخدم 0
-2025-10-24 04:30:39,209 - simple_enhanced_system - INFO - ✅ تم معالجة الإشارة بنجاح: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,209 - signal_converter - INFO - ✅ نتيجة النظام المحسن في signal_converter: {'status': 'success', 'message': 'تم معالجة الإشارة بنجاح باستخدام النظام المحسن', 'system_type': 'enhanced', 'analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}, 'enhanced_features': {'smart_analysis': True, 'risk_management': True, 'execution_optimization': True, 'performance_tracking': True}}
-2025-10-24 04:30:39,209 - signal_converter - INFO - ✅ تم استخدام نتيجة النظام المحسن في signal_converter، نتابع التحويل العادي
-2025-10-24 04:30:39,209 - signal_converter - INFO - 🔄 تحويل الإشارة: PARTIAL_CLOSE BTCUSDT
-2025-10-24 04:30:39,209 - signal_converter - INFO - 🟡 إشارة إغلاق جزئي: BTCUSDT (50.0%)
-2025-10-24 04:30:39,209 - signal_converter - INFO - 💰 مبلغ التداول: 10.0
-2025-10-24 04:30:39,209 - signal_converter - WARNING - ⚠️ عدم توافق نوع السوق: الإشارة=None, المستخدم=spot
-2025-10-24 04:30:39,209 - signal_converter - INFO - ✅ استخدام نوع السوق من الإشارة: None
-2025-10-24 04:30:39,209 - signal_converter - INFO - 📍 رقم الصفقة المرتبط: POS-TEST4
-2025-10-24 04:30:39,209 - signal_converter - INFO - 🆔 تم استخدام ID محدد للإشارة: TEST4
-2025-10-24 04:30:39,210 - signal_converter - INFO - 🆔 الإشارة مرتبطة بالـ ID: TEST4
-2025-10-24 04:30:39,210 - signal_converter - INFO - ✅ تم تحويل الإشارة بنجاح: {'symbol': 'BTCUSDT', 'signal_type': 'partial_close', 'action': 'partial_close', 'percentage': 50.0, 'amount': 10.0, 'leverage': 1, 'exchange': 'mexc', 'account_type': 'real', 'signal_id': 'TEST4', 'timestamp': '2025-10-24T04:30:39.209346', 'original_signal': {'signal': 'partial_close', 'symbol': 'BTCUSDT', 'percentage': 50, 'id': 'TEST4', 'generated_id': False, 'position_id': 'POS-TEST4', 'enhanced_analysis': {'signal_quality': 'high', 'confidence_level': 0.85, 'market_conditions': 'favorable', 'recommendation': 'execute', 'risk_level': 'medium', 'asset_type': 'cryptocurrency', 'volatility': 'high'}, 'enhanced_risk_assessment': {'risk_level': 'low', 'max_position_size': 0.2, 'stop_loss': 0.02, 'take_profit': 0.04, 'recommendation': 'proceed_with_caution'}, 'enhanced_execution_plan': {'strategy': 'TWAP', 'timing': 'optimal', 'price_optimization': True, 'slippage_protection': True, 'execution_priority': 'high', 'execution_time': '5_minutes'}}, 'position_id': 'POS-TEST4', 'generated_id': False, 'has_signal_id': True}
-2025-10-24 04:30:39,210 - __main__ - INFO - ✅ تم تحويل الإشارة: partial_close
-2025-10-24 04:30:39,210 - __main__ - INFO - ✅ جميع الإشارات تم تحويلها بنجاح
-2025-10-24 04:30:39,210 - __main__ - INFO - 🔍 اختبار حساب الكمية...
-2025-10-24 04:30:39,210 - mexc_trading_bot - INFO - تم تهيئة MEXC Trading Bot - Base URL: https://api.mexc.com
-2025-10-24 04:30:39,211 - __main__ - INFO - ✅ الكمية: 0.0002 -> 0.00020
-2025-10-24 04:30:39,211 - __main__ - INFO - ✅ الكمية: 5e-05 -> 0.00005
-2025-10-24 04:30:39,211 - __main__ - INFO - ✅ الكمية: 0.05 -> 0.05000
-2025-10-24 04:30:39,211 - __main__ - INFO - ✅ حساب الكمية يعمل بشكل صحيح
-2025-10-24 04:30:39,211 - __main__ - INFO - 🔍 اختبار توليد التوقيع...
-2025-10-24 04:30:39,211 - mexc_trading_bot - INFO - تم تهيئة MEXC Trading Bot - Base URL: https://api.mexc.com
-2025-10-24 04:30:39,214 - __main__ - INFO - ✅ تم توليد التوقيع بنجاح: c4f1b81fc4fcc241...
-2025-10-24 04:30:39,214 - __main__ - INFO - 🔍 اختبار معالجة الأخطاء...
-2025-10-24 04:30:39,214 - mexc_trading_bot - INFO - تم تهيئة MEXC Trading Bot - Base URL: https://api.mexc.com
-2025-10-24 04:30:39,991 - mexc_trading_bot - INFO - طلب MEXC: GET /api/v3/ping
-2025-10-24 04:30:39,991 - mexc_trading_bot - INFO - المعاملات: {}
-2025-10-24 04:30:39,991 - mexc_trading_bot - INFO - استجابة MEXC ناجحة: {}
-2025-10-24 04:30:39,991 - __main__ - WARNING - ⚠️ لم يتم التعامل مع الخطأ بشكل صحيح
-2025-10-24 04:30:39,994 - __main__ - INFO - 🔍 اختبار RealAccountManager...
-2025-10-24 04:30:39,994 - __main__ - INFO - ✅ RealAccountManager يعمل بشكل صحيح
-2025-10-24 04:30:39,994 - __main__ - INFO - 📊 توليد التقرير الشامل...
-2025-10-24 04:30:39,994 - __main__ - INFO - ================================================================================
-2025-10-24 04:30:39,994 - __main__ - INFO - 📋 التقرير الشامل
-2025-10-24 04:30:39,994 - __main__ - INFO - ================================================================================
-2025-10-24 04:30:39,994 - __main__ - INFO - 📊 إجمالي الاختبارات: 6
-2025-10-24 04:30:39,994 - __main__ - INFO - ✅ الاختبارات الناجحة: 5
-2025-10-24 04:30:39,994 - __main__ - INFO - ❌ الاختبارات الفاشلة: 1
-2025-10-24 04:30:39,994 - __main__ - INFO - 📈 معدل النجاح: 83.3%
-2025-10-24 04:30:39,995 - __main__ - INFO - 
-🚨 المشاكل الحرجة:
-2025-10-24 04:30:39,995 - __main__ - INFO -    • Test execution error: 'charmap' codec can't encode characters in position 0-1: character maps to <undefined>
-2025-10-24 04:30:39,995 - __main__ - INFO - 
-⚠️ التحذيرات:
-2025-10-24 04:30:39,995 - __main__ - INFO -    • Error handling not working properly
-2025-10-24 04:30:39,995 - __main__ - INFO - 
-💡 التوصيات:
-2025-10-24 04:30:39,995 - __main__ - INFO -    • حل المشاكل الحرجة قبل الاستخدام
-2025-10-24 04:30:39,995 - __main__ - INFO -    • مراجعة التحذيرات وتحسين النظام
-2025-10-24 04:30:39,995 - __main__ - INFO -    • إصلاح الاختبارات الفاشلة قبل الاستخدام
-2025-10-24 04:30:39,995 - __main__ - INFO - ================================================================================

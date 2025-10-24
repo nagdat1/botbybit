@@ -151,32 +151,8 @@ class SignalExecutor:
                                 'message': f'Failed to get current price for {symbol}',
                                 'error': 'PRICE_FETCH_FAILED'
                             }
-                    elif exchange == 'mexc':
-                        # جلب السعر من MEXC
-                        logger.info(f"🔍 جلب السعر من MEXC لـ {symbol}...")
-                        try:
-                            # استخدام دالة جلب السعر من MEXC
-                            price = real_account.get_ticker_price(symbol)
-                            if price:
-                                logger.info(f"✅ السعر الحالي من MEXC: {price}")
-                                # تحديث السعر في signal_data للاستخدام اللاحق
-                                signal_data['price'] = price
-                            else:
-                                logger.error(f"❌ فشل جلب السعر من MEXC")
-                                return {
-                                    'success': False,
-                                    'message': f'Failed to get current price for {symbol} from MEXC',
-                                    'error': 'PRICE_FETCH_FAILED'
-                                }
-                        except Exception as e:
-                            logger.error(f"❌ خطأ في جلب السعر من MEXC: {e}")
-                            return {
-                                'success': False,
-                                'message': f'Error fetching price from MEXC: {e}',
-                                'error': 'PRICE_FETCH_ERROR'
-                            }
                     else:
-                        # جلب السعر من منصات أخرى غير مدعومة
+                        # جلب السعر من MEXC أو منصات أخرى
                         logger.warning(f"⚠️ جلب السعر من {exchange} غير مدعوم حالياً")
                         return {
                             'success': False,
@@ -519,108 +495,8 @@ class SignalExecutor:
             # تحديد جهة الأمر
             if action in ['buy', 'long']:
                 side = 'BUY'
-            elif action in ['sell', 'short']:
+            elif action in ['sell', 'short', 'close']:
                 side = 'SELL'
-            elif action == 'close':
-                # إغلاق الصفقة المفتوحة بالكامل
-                has_signal_id = signal_data.get('has_signal_id', False)
-                signal_id = signal_data.get('signal_id', '')
-                if has_signal_id and signal_id:
-                    # إغلاق الصفقات المرتبطة بالـ ID
-                    return await SignalExecutor._close_signal_positions(
-                        signal_id, user_id, symbol, account, 'spot'
-                    )
-                else:
-                    # إغلاق الصفقات بالطريقة التقليدية
-                    positions = account.get_open_positions('spot')
-                    
-                    # البحث عن أي صفقة مفتوحة على هذا الرمز
-                    target_position = next((p for p in positions if p['symbol'] == symbol), None)
-                    
-                    if target_position:
-                        result = account.close_position('spot', symbol, target_position['side'])
-                        if result:
-                            logger.info(f"تم إغلاق صفقة {symbol} بالكامل بنجاح")
-                            return {
-                                'success': True,
-                                'message': f'Position closed: {symbol}',
-                                'order_id': result.get('orderId'),
-                                'is_real': True
-                            }
-                    
-                    return {
-                        'success': False,
-                        'message': f'No open position found for {symbol}',
-                        'error': 'NO_POSITION'
-                    }
-            elif action == 'partial_close':
-                # إغلاق جزئي للصفقة
-                percentage = float(signal_data.get('percentage', 50))
-                
-                # التحقق من صحة النسبة
-                if percentage <= 0 or percentage > 100:
-                    return {
-                        'success': False,
-                        'message': f'Invalid percentage: {percentage}%. Must be between 1 and 100',
-                        'error': 'INVALID_PERCENTAGE'
-                    }
-                
-                has_signal_id = signal_data.get('has_signal_id', False)
-                signal_id = signal_data.get('signal_id', '')
-                if has_signal_id and signal_id:
-                    # إغلاق جزئي للصفقات المرتبطة بالـ ID
-                    return await SignalExecutor._partial_close_signal_positions(
-                        signal_id, user_id, symbol, percentage, account, 'spot'
-                    )
-                else:
-                    # إغلاق جزئي بالطريقة التقليدية
-                    positions = account.get_open_positions('spot')
-                    
-                    # البحث عن أي صفقة مفتوحة على هذا الرمز
-                    target_position = next((p for p in positions if p['symbol'] == symbol), None)
-                    
-                    if target_position:
-                        # حساب الكمية المراد إغلاقها
-                        current_qty = float(target_position.get('size', 0))
-                        close_qty = current_qty * (percentage / 100)
-                        
-                        try:
-                            # تنفيذ إغلاق جزئي عبر وضع أمر بيع
-                            result = account.place_spot_order(
-                                symbol=symbol,
-                                side='SELL',
-                                quantity=round(close_qty, 6),
-                                order_type='MARKET'
-                            )
-                            
-                            if result:
-                                logger.info(f"تم إغلاق {percentage}% من صفقة {symbol} بنجاح")
-                                return {
-                                    'success': True,
-                                    'message': f'Partial close: {percentage}% of {symbol}',
-                                    'order_id': result.get('orderId'),
-                                    'percentage': percentage,
-                                    'is_real': True
-                                }
-                            else:
-                                return {
-                                    'success': False,
-                                    'message': f'Failed to execute partial close',
-                                    'error': 'PARTIAL_CLOSE_FAILED'
-                                }
-                        except Exception as e:
-                            logger.error(f"خطأ في الإغلاق الجزئي: {e}")
-                            return {
-                                'success': False,
-                                'message': f'Error in partial close: {str(e)}',
-                                'error': 'PARTIAL_CLOSE_ERROR'
-                            }
-                    
-                    return {
-                        'success': False,
-                        'message': f'No open position found for {symbol}',
-                        'error': 'NO_POSITION'
-                    }
             else:
                 return {
                     'success': False,
@@ -630,121 +506,34 @@ class SignalExecutor:
             
             # حساب الكمية
             price = float(signal_data.get('price', 1))
-            if price <= 0:
-                logger.error(f"سعر غير صحيح لـ {symbol}: {price}")
-                return {
-                    'success': False,
-                    'message': f'Invalid price for {symbol}: {price}',
-                    'error': 'INVALID_PRICE'
-                }
-            
-            # 🔧 إصلاح احترافي: تحويل المبلغ من USDT إلى الكمية الصحيحة
-            # MEXC تريد الكمية الفعلية من العملة الأساسية، وليس المبلغ بالدولار
-            
-            # حساب الكمية الصحيحة بناءً على المبلغ المطلوب
             quantity = trade_amount / price
             
-            # تحديد الحد الأدنى للكمية حسب نوع العملة
-            min_quantities = {
-                'BTC': 0.00001,    # BTC الحد الأدنى
-                'ETH': 0.0001,     # ETH الحد الأدنى  
-                'BNB': 0.001,      # BNB الحد الأدنى
-                'ADA': 1.0,        # ADA الحد الأدنى
-                'SOL': 0.01,       # SOL الحد الأدنى
-                'MATIC': 1.0,      # MATIC الحد الأدنى
-                'DOT': 0.01,       # DOT الحد الأدنى
-                'AVAX': 0.01,      # AVAX الحد الأدنى
-                'LINK': 0.01,      # LINK الحد الأدنى
-                'UNI': 0.01,       # UNI الحد الأدنى
-            }
-            
-            # استخراج العملة الأساسية من الرمز
-            base_asset = symbol.replace('USDT', '').replace('BUSD', '').replace('USDC', '')
-            min_quantity = min_quantities.get(base_asset, 0.000001)  # افتراضي للعملات الأخرى
-            
-            logger.info(f"💰 المبلغ المطلوب: ${trade_amount}")
-            logger.info(f"📊 السعر الحالي: ${price:,.2f}")
-            logger.info(f"🔢 الكمية المحسوبة: {quantity:.8f} {base_asset}")
-            logger.info(f"📏 الحد الأدنى المطلوب: {min_quantity} {base_asset}")
-            
-            # التحقق من الحد الأدنى للكمية
-            if quantity < min_quantity:
-                logger.warning(f"⚠️ الكمية صغيرة جداً: {quantity:.8f} < {min_quantity}")
-                
-                # حساب المبلغ المطلوب للوصول للحد الأدنى
-                required_amount = min_quantity * price
-                
-                # إذا كان المبلغ المطلوب معقول (أقل من 3 أضعاف المبلغ الأصلي)
-                if required_amount <= trade_amount * 3:
-                    logger.info(f"🔄 تعديل تلقائي: ${trade_amount} → ${required_amount:.2f}")
-                    trade_amount = required_amount
-                    quantity = min_quantity
-                else:
-                    # إذا كان المبلغ المطلوب كبير جداً، نرفض الطلب
-                    return {
-                        'success': False,
-                        'message': f'Amount too small for {symbol}. Minimum required: ${required_amount:.2f} (${min_quantity} {base_asset})',
-                        'error': 'AMOUNT_TOO_SMALL',
-                        'required_amount': required_amount,
-                        'min_quantity': min_quantity
-                    }
-            
-            # تقريب الكمية إلى 6 أرقام عشرية (معيار MEXC)
-            quantity = round(quantity, 6)
-            
-            logger.info(f"✅ الكمية النهائية: {quantity} {base_asset} (${trade_amount:.2f})")
-            
-            logger.info(f"الكمية المحسوبة: {quantity} {symbol} بسعر {price}")
-            
-            # وضع الأمر مع ربط احترافي للتوقيع
-            logger.info(f"🚀 بدء وضع الأمر على MEXC مع التوقيع الاحترافي...")
-            logger.info(f"📋 تفاصيل الأمر:")
-            logger.info(f"   - الرمز: {symbol}")
-            logger.info(f"   - النوع: {side}")
-            logger.info(f"   - الكمية: {quantity}")
-            logger.info(f"   - نوع الأمر: MARKET")
-            logger.info(f"   - المبلغ: ${trade_amount:.2f}")
-            
-            # استخدام النظام المحسن لوضع الأمر
-            result = account.place_spot_order(
+            # وضع الأمر
+            result = account.place_order(
                 symbol=symbol,
                 side=side,
                 quantity=round(quantity, 6),
                 order_type='MARKET'
             )
             
-            logger.info(f"📤 نتيجة وضع الأمر: {result}")
-            
             if result:
                 logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
                 logger.info(f"📋 تفاصيل الأمر: {result}")
-                
-                # تسجيل مفصل حسب ملف السياق
-                logger.info(f"📝 سجل التنفيذ:")
-                logger.info(f"   - ClientOrderId: {result.get('clientOrderId', 'N/A')}")
-                logger.info(f"   - Symbol: {symbol}")
-                logger.info(f"   - Side: {side}")
-                logger.info(f"   - Quantity: {quantity}")
-                logger.info(f"   - Status: {result.get('status', 'N/A')}")
-                logger.info(f"   - Timestamp: {int(time.time() * 1000)}")
                 
                 return {
                     'success': True,
                     'message': f'Order placed: {side} {symbol}',
                     'order_id': result.get('orderId'),
-                    'client_order_id': result.get('clientOrderId'),
                     'symbol': symbol,
                     'side': side,
                     'qty': quantity,
-                    'status': result.get('status'),
                     'is_real': True
                 }
             else:
                 logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على MEXC")
-                logger.error(f"🔍 السبب: place_spot_order عاد None")
                 return {
                     'success': False,
-                    'message': f'Failed to place order on MEXC - place_spot_order returned None',
+                    'message': f'Failed to place order on MEXC',
                     'error': 'ORDER_FAILED'
                 }
                 

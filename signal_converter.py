@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("النظام المحسن متاح في signal_converter.py")
+    print("✅ النظام المحسن متاح في signal_converter.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     print(f"⚠️ النظام المحسن غير متاح في signal_converter.py: {e}")
@@ -29,7 +29,7 @@ except ImportError as e:
 try:
     from signal_id_manager import process_signal_id, get_signal_id_manager
     SIGNAL_ID_MANAGER_AVAILABLE = True
-    print("مدير معرفات الإشارات متاح في signal_converter.py")
+    print("✅ مدير معرفات الإشارات متاح في signal_converter.py")
 except ImportError as e:
     SIGNAL_ID_MANAGER_AVAILABLE = False
     print(f"⚠️ مدير معرفات الإشارات غير متاح في signal_converter.py: {e}")
@@ -400,7 +400,7 @@ if __name__ == "__main__":
         
         # التحقق من صحة الإشارة
         is_valid, message = validate_simple_signal(test_signal)
-        print(f"صحة الإشارة: {is_valid} - {message}")
+        print(f"✅ صحة الإشارة: {is_valid} - {message}")
         
         if is_valid:
             # تحويل الإشارة

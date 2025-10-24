@@ -40,87 +40,25 @@ class MEXCTradingBot:
             'Content-Type': 'application/json'
         })
         
-        # Rate Limiting: حسب ملف السياق - حتى 5 طلبات/ثانية
-        self.last_request_time = 0
-        self.min_request_interval = 0.2  # 200ms بين الطلبات (5 طلبات/ثانية)
-        
-        # تهيئة مدير الأوامر الاحترافي
-        try:
-            from mexc_order_manager import create_mexc_order_manager
-            self.order_manager = create_mexc_order_manager(self)
-            logger.info("✅ تم تهيئة مدير الأوامر الاحترافي")
-        except ImportError:
-            self.order_manager = None
-            logger.warning("⚠️ مدير الأوامر غير متاح")
-        
         logger.info(f"تم تهيئة MEXC Trading Bot - Base URL: {self.base_url}")
-        logger.info(f"⚙️ Rate Limit: {1/self.min_request_interval} طلبات/ثانية")
     
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         """
-        توليد التوقيع للطلبات وفقاً للوثائق الرسمية لـ MEXC
-        الصيغة الصحيحة: access_key + timestamp + query_string
+        توليد التوقيع للطلبات
         
         Args:
-            params: معاملات الطلب (بدون signature)
+            params: معاملات الطلب
             
         Returns:
             التوقيع
         """
-        try:
-            # إزالة signature إذا كانت موجودة (لتجنب التوقيع الذاتي)
-            params_copy = {k: v for k, v in params.items() if k != 'signature'}
-            
-            # استخراج timestamp قبل إزالته من المعاملات
-            timestamp = str(params_copy.get('timestamp', ''))
-            
-            # إزالة timestamp من المعاملات لأنه يُضاف منفصلاً في signature_string
-            params_copy.pop('timestamp', None)
-            
-            # ترتيب أبجدي صارم كما هو مطلوب من MEXC
-            sorted_items = sorted(params_copy.items())
-            
-            # بناء query string يدوياً للتأكد من التنسيق الصحيح
-            query_parts = []
-            for key, value in sorted_items:
-                # تنسيق القيم بشكل صحيح
-                if isinstance(value, float):
-                    # للأرقام العشرية، نستخدم تنسيق مناسب
-                    if value == int(value):
-                        value = str(int(value))
-                    else:
-                        value = f"{value:.8f}".rstrip('0').rstrip('.')
-                else:
-                    value = str(value)
-                query_parts.append(f"{key}={value}")
-            
-            query_string = '&'.join(query_parts)
-            
-            # الصيغة الصحيحة حسب الوثائق الرسمية: access_key + timestamp + query_string
-            signature_string = self.api_key + timestamp + query_string
-            
-            logger.info(f"🔑 Query string: {query_string}")
-            logger.info(f"🔐 API Key: {self.api_key}")
-            logger.info(f"⏰ Timestamp: {timestamp}")
-            logger.info(f"📝 Signature String: {signature_string}")
-            logger.info(f"🔐 API Secret (أول 8 أحرف): {self.api_secret[:8]}...")
-            
-            # توليد التوقيع باستخدام HMAC-SHA256 حسب الوثائق الرسمية
-            signature = hmac.new(
-                self.api_secret.encode('utf-8'),
-                signature_string.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            
-            logger.info(f"✅ التوقيع المُولد: {signature}")
-            
-            return signature
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في توليد التوقيع: {e}")
-            import traceback
-            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
-            raise
+        query_string = urlencode(sorted(params.items()))
+        signature = hmac.new(
+            self.api_secret.encode('utf-8'),
+            query_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        return signature
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None, signed: bool = False) -> Optional[Dict]:
         """
@@ -141,111 +79,27 @@ class MEXCTradingBot:
         url = f"{self.base_url}{endpoint}"
         
         try:
-            # Rate Limiting: التحكم في معدل الطلبات (5 طلبات/ثانية)
-            current_time = time.time()
-            time_since_last_request = current_time - self.last_request_time
-            if time_since_last_request < self.min_request_interval:
-                sleep_time = self.min_request_interval - time_since_last_request
-                logger.info(f"⏳ Rate Limit: انتظار {sleep_time:.3f} ثانية...")
-                time.sleep(sleep_time)
-            
-            self.last_request_time = time.time()
-            
             if signed:
-                # إضافة timestamp بـ UTC بالميلي ثانية (مطلوب من MEXC)
-                timestamp = int(time.time() * 1000)
-                params['timestamp'] = timestamp
-                
-                logger.info(f"⏰ Timestamp: {timestamp}")
-                logger.info(f"📅 الوقت الحالي: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
-                
-                # توليد التوقيع (بدون signature في المعاملات)
-                signature = self._generate_signature(params)
-                
-                # إضافة التوقيع إلى المعاملات
-                params['signature'] = signature
-                
-                logger.info(f"🔐 التوقيع المُولد: {signature}")
-                logger.info(f"📋 المعاملات النهائية: {params}")
+                params['timestamp'] = int(time.time() * 1000)
+                params['signature'] = self._generate_signature(params)
             
-            # MEXC Spot API: إرسال البيانات في query string للطلبات الموقعة
             if method == 'GET':
                 response = self.session.get(url, params=params, timeout=10)
             elif method == 'POST':
-                # للطلبات الموقعة: إرسال جميع المعاملات في query string
-                if signed:
-                    response = self.session.post(url, params=params, timeout=10)
-                else:
-                    # للطلبات غير الموقعة: إرسال في body
-                    response = self.session.post(url, json=params, timeout=10)
+                response = self.session.post(url, params=params, timeout=10)
             elif method == 'DELETE':
                 response = self.session.delete(url, params=params, timeout=10)
             else:
                 logger.error(f"نوع طلب غير مدعوم: {method}")
                 return None
             
-            # تسجيل تفاصيل الطلب للمساعدة في التشخيص
-            logger.info(f"📤 طلب MEXC: {method} {endpoint}")
-            logger.info(f"🔗 الرابط الكامل: {url}")
-            logger.info(f"📋 المعاملات المرسلة: {params}")
-            
-            # تسجيل URL النهائي للطلبات الموقعة
-            if signed and method == 'POST':
-                query_string = urlencode(params)
-                full_url = f"{url}?{query_string}"
-                logger.info(f"🌐 الرابط النهائي: {full_url}")
-                
-                # تسجيل مفصل للتأكد من صحة الطلب
-                logger.info(f"📋 تفاصيل الطلب النهائي:")
-                logger.info(f"   - Method: {method}")
-                logger.info(f"   - URL: {url}")
-                logger.info(f"   - Headers: {dict(self.session.headers)}")
-                logger.info(f"   - Params: {params}")
-            
-            # التحقق من حالة الاستجابة
-            if response.status_code != 200:
-                logger.error(f"خطأ في استجابة MEXC: {response.status_code}")
-                logger.error(f"محتوى الخطأ: {response.text}")
-                
-                # معالجة أخطاء محددة حسب ملف السياق
-                if response.status_code == 429:
-                    logger.warning("⚠️ Rate Limit تم تجاوزه (429) - توقف مؤقت...")
-                    time.sleep(2)  # توقف مؤقت (backoff)
-                    return None
-                elif response.status_code >= 500:
-                    logger.error("❌ خطأ في خادم MEXC (5xx) - يُنصح بالاستعلام عن حالة الطلب")
-                
-                # محاولة تحليل الخطأ
-                try:
-                    error_data = response.json()
-                    if 'msg' in error_data:
-                        logger.error(f"رسالة الخطأ من MEXC: {error_data['msg']}")
-                    if 'code' in error_data:
-                        logger.error(f"كود الخطأ من MEXC: {error_data['code']}")
-                except:
-                    pass
-                
-                return None
-            
-            response_data = response.json()
-            
-            # التحقق من وجود خطأ في الاستجابة
-            if 'code' in response_data and response_data['code'] != 0:
-                logger.error(f"خطأ من MEXC API: {response_data}")
-                if 'msg' in response_data:
-                    logger.error(f"رسالة الخطأ: {response_data['msg']}")
-                return None
-            
-            logger.info(f"استجابة MEXC ناجحة: {response_data}")
-            return response_data
+            response.raise_for_status()
+            return response.json()
             
         except requests.exceptions.RequestException as e:
             logger.error(f"خطأ في الطلب إلى MEXC: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f"تفاصيل الخطأ: {e.response.text}")
-            return None
-        except Exception as e:
-            logger.error(f"خطأ غير متوقع في MEXC: {e}")
             return None
     
     def get_account_balance(self) -> Optional[Dict]:
@@ -256,14 +110,9 @@ class MEXCTradingBot:
             معلومات الرصيد أو None في حالة الخطأ
         """
         try:
-            logger.info("📊 جلب رصيد الحساب من MEXC...")
             result = self._make_request('GET', '/api/v3/account', signed=True)
             
-            logger.info(f"📥 استجابة رصيد الحساب: {result}")
-            
             if result and 'balances' in result:
-                logger.info("✅ تم جلب رصيد الحساب بنجاح")
-                
                 # تنسيق البيانات
                 balances = {}
                 for balance in result['balances']:
@@ -278,8 +127,6 @@ class MEXCTradingBot:
                             'total': free + locked
                         }
                 
-                logger.info(f"💰 الأرصدة المتاحة: {list(balances.keys())}")
-                
                 return {
                     'balances': balances,
                     'can_trade': result.get('canTrade', False),
@@ -287,13 +134,10 @@ class MEXCTradingBot:
                     'can_deposit': result.get('canDeposit', False)
                 }
             
-            logger.error("❌ فشل جلب رصيد الحساب - استجابة غير صحيحة")
             return None
             
         except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على رصيد MEXC: {e}")
-            import traceback
-            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
+            logger.error(f"خطأ في الحصول على رصيد MEXC: {e}")
             return None
     
     def get_ticker_price(self, symbol: str) -> Optional[float]:
@@ -339,24 +183,14 @@ class MEXCTradingBot:
                         for f in sym.get('filters', []):
                             filters[f['filterType']] = f
                         
-                        # تحديد ما إذا كان التداول الفوري مسموح
-                        permissions = sym.get('permissions', [])
-                        status = sym['status']
-                        is_spot_allowed = 'SPOT' in permissions and status == '1'
-                        
-                        logger.info(f"🔍 تحليل معلومات الرمز {symbol}:")
-                        logger.info(f"   - الحالة: {status}")
-                        logger.info(f"   - الصلاحيات: {permissions}")
-                        logger.info(f"   - التداول الفوري مسموح: {is_spot_allowed}")
-                        
                         return {
                             'symbol': sym['symbol'],
                             'status': sym['status'],
                             'base_asset': sym['baseAsset'],
                             'quote_asset': sym['quoteAsset'],
                             'filters': filters,
-                            'is_spot_trading_allowed': is_spot_allowed,
-                            'permissions': permissions
+                            'is_spot_trading_allowed': sym.get('isSpotTradingAllowed', False),
+                            'permissions': sym.get('permissions', [])
                         }
             
             return None
@@ -377,38 +211,17 @@ class MEXCTradingBot:
             الكمية المنسقة
         """
         try:
-            # الحصول على فلاتر الرمز
-            filters = symbol_info.get('filters', {})
-            lot_size_filter = filters.get('LOT_SIZE')
-            
-            if not lot_size_filter:
-                logger.warning("لم يتم العثور على فلتر LOT_SIZE، استخدام القيم الافتراضية")
-                return f"{quantity:.6f}".rstrip('0').rstrip('.')
-            
+            lot_size_filter = symbol_info['filters'].get('LOT_SIZE', {})
             step_size = float(lot_size_filter.get('stepSize', '1'))
-            min_qty = float(lot_size_filter.get('minQty', '0'))
-            max_qty = float(lot_size_filter.get('maxQty', '0'))
             
-            logger.info(f"فلاتر الكمية - Step: {step_size}, Min: {min_qty}, Max: {max_qty}")
-            
-            # التحقق من الحد الأدنى
-            if quantity < min_qty:
-                logger.error(f"الكمية أقل من الحد الأدنى: {quantity} < {min_qty}")
-                return f"{min_qty:.6f}".rstrip('0').rstrip('.')
-            
-            # التحقق من الحد الأقصى
-            if max_qty > 0 and quantity > max_qty:
-                logger.error(f"الكمية أكبر من الحد الأقصى: {quantity} > {max_qty}")
-                return f"{max_qty:.6f}".rstrip('0').rstrip('.')
-            
-            # حساب عدد الأرقام العشرية من step_size
+            # حساب عدد الأرقام العشرية
             step_str = f"{step_size:.10f}".rstrip('0')
             if '.' in step_str:
                 decimals = len(step_str.split('.')[1])
             else:
                 decimals = 0
             
-            # تقريب الكمية إلى مضاعف step_size
+            # تقريب الكمية
             quantity_decimal = Decimal(str(quantity))
             step_decimal = Decimal(str(step_size))
             
@@ -416,18 +229,11 @@ class MEXCTradingBot:
             quantity_decimal = (quantity_decimal // step_decimal) * step_decimal
             
             # تنسيق النتيجة
-            if decimals > 0:
-                formatted = f"{float(quantity_decimal):.{decimals}f}"
-            else:
-                formatted = f"{int(quantity_decimal)}"
+            return f"{float(quantity_decimal):.{decimals}f}"
             
-            logger.info(f"الكمية المنسقة: {formatted}")
-            return formatted
-                
         except Exception as e:
             logger.error(f"خطأ في تنسيق الكمية: {e}")
-            # في حالة الخطأ، نعيد الكمية بتنسيق آمن
-            return f"{quantity:.6f}".rstrip('0').rstrip('.')
+            return f"{quantity:.8f}".rstrip('0').rstrip('.')
     
     def place_spot_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET', 
                         price: Optional[float] = None) -> Optional[Dict]:
@@ -445,147 +251,56 @@ class MEXCTradingBot:
             معلومات الأمر أو None في حالة الخطأ
         """
         try:
-            logger.info(f"محاولة وضع أمر {side} {quantity} {symbol} على MEXC")
-            
             # الحصول على معلومات الرمز
             symbol_info = self.get_symbol_info(symbol)
             if not symbol_info:
                 logger.error(f"فشل في الحصول على معلومات {symbol}")
                 return None
             
-            logger.info(f"معلومات الرمز: {symbol_info}")
-            
             # التحقق من أن التداول الفوري مسموح
             if not symbol_info['is_spot_trading_allowed']:
                 logger.error(f"التداول الفوري غير مسموح لـ {symbol}")
                 return None
             
-            # تنسيق الكمية بناءً على متطلبات الرمز
+            # تنسيق الكمية
             formatted_quantity = self._format_quantity(quantity, symbol_info)
-            logger.info(f"الكمية المنسقة: {formatted_quantity}")
             
-            # التحقق من أن الكمية المنسقة ليست صفر
-            if float(formatted_quantity) <= 0:
-                logger.error(f"الكمية المنسقة صفر أو سالبة: {formatted_quantity}")
-                return None
+            # بناء معاملات الأمر
+            params = {
+                'symbol': symbol,
+                'side': side.upper(),
+                'type': order_type.upper(),
+                'quantity': formatted_quantity
+            }
             
-            # بناء معاملات الأمر حسب نوع الأمر مع Idempotency
-            import uuid
-            client_order_id = f"bot-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
-            
-            # للأوامر MARKET: فقط الحقول الأساسية
-            if order_type.upper() == 'MARKET':
-                params = {
-                    'symbol': symbol,
-                    'side': side.upper(),
-                    'type': order_type.upper(),
-                    'quantity': formatted_quantity,
-                    'newClientOrderId': client_order_id
-                }
-            else:
-                # للأوامر LIMIT: إضافة السعر
-                params = {
-                    'symbol': symbol,
-                    'side': side.upper(),
-                    'type': order_type.upper(),
-                    'quantity': formatted_quantity,
-                    'price': f"{price:.8f}".rstrip('0').rstrip('.'),
-                    'newClientOrderId': client_order_id
-                }
-            
-            logger.info(f"🆔 Client Order ID: {client_order_id}")
-            logger.info(f"📋 نوع الأمر: {order_type.upper()}")
-            logger.info(f"📋 الحقول المرسلة: {list(params.keys())}")
-            logger.info(f"📋 معاملات الأمر: {params}")
-            
-            # تسجيل مفصل حسب ملف السياق
-            logger.info(f"📝 تفاصيل التنفيذ:")
-            logger.info(f"   - Symbol: {symbol}")
-            logger.info(f"   - Side: {side.upper()}")
-            logger.info(f"   - Type: {order_type.upper()}")
-            logger.info(f"   - Quantity: {formatted_quantity}")
-            logger.info(f"   - ClientOrderId: {client_order_id}")
+            # إضافة السعر لأوامر LIMIT
             if order_type.upper() == 'LIMIT':
-                logger.info(f"   - Price: {price:.8f}")
-            
-            # إرسال الأمر باستخدام مدير الأوامر الاحترافي
-            logger.info(f"📤 إرسال الأمر إلى MEXC API باستخدام مدير الأوامر...")
-            logger.info(f"🔗 الرابط: {self.base_url}/api/v3/order")
-            logger.info(f"📋 المعاملات النهائية: {params}")
-            
-            # استخدام مدير الأوامر إذا كان متاحاً
-            if self.order_manager:
-                from mexc_order_manager import OrderRequest, OrderType
-                
-                # إنشاء طلب أمر منظم
-                order_request = OrderRequest(
-                    symbol=symbol,
-                    side=side.upper(),
-                    order_type=OrderType.MARKET if order_type.upper() == 'MARKET' else OrderType.LIMIT,
-                    quantity=float(formatted_quantity),
-                    price=price if order_type.upper() == 'LIMIT' else None,
-                    client_order_id=client_order_id,
-                    priority=1
-                )
-                
-                # إضافة الأمر إلى مدير الأوامر وتنفيذه
-                self.order_manager.add_order(order_request)
-                results = self.order_manager.execute_orders()
-                
-                if results:
-                    order_result = results[0]
-                    logger.info(f"📥 نتيجة مدير الأوامر: {order_result}")
-                    
-                    if order_result.status.value in ['FILLED', 'SUBMITTED']:
-                        logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح")
-                        return {
-                            'orderId': order_result.order_id,
-                            'clientOrderId': order_result.client_order_id,
-                            'symbol': symbol,
-                            'side': side.upper(),
-                            'type': order_type.upper(),
-                            'origQty': formatted_quantity,
-                            'price': price,
-                            'status': order_result.status.value,
-                            'executedQty': order_result.filled_quantity,
-                            'avgPrice': order_result.average_price,
-                            'executionTime': order_result.execution_time
-                        }
-                    else:
-                        logger.error(f"❌ فشل في وضع الأمر: {order_result.error_message}")
-                        return None
-                else:
-                    logger.error(f"❌ لم يتم إرجاع نتائج من مدير الأوامر")
+                if price is None:
+                    logger.error("السعر مطلوب لأوامر LIMIT")
                     return None
-            else:
-                # الطريقة التقليدية إذا لم يكن مدير الأوامر متاحاً
-                logger.info("⚠️ استخدام الطريقة التقليدية (مدير الأوامر غير متاح)")
-                result = self._make_request('POST', '/api/v3/order', params, signed=True)
-                
-                logger.info(f"📥 استجابة MEXC API: {result}")
-                
-                if result:
-                    logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح: {result}")
-                    return {
-                        'orderId': result.get('orderId'),
-                        'clientOrderId': client_order_id,
-                        'symbol': result.get('symbol'),
-                        'side': result.get('side'),
-                        'type': result.get('type'),
-                        'origQty': result.get('origQty'),
-                        'price': result.get('price'),
-                        'status': result.get('status'),
-                        'transactTime': result.get('transactTime')
-                    }
-                
-                logger.error(f"❌ فشل في وضع الأمر - لم يتم إرجاع نتيجة من MEXC")
-                logger.error(f"🔍 السبب: _make_request عاد None")
-                return None
+                params['price'] = f"{price:.8f}".rstrip('0').rstrip('.')
+                params['timeInForce'] = 'GTC'  # Good Till Cancel
+            
+            # إرسال الأمر
+            result = self._make_request('POST', '/api/v3/order', params, signed=True)
+            
+            if result:
+                logger.info(f"تم وضع أمر {side} لـ {symbol}: {result}")
+                return {
+                    'order_id': result.get('orderId'),
+                    'symbol': result.get('symbol'),
+                    'side': result.get('side'),
+                    'type': result.get('type'),
+                    'quantity': result.get('origQty'),
+                    'price': result.get('price'),
+                    'status': result.get('status'),
+                    'time': result.get('transactTime')
+                }
+            
+            return None
             
         except Exception as e:
             logger.error(f"خطأ في وضع أمر على MEXC: {e}")
-            import traceback
-            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
             return None
     
     def get_order_status(self, symbol: str, order_id: str) -> Optional[Dict]:
@@ -743,52 +458,25 @@ class MEXCTradingBot:
             True إذا كان الاتصال ناجحاً، False خلاف ذلك
         """
         try:
-            logger.info("🔍 بدء اختبار الاتصال بـ MEXC...")
-            
-            # اختبار الاتصال العام أولاً
-            logger.info("1️⃣ اختبار الاتصال العام...")
+            # اختبار الاتصال العام
             result = self._make_request('GET', '/api/v3/ping')
             if result is not None:
-                logger.info("✅ الاتصال العام بـ MEXC API ناجح")
-            else:
-                logger.error("❌ فشل الاتصال العام بـ MEXC API")
-                return False
-            
-            # اختبار الاتصال المصادق عليه
-            logger.info("2️⃣ اختبار الاتصال المصادق عليه...")
-            account = self.get_account_balance()
-            if account:
-                logger.info("✅ المصادقة على MEXC API ناجحة")
+                logger.info("✅ الاتصال بـ MEXC API ناجح")
                 
-                # فحص الصلاحيات
-                can_trade = account.get('can_trade', False)
-                logger.info(f"📋 يمكن التداول: {can_trade}")
-                
-                if can_trade:
-                    logger.info("✅ جميع الصلاحيات متاحة")
+                # اختبار الاتصال المصادق عليه
+                account = self.get_account_balance()
+                if account:
+                    logger.info("✅ المصادقة على MEXC API ناجحة")
                     return True
                 else:
-                    logger.warning("⚠️ صلاحية التداول غير مفعلة")
+                    logger.warning("⚠️ فشلت المصادقة على MEXC API")
                     return False
-            else:
-                logger.error("❌ فشلت المصادقة على MEXC API")
-                
-                # تشخيص مفصل
-                logger.info("🔍 تشخيص مفصل للمشكلة...")
-                logger.info(f"API Key: {self.api_key[:8]}...")
-                logger.info(f"API Secret: {self.api_secret[:8]}...")
-                
-                # اختبار التوقيع
-                test_params = {'timestamp': int(time.time() * 1000)}
-                signature = self._generate_signature(test_params)
-                logger.info(f"🔐 التوقيع التجريبي: {signature}")
-                
-                return False
+            
+            logger.error("❌ فشل الاتصال بـ MEXC API")
+            return False
             
         except Exception as e:
             logger.error(f"❌ خطأ في اختبار الاتصال بـ MEXC: {e}")
-            import traceback
-            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
             return False
 
 
