@@ -216,14 +216,24 @@ class MEXCTradingBot:
                         for f in sym.get('filters', []):
                             filters[f['filterType']] = f
                         
+                        # تحديد ما إذا كان التداول الفوري مسموح
+                        permissions = sym.get('permissions', [])
+                        status = sym['status']
+                        is_spot_allowed = 'SPOT' in permissions and status == '1'
+                        
+                        logger.info(f"🔍 تحليل معلومات الرمز {symbol}:")
+                        logger.info(f"   - الحالة: {status}")
+                        logger.info(f"   - الصلاحيات: {permissions}")
+                        logger.info(f"   - التداول الفوري مسموح: {is_spot_allowed}")
+                        
                         return {
                             'symbol': sym['symbol'],
                             'status': sym['status'],
                             'base_asset': sym['baseAsset'],
                             'quote_asset': sym['quoteAsset'],
                             'filters': filters,
-                            'is_spot_trading_allowed': sym.get('isSpotTradingAllowed', False),
-                            'permissions': sym.get('permissions', [])
+                            'is_spot_trading_allowed': is_spot_allowed,
+                            'permissions': permissions
                         }
             
             return None
