@@ -49,8 +49,8 @@ class MEXCTradingBot:
     
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         """
-        توليد التوقيع للطلبات وفقاً لمتطلبات MEXC
-        طريقة التوقيع: HMAC SHA256 كما هو موضح في ملف السياق
+        توليد التوقيع للطلبات وفقاً لمتطلبات MEXC الصارمة
+        ترتيب أبجدي: newClientOrderId, quantity, side, symbol, timestamp, type
         
         Args:
             params: معاملات الطلب (بدون signature)
@@ -61,16 +61,21 @@ class MEXCTradingBot:
         # إزالة signature إذا كانت موجودة (لتجنب التوقيع الذاتي)
         params_copy = {k: v for k, v in params.items() if k != 'signature'}
         
-        # ترتيب المعاملات أبجدياً وتحويلها إلى query string
-        # MEXC تتطلب ترتيب أبجدي للمعاملات
-        sorted_params = sorted(params_copy.items())
-        query_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
+        # ترتيب أبجدي صارم كما هو مطلوب من MEXC
+        # الترتيب المطلوب: newClientOrderId, quantity, side, symbol, timestamp, type
+        sorted_items = sorted(params_copy.items())
+        
+        # بناء query string يدوياً للتأكد من التنسيق الصحيح
+        query_parts = []
+        for key, value in sorted_items:
+            query_parts.append(f"{key}={value}")
+        
+        query_string = '&'.join(query_parts)
         
         logger.info(f"🔑 Query string للتوقيع: {query_string}")
         logger.info(f"🔐 API Secret (أول 8 أحرف): {self.api_secret[:8]}...")
         
         # توليد التوقيع باستخدام HMAC-SHA256
-        # وفقاً لـ MEXC API Documentation
         signature = hmac.new(
             self.api_secret.encode('utf-8'),
             query_string.encode('utf-8'),
@@ -111,8 +116,12 @@ class MEXCTradingBot:
             self.last_request_time = time.time()
             
             if signed:
-                # إضافة timestamp
-                params['timestamp'] = int(time.time() * 1000)
+                # إضافة timestamp بـ UTC بالميلي ثانية (مطلوب من MEXC)
+                timestamp = int(time.time() * 1000)
+                params['timestamp'] = timestamp
+                
+                logger.info(f"⏰ Timestamp: {timestamp}")
+                logger.info(f"📅 الوقت الحالي: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
                 
                 # توليد التوقيع (بدون signature في المعاملات)
                 signature = self._generate_signature(params)
@@ -123,13 +132,16 @@ class MEXCTradingBot:
                 logger.info(f"🔐 التوقيع المُولد: {signature}")
                 logger.info(f"📋 المعاملات النهائية: {params}")
             
-            # MEXC تتطلب إرسال جميع المعاملات (بما في ذلك التوقيع) في query string
-            # وليس في body، حتى لطلبات POST
+            # MEXC Spot API: إرسال البيانات في query string للطلبات الموقعة
             if method == 'GET':
                 response = self.session.get(url, params=params, timeout=10)
             elif method == 'POST':
-                # إرسال المعاملات في query string للتوافق مع MEXC API
-                response = self.session.post(url, params=params, timeout=10)
+                # للطلبات الموقعة: إرسال جميع المعاملات في query string
+                if signed:
+                    response = self.session.post(url, params=params, timeout=10)
+                else:
+                    # للطلبات غير الموقعة: إرسال في body
+                    response = self.session.post(url, json=params, timeout=10)
             elif method == 'DELETE':
                 response = self.session.delete(url, params=params, timeout=10)
             else:
@@ -137,8 +149,15 @@ class MEXCTradingBot:
                 return None
             
             # تسجيل تفاصيل الطلب للمساعدة في التشخيص
-            logger.info(f"طلب MEXC: {method} {endpoint}")
-            logger.info(f"المعاملات: {params}")
+            logger.info(f"📤 طلب MEXC: {method} {endpoint}")
+            logger.info(f"🔗 الرابط الكامل: {url}")
+            logger.info(f"📋 المعاملات المرسلة: {params}")
+            
+            # تسجيل URL النهائي للطلبات الموقعة
+            if signed and method == 'POST':
+                query_string = urlencode(params)
+                full_url = f"{url}?{query_string}"
+                logger.info(f"🌐 الرابط النهائي: {full_url}")
             
             # التحقق من حالة الاستجابة
             if response.status_code != 200:
@@ -397,28 +416,33 @@ class MEXCTradingBot:
                 logger.error(f"الكمية المنسقة صفر أو سالبة: {formatted_quantity}")
                 return None
             
-            # بناء معاملات الأمر
-            # إضافة clientOrderId لضمان عدم التكرار (Idempotency)
+            # بناء معاملات الأمر حسب نوع الأمر
             import uuid
             client_order_id = f"bot-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
             
-            params = {
-                'symbol': symbol,
-                'side': side.upper(),
-                'type': order_type.upper(),
-                'quantity': formatted_quantity,
-                'newClientOrderId': client_order_id  # لضمان عدم تكرار الأمر
-            }
+            # للأوامر MARKET: فقط الحقول الأساسية
+            if order_type.upper() == 'MARKET':
+                params = {
+                    'symbol': symbol,
+                    'side': side.upper(),
+                    'type': order_type.upper(),
+                    'quantity': formatted_quantity,
+                    'newClientOrderId': client_order_id
+                }
+            else:
+                # للأوامر LIMIT: إضافة السعر
+                params = {
+                    'symbol': symbol,
+                    'side': side.upper(),
+                    'type': order_type.upper(),
+                    'quantity': formatted_quantity,
+                    'price': f"{price:.8f}".rstrip('0').rstrip('.'),
+                    'newClientOrderId': client_order_id
+                }
             
             logger.info(f"🆔 Client Order ID: {client_order_id}")
-            
-            # إضافة السعر لأوامر LIMIT
-            if order_type.upper() == 'LIMIT':
-                if price is None:
-                    logger.error("السعر مطلوب لأوامر LIMIT")
-                    return None
-                params['price'] = f"{price:.8f}".rstrip('0').rstrip('.')
-                params['timeInForce'] = 'GTC'  # Good Till Cancel
+            logger.info(f"📋 نوع الأمر: {order_type.upper()}")
+            logger.info(f"📋 الحقول المرسلة: {list(params.keys())}")
             
             logger.info(f"معاملات الأمر: {params}")
             
