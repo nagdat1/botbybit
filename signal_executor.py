@@ -696,14 +696,16 @@ class SignalExecutor:
             
             logger.info(f"الكمية المحسوبة: {quantity} {symbol} بسعر {price}")
             
-            # وضع الأمر
-            logger.info(f"🚀 بدء وضع الأمر على MEXC...")
+            # وضع الأمر مع ربط احترافي للتوقيع
+            logger.info(f"🚀 بدء وضع الأمر على MEXC مع التوقيع الاحترافي...")
             logger.info(f"📋 تفاصيل الأمر:")
             logger.info(f"   - الرمز: {symbol}")
             logger.info(f"   - النوع: {side}")
             logger.info(f"   - الكمية: {quantity}")
             logger.info(f"   - نوع الأمر: MARKET")
+            logger.info(f"   - المبلغ: ${trade_amount:.2f}")
             
+            # استخدام النظام المحسن لوضع الأمر
             result = account.place_spot_order(
                 symbol=symbol,
                 side=side,
@@ -717,13 +719,24 @@ class SignalExecutor:
                 logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
                 logger.info(f"📋 تفاصيل الأمر: {result}")
                 
+                # تسجيل مفصل حسب ملف السياق
+                logger.info(f"📝 سجل التنفيذ:")
+                logger.info(f"   - ClientOrderId: {result.get('clientOrderId', 'N/A')}")
+                logger.info(f"   - Symbol: {symbol}")
+                logger.info(f"   - Side: {side}")
+                logger.info(f"   - Quantity: {quantity}")
+                logger.info(f"   - Status: {result.get('status', 'N/A')}")
+                logger.info(f"   - Timestamp: {int(time.time() * 1000)}")
+                
                 return {
                     'success': True,
                     'message': f'Order placed: {side} {symbol}',
                     'order_id': result.get('orderId'),
+                    'client_order_id': result.get('clientOrderId'),
                     'symbol': symbol,
                     'side': side,
                     'qty': quantity,
+                    'status': result.get('status'),
                     'is_real': True
                 }
             else:

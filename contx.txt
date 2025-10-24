@@ -137,3 +137,24 @@
     ]
   }
 }
+ أنت قلت:
+
+INFO:mexc_trading_bot:🔐 API Secret (أول 8 أحرف): cd479996...
+INFO:mexc_trading_bot:✅ التوقيع المُولد: 3b46b3878afde969c222f1c49b3785480c1765b584230e1a2cb9863946d2399d
+INFO:mexc_trading_bot:🔐 التوقيع المُولد: 3b46b3878afde969c222f1c49b3785480c1765b584230e1a2cb9863946d2399d
+INFO:mexc_trading_bot:📋 المعاملات النهائية: {'symbol': 'BTCUSDT', 'side': 'BUY', 'type': 'MARKET', 'quantity': '0.000453', 'newClientOrderId': 'bot-1761276449816-baca2ccf', 'timestamp': 1761276449816, 'signature': '3b46b3878afde969c222f1c49b3785480c1765b584230e1a2cb9863946d2399d'}
+INFO:mexc_trading_bot:📤 طلب MEXC: POST /api/v3/order
+INFO:mexc_trading_bot:🔗 الرابط الكامل: https://api.mexc.com/api/v3/order
+INFO:mexc_trading_bot:📋 المعاملات المرسلة: {'symbol': 'BTCUSDT', 'side': 'BUY', 'type': 'MARKET', 'quantity': '0.000453', 'newClientOrderId': 'bot-1761276449816-baca2ccf', 'timestamp': 1761276449816, 'signature': '3b46b3878afde969c222f1c49b3785480c1765b584230e1a2cb9863946d2399d'}
+INFO:mexc_trading_bot:🌐 الرابط النهائي: https://api.mexc.com/api/v3/order?symbol=BTCUSDT&side=BUY&type=MARKET&quantity=0.000453&newClientOrderId=bot-1761276449816-baca2ccf&timestamp=1761276449816&signature=3b46b3878afde969c222f1c49b3785480c1765b584230e1a2cb9863946d2399d
+ERROR:mexc_trading_bot:خطأ في استجابة MEXC: 400
+ERROR:mexc_trading_bot:محتوى الخطأ: {"code":700002,"msg":"Signature for this request is not valid."}
+ERROR:mexc_trading_bot:رسالة الخطأ من MEXC: Signature for this request is not valid.
+ERROR:mexc_trading_bot:كود الخطأ من MEXC: 700002
+INFO:mexc_trading_bot:📥 استجابة MEXC API: None
+ERROR:mexc_trading_bot:❌ فشل في وضع الأمر - لم يتم إرجاع نتيجة من MEXC
+ERROR:mexc_trading_bot:🔍 السبب: _make_request عاد None
+INFO:signal_executor:📤 نتيجة وضع الأمر: None
+ERROR:signal_executor:❌ فشل تنفيذ أمر BUY BTCUSDT على MEXC
+ERROR:signal_executor:🔍 السبب: place_spot_order عاد None
+✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {'success': False, 'message': 'Failed to place order on MEXC - place_spot_order returned None', 'error': 'ORDER_FAILED'}

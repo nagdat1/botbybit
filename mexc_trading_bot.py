@@ -44,6 +44,15 @@ class MEXCTradingBot:
         self.last_request_time = 0
         self.min_request_interval = 0.2  # 200ms بين الطلبات (5 طلبات/ثانية)
         
+        # تهيئة مدير الأوامر الاحترافي
+        try:
+            from mexc_order_manager import create_mexc_order_manager
+            self.order_manager = create_mexc_order_manager(self)
+            logger.info("✅ تم تهيئة مدير الأوامر الاحترافي")
+        except ImportError:
+            self.order_manager = None
+            logger.warning("⚠️ مدير الأوامر غير متاح")
+        
         logger.info(f"تم تهيئة MEXC Trading Bot - Base URL: {self.base_url}")
         logger.info(f"⚙️ Rate Limit: {1/self.min_request_interval} طلبات/ثانية")
     
@@ -58,44 +67,60 @@ class MEXCTradingBot:
         Returns:
             التوقيع
         """
-        # إزالة signature إذا كانت موجودة (لتجنب التوقيع الذاتي)
-        params_copy = {k: v for k, v in params.items() if k != 'signature'}
-        
-        # استخراج timestamp قبل إزالته من المعاملات
-        timestamp = str(params_copy.get('timestamp', ''))
-        
-        # إزالة timestamp من المعاملات لأنه يُضاف منفصلاً في signature_string
-        params_copy.pop('timestamp', None)
-        
-        # ترتيب أبجدي صارم كما هو مطلوب من MEXC
-        sorted_items = sorted(params_copy.items())
-        
-        # بناء query string يدوياً للتأكد من التنسيق الصحيح
-        query_parts = []
-        for key, value in sorted_items:
-            query_parts.append(f"{key}={value}")
-        
-        query_string = '&'.join(query_parts)
-        
-        # الصيغة الصحيحة حسب الوثائق الرسمية: access_key + timestamp + query_string
-        signature_string = self.api_key + timestamp + query_string
-        
-        logger.info(f"🔑 Query string: {query_string}")
-        logger.info(f"🔐 API Key: {self.api_key}")
-        logger.info(f"⏰ Timestamp: {timestamp}")
-        logger.info(f"📝 Signature String: {signature_string}")
-        logger.info(f"🔐 API Secret (أول 8 أحرف): {self.api_secret[:8]}...")
-        
-        # توليد التوقيع باستخدام HMAC-SHA256 حسب الوثائق الرسمية
-        signature = hmac.new(
-            self.api_secret.encode('utf-8'),
-            signature_string.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        
-        logger.info(f"✅ التوقيع المُولد: {signature}")
-        
-        return signature
+        try:
+            # إزالة signature إذا كانت موجودة (لتجنب التوقيع الذاتي)
+            params_copy = {k: v for k, v in params.items() if k != 'signature'}
+            
+            # استخراج timestamp قبل إزالته من المعاملات
+            timestamp = str(params_copy.get('timestamp', ''))
+            
+            # إزالة timestamp من المعاملات لأنه يُضاف منفصلاً في signature_string
+            params_copy.pop('timestamp', None)
+            
+            # ترتيب أبجدي صارم كما هو مطلوب من MEXC
+            sorted_items = sorted(params_copy.items())
+            
+            # بناء query string يدوياً للتأكد من التنسيق الصحيح
+            query_parts = []
+            for key, value in sorted_items:
+                # تنسيق القيم بشكل صحيح
+                if isinstance(value, float):
+                    # للأرقام العشرية، نستخدم تنسيق مناسب
+                    if value == int(value):
+                        value = str(int(value))
+                    else:
+                        value = f"{value:.8f}".rstrip('0').rstrip('.')
+                else:
+                    value = str(value)
+                query_parts.append(f"{key}={value}")
+            
+            query_string = '&'.join(query_parts)
+            
+            # الصيغة الصحيحة حسب الوثائق الرسمية: access_key + timestamp + query_string
+            signature_string = self.api_key + timestamp + query_string
+            
+            logger.info(f"🔑 Query string: {query_string}")
+            logger.info(f"🔐 API Key: {self.api_key}")
+            logger.info(f"⏰ Timestamp: {timestamp}")
+            logger.info(f"📝 Signature String: {signature_string}")
+            logger.info(f"🔐 API Secret (أول 8 أحرف): {self.api_secret[:8]}...")
+            
+            # توليد التوقيع باستخدام HMAC-SHA256 حسب الوثائق الرسمية
+            signature = hmac.new(
+                self.api_secret.encode('utf-8'),
+                signature_string.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            logger.info(f"✅ التوقيع المُولد: {signature}")
+            
+            return signature
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في توليد التوقيع: {e}")
+            import traceback
+            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
+            raise
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None, signed: bool = False) -> Optional[Dict]:
         """
@@ -444,7 +469,7 @@ class MEXCTradingBot:
                 logger.error(f"الكمية المنسقة صفر أو سالبة: {formatted_quantity}")
                 return None
             
-            # بناء معاملات الأمر حسب نوع الأمر
+            # بناء معاملات الأمر حسب نوع الأمر مع Idempotency
             import uuid
             client_order_id = f"bot-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
             
@@ -471,34 +496,91 @@ class MEXCTradingBot:
             logger.info(f"🆔 Client Order ID: {client_order_id}")
             logger.info(f"📋 نوع الأمر: {order_type.upper()}")
             logger.info(f"📋 الحقول المرسلة: {list(params.keys())}")
+            logger.info(f"📋 معاملات الأمر: {params}")
             
-            logger.info(f"معاملات الأمر: {params}")
+            # تسجيل مفصل حسب ملف السياق
+            logger.info(f"📝 تفاصيل التنفيذ:")
+            logger.info(f"   - Symbol: {symbol}")
+            logger.info(f"   - Side: {side.upper()}")
+            logger.info(f"   - Type: {order_type.upper()}")
+            logger.info(f"   - Quantity: {formatted_quantity}")
+            logger.info(f"   - ClientOrderId: {client_order_id}")
+            if order_type.upper() == 'LIMIT':
+                logger.info(f"   - Price: {price:.8f}")
             
-            # إرسال الأمر
-            logger.info(f"📤 إرسال الأمر إلى MEXC API...")
+            # إرسال الأمر باستخدام مدير الأوامر الاحترافي
+            logger.info(f"📤 إرسال الأمر إلى MEXC API باستخدام مدير الأوامر...")
             logger.info(f"🔗 الرابط: {self.base_url}/api/v3/order")
             logger.info(f"📋 المعاملات النهائية: {params}")
             
-            result = self._make_request('POST', '/api/v3/order', params, signed=True)
-            
-            logger.info(f"📥 استجابة MEXC API: {result}")
-            
-            if result:
-                logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح: {result}")
-                return {
-                    'orderId': result.get('orderId'),
-                    'symbol': result.get('symbol'),
-                    'side': result.get('side'),
-                    'type': result.get('type'),
-                    'origQty': result.get('origQty'),
-                    'price': result.get('price'),
-                    'status': result.get('status'),
-                    'transactTime': result.get('transactTime')
-                }
-            
-            logger.error(f"❌ فشل في وضع الأمر - لم يتم إرجاع نتيجة من MEXC")
-            logger.error(f"🔍 السبب: _make_request عاد None")
-            return None
+            # استخدام مدير الأوامر إذا كان متاحاً
+            if self.order_manager:
+                from mexc_order_manager import OrderRequest, OrderType
+                
+                # إنشاء طلب أمر منظم
+                order_request = OrderRequest(
+                    symbol=symbol,
+                    side=side.upper(),
+                    order_type=OrderType.MARKET if order_type.upper() == 'MARKET' else OrderType.LIMIT,
+                    quantity=float(formatted_quantity),
+                    price=price if order_type.upper() == 'LIMIT' else None,
+                    client_order_id=client_order_id,
+                    priority=1
+                )
+                
+                # إضافة الأمر إلى مدير الأوامر وتنفيذه
+                self.order_manager.add_order(order_request)
+                results = self.order_manager.execute_orders()
+                
+                if results:
+                    order_result = results[0]
+                    logger.info(f"📥 نتيجة مدير الأوامر: {order_result}")
+                    
+                    if order_result.status.value in ['FILLED', 'SUBMITTED']:
+                        logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح")
+                        return {
+                            'orderId': order_result.order_id,
+                            'clientOrderId': order_result.client_order_id,
+                            'symbol': symbol,
+                            'side': side.upper(),
+                            'type': order_type.upper(),
+                            'origQty': formatted_quantity,
+                            'price': price,
+                            'status': order_result.status.value,
+                            'executedQty': order_result.filled_quantity,
+                            'avgPrice': order_result.average_price,
+                            'executionTime': order_result.execution_time
+                        }
+                    else:
+                        logger.error(f"❌ فشل في وضع الأمر: {order_result.error_message}")
+                        return None
+                else:
+                    logger.error(f"❌ لم يتم إرجاع نتائج من مدير الأوامر")
+                    return None
+            else:
+                # الطريقة التقليدية إذا لم يكن مدير الأوامر متاحاً
+                logger.info("⚠️ استخدام الطريقة التقليدية (مدير الأوامر غير متاح)")
+                result = self._make_request('POST', '/api/v3/order', params, signed=True)
+                
+                logger.info(f"📥 استجابة MEXC API: {result}")
+                
+                if result:
+                    logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح: {result}")
+                    return {
+                        'orderId': result.get('orderId'),
+                        'clientOrderId': client_order_id,
+                        'symbol': result.get('symbol'),
+                        'side': result.get('side'),
+                        'type': result.get('type'),
+                        'origQty': result.get('origQty'),
+                        'price': result.get('price'),
+                        'status': result.get('status'),
+                        'transactTime': result.get('transactTime')
+                    }
+                
+                logger.error(f"❌ فشل في وضع الأمر - لم يتم إرجاع نتيجة من MEXC")
+                logger.error(f"🔍 السبب: _make_request عاد None")
+                return None
             
         except Exception as e:
             logger.error(f"خطأ في وضع أمر على MEXC: {e}")
