@@ -5615,24 +5615,33 @@ async def portfolio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         logger.info(f"🔍 معالجة طلب المحفظة المتطورة للمستخدم {user_id}")
         
-        # استخدام النظام المتطور الجديد للمحفظة
-        from portfolio_interface import portfolio_interface
-        
-        # الحصول على نوع الحساب
+        # الحصول على بيانات المستخدم
         user_data = user_manager.get_user(user_id)
+        if not user_data:
+            await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+            return
+        
         account_type = user_data.get('account_type', 'demo')
         
-        # إنشاء القائمة الرئيسية للمحفظة
-        portfolio_data = await portfolio_interface.create_main_portfolio_menu(user_id, account_type)
-        
-        # إنشاء لوحة المفاتيح
-        reply_markup = InlineKeyboardMarkup(portfolio_data['keyboard'])
-        
-        await update.message.reply_text(
-            portfolio_data['message'], 
-            reply_markup=reply_markup, 
-            parse_mode=portfolio_data['parse_mode']
-        )
+        # استخدام النظام المتطور الجديد للمحفظة
+        try:
+            from portfolio_interface import portfolio_interface
+            
+            # إنشاء القائمة الرئيسية للمحفظة
+            portfolio_data = await portfolio_interface.create_main_portfolio_menu(user_id, account_type)
+            
+            # إنشاء لوحة المفاتيح
+            reply_markup = InlineKeyboardMarkup(portfolio_data['keyboard'])
+            
+            await update.message.reply_text(
+                portfolio_data['message'], 
+                reply_markup=reply_markup, 
+                parse_mode=portfolio_data['parse_mode']
+            )
+        except Exception as e:
+            logger.error(f"❌ خطأ في النظام المتطور: {str(e)}")
+            # استخدام النظام البديل (المحفظة البسيطة)
+            await wallet_overview(update, context)
         
     except Exception as e:
         logger.error(f"❌ خطأ في معالج المحفظة المتطور: {e}")
