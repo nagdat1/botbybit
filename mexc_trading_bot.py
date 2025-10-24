@@ -81,12 +81,17 @@ class MEXCTradingBot:
         try:
             if signed:
                 params['timestamp'] = int(time.time() * 1000)
-                params['signature'] = self._generate_signature(params)
+                signature = self._generate_signature(params)
+                params['signature'] = signature
+                
+                logger.info(f"🔐 التوقيع المُولد: {signature}")
+                logger.info(f"📋 المعاملات للتوقيع: {params}")
             
             if method == 'GET':
                 response = self.session.get(url, params=params, timeout=10)
             elif method == 'POST':
-                response = self.session.post(url, params=params, timeout=10)
+                # للطلبات POST، نرسل البيانات في body بدلاً من params
+                response = self.session.post(url, json=params, timeout=10)
             elif method == 'DELETE':
                 response = self.session.delete(url, params=params, timeout=10)
             else:
@@ -255,14 +260,8 @@ class MEXCTradingBot:
         """
         try:
             # الحصول على فلاتر الرمز
-            filters = symbol_info.get('filters', [])
-            lot_size_filter = None
-            
-            # البحث عن فلتر LOT_SIZE
-            for filter_item in filters:
-                if filter_item.get('filterType') == 'LOT_SIZE':
-                    lot_size_filter = filter_item
-                    break
+            filters = symbol_info.get('filters', {})
+            lot_size_filter = filters.get('LOT_SIZE')
             
             if not lot_size_filter:
                 logger.warning("لم يتم العثور على فلتر LOT_SIZE، استخدام القيم الافتراضية")
