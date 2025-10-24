@@ -6243,7 +6243,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             position_id = db_position.get('order_id', f"db_{db_position.get('symbol')}_{len(all_positions)}")
             if position_id not in all_positions:
                 logger.info(f"🔍 DEBUG: إضافة صفقة من قاعدة البيانات: {position_id}")
-                        all_positions[position_id] = {
+                all_positions[position_id] = {
                     'symbol': db_position.get('symbol'),
                     'entry_price': db_position.get('entry_price', 0),
                     'side': db_position.get('side', 'buy'),
