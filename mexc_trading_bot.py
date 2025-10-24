@@ -361,10 +361,16 @@ class MEXCTradingBot:
             logger.info(f"معاملات الأمر: {params}")
             
             # إرسال الأمر
+            logger.info(f"📤 إرسال الأمر إلى MEXC API...")
+            logger.info(f"🔗 الرابط: {self.base_url}/api/v3/order")
+            logger.info(f"📋 المعاملات النهائية: {params}")
+            
             result = self._make_request('POST', '/api/v3/order', params, signed=True)
             
+            logger.info(f"📥 استجابة MEXC API: {result}")
+            
             if result:
-                logger.info(f"تم وضع أمر {side} لـ {symbol} بنجاح: {result}")
+                logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح: {result}")
                 return {
                     'orderId': result.get('orderId'),
                     'symbol': result.get('symbol'),
@@ -376,7 +382,8 @@ class MEXCTradingBot:
                     'transactTime': result.get('transactTime')
                 }
             
-            logger.error(f"فشل في وضع الأمر - لم يتم إرجاع نتيجة من MEXC")
+            logger.error(f"❌ فشل في وضع الأمر - لم يتم إرجاع نتيجة من MEXC")
+            logger.error(f"🔍 السبب: _make_request عاد None")
             return None
             
         except Exception as e:

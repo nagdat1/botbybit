@@ -697,12 +697,21 @@ class SignalExecutor:
             logger.info(f"الكمية المحسوبة: {quantity} {symbol} بسعر {price}")
             
             # وضع الأمر
+            logger.info(f"🚀 بدء وضع الأمر على MEXC...")
+            logger.info(f"📋 تفاصيل الأمر:")
+            logger.info(f"   - الرمز: {symbol}")
+            logger.info(f"   - النوع: {side}")
+            logger.info(f"   - الكمية: {quantity}")
+            logger.info(f"   - نوع الأمر: MARKET")
+            
             result = account.place_spot_order(
                 symbol=symbol,
                 side=side,
                 quantity=round(quantity, 6),
                 order_type='MARKET'
             )
+            
+            logger.info(f"📤 نتيجة وضع الأمر: {result}")
             
             if result:
                 logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
@@ -719,9 +728,10 @@ class SignalExecutor:
                 }
             else:
                 logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على MEXC")
+                logger.error(f"🔍 السبب: place_spot_order عاد None")
                 return {
                     'success': False,
-                    'message': f'Failed to place order on MEXC',
+                    'message': f'Failed to place order on MEXC - place_spot_order returned None',
                     'error': 'ORDER_FAILED'
                 }
                 
