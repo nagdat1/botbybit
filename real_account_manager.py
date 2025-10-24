@@ -370,6 +370,11 @@ class MEXCRealAccount:
         """وضع أمر تداول حقيقي"""
         return self.bot.place_spot_order(symbol, side, quantity, order_type, price)
     
+    def place_spot_order(self, symbol: str, side: str, quantity: float,
+                        order_type: str = 'MARKET', price: float = None) -> Optional[Dict]:
+        """وضع أمر تداول فوري (Spot)"""
+        return self.bot.place_spot_order(symbol, side, quantity, order_type, price)
+    
     def get_trade_history(self, symbol: str, limit: int = 50) -> List[Dict]:
         """الحصول على سجل التداولات"""
         return self.bot.get_trade_history(symbol, limit)
@@ -380,6 +385,59 @@ class MEXCRealAccount:
         if price:
             return {'lastPrice': str(price)}
         return None
+    
+    def get_ticker_price(self, symbol: str) -> Optional[float]:
+        """الحصول على سعر الرمز الحالي"""
+        return self.bot.get_ticker_price(symbol)
+    
+    def get_open_positions(self, category: str = 'spot') -> List[Dict]:
+        """الحصول على الصفقات المفتوحة (للسبوت: الرصيد المتاح)"""
+        balance = self.get_wallet_balance()
+        positions = []
+        
+        if balance and 'coins' in balance:
+            for asset, info in balance['coins'].items():
+                if info['total'] > 0 and asset != 'USDT':  # استبعاد USDT
+                    positions.append({
+                        'symbol': f"{asset}USDT",
+                        'side': 'Buy',  # في السبوت، الرصيد يعني شراء
+                        'size': info['total'],
+                        'entry_price': 0,  # لا يوجد سعر دخول في السبوت
+                        'mark_price': 0,
+                        'unrealized_pnl': 0,
+                        'leverage': '1',
+                        'liquidation_price': 0,
+                        'take_profit': 0,
+                        'stop_loss': 0,
+                        'created_time': None
+                    })
+        
+        return positions
+    
+    def close_position(self, category: str, symbol: str, side: str) -> Optional[Dict]:
+        """إغلاق صفقة (بيع كامل للرصيد في السبوت)"""
+        # في السبوت، الإغلاق يعني بيع كامل الرصيد
+        balance = self.get_wallet_balance()
+        if not balance or 'coins' not in balance:
+            return None
+        
+        # استخراج العملة الأساسية من الرمز (مثل BTC من BTCUSDT)
+        base_asset = symbol.replace('USDT', '')
+        
+        if base_asset not in balance['coins']:
+            return None
+        
+        available_qty = balance['coins'][base_asset]['total']
+        if available_qty <= 0:
+            return None
+        
+        # بيع كامل الرصيد
+        return self.place_spot_order(
+            symbol=symbol,
+            side='SELL',
+            quantity=available_qty,
+            order_type='MARKET'
+        )
 
 
 class RealAccountManager:

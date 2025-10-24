@@ -151,8 +151,32 @@ class SignalExecutor:
                                 'message': f'Failed to get current price for {symbol}',
                                 'error': 'PRICE_FETCH_FAILED'
                             }
+                    elif exchange == 'mexc':
+                        # جلب السعر من MEXC
+                        logger.info(f"🔍 جلب السعر من MEXC لـ {symbol}...")
+                        try:
+                            # استخدام دالة جلب السعر من MEXC
+                            price = real_account.get_ticker_price(symbol)
+                            if price:
+                                logger.info(f"✅ السعر الحالي من MEXC: {price}")
+                                # تحديث السعر في signal_data للاستخدام اللاحق
+                                signal_data['price'] = price
+                            else:
+                                logger.error(f"❌ فشل جلب السعر من MEXC")
+                                return {
+                                    'success': False,
+                                    'message': f'Failed to get current price for {symbol} from MEXC',
+                                    'error': 'PRICE_FETCH_FAILED'
+                                }
+                        except Exception as e:
+                            logger.error(f"❌ خطأ في جلب السعر من MEXC: {e}")
+                            return {
+                                'success': False,
+                                'message': f'Error fetching price from MEXC: {e}',
+                                'error': 'PRICE_FETCH_ERROR'
+                            }
                     else:
-                        # جلب السعر من MEXC أو منصات أخرى
+                        # جلب السعر من منصات أخرى غير مدعومة
                         logger.warning(f"⚠️ جلب السعر من {exchange} غير مدعوم حالياً")
                         return {
                             'success': False,
@@ -506,10 +530,17 @@ class SignalExecutor:
             
             # حساب الكمية
             price = float(signal_data.get('price', 1))
+            if price <= 0:
+                logger.error(f"❌ سعر غير صحيح لـ {symbol}: {price}")
+                return {
+                    'success': False,
+                    'message': f'Invalid price for {symbol}: {price}',
+                    'error': 'INVALID_PRICE'
+                }
             quantity = trade_amount / price
             
             # وضع الأمر
-            result = account.place_order(
+            result = account.place_spot_order(
                 symbol=symbol,
                 side=side,
                 quantity=round(quantity, 6),

@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("✅ النظام المحسن متاح في user_manager.py")
+    print("النظام المحسن متاح في user_manager.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
-    print(f"⚠️ النظام المحسن غير متاح في user_manager.py: {e}")
+    print(f"النظام المحسن غير متاح في user_manager.py: {e}")
 
 class UserManager:
     """مدير المستخدمين المتعددين مع العزل الكامل"""
