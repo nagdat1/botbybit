@@ -651,6 +651,31 @@ class DatabaseManager:
             logger.error(f"خطأ في الحصول على المستخدمين النشطين: {e}")
             return []
     
+    def get_user_open_positions(self, user_id: int) -> List[Dict]:
+        """الحصول على الصفقات المفتوحة للمستخدم"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM orders 
+                    WHERE user_id = ? AND status = 'OPEN'
+                    ORDER BY order_id DESC
+                """, (user_id,))
+                
+                rows = cursor.fetchall()
+                positions = []
+                
+                for row in rows:
+                    position_data = dict(row)
+                    positions.append(position_data)
+                
+                return positions
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على الصفقات المفتوحة للمستخدم {user_id}: {e}")
+            return []
+    
     def get_user_statistics(self, user_id: int) -> Dict:
         """الحصول على إحصائيات المستخدم"""
         try:

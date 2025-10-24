@@ -504,8 +504,22 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
+            # جلب السعر الحالي من MEXC
+            try:
+                current_price = account.get_ticker_price(symbol)
+                if current_price:
+                    price = current_price
+                    logger.info(f"📊 تم جلب السعر الحالي من MEXC: {symbol} = {price}")
+                else:
+                    # استخدام السعر من الإشارة كبديل
+                    price = float(signal_data.get('price', 1))
+                    logger.warning(f"⚠️ لم يتم جلب السعر من MEXC، استخدام السعر من الإشارة: {price}")
+            except Exception as price_error:
+                logger.error(f"❌ خطأ في جلب السعر من MEXC: {price_error}")
+                price = float(signal_data.get('price', 1))
+                logger.warning(f"⚠️ استخدام السعر من الإشارة كبديل: {price}")
+            
             # حساب الكمية
-            price = float(signal_data.get('price', 1))
             quantity = trade_amount / price
             
             # وضع الأمر

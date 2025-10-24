@@ -5907,7 +5907,15 @@ async def show_portfolio_settings(update: Update, context: ContextTypes.DEFAULT_
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        # إضافة timestamp لتجنب مشكلة الرسالة المتطابقة
+        message += f"\n🕒 آخر تحديث: {datetime.now().strftime('%H:%M:%S')}"
+        
+        try:
+            await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as edit_error:
+            # في حالة فشل التعديل، إرسال رسالة جديدة
+            logger.warning(f"فشل تعديل الرسالة، إرسال رسالة جديدة: {edit_error}")
+            await update.callback_query.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
         
     except Exception as e:
         logger.error(f"❌ خطأ في عرض إعدادات المحفظة: {e}")
@@ -8230,6 +8238,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "portfolio_main":
         await query.answer("🔙 العودة للمحفظة الرئيسية")
         await portfolio_handler(update, context)
+        return
+    
+    if data == "analytics_charts":
+        await query.answer("📈 جاري تحميل الرسوم البيانية...")
+        await show_analytics_charts(update, context, user_id)
         return
     
     # معالجات الأزرار القديمة (للتوافق) - إزالة التكرار
@@ -10592,6 +10605,33 @@ def main():
     
     # بدء التحديث الدوري
     start_price_updates()
+
+async def show_analytics_charts(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """عرض الرسوم البيانية والتحليلات"""
+    try:
+        # رسالة مؤقتة للرسوم البيانية
+        keyboard = [
+            [InlineKeyboardButton("📊 تحليل الأداء", callback_data="performance_analysis")],
+            [InlineKeyboardButton("📈 الرسوم البيانية", callback_data="price_charts")],
+            [InlineKeyboardButton("📋 تقرير مفصل", callback_data="portfolio_report")],
+            [InlineKeyboardButton("🔙 العودة للمحفظة", callback_data="portfolio_main")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.callback_query.edit_message_text(
+            "📈 الرسوم البيانية والتحليلات\n\n🚧 قيد التطوير...\n\n💡 سيتم إضافة:\n• الرسوم البيانية التفاعلية\n• تحليل الأداء\n• المؤشرات الفنية",
+            reply_markup=reply_markup
+        )
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض الرسوم البيانية: {e}")
+        keyboard = [[InlineKeyboardButton("🔙 العودة للمحفظة", callback_data="portfolio_main")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.callback_query.edit_message_text(
+            "❌ خطأ في تحميل الرسوم البيانية\n\n🚧 قيد التطوير...",
+            reply_markup=reply_markup
+        )
     
     # تشغيل البوت
     application.run_polling(allowed_updates=Update.ALL_TYPES)
