@@ -93,13 +93,33 @@ class MEXCTradingBot:
                 logger.error(f"نوع طلب غير مدعوم: {method}")
                 return None
             
-            response.raise_for_status()
-            return response.json()
+            # تسجيل تفاصيل الطلب للمساعدة في التشخيص
+            logger.info(f"طلب MEXC: {method} {endpoint}")
+            logger.info(f"المعاملات: {params}")
+            
+            # التحقق من حالة الاستجابة
+            if response.status_code != 200:
+                logger.error(f"خطأ في استجابة MEXC: {response.status_code}")
+                logger.error(f"محتوى الخطأ: {response.text}")
+                return None
+            
+            response_data = response.json()
+            
+            # التحقق من وجود خطأ في الاستجابة
+            if 'code' in response_data and response_data['code'] != 0:
+                logger.error(f"خطأ من MEXC API: {response_data}")
+                return None
+            
+            logger.info(f"استجابة MEXC ناجحة: {response_data}")
+            return response_data
             
         except requests.exceptions.RequestException as e:
             logger.error(f"خطأ في الطلب إلى MEXC: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f"تفاصيل الخطأ: {e.response.text}")
+            return None
+        except Exception as e:
+            logger.error(f"خطأ غير متوقع في MEXC: {e}")
             return None
     
     def get_account_balance(self) -> Optional[Dict]:
@@ -251,11 +271,15 @@ class MEXCTradingBot:
             معلومات الأمر أو None في حالة الخطأ
         """
         try:
+            logger.info(f"محاولة وضع أمر {side} {quantity} {symbol} على MEXC")
+            
             # الحصول على معلومات الرمز
             symbol_info = self.get_symbol_info(symbol)
             if not symbol_info:
                 logger.error(f"فشل في الحصول على معلومات {symbol}")
                 return None
+            
+            logger.info(f"معلومات الرمز: {symbol_info}")
             
             # التحقق من أن التداول الفوري مسموح
             if not symbol_info['is_spot_trading_allowed']:
@@ -264,6 +288,7 @@ class MEXCTradingBot:
             
             # تنسيق الكمية
             formatted_quantity = self._format_quantity(quantity, symbol_info)
+            logger.info(f"الكمية المنسقة: {formatted_quantity}")
             
             # بناء معاملات الأمر
             params = {
@@ -281,26 +306,31 @@ class MEXCTradingBot:
                 params['price'] = f"{price:.8f}".rstrip('0').rstrip('.')
                 params['timeInForce'] = 'GTC'  # Good Till Cancel
             
+            logger.info(f"معاملات الأمر: {params}")
+            
             # إرسال الأمر
             result = self._make_request('POST', '/api/v3/order', params, signed=True)
             
             if result:
-                logger.info(f"تم وضع أمر {side} لـ {symbol}: {result}")
+                logger.info(f"تم وضع أمر {side} لـ {symbol} بنجاح: {result}")
                 return {
-                    'order_id': result.get('orderId'),
+                    'orderId': result.get('orderId'),
                     'symbol': result.get('symbol'),
                     'side': result.get('side'),
                     'type': result.get('type'),
-                    'quantity': result.get('origQty'),
+                    'origQty': result.get('origQty'),
                     'price': result.get('price'),
                     'status': result.get('status'),
-                    'time': result.get('transactTime')
+                    'transactTime': result.get('transactTime')
                 }
             
+            logger.error(f"فشل في وضع الأمر - لم يتم إرجاع نتيجة من MEXC")
             return None
             
         except Exception as e:
             logger.error(f"خطأ في وضع أمر على MEXC: {e}")
+            import traceback
+            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
             return None
     
     def get_order_status(self, symbol: str, order_id: str) -> Optional[Dict]:

@@ -631,13 +631,26 @@ class SignalExecutor:
             # حساب الكمية
             price = float(signal_data.get('price', 1))
             if price <= 0:
-                logger.error(f"❌ سعر غير صحيح لـ {symbol}: {price}")
+                logger.error(f"سعر غير صحيح لـ {symbol}: {price}")
                 return {
                     'success': False,
                     'message': f'Invalid price for {symbol}: {price}',
                     'error': 'INVALID_PRICE'
                 }
+            
+            # حساب الكمية بناءً على مبلغ التداول
             quantity = trade_amount / price
+            
+            # التحقق من أن الكمية ليست صغيرة جداً
+            if quantity < 0.000001:  # أقل من 0.000001
+                logger.error(f"الكمية صغيرة جداً لـ {symbol}: {quantity}")
+                return {
+                    'success': False,
+                    'message': f'Quantity too small for {symbol}: {quantity}',
+                    'error': 'QUANTITY_TOO_SMALL'
+                }
+            
+            logger.info(f"الكمية المحسوبة: {quantity} {symbol} بسعر {price}")
             
             # وضع الأمر
             result = account.place_spot_order(
