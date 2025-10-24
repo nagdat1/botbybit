@@ -48,6 +48,7 @@ except ImportError as e:
 
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
+from enhanced_portfolio_manager import portfolio_factory
 from user_manager import user_manager
 
 # استيراد نظام المطورين
@@ -2445,6 +2446,7 @@ class TradingBot:
                         message += f"\n🛑 Stop Loss: {float(first_sl):.6f}"
                     
                     message += f"\n\n⚠️ تحذير: هذه صفقة حقيقية على منصة Bybit!"
+                    message += "\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك الحقيقية"
                     
                     await self.send_message_to_admin(message)
                     logger.info(f"✅ تم تنفيذ صفقة فيوتشر حقيقية: {order_id}")
@@ -2494,6 +2496,7 @@ class TradingBot:
                         message += f"\n🛑 Stop Loss محسوب: {sl_price:.6f}"
                     
                     message += f"\n\n⚠️ تحذير: هذه صفقة حقيقية على منصة Bybit!"
+                    message += "\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك الحقيقية"
                     
                     await self.send_message_to_admin(message)
                     logger.info(f"✅ تم تنفيذ صفقة سبوت حقيقية: {order_id}")
@@ -2791,7 +2794,7 @@ class TradingBot:
                     # التأكد من أن position هو FuturesPosition
                     if isinstance(position, FuturesPosition):
                         # حفظ معلومات الصفقة في قائمة المستخدم
-                        user_positions[position_id] = {
+                        position_data_dict = {
                             'symbol': symbol,
                             'entry_price': price,
                             'side': action,
@@ -2805,6 +2808,45 @@ class TradingBot:
                             'current_price': price,
                             'pnl_percent': 0.0
                         }
+                        
+                        user_positions[position_id] = position_data_dict
+                        
+                        # حفظ مباشرة في user_manager.user_positions للتأكد
+                        if self.user_id:
+                            if self.user_id not in user_manager.user_positions:
+                                user_manager.user_positions[self.user_id] = {}
+                            user_manager.user_positions[self.user_id][position_id] = position_data_dict.copy()
+                            logger.info(f"✅ تم حفظ صفقة الفيوتشر مباشرة في user_manager.user_positions[{self.user_id}][{position_id}]")
+                        
+                        # حفظ الصفقة في قاعدة البيانات
+                        if self.user_id:
+                            try:
+                                portfolio_manager = portfolio_factory.get_portfolio_manager(self.user_id)
+                                position_data = {
+                                    'order_id': position_id,
+                                    'user_id': self.user_id,
+                                    'symbol': symbol,
+                                    'side': action,
+                                    'entry_price': price,
+                                    'quantity': position.position_size,
+                                    'market_type': user_market_type,
+                                    'exchange': 'bybit',
+                                    'leverage': leverage,
+                                    'status': 'OPEN',
+                                    'notes': f'صفقة فيوتشر تجريبية - {category}'
+                                }
+                                
+                                # إضافة signal_id إذا كان متاحاً
+                                if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                                    position_data['signal_id'] = self._current_signal_id
+                                
+                                success = portfolio_manager.add_position(position_data)
+                                if success:
+                                    logger.info(f"✅ تم حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
+                                else:
+                                    logger.warning(f"⚠️ فشل في حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
+                            except Exception as e:
+                                logger.error(f"❌ خطأ في حفظ صفقة الفيوتشر في قاعدة البيانات: {e}")
                         
                         # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                         if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
@@ -2852,6 +2894,9 @@ class TradingBot:
                             if auto_applied:
                                 message += "\n\n🤖 تم تطبيق الإعدادات التلقائية!"
                         
+                        # إضافة زر للوصول السريع إلى الصفقات المفتوحة
+                        message += "\n\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك"
+                        
                         await self.send_message_to_admin(message)
                     else:
                         await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
@@ -2878,17 +2923,132 @@ class TradingBot:
                 if success:
                     position_id = result
                     
-                    user_positions[position_id] = {
-                        'symbol': symbol,
-                        'entry_price': price,
-                        'side': action,
-                        'account_type': user_market_type,
-                        'leverage': 1,
-                        'category': category,
-                        'amount': amount,
-                        'current_price': price,
-                        'pnl_percent': 0.0
-                    }
+                    logger.info(f"🔍 DEBUG: قبل الحفظ - user_positions = {user_positions}")
+                    logger.info(f"🔍 DEBUG: قبل الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
+                    
+                    # لا نحفظ في user_positions القديم - سنستخدم النظام الجديد فقط
+                    
+                    # استخدام منطق المحفظة الموحدة للصفقات (مثل المحفظة الحقيقية)
+                    if self.user_id:
+                        # إنشاء معرف موحد للعملة (بدون /USDT)
+                        base_currency = symbol.replace('USDT', '').replace('BTC', '').replace('ETH', '')
+                        if symbol.endswith('USDT'):
+                            base_currency = symbol.replace('USDT', '')
+                        elif symbol.endswith('BTC'):
+                            base_currency = symbol.replace('BTC', '')
+                        elif symbol.endswith('ETH'):
+                            base_currency = symbol.replace('ETH', '')
+                        else:
+                            base_currency = symbol.split('/')[0] if '/' in symbol else symbol
+                        
+                        # معرف موحد للمركز (مركز واحد لكل عملة)
+                        unified_position_id = f"SPOT_{base_currency}_{user_market_type}"
+                        
+                        # التأكد من وجود قاموس الصفقات للمستخدم
+                        if self.user_id not in user_manager.user_positions:
+                            user_manager.user_positions[self.user_id] = {}
+                        
+                        # البحث عن المركز الموحد للعملة
+                        if unified_position_id in user_manager.user_positions[self.user_id]:
+                            # تحديث المركز الموجود
+                            existing_pos = user_manager.user_positions[self.user_id][unified_position_id]
+                            
+                            if action.lower() == 'buy':
+                                # شراء: إضافة كمية وحساب متوسط السعر المرجح
+                                old_quantity = existing_pos.get('amount', 0)
+                                old_price = existing_pos.get('entry_price', 0)
+                                new_quantity = old_quantity + amount
+                                
+                                # حساب متوسط السعر المرجح
+                                total_value = (old_quantity * old_price) + (amount * price)
+                                new_average_price = total_value / new_quantity
+                                
+                                # تحديث المركز الموحد
+                                user_manager.user_positions[self.user_id][unified_position_id].update({
+                                    'amount': new_quantity,
+                                    'entry_price': new_average_price,
+                                    'current_price': price,
+                                    'last_update': datetime.now().isoformat()
+                                })
+                                
+                                logger.info(f"✅ تم تحديث المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
+                                
+                            else:  # sell
+                                # بيع: تقليل كمية وحساب الربح
+                                old_quantity = existing_pos.get('amount', 0)
+                                if old_quantity >= amount:
+                                    new_quantity = old_quantity - amount
+                                    
+                                    # حساب الربح من البيع
+                                    profit_usdt = (price - existing_pos.get('entry_price', 0)) * amount
+                                    
+                                    if new_quantity > 0:
+                                        # تحديث الكمية المتبقية
+                                        user_manager.user_positions[self.user_id][unified_position_id].update({
+                                            'amount': new_quantity,
+                                            'current_price': price,
+                                            'last_update': datetime.now().isoformat()
+                                        })
+                                        logger.info(f"✅ تم تقليل كمية المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, ربح البيع={profit_usdt:.2f} USDT")
+                                    else:
+                                        # إغلاق المركز بالكامل
+                                        del user_manager.user_positions[self.user_id][unified_position_id]
+                                        logger.info(f"✅ تم إغلاق المركز الموحد {unified_position_id} بالكامل، ربح إجمالي={profit_usdt:.2f} USDT")
+                                else:
+                                    logger.warning(f"⚠️ كمية البيع {amount} أكبر من الكمية المتاحة {old_quantity}")
+                        else:
+                            # إنشاء مركز جديد للعملة
+                            if action.lower() == 'buy':
+                                user_manager.user_positions[self.user_id][unified_position_id] = {
+                                    'symbol': symbol,
+                                    'base_currency': base_currency,
+                                    'entry_price': price,
+                                    'side': 'buy',  # دائماً buy للمركز الموحد
+                                    'account_type': user_market_type,
+                                    'leverage': 1,
+                                    'category': category,
+                                    'amount': amount,
+                                    'current_price': price,
+                                    'pnl_percent': 0.0,
+                                    'created_at': datetime.now().isoformat(),
+                                    'last_update': datetime.now().isoformat()
+                                }
+                                logger.info(f"✅ تم إنشاء مركز موحد جديد {unified_position_id}: كمية={amount}, سعر={price:.6f}")
+                            else:
+                                logger.warning(f"⚠️ محاولة بيع {symbol} بدون رصيد متاح")
+                    
+                    logger.info(f"🔍 DEBUG: بعد الحفظ - user_positions = {user_positions}")
+                    logger.info(f"🔍 DEBUG: بعد الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
+                    
+                    # حفظ الصفقة في قاعدة البيانات
+                    if self.user_id:
+                        try:
+                            portfolio_manager = portfolio_factory.get_portfolio_manager(self.user_id)
+                            position_data = {
+                                'order_id': position_id,
+                                'user_id': self.user_id,
+                                'symbol': symbol,
+                                'side': action,
+                                'entry_price': price,
+                                'quantity': amount,
+                                'market_type': user_market_type,
+                                'exchange': 'bybit',
+                                'leverage': 1,
+                                'status': 'OPEN',
+                                'notes': f'صفقة سبوت تجريبية - {category}'
+                            }
+                            
+                            # إضافة signal_id إذا كان متاحاً
+                            if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                                position_data['signal_id'] = self._current_signal_id
+                            
+                            success = portfolio_manager.add_position(position_data)
+                            if success:
+                                logger.info(f"✅ تم حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
+                            else:
+                                logger.warning(f"⚠️ فشل في حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
+                        except Exception as e:
+                            logger.error(f"❌ خطأ في حفظ صفقة السبوت في قاعدة البيانات: {e}")
                     
                     # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                     if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
@@ -2904,15 +3064,52 @@ class TradingBot:
                     
                     logger.info(f"تم فتح صفقة سبوت: ID={position_id}, الرمز={symbol}, user_id={self.user_id}")
                     
-                    message = f"📈 تم فتح صفقة سبوت تجريبية\n"
-                    if self.user_id:
+                    # تحديد نوع الرسالة بناءً على ما حدث
+                    if unified_position_id in user_manager.user_positions.get(self.user_id, {}) and action.lower() == 'buy':
+                        # تم تحديث مركز موجود - الحصول على متوسط السعر من المركز المحدث
+                        updated_position = user_manager.user_positions[self.user_id][unified_position_id]
+                        current_avg_price = updated_position.get('entry_price', price)
+                        
+                        message = f"📈 تم تحديث المركز الموحد للعملة\n"
                         message += f"👤 المستخدم: {self.user_id}\n"
-                    message += f"📊 الرمز: {symbol}\n"
-                    message += f"🔄 النوع: {action.upper()}\n"
-                    message += f"💰 المبلغ: {amount}\n"
-                    message += f"💲 سعر الدخول: {price:.6f}\n"
-                    message += f"🏪 السوق: SPOT\n"
-                    message += f"🆔 رقم الصفقة: {position_id}\n"
+                        message += f"📊 العملة: {base_currency}\n"
+                        message += f"🔄 العملية: {action.upper()} (مجمعة)\n"
+                        message += f"💰 الكمية المضافة: {amount}\n"
+                        message += f"💲 متوسط السعر الجديد: {current_avg_price:.6f}\n"
+                        message += f"🏪 السوق: SPOT\n"
+                        message += f"🆔 معرف المركز: {unified_position_id}\n"
+                    elif action.lower() == 'sell' and unified_position_id in user_manager.user_positions.get(self.user_id, {}):
+                        # تم بيع جزئي أو كامل
+                        old_quantity = user_manager.user_positions[self.user_id][unified_position_id].get('amount', 0)
+                        if old_quantity > amount:
+                            message = f"📉 تم بيع جزئي من المركز\n"
+                            message += f"👤 المستخدم: {self.user_id}\n"
+                            message += f"📊 العملة: {base_currency}\n"
+                            message += f"🔄 العملية: {action.upper()}\n"
+                            message += f"💰 الكمية المباعة: {amount}\n"
+                            message += f"💲 السعر الحالي: {price:.6f}\n"
+                            message += f"🏪 السوق: SPOT\n"
+                            message += f"🆔 معرف المركز: {unified_position_id}\n"
+                        else:
+                            message = f"📉 تم إغلاق المركز بالكامل\n"
+                            message += f"👤 المستخدم: {self.user_id}\n"
+                            message += f"📊 العملة: {base_currency}\n"
+                            message += f"🔄 العملية: {action.upper()}\n"
+                            message += f"💰 الكمية المباعة: {amount}\n"
+                            message += f"💲 السعر النهائي: {price:.6f}\n"
+                            message += f"🏪 السوق: SPOT\n"
+                            message += f"🆔 معرف المركز: {unified_position_id}\n"
+                    else:
+                        # مركز جديد
+                        message = f"📈 تم إنشاء مركز موحد جديد\n"
+                        if self.user_id:
+                            message += f"👤 المستخدم: {self.user_id}\n"
+                        message += f"📊 العملة: {base_currency}\n"
+                        message += f"🔄 العملية: {action.upper()}\n"
+                        message += f"💰 الكمية: {amount}\n"
+                        message += f"💲 سعر الدخول: {price:.6f}\n"
+                        message += f"🏪 السوق: SPOT\n"
+                        message += f"🆔 معرف المركز: {unified_position_id}\n"
                     
                     # إضافة معلومات ID الإشارة إذا كان متاحاً
                     if hasattr(self, '_current_signal_id') and self._current_signal_id:
@@ -2930,6 +3127,9 @@ class TradingBot:
                         )
                         if auto_applied:
                             message += "\n\n🤖 تم تطبيق الإعدادات التلقائية!"
+                    
+                    # إضافة زر للوصول السريع إلى الصفقات المفتوحة
+                    message += "\n\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك"
                     
                     await self.send_message_to_admin(message)
                 else:
@@ -3398,7 +3598,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -3511,8 +3710,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-        [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")]
+        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -5348,13 +5546,17 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ خطأ في عرض حالة الحساب")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت"""
+    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - محسن"""
     try:
         # الحصول على معرف المستخدم
         user_id = update.effective_user.id if update.effective_user else None
         
-        # جمع جميع الصفقات المفتوحة من المصادر المختلفة
-        all_positions = {}
+        if not user_id:
+            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+        
+        # استخدام مدير المحفظة المحسن
+        portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
         
         # 🔍 التحقق من نوع الحساب
         user_settings = user_manager.get_user_settings(user_id) if user_id else None
@@ -5362,72 +5564,63 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         market_type = user_settings.get('market_type', 'spot') if user_settings else 'spot'
         
         logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
+        logger.info(f"🔍 DEBUG: user_settings = {user_settings}")
         
-        if account_type == 'real':
-            # 🔴 حساب حقيقي - جلب الصفقات من المنصة
-            from real_account_manager import real_account_manager
-            
-            real_account = real_account_manager.get_account(user_id)
-            user_data = user_manager.get_user(user_id)
-            exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
-            
-            logger.info(f"🔴 جلب الصفقات الحقيقية من منصة {exchange.upper()}...")
-            
-            try:
-                platform_positions = []
-                
-                if real_account:
-                    if exchange == 'bybit' and hasattr(real_account, 'get_open_positions'):
-                        # تحديد الفئة بناءً على نوع السوق
-                        category = "linear" if market_type == 'futures' else "spot"
-                        platform_positions = real_account.get_open_positions(category)
-                    elif exchange == 'mexc' and hasattr(real_account, 'get_open_orders'):
-                        # MEXC تدعم Spot فقط - جلب الأوامر المفتوحة
-                        platform_positions = real_account.get_open_orders()
-                
-                if platform_positions:
-                    logger.info(f"✅ تم جلب {len(platform_positions)} صفقة من المنصة")
-                    
-                    # تحويل الصفقات من صيغة المنصة إلى صيغة البوت
-                    for idx, pos in enumerate(platform_positions):
-                        position_id = f"real_{pos.get('symbol')}_{idx}"
-                        
-                        all_positions[position_id] = {
-                            'symbol': pos.get('symbol'),
-                            'entry_price': float(pos.get('entry_price', pos.get('avgPrice', pos.get('price', 0)))),
-                            'side': pos.get('side', 'Buy').lower(),
-                            'account_type': market_type,
-                            'leverage': int(pos.get('leverage', 1)),
-                            'exchange': exchange,
-                            'position_size': float(pos.get('size', 0)),
-                            'current_price': float(pos.get('mark_price', pos.get('markPrice', pos.get('avgPrice', 0)))),
-                            'pnl_percent': float(pos.get('unrealized_pnl', pos.get('unrealisedPnl', 0))),
-                            'liquidation_price': float(pos.get('liquidation_price', pos.get('liqPrice', 0))) if market_type == 'futures' else 0,
-                            'is_real_position': True  # علامة للتمييز
-                        }
-                        
-                        logger.info(f"📊 صفقة حقيقية: {pos.get('symbol')} - {pos.get('side')}")
-                else:
-                    logger.info("لا توجد صفقات مفتوحة على المنصة")
-                    
-            except Exception as e:
-                logger.error(f"❌ خطأ في جلب الصفقات من المنصة: {e}")
-                await update.message.reply_text(f"⚠️ تعذر جلب الصفقات من المنصة: {e}\n\nسيتم عرض الصفقات المحلية فقط.")
+        # استخدام الدالة الموحدة لجمع جميع الصفقات
+        all_positions_list = portfolio_manager.get_all_user_positions_unified(account_type)
+        logger.info(f"🔍 DEBUG: all_positions_list = {all_positions_list}")
         
-        else:
-            # 🟢 حساب تجريبي - جلب الصفقات من داخل البوت
-            logger.info("🟢 عرض الصفقات التجريبية من داخل البوت...")
+        # إضافة الصفقات مباشرة من user_manager.user_positions كإصلاح مؤقت
+        logger.info(f"🔍 DEBUG: جلب الصفقات مباشرة من user_manager.user_positions")
+        direct_positions = user_manager.user_positions.get(user_id, {})
+        logger.info(f"🔍 DEBUG: direct_positions = {direct_positions}")
+        
+        # تحويل القائمة إلى قاموس
+        all_positions = {}
+        
+        # إضافة الصفقات من الدالة الموحدة
+        for position in all_positions_list:
+            position_id = position.get('order_id', f"pos_{position.get('symbol')}_{len(all_positions)}")
+            all_positions[position_id] = {
+                'symbol': position.get('symbol'),
+                'entry_price': position.get('entry_price', 0),
+                'side': position.get('side', 'buy'),
+                'account_type': position.get('market_type', market_type),
+                'leverage': position.get('leverage', 1),
+                'exchange': position.get('exchange', 'bybit'),
+                'position_size': position.get('quantity', 0),
+                'current_price': position.get('current_price', position.get('entry_price', 0)),
+                'pnl_percent': position.get('pnl_percent', 0),
+                'is_real_position': position.get('is_real', False),
+                'source': position.get('source', 'unknown')
+            }
+        
+        # إضافة الصفقات مباشرة من user_manager.user_positions
+        for position_id, position_info in direct_positions.items():
+            if position_id not in all_positions:
+                logger.info(f"🔍 DEBUG: إضافة صفقة مباشرة: {position_id} = {position_info}")
+                all_positions[position_id] = {
+                    'symbol': position_info.get('symbol'),
+                    'entry_price': position_info.get('entry_price', 0),
+                    'side': position_info.get('side', 'buy'),
+                    'account_type': position_info.get('account_type', market_type),
+                    'leverage': position_info.get('leverage', 1),
+                    'exchange': 'bybit',
+                    'position_size': position_info.get('amount', position_info.get('position_size', 0)),
+                    'current_price': position_info.get('current_price', position_info.get('entry_price', 0)),
+                    'pnl_percent': position_info.get('pnl_percent', 0),
+                    'is_real_position': False,
+                    'source': 'direct_memory'
+                }
             
-            # إضافة صفقات المستخدم من user_manager
-            if user_id and user_id in user_manager.user_positions:
-                user_positions = user_manager.user_positions[user_id]
-                all_positions.update(user_positions)
-                logger.info(f"تم العثور على {len(user_positions)} صفقة تجريبية للمستخدم {user_id}")
-            
-            # إضافة الصفقات من trading_bot.open_positions (للإشارات القديمة)
-            all_positions.update(trading_bot.open_positions)
+            # إضافة معلومات إضافية للفيوتشر
+            if position_info.get('account_type') == 'futures':
+                all_positions[position_id]['liquidation_price'] = position_info.get('liquidation_price', 0)
+                all_positions[position_id]['margin_amount'] = position_info.get('margin_amount', 0)
+                all_positions[position_id]['contracts'] = position_info.get('contracts', 0)
         
         logger.info(f"📊 إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
+        logger.info(f"🔍 DEBUG: all_positions = {all_positions}")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
@@ -5511,7 +5704,11 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
         symbol = position_info['symbol']
         entry_price = position_info['entry_price']
         side = position_info['side']
-        amount = position_info.get('amount', position_info.get('margin_amount', 0))
+        # الحصول على الكمية من البيانات (النظام الجديد يستخدم amount فقط)
+        amount = position_info.get('amount', 0)
+        if amount == 0:
+            # محاولة الحصول من الحقول الأخرى للتوافق مع النظام القديم
+            amount = position_info.get('position_size', position_info.get('margin_amount', 0))
         
         # الحصول على السعر الحالي من البيانات المحدثة
         current_price = position_info.get('current_price')
@@ -6954,7 +7151,7 @@ exampleInputEmail: {time_str}
             await update.message.reply_text(f"❌ خطأ في عرض تاريخ التداول: {e}")
 
 async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض نظرة عامة ذكية على المحفظة مع دعم متعدد المنصات"""
+    """عرض نظرة عامة ذكية على المحفظة مع دعم متعدد المنصات - محسن"""
     if update.effective_user is None:
         return
     
@@ -6966,11 +7163,15 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
+        # استخدام مدير المحفظة المحسن
+        portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
+        portfolio_data = portfolio_manager.get_user_portfolio(force_refresh=True)
+        
         # التحقق من نوع الحساب
         account_type = user_data.get('account_type', 'demo')
         market_type = user_data.get('market_type', 'spot')
         
-        wallet_message = "💰 **المحفظة الذكية**\n\n"
+        wallet_message = "💰 **المحفظة الذكية المحسنة**\n\n"
         
         if account_type == 'demo':
             # عرض الحساب التجريبي
@@ -6996,6 +7197,10 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             total_winning_trades = spot_info['winning_trades'] + futures_info['winning_trades']
             total_losing_trades = spot_info['losing_trades'] + futures_info['losing_trades']
             total_win_rate = round((total_winning_trades / max(total_trades, 1)) * 100, 2)
+            
+            # إضافة بيانات من مدير المحفظة المحسن
+            portfolio_summary = portfolio_data.get('summary', {})
+            portfolio_stats = portfolio_data.get('portfolio_stats', {})
             
             # تحديد حالة PnL
             if total_pnl > 0:
@@ -7026,6 +7231,12 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🏪 **تفاصيل الحسابات:**
 • السبوت: {spot_info['balance']:.2f} USDT
 • الفيوتشر: {futures_info['balance']:.2f} USDT
+
+🗄️ **بيانات قاعدة البيانات المحسنة:**
+• الصفقات المحفوظة: {portfolio_summary.get('total_open_positions', 0)}
+• الصفقات المغلقة: {portfolio_summary.get('total_closed_positions', 0)}
+• الرموز المتداولة: {portfolio_summary.get('total_symbols', 0)}
+• قيمة المحفظة: {portfolio_summary.get('portfolio_value', 0):.2f} USDT
             """
             
         else:
@@ -7317,248 +7528,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cmd_select_exchange(update, context)
         return
     
-    # معالجة أزرار النظام الجديد
-    if data == "system_stats":
-        try:
-            from signal_system_integration import signal_system_integration
-            
-            if signal_system_integration.is_available():
-                status = signal_system_integration.get_integration_status()
-                
-                message = f"""
-📊 **إحصائيات النظام**
-
-🔧 **حالة التكامل:**
-• الإصدار: {status['version']}
-• الحالة: {status['status']}
-• الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}
-
-📈 **تفاصيل الأنظمة:**
-"""
-                
-                for system_name, system_status in status['systems'].items():
-                    status_icon = "✅" if system_status else "❌"
-                    message += f"{status_icon} {system_name}\n"
-                
-                message += f"\n⏰ آخر تحديث: {status['timestamp']}"
-            else:
-                message = """
-📊 **إحصائيات النظام**
-
-⚠️ **النظام الجديد غير متاح**
-
-📝 **الأنظمة المتاحة:**
-• ✅ النظام العادي
-• ✅ النظام المحسن (إذا كان متاحاً)
-"""
-            
-            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في عرض إحصائيات النظام: {e}")
-            await query.answer("❌ خطأ في تحميل الإحصائيات")
-        return
-    
-    elif data == "signal_stats":
-        try:
-            from signal_system_integration import signal_system_integration
-            
-            if signal_system_integration.is_available():
-                # محاولة الحصول على إحصائيات الإشارات
-                try:
-                    stats = signal_system_integration.get_processing_statistics(user_id)
-                    message = f"""
-📊 **إحصائيات الإشارات**
-
-👤 **المستخدم:** {user_id}
-⏰ **الوقت:** {stats.get('timestamp', 'غير محدد')}
-
-📈 **الإحصائيات:**
-• إجمالي الإشارات: {stats.get('signal_statistics', {}).get('total_signals', 0)}
-• إشارات الشراء: {stats.get('signal_statistics', {}).get('signals_by_type', {}).get('buy', 0)}
-• إشارات البيع: {stats.get('signal_statistics', {}).get('signals_by_type', {}).get('sell', 0)}
-• الصفقات المفتوحة: {stats.get('account_statistics', {}).get('total_positions', 0)}
-"""
-                except:
-                    message = """
-📊 **إحصائيات الإشارات**
-
-📝 **لا توجد بيانات متاحة حالياً**
-
-💡 **لتفعيل الإحصائيات:**
-• أرسل بعض الإشارات أولاً
-• تأكد من تفعيل النظام الجديد
-"""
-            else:
-                message = """
-📊 **إحصائيات الإشارات**
-
-⚠️ **النظام الجديد غير متاح**
-
-📝 **الإحصائيات المتاحة:**
-• ✅ إحصائيات النظام العادي
-• ✅ عدد الصفقات المفتوحة
-"""
-            
-            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في عرض إحصائيات الإشارات: {e}")
-            await query.answer("❌ خطأ في تحميل الإحصائيات")
-        return
-    
-    elif data == "system_settings":
-        try:
-            message = """
-🔧 **إعدادات النظام**
-
-⚙️ **الإعدادات المتاحة:**
-• 🔄 تحديث النظام
-• 🧪 اختبار النظام
-• 📊 عرض حالة النظام
-• 🔧 إعدادات الإشارات
-
-💡 **لتفعيل النظام الجديد:**
-تأكد من وجود جميع الملفات المطلوبة
-"""
-            
-            keyboard = [
-                [InlineKeyboardButton("🔄 تحديث النظام", callback_data="refresh_systems")],
-                [InlineKeyboardButton("🧪 اختبار النظام", callback_data="test_system")],
-                [InlineKeyboardButton("📊 حالة النظام", callback_data="system_stats")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في عرض إعدادات النظام: {e}")
-            await query.answer("❌ خطأ في تحميل الإعدادات")
-        return
-    
-    elif data == "signal_settings":
-        try:
-            message = """
-🔧 **إعدادات نظام الإشارات**
-
-⚙️ **الإعدادات المتاحة:**
-• 🆔 إعدادات ID الإشارات
-• 🔗 إعدادات ربط الإشارات
-• 💼 إعدادات الحسابات
-• 📊 إعدادات التتبع
-
-💡 **الميزات المدعومة:**
-• نظام ID للإشارات
-• ربط الإشارات بنفس ID
-• دعم الحسابات المتعددة
-"""
-            
-            keyboard = [
-                [InlineKeyboardButton("🆔 إعدادات ID", callback_data="id_settings")],
-                [InlineKeyboardButton("🔗 إعدادات الربط", callback_data="link_settings")],
-                [InlineKeyboardButton("💼 إعدادات الحسابات", callback_data="account_settings")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في عرض إعدادات الإشارات: {e}")
-            await query.answer("❌ خطأ في تحميل الإعدادات")
-        return
-    
-    elif data == "test_system":
-        try:
-            from signal_system_integration import signal_system_integration
-            
-            if signal_system_integration.is_available():
-                # اختبار النظام
-                test_signal = {
-                    'signal': 'buy',
-                    'symbol': 'BTCUSDT',
-                    'id': 'TEST_' + str(int(time.time()))
-                }
-                
-                result = signal_system_integration.process_signal(test_signal, user_id)
-                
-                if result.get('success'):
-                    message = f"""
-🧪 **اختبار النظام**
-
-✅ **النتيجة:** نجح الاختبار
-
-📊 **تفاصيل الاختبار:**
-• الإشارة: {test_signal['signal']} {test_signal['symbol']}
-• ID: {test_signal['id']}
-• المستخدم: {user_id}
-• النظام المستخدم: {result.get('system_used', 'غير محدد')}
-
-✅ **النظام يعمل بشكل صحيح**
-"""
-                else:
-                    message = f"""
-🧪 **اختبار النظام**
-
-❌ **النتيجة:** فشل الاختبار
-
-📊 **تفاصيل الاختبار:**
-• الإشارة: {test_signal['signal']} {test_signal['symbol']}
-• ID: {test_signal['id']}
-• المستخدم: {user_id}
-• الخطأ: {result.get('message', 'غير محدد')}
-
-⚠️ **يوجد مشكلة في النظام**
-"""
-            else:
-                message = """
-🧪 **اختبار النظام**
-
-⚠️ **النظام الجديد غير متاح**
-
-📝 **لا يمكن إجراء الاختبار**
-
-💡 **لتفعيل النظام:**
-تأكد من وجود جميع الملفات المطلوبة
-"""
-            
-            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في اختبار النظام: {e}")
-            await query.answer("❌ خطأ في اختبار النظام")
-        return
-    
-    elif data == "refresh_systems":
-        try:
-            # إعادة تحميل النظام
-            message = """
-🔄 **تحديث النظام**
-
-⏳ **جاري التحديث...**
-
-✅ **تم التحديث بنجاح**
-
-💡 **للتأكد من التحديث:**
-اضغط على زر "📊 إحصائيات النظام"
-"""
-            
-            keyboard = [
-                [InlineKeyboardButton("📊 إحصائيات النظام", callback_data="system_stats")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في تحديث النظام: {e}")
-            await query.answer("❌ خطأ في التحديث")
-        return
     
     elif data == "main_menu":
         await start(update, context)
@@ -8467,8 +8436,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [
                 [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
                 [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-                [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-                [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")]
+                [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
             ]
             
             # إضافة زر مخفي للمطور للعودة لوضع المطور (يظهر فقط للمطورين)
@@ -8486,142 +8454,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
             return
     
-    # معالجة أزرار الأدوات المتقدمة (للمطورين والمستخدمين)
-    if text == "🔧 الأدوات المتقدمة":
-        try:
-            from signal_system_integration import signal_system_integration
-            
-            if signal_system_integration.is_available():
-                status = signal_system_integration.get_integration_status()
-                
-                message = f"""
-🔧 **الأدوات المتقدمة المتاحة**
-
-📊 **حالة التكامل:**
-• الإصدار: {status['version']}
-• الحالة: {status['status']}
-• الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}
-
-✨ **الأنظمة المتاحة:**
-"""
-                
-                for system_name, system_status in status['systems'].items():
-                    status_icon = "✅" if system_status else "❌"
-                    message += f"{status_icon} {system_name}\n"
-            else:
-                message = """
-🔧 **الأدوات المتقدمة**
-
-⚠️ **النظام الجديد غير متاح حالياً**
-
-📝 **الأنظمة المتاحة:**
-• ✅ النظام العادي
-• ✅ النظام المحسن (إذا كان متاحاً)
-
-💡 **لتفعيل النظام الجديد:**
-تأكد من وجود جميع الملفات المطلوبة
-"""
-            
-            keyboard = [
-                [InlineKeyboardButton("📊 إحصائيات النظام", callback_data="system_stats")],
-                [InlineKeyboardButton("🔧 إعدادات النظام", callback_data="system_settings")],
-                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في عرض الأدوات المتقدمة: {e}")
-            keyboard = [
-                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(f"""
-🔧 **الأدوات المتقدمة**
-
-❌ **خطأ في تحميل النظام:**
-{e}
-
-📝 **الأنظمة المتاحة:**
-• ✅ النظام العادي
-• ✅ النظام المحسن (إذا كان متاحاً)
-""", reply_markup=reply_markup, parse_mode='Markdown')
-        return
-    
-    elif text == "🎯 نظام الإشارات":
-        try:
-            from signal_system_integration import signal_system_integration
-            
-            if signal_system_integration.is_available():
-                status = signal_system_integration.get_integration_status()
-                
-                message = f"""
-🎯 **نظام إدارة الإشارات المتقدم**
-
-📊 **الحالة:**
-• الإصدار: {status['version']}
-• الحالة: {status['status']}
-• الأنظمة المتاحة: {status['available_systems']}/{status['total_systems']}
-
-✨ **الميزات:**
-• 🆔 إدارة إشارات متقدمة مع ID
-• 🔗 ربط الإشارات بنفس ID (اختياري)
-• 💼 دعم الحسابات التجريبية والحقيقية
-• 📊 دعم أسواق Spot و Futures
-• 📈 تتبع الصفقات والإحصائيات
-
-🔧 **الأنظمة المتاحة:**
-"""
-                
-                for system_name, system_status in status['systems'].items():
-                    status_icon = "✅" if system_status else "❌"
-                    message += f"{status_icon} {system_name}\n"
-            else:
-                message = """
-🎯 **نظام إدارة الإشارات**
-
-⚠️ **النظام الجديد غير متاح حالياً**
-
-📝 **الميزات المتاحة:**
-• ✅ نظام ID للإشارات (مطبق جزئياً)
-• ✅ معالجة الإشارات الأساسية
-• ✅ دعم الحسابات التجريبية والحقيقية
-
-💡 **لتفعيل النظام الجديد:**
-تأكد من وجود جميع الملفات المطلوبة
-"""
-            
-            keyboard = [
-                [InlineKeyboardButton("📊 إحصائيات الإشارات", callback_data="signal_stats")],
-                [InlineKeyboardButton("🔧 إعدادات النظام", callback_data="signal_settings")],
-                [InlineKeyboardButton("🧪 اختبار النظام", callback_data="test_system")],
-                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"خطأ في عرض نظام الإشارات: {e}")
-            keyboard = [
-                [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_systems")],
-                [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(f"""
-🎯 **نظام إدارة الإشارات**
-
-❌ **خطأ في تحميل النظام:**
-{e}
-
-📝 **الميزات المتاحة:**
-• ✅ نظام ID للإشارات (مطبق جزئياً)
-• ✅ معالجة الإشارات الأساسية
-• ✅ دعم الحسابات التجريبية والحقيقية
-""", reply_markup=reply_markup, parse_mode='Markdown')
-        return
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
