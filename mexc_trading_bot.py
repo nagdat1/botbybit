@@ -40,24 +40,45 @@ class MEXCTradingBot:
             'Content-Type': 'application/json'
         })
         
+        # Rate Limiting: حسب ملف السياق - حتى 5 طلبات/ثانية
+        self.last_request_time = 0
+        self.min_request_interval = 0.2  # 200ms بين الطلبات (5 طلبات/ثانية)
+        
         logger.info(f"تم تهيئة MEXC Trading Bot - Base URL: {self.base_url}")
+        logger.info(f"⚙️ Rate Limit: {1/self.min_request_interval} طلبات/ثانية")
     
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         """
-        توليد التوقيع للطلبات
+        توليد التوقيع للطلبات وفقاً لمتطلبات MEXC
+        طريقة التوقيع: HMAC SHA256 كما هو موضح في ملف السياق
         
         Args:
-            params: معاملات الطلب
+            params: معاملات الطلب (بدون signature)
             
         Returns:
             التوقيع
         """
-        query_string = urlencode(sorted(params.items()))
+        # إزالة signature إذا كانت موجودة (لتجنب التوقيع الذاتي)
+        params_copy = {k: v for k, v in params.items() if k != 'signature'}
+        
+        # ترتيب المعاملات أبجدياً وتحويلها إلى query string
+        # MEXC تتطلب ترتيب أبجدي للمعاملات
+        sorted_params = sorted(params_copy.items())
+        query_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
+        
+        logger.info(f"🔑 Query string للتوقيع: {query_string}")
+        logger.info(f"🔐 API Secret (أول 8 أحرف): {self.api_secret[:8]}...")
+        
+        # توليد التوقيع باستخدام HMAC-SHA256
+        # وفقاً لـ MEXC API Documentation
         signature = hmac.new(
             self.api_secret.encode('utf-8'),
             query_string.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
+        
+        logger.info(f"✅ التوقيع المُولد: {signature}")
+        
         return signature
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None, signed: bool = False) -> Optional[Dict]:
@@ -79,13 +100,28 @@ class MEXCTradingBot:
         url = f"{self.base_url}{endpoint}"
         
         try:
+            # Rate Limiting: التحكم في معدل الطلبات (5 طلبات/ثانية)
+            current_time = time.time()
+            time_since_last_request = current_time - self.last_request_time
+            if time_since_last_request < self.min_request_interval:
+                sleep_time = self.min_request_interval - time_since_last_request
+                logger.info(f"⏳ Rate Limit: انتظار {sleep_time:.3f} ثانية...")
+                time.sleep(sleep_time)
+            
+            self.last_request_time = time.time()
+            
             if signed:
+                # إضافة timestamp
                 params['timestamp'] = int(time.time() * 1000)
+                
+                # توليد التوقيع (بدون signature في المعاملات)
                 signature = self._generate_signature(params)
+                
+                # إضافة التوقيع إلى المعاملات
                 params['signature'] = signature
                 
                 logger.info(f"🔐 التوقيع المُولد: {signature}")
-                logger.info(f"📋 المعاملات للتوقيع: {params}")
+                logger.info(f"📋 المعاملات النهائية: {params}")
             
             # MEXC تتطلب إرسال جميع المعاملات (بما في ذلك التوقيع) في query string
             # وليس في body، حتى لطلبات POST
@@ -108,6 +144,14 @@ class MEXCTradingBot:
             if response.status_code != 200:
                 logger.error(f"خطأ في استجابة MEXC: {response.status_code}")
                 logger.error(f"محتوى الخطأ: {response.text}")
+                
+                # معالجة أخطاء محددة حسب ملف السياق
+                if response.status_code == 429:
+                    logger.warning("⚠️ Rate Limit تم تجاوزه (429) - توقف مؤقت...")
+                    time.sleep(2)  # توقف مؤقت (backoff)
+                    return None
+                elif response.status_code >= 500:
+                    logger.error("❌ خطأ في خادم MEXC (5xx) - يُنصح بالاستعلام عن حالة الطلب")
                 
                 # محاولة تحليل الخطأ
                 try:
@@ -354,12 +398,19 @@ class MEXCTradingBot:
                 return None
             
             # بناء معاملات الأمر
+            # إضافة clientOrderId لضمان عدم التكرار (Idempotency)
+            import uuid
+            client_order_id = f"bot-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
+            
             params = {
                 'symbol': symbol,
                 'side': side.upper(),
                 'type': order_type.upper(),
-                'quantity': formatted_quantity
+                'quantity': formatted_quantity,
+                'newClientOrderId': client_order_id  # لضمان عدم تكرار الأمر
             }
+            
+            logger.info(f"🆔 Client Order ID: {client_order_id}")
             
             # إضافة السعر لأوامر LIMIT
             if order_type.upper() == 'LIMIT':
