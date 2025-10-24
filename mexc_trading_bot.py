@@ -231,9 +231,14 @@ class MEXCTradingBot:
             معلومات الرصيد أو None في حالة الخطأ
         """
         try:
+            logger.info("📊 جلب رصيد الحساب من MEXC...")
             result = self._make_request('GET', '/api/v3/account', signed=True)
             
+            logger.info(f"📥 استجابة رصيد الحساب: {result}")
+            
             if result and 'balances' in result:
+                logger.info("✅ تم جلب رصيد الحساب بنجاح")
+                
                 # تنسيق البيانات
                 balances = {}
                 for balance in result['balances']:
@@ -248,6 +253,8 @@ class MEXCTradingBot:
                             'total': free + locked
                         }
                 
+                logger.info(f"💰 الأرصدة المتاحة: {list(balances.keys())}")
+                
                 return {
                     'balances': balances,
                     'can_trade': result.get('canTrade', False),
@@ -255,10 +262,13 @@ class MEXCTradingBot:
                     'can_deposit': result.get('canDeposit', False)
                 }
             
+            logger.error("❌ فشل جلب رصيد الحساب - استجابة غير صحيحة")
             return None
             
         except Exception as e:
-            logger.error(f"خطأ في الحصول على رصيد MEXC: {e}")
+            logger.error(f"❌ خطأ في الحصول على رصيد MEXC: {e}")
+            import traceback
+            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
             return None
     
     def get_ticker_price(self, symbol: str) -> Optional[float]:
@@ -651,25 +661,52 @@ class MEXCTradingBot:
             True إذا كان الاتصال ناجحاً، False خلاف ذلك
         """
         try:
-            # اختبار الاتصال العام
+            logger.info("🔍 بدء اختبار الاتصال بـ MEXC...")
+            
+            # اختبار الاتصال العام أولاً
+            logger.info("1️⃣ اختبار الاتصال العام...")
             result = self._make_request('GET', '/api/v3/ping')
             if result is not None:
-                logger.info("✅ الاتصال بـ MEXC API ناجح")
+                logger.info("✅ الاتصال العام بـ MEXC API ناجح")
+            else:
+                logger.error("❌ فشل الاتصال العام بـ MEXC API")
+                return False
+            
+            # اختبار الاتصال المصادق عليه
+            logger.info("2️⃣ اختبار الاتصال المصادق عليه...")
+            account = self.get_account_balance()
+            if account:
+                logger.info("✅ المصادقة على MEXC API ناجحة")
                 
-                # اختبار الاتصال المصادق عليه
-                account = self.get_account_balance()
-                if account:
-                    logger.info("✅ المصادقة على MEXC API ناجحة")
+                # فحص الصلاحيات
+                can_trade = account.get('can_trade', False)
+                logger.info(f"📋 يمكن التداول: {can_trade}")
+                
+                if can_trade:
+                    logger.info("✅ جميع الصلاحيات متاحة")
                     return True
                 else:
-                    logger.warning("⚠️ فشلت المصادقة على MEXC API")
+                    logger.warning("⚠️ صلاحية التداول غير مفعلة")
                     return False
-            
-            logger.error("❌ فشل الاتصال بـ MEXC API")
-            return False
+            else:
+                logger.error("❌ فشلت المصادقة على MEXC API")
+                
+                # تشخيص مفصل
+                logger.info("🔍 تشخيص مفصل للمشكلة...")
+                logger.info(f"API Key: {self.api_key[:8]}...")
+                logger.info(f"API Secret: {self.api_secret[:8]}...")
+                
+                # اختبار التوقيع
+                test_params = {'timestamp': int(time.time() * 1000)}
+                signature = self._generate_signature(test_params)
+                logger.info(f"🔐 التوقيع التجريبي: {signature}")
+                
+                return False
             
         except Exception as e:
             logger.error(f"❌ خطأ في اختبار الاتصال بـ MEXC: {e}")
+            import traceback
+            logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
             return False
 
 
