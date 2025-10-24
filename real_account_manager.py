@@ -391,11 +391,19 @@ class MEXCRealAccount:
         return self.bot.get_trade_history(symbol, limit)
     
     def get_ticker(self, category: str, symbol: str) -> Optional[Dict]:
-        """الحصول على معلومات السعر"""
-        price = self.bot.get_ticker_price(symbol)
-        if price:
-            return {'lastPrice': str(price)}
-        return None
+        """الحصول على معلومات السعر - محسن لـ MEXC"""
+        try:
+            logger.info(f"🔍 MEXCRealAccount - جلب السعر لـ {symbol}")
+            price = self.bot.get_ticker_price(symbol)
+            if price:
+                logger.info(f"✅ MEXCRealAccount - السعر: {price}")
+                return {'lastPrice': str(price)}
+            else:
+                logger.error(f"❌ MEXCRealAccount - فشل جلب السعر لـ {symbol}")
+                return None
+        except Exception as e:
+            logger.error(f"❌ MEXCRealAccount - خطأ في جلب السعر: {e}")
+            return None
 
 
 class RealAccountManager:

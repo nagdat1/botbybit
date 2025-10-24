@@ -35,8 +35,9 @@ class MEXCTradingBot:
         self.base_url = "https://api.mexc.com"
         
         self.session = requests.Session()
+        # لا نضع API key في الـ headers الافتراضية
+        # سيتم إضافته فقط للطلبات الموقعة
         self.session.headers.update({
-            'X-MEXC-APIKEY': self.api_key,
             'Content-Type': 'application/json'
         })
         
@@ -87,7 +88,13 @@ class MEXCTradingBot:
         url = f"{self.base_url}{endpoint}"
         
         try:
+            # إعداد headers حسب نوع الطلب
+            headers = {}
+            
             if signed:
+                # إضافة API key للطلبات الموقعة
+                headers['X-MEXC-APIKEY'] = self.api_key
+                
                 # إضافة timestamp للتوقيع
                 timestamp = int(time.time() * 1000)
                 params['timestamp'] = timestamp
@@ -96,20 +103,22 @@ class MEXCTradingBot:
                 signature = self._generate_signature(params)
                 params['signature'] = signature
                 
-                logger.info(f"MEXC Request - Method: {method}, Endpoint: {endpoint}")
+                logger.info(f"MEXC Request - Method: {method}, Endpoint: {endpoint} (SIGNED)")
                 logger.info(f"MEXC Request - Params: {params}")
+            else:
+                logger.info(f"MEXC Request - Method: {method}, Endpoint: {endpoint} (PUBLIC)")
             
             # إرسال الطلب حسب النوع
             if method == 'GET':
-                response = self.session.get(url, params=params, timeout=15)
+                response = self.session.get(url, params=params, headers=headers, timeout=15)
             elif method == 'POST':
                 # للطلبات الموقعة، نرسل البيانات في query string
                 if signed:
-                    response = self.session.post(url, params=params, timeout=15)
+                    response = self.session.post(url, params=params, headers=headers, timeout=15)
                 else:
-                    response = self.session.post(url, json=params, timeout=15)
+                    response = self.session.post(url, json=params, headers=headers, timeout=15)
             elif method == 'DELETE':
-                response = self.session.delete(url, params=params, timeout=15)
+                response = self.session.delete(url, params=params, headers=headers, timeout=15)
             else:
                 logger.error(f"نوع طلب غير مدعوم: {method}")
                 return None
@@ -226,7 +235,7 @@ class MEXCTradingBot:
     
     def get_ticker_price(self, symbol: str) -> Optional[float]:
         """
-        الحصول على سعر الرمز الحالي
+        الحصول على سعر الرمز الحالي - محسن للتشخيص
         
         Args:
             symbol: رمز العملة (مثل: BTCUSDT)
@@ -235,15 +244,22 @@ class MEXCTradingBot:
             السعر الحالي أو None في حالة الخطأ
         """
         try:
-            result = self._make_request('GET', '/api/v3/ticker/price', {'symbol': symbol})
+            logger.info(f"🔍 جلب السعر من MEXC لـ {symbol}")
+            # جلب السعر لا يحتاج توقيع - طلب عام
+            result = self._make_request('GET', '/api/v3/ticker/price', {'symbol': symbol}, signed=False)
             
             if result and 'price' in result:
-                return float(result['price'])
-            
-            return None
+                price = float(result['price'])
+                logger.info(f"✅ السعر من MEXC لـ {symbol}: {price}")
+                return price
+            else:
+                logger.error(f"❌ فشل جلب السعر من MEXC لـ {symbol} - النتيجة: {result}")
+                return None
             
         except Exception as e:
-            logger.error(f"خطأ في الحصول على سعر {symbol} من MEXC: {e}")
+            logger.error(f"❌ خطأ في الحصول على سعر {symbol} من MEXC: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_symbol_info(self, symbol: str) -> Optional[Dict]:

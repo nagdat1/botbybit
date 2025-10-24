@@ -152,13 +152,27 @@ class SignalExecutor:
                                 'error': 'PRICE_FETCH_FAILED'
                             }
                     else:
-                        # جلب السعر من MEXC أو منصات أخرى
-                        logger.warning(f"⚠️ جلب السعر من {exchange} غير مدعوم حالياً")
-                        return {
-                            'success': False,
-                            'message': f'Price fetching from {exchange} not implemented',
-                            'error': 'PRICE_FETCH_NOT_SUPPORTED'
-                        }
+                        # جلب السعر من MEXC
+                        logger.info(f"🔍 جلب السعر من MEXC لـ {symbol}...")
+                        try:
+                            price_result = real_account.get_ticker('spot', symbol)
+                            if price_result and 'lastPrice' in price_result:
+                                price = float(price_result['lastPrice'])
+                                logger.info(f"✅ السعر الحالي من MEXC: {price}")
+                            else:
+                                logger.error(f"❌ فشل جلب السعر من MEXC")
+                                return {
+                                    'success': False,
+                                    'message': f'Failed to get current price for {symbol} from MEXC',
+                                    'error': 'PRICE_FETCH_FAILED'
+                                }
+                        except Exception as e:
+                            logger.error(f"❌ خطأ في جلب السعر من MEXC: {e}")
+                            return {
+                                'success': False,
+                                'message': f'Error fetching price from MEXC: {e}',
+                                'error': 'PRICE_FETCH_ERROR'
+                            }
                 except Exception as e:
                     logger.error(f"❌ خطأ في جلب السعر: {e}")
                     return {
