@@ -87,11 +87,13 @@ class MEXCTradingBot:
                 logger.info(f"🔐 التوقيع المُولد: {signature}")
                 logger.info(f"📋 المعاملات للتوقيع: {params}")
             
+            # MEXC تتطلب إرسال جميع المعاملات (بما في ذلك التوقيع) في query string
+            # وليس في body، حتى لطلبات POST
             if method == 'GET':
                 response = self.session.get(url, params=params, timeout=10)
             elif method == 'POST':
-                # للطلبات POST، نرسل البيانات في body بدلاً من params
-                response = self.session.post(url, json=params, timeout=10)
+                # إرسال المعاملات في query string للتوافق مع MEXC API
+                response = self.session.post(url, params=params, timeout=10)
             elif method == 'DELETE':
                 response = self.session.delete(url, params=params, timeout=10)
             else:
