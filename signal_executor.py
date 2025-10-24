@@ -509,6 +509,7 @@ class SignalExecutor:
             quantity = trade_amount / price
             
             # وضع الأمر
+            logger.info(f"🔄 تنفيذ أمر MEXC: {side} {quantity} {symbol}")
             result = account.place_order(
                 symbol=symbol,
                 side=side,
@@ -520,21 +521,28 @@ class SignalExecutor:
                 logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
                 logger.info(f"📋 تفاصيل الأمر: {result}")
                 
+                # التحقق من وجود order_id في النتيجة
+                order_id = result.get('order_id') or result.get('orderId')
+                
                 return {
                     'success': True,
                     'message': f'Order placed: {side} {symbol}',
-                    'order_id': result.get('orderId'),
+                    'order_id': order_id,
                     'symbol': symbol,
                     'side': side,
                     'qty': quantity,
-                    'is_real': True
+                    'is_real': True,
+                    'mexc_response': result  # إضافة الاستجابة الكاملة للتشخيص
                 }
             else:
-                logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على MEXC")
+                logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على MEXC - place_spot_order returned None")
                 return {
                     'success': False,
-                    'message': f'Failed to place order on MEXC',
-                    'error': 'ORDER_FAILED'
+                    'message': f'Failed to place order on MEXC - place_spot_order returned None',
+                    'error': 'ORDER_FAILED',
+                    'symbol': symbol,
+                    'side': side,
+                    'quantity': quantity
                 }
                 
         except Exception as e:

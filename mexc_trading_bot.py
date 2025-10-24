@@ -44,7 +44,7 @@ class MEXCTradingBot:
     
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         """
-        توليد التوقيع للطلبات
+        توليد التوقيع للطلبات - الطريقة الصحيحة لـ MEXC
         
         Args:
             params: معاملات الطلب
@@ -52,17 +52,25 @@ class MEXCTradingBot:
         Returns:
             التوقيع
         """
-        query_string = urlencode(sorted(params.items()))
+        # ترتيب المعاملات أبجدياً
+        sorted_params = sorted(params.items())
+        query_string = urlencode(sorted_params)
+        
+        # إنشاء التوقيع باستخدام HMAC-SHA256
         signature = hmac.new(
             self.api_secret.encode('utf-8'),
             query_string.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
+        
+        logger.debug(f"MEXC Signature - Query: {query_string}")
+        logger.debug(f"MEXC Signature - Generated: {signature}")
+        
         return signature
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None, signed: bool = False) -> Optional[Dict]:
         """
-        إرسال طلب إلى MEXC API
+        إرسال طلب إلى MEXC API - محسن للتوقيع الصحيح
         
         Args:
             method: نوع الطلب (GET, POST, DELETE)
@@ -80,27 +88,103 @@ class MEXCTradingBot:
         
         try:
             if signed:
-                params['timestamp'] = int(time.time() * 1000)
-                params['signature'] = self._generate_signature(params)
+                # إضافة timestamp للتوقيع
+                timestamp = int(time.time() * 1000)
+                params['timestamp'] = timestamp
+                
+                # توليد التوقيع
+                signature = self._generate_signature(params)
+                params['signature'] = signature
+                
+                logger.info(f"MEXC Request - Method: {method}, Endpoint: {endpoint}")
+                logger.info(f"MEXC Request - Params: {params}")
             
+            # إرسال الطلب حسب النوع
             if method == 'GET':
-                response = self.session.get(url, params=params, timeout=10)
+                response = self.session.get(url, params=params, timeout=15)
             elif method == 'POST':
-                response = self.session.post(url, params=params, timeout=10)
+                # للطلبات الموقعة، نرسل البيانات في query string
+                if signed:
+                    response = self.session.post(url, params=params, timeout=15)
+                else:
+                    response = self.session.post(url, json=params, timeout=15)
             elif method == 'DELETE':
-                response = self.session.delete(url, params=params, timeout=10)
+                response = self.session.delete(url, params=params, timeout=15)
             else:
                 logger.error(f"نوع طلب غير مدعوم: {method}")
                 return None
             
-            response.raise_for_status()
-            return response.json()
+            # تسجيل الاستجابة
+            logger.info(f"MEXC Response - Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"MEXC Response - Success: {result}")
+                return result
+            else:
+                # استخدام معالج الأخطاء المحسن
+                self._handle_api_error(response, f"{method} {endpoint}")
+                return None
             
         except requests.exceptions.RequestException as e:
             logger.error(f"خطأ في الطلب إلى MEXC: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f"تفاصيل الخطأ: {e.response.text}")
             return None
+        except Exception as e:
+            logger.error(f"خطأ عام في الطلب إلى MEXC: {e}")
+            return None
+    
+    def _handle_api_error(self, response, operation: str) -> bool:
+        """
+        معالجة أخطاء API بشكل مفصل
+        
+        Args:
+            response: استجابة HTTP
+            operation: العملية التي فشلت
+            
+        Returns:
+            True إذا كان الخطأ يمكن معالجته، False خلاف ذلك
+        """
+        try:
+            if response.status_code == 200:
+                return True
+            
+            # محاولة تحليل رسالة الخطأ
+            try:
+                error_data = response.json()
+                error_code = error_data.get('code', 'UNKNOWN')
+                error_msg = error_data.get('msg', 'خطأ غير معروف')
+                
+                logger.error(f"❌ خطأ MEXC API في {operation}:")
+                logger.error(f"   كود الخطأ: {error_code}")
+                logger.error(f"   الرسالة: {error_msg}")
+                
+                # معالجة أخطاء شائعة
+                if error_code == -1021:  # Invalid timestamp
+                    logger.error("   السبب: timestamp غير صحيح - تحقق من تزامن الوقت")
+                elif error_code == -1022:  # Invalid signature
+                    logger.error("   السبب: توقيع غير صحيح - تحقق من API Secret")
+                elif error_code == -2010:  # Account has insufficient balance
+                    logger.error("   السبب: رصيد غير كافي")
+                elif error_code == -2011:  # Order would immediately match
+                    logger.error("   السبب: الأمر سيتطابق فوراً")
+                elif error_code == -2013:  # Order does not exist
+                    logger.error("   السبب: الأمر غير موجود")
+                elif error_code == -2014:  # API-key format invalid
+                    logger.error("   السبب: تنسيق API Key غير صحيح")
+                elif error_code == -2015:  # Invalid API-key, IP, or permissions for action
+                    logger.error("   السبب: API Key غير صحيح أو صلاحيات غير كافية")
+                
+            except:
+                logger.error(f"❌ خطأ MEXC API في {operation}: {response.status_code}")
+                logger.error(f"   النص: {response.text[:200]}...")
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في معالجة خطأ API: {e}")
+            return False
     
     def get_account_balance(self) -> Optional[Dict]:
         """
@@ -238,7 +322,7 @@ class MEXCTradingBot:
     def place_spot_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET', 
                         price: Optional[float] = None) -> Optional[Dict]:
         """
-        وضع أمر تداول فوري (Spot)
+        وضع أمر تداول فوري (Spot) - محسن للمعالجة الصحيحة
         
         Args:
             symbol: رمز العملة (مثل: BTCUSDT)
@@ -251,19 +335,22 @@ class MEXCTradingBot:
             معلومات الأمر أو None في حالة الخطأ
         """
         try:
-            # الحصول على معلومات الرمز
+            logger.info(f"🔄 وضع أمر MEXC: {side} {quantity} {symbol} ({order_type})")
+            
+            # الحصول على معلومات الرمز أولاً
             symbol_info = self.get_symbol_info(symbol)
             if not symbol_info:
-                logger.error(f"فشل في الحصول على معلومات {symbol}")
+                logger.error(f"❌ فشل في الحصول على معلومات {symbol}")
                 return None
             
             # التحقق من أن التداول الفوري مسموح
             if not symbol_info['is_spot_trading_allowed']:
-                logger.error(f"التداول الفوري غير مسموح لـ {symbol}")
+                logger.error(f"❌ التداول الفوري غير مسموح لـ {symbol}")
                 return None
             
-            # تنسيق الكمية
+            # تنسيق الكمية حسب متطلبات الرمز
             formatted_quantity = self._format_quantity(quantity, symbol_info)
+            logger.info(f"📊 الكمية المنسقة: {formatted_quantity}")
             
             # بناء معاملات الأمر
             params = {
@@ -276,17 +363,22 @@ class MEXCTradingBot:
             # إضافة السعر لأوامر LIMIT
             if order_type.upper() == 'LIMIT':
                 if price is None:
-                    logger.error("السعر مطلوب لأوامر LIMIT")
+                    logger.error("❌ السعر مطلوب لأوامر LIMIT")
                     return None
                 params['price'] = f"{price:.8f}".rstrip('0').rstrip('.')
                 params['timeInForce'] = 'GTC'  # Good Till Cancel
+                logger.info(f"💰 السعر المحدد: {params['price']}")
             
-            # إرسال الأمر
+            # إرسال الأمر مع التوقيع
+            logger.info(f"📤 إرسال الأمر إلى MEXC: {params}")
             result = self._make_request('POST', '/api/v3/order', params, signed=True)
             
             if result:
-                logger.info(f"تم وضع أمر {side} لـ {symbol}: {result}")
-                return {
+                logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح")
+                logger.info(f"📋 تفاصيل الأمر: {result}")
+                
+                # إرجاع معلومات منسقة ومفيدة
+                order_info = {
                     'order_id': result.get('orderId'),
                     'symbol': result.get('symbol'),
                     'side': result.get('side'),
@@ -294,13 +386,22 @@ class MEXCTradingBot:
                     'quantity': result.get('origQty'),
                     'price': result.get('price'),
                     'status': result.get('status'),
-                    'time': result.get('transactTime')
+                    'time': result.get('transactTime'),
+                    'client_order_id': result.get('clientOrderId'),
+                    'executed_qty': result.get('executedQty'),
+                    'cummulative_quote_qty': result.get('cummulativeQuoteQty')
                 }
-            
-            return None
+                
+                logger.info(f"🎯 معلومات الأمر النهائية: {order_info}")
+                return order_info
+            else:
+                logger.error(f"❌ فشل وضع الأمر - لم يتم إرجاع نتيجة صحيحة")
+                return None
             
         except Exception as e:
-            logger.error(f"خطأ في وضع أمر على MEXC: {e}")
+            logger.error(f"❌ خطأ في وضع أمر على MEXC: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_order_status(self, symbol: str, order_id: str) -> Optional[Dict]:
@@ -452,31 +553,60 @@ class MEXCTradingBot:
     
     def test_connection(self) -> bool:
         """
-        اختبار الاتصال بـ MEXC API
+        اختبار الاتصال بـ MEXC API - محسن للتشخيص
         
         Returns:
             True إذا كان الاتصال ناجحاً، False خلاف ذلك
         """
         try:
+            logger.info("🔄 اختبار الاتصال بـ MEXC API...")
+            
             # اختبار الاتصال العام
             result = self._make_request('GET', '/api/v3/ping')
             if result is not None:
-                logger.info("✅ الاتصال بـ MEXC API ناجح")
+                logger.info("✅ الاتصال العام بـ MEXC API ناجح")
                 
                 # اختبار الاتصال المصادق عليه
+                logger.info("🔄 اختبار المصادقة...")
                 account = self.get_account_balance()
                 if account:
                     logger.info("✅ المصادقة على MEXC API ناجحة")
-                    return True
+                    
+                    # اختبار إضافي للتوقيع
+                    logger.info("🔄 اختبار التوقيع...")
+                    test_result = self._test_signature()
+                    if test_result:
+                        logger.info("✅ اختبار التوقيع ناجح")
+                        return True
+                    else:
+                        logger.warning("⚠️ فشل اختبار التوقيع")
+                        return False
                 else:
                     logger.warning("⚠️ فشلت المصادقة على MEXC API")
                     return False
             
-            logger.error("❌ فشل الاتصال بـ MEXC API")
+            logger.error("❌ فشل الاتصال العام بـ MEXC API")
             return False
             
         except Exception as e:
             logger.error(f"❌ خطأ في اختبار الاتصال بـ MEXC: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _test_signature(self) -> bool:
+        """
+        اختبار التوقيع باستخدام طلب بسيط
+        
+        Returns:
+            True إذا كان التوقيع صحيحاً
+        """
+        try:
+            # استخدام طلب بسيط لاختبار التوقيع
+            result = self._make_request('GET', '/api/v3/account', signed=True)
+            return result is not None
+        except Exception as e:
+            logger.error(f"❌ خطأ في اختبار التوقيع: {e}")
             return False
 
 
