@@ -49,8 +49,8 @@ class MEXCTradingBot:
     
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         """
-        توليد التوقيع للطلبات وفقاً لمتطلبات MEXC الصارمة
-        ترتيب أبجدي: newClientOrderId, quantity, side, symbol, timestamp, type
+        توليد التوقيع للطلبات وفقاً للوثائق الرسمية لـ MEXC
+        الصيغة الصحيحة: access_key + timestamp + query_string
         
         Args:
             params: معاملات الطلب (بدون signature)
@@ -61,8 +61,13 @@ class MEXCTradingBot:
         # إزالة signature إذا كانت موجودة (لتجنب التوقيع الذاتي)
         params_copy = {k: v for k, v in params.items() if k != 'signature'}
         
+        # استخراج timestamp قبل إزالته من المعاملات
+        timestamp = str(params_copy.get('timestamp', ''))
+        
+        # إزالة timestamp من المعاملات لأنه يُضاف منفصلاً في signature_string
+        params_copy.pop('timestamp', None)
+        
         # ترتيب أبجدي صارم كما هو مطلوب من MEXC
-        # الترتيب المطلوب: newClientOrderId, quantity, side, symbol, timestamp, type
         sorted_items = sorted(params_copy.items())
         
         # بناء query string يدوياً للتأكد من التنسيق الصحيح
@@ -72,13 +77,19 @@ class MEXCTradingBot:
         
         query_string = '&'.join(query_parts)
         
-        logger.info(f"🔑 Query string للتوقيع: {query_string}")
+        # الصيغة الصحيحة حسب الوثائق الرسمية: access_key + timestamp + query_string
+        signature_string = self.api_key + timestamp + query_string
+        
+        logger.info(f"🔑 Query string: {query_string}")
+        logger.info(f"🔐 API Key: {self.api_key}")
+        logger.info(f"⏰ Timestamp: {timestamp}")
+        logger.info(f"📝 Signature String: {signature_string}")
         logger.info(f"🔐 API Secret (أول 8 أحرف): {self.api_secret[:8]}...")
         
-        # توليد التوقيع باستخدام HMAC-SHA256
+        # توليد التوقيع باستخدام HMAC-SHA256 حسب الوثائق الرسمية
         signature = hmac.new(
             self.api_secret.encode('utf-8'),
-            query_string.encode('utf-8'),
+            signature_string.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
         
@@ -158,6 +169,13 @@ class MEXCTradingBot:
                 query_string = urlencode(params)
                 full_url = f"{url}?{query_string}"
                 logger.info(f"🌐 الرابط النهائي: {full_url}")
+                
+                # تسجيل مفصل للتأكد من صحة الطلب
+                logger.info(f"📋 تفاصيل الطلب النهائي:")
+                logger.info(f"   - Method: {method}")
+                logger.info(f"   - URL: {url}")
+                logger.info(f"   - Headers: {dict(self.session.headers)}")
+                logger.info(f"   - Params: {params}")
             
             # التحقق من حالة الاستجابة
             if response.status_code != 200:
