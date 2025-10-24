@@ -32,7 +32,7 @@ from config import *
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("✅ النظام المحسن متاح في bybit_trading_bot.py")
+    # النظام المحسن متاح في bybit_trading_bot.py
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     print(f"⚠️ النظام المحسن غير متاح في bybit_trading_bot.py: {e}")
@@ -41,7 +41,7 @@ except ImportError as e:
 try:
     from signal_id_manager import get_position_id_from_signal, get_signal_id_manager
     SIGNAL_ID_MANAGER_AVAILABLE = True
-    print("✅ مدير معرفات الإشارات متاح في bybit_trading_bot.py")
+    # مدير معرفات الإشارات متاح في bybit_trading_bot.py
 except ImportError as e:
     SIGNAL_ID_MANAGER_AVAILABLE = False
     print(f"⚠️ مدير معرفات الإشارات غير متاح في bybit_trading_bot.py: {e}")
@@ -1808,7 +1808,7 @@ class TradingBot:
         if ENHANCED_SYSTEM_AVAILABLE:
             try:
                 self.enhanced_system = SimpleEnhancedSystem()
-                print("✅ تم تهيئة النظام المحسن في TradingBot")
+                # تم تهيئة النظام المحسن في TradingBot
             except Exception as e:
                 print(f"⚠️ فشل في تهيئة النظام المحسن: {e}")
                 self.enhanced_system = None
