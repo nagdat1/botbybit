@@ -10633,6 +10633,10 @@ def main():
     
     # بدء التحديث الدوري
     start_price_updates()
+    
+    # تشغيل البوت
+    logger.info("🚀 بدء تشغيل البوت...")
+    application.run_polling(allowed_updates=["message", "callback_query"])
 
 async def show_analytics_charts(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
     """عرض الرسوم البيانية والتحليلات"""
