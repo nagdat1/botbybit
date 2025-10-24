@@ -8232,7 +8232,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await portfolio_handler(update, context)
         return
     
-    # معالجات الأزرار القديمة (للتوافق)
+    # معالجات الأزرار القديمة (للتوافق) - إزالة التكرار
     if data == "refresh_advanced_portfolio":
         await query.answer("🔄 جاري تحديث المحفظة...")
         await portfolio_handler(update, context)
@@ -8250,29 +8250,44 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # معالجة أزرار المحفظة القديمة (للتوافق)
     if data == "refresh_portfolio":
-        await query.answer("🔄 جاري تحديث المحفظة...")
-        user_data = user_manager.get_user_data(user_id)
+        await query.answer("🔄 جاري تحديث المحفظة التجريبية...")
+        user_data = user_manager.get_user(user_id)
         market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
         await show_demo_portfolio(update, context, user_id, market_type)
         return
     
     if data == "currency_details":
         await query.answer("📊 تفاصيل العملة")
+        # عرض تفاصيل العملة
+        await query.edit_message_text("📊 تفاصيل العملة\n\n🚧 قيد التطوير...")
         return
     
     if data == "refresh_real_portfolio":
         await query.answer("🔄 جاري تحديث المحفظة الحقيقية...")
-        user_data = user_manager.get_user_data(user_id)
+        user_data = user_manager.get_user(user_id)
         market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
         await show_real_portfolio(update, context, user_id, market_type)
         return
     
     if data == "real_currency_details":
         await query.answer("📊 تفاصيل العملة الحقيقية")
+        # عرض تفاصيل العملة الحقيقية
+        await query.edit_message_text("📊 تفاصيل العملة الحقيقية\n\n🚧 قيد التطوير...")
         return
     
-    if data == "real_portfolio_settings":
-        await query.answer("⚙️ إعدادات المحفظة الحقيقية")
+    if data == "refresh_balance":
+        await query.answer("🔄 جاري تحديث الرصيد...")
+        await show_portfolio_settings(update, context, user_id)
+        return
+    
+    if data == "detailed_report":
+        await query.answer("📊 تقرير مفصل")
+        await show_detailed_report(update, context, user_id)
+        return
+    
+    if data == "account_settings":
+        await query.answer("⚙️ إعدادات الحساب")
+        await show_account_settings(update, context, user_id)
         return
     
     elif data == "main_menu":
