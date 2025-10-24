@@ -5754,32 +5754,64 @@ async def show_real_portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE
         real_currencies = {}
         
         try:
-            if market_type == 'spot':
-                # الحصول على رصيد Spot من Bybit
-                from real_account_manager import RealAccountManager
-                account_manager = RealAccountManager()
+            # الحصول على نوع المنصة
+            user_data = user_manager.get_user(user_id)
+            exchange = user_data.get('exchange', 'bybit')
+            
+            if exchange == 'bybit':
+                # الحصول على رصيد من Bybit
+                from real_account_manager import BybitRealAccount
+                account = BybitRealAccount(api_key, api_secret)
                 
                 # الحصول على الرصيد
-                balance_data = account_manager.get_account_balance(api_key, api_secret, 'spot')
+                balance_data = account.get_wallet_balance('spot')
                 
-                if balance_data and 'result' in balance_data:
-                    for coin_data in balance_data['result']['list']:
-                        coin = coin_data['coin']
-                        free_amount = float(coin_data['free'])
-                        locked_amount = float(coin_data['locked'])
-                        total_amount = free_amount + locked_amount
+                if balance_data and 'coins' in balance_data:
+                    for coin, coin_data in balance_data['coins'].items():
+                        equity = coin_data.get('equity', 0)
+                        available = coin_data.get('available', 0)
+                        wallet_balance = coin_data.get('wallet_balance', 0)
                         
-                        if total_amount > 0:
+                        if equity > 0:
                             # الحصول على السعر الحالي
-                            ticker_data = account_manager.get_ticker_price(f"{coin}USDT")
-                            current_price = float(ticker_data['result']['price']) if ticker_data else 0
+                            current_price = account.get_ticker_price(f"{coin}USDT", 'spot')
+                            if not current_price:
+                                current_price = 0
                             
                             real_currencies[coin] = {
-                                'amount': total_amount,
-                                'free': free_amount,
-                                'locked': locked_amount,
+                                'amount': equity,
+                                'free': available,
+                                'locked': wallet_balance - available,
                                 'current_price': current_price,
-                                'value_usdt': total_amount * current_price
+                                'value_usdt': equity * current_price
+                            }
+                            
+            elif exchange == 'mexc':
+                # الحصول على رصيد من MEXC
+                from real_account_manager import MEXCRealAccount
+                account = MEXCRealAccount(api_key, api_secret)
+                
+                # الحصول على الرصيد
+                balance_data = account.get_wallet_balance()
+                
+                if balance_data and 'coins' in balance_data:
+                    for coin, coin_data in balance_data['coins'].items():
+                        total = coin_data.get('total', 0)
+                        free = coin_data.get('free', 0)
+                        locked = coin_data.get('locked', 0)
+                        
+                        if total > 0:
+                            # الحصول على السعر الحالي
+                            current_price = account.get_ticker_price(f"{coin}USDT")
+                            if not current_price:
+                                current_price = 0
+                            
+                            real_currencies[coin] = {
+                                'amount': total,
+                                'free': free,
+                                'locked': locked,
+                                'current_price': current_price,
+                                'value_usdt': total * current_price
                             }
             
             # إنشاء رسالة المحفظة الحقيقية
@@ -5976,31 +6008,32 @@ async def show_real_balance_details(message: str, user_id: int, user_data: Dict)
             message += "⚙️ يرجى إضافة مفاتيح API من الإعدادات\n"
             return message
         
-        # الحصول على الرصيد من API
-        from real_account_manager import RealAccountManager
-        account_manager = RealAccountManager()
+        # الحصول على نوع المنصة
+        exchange = user_data.get('exchange', 'bybit')
         
         # رصيد السبوت
         try:
-            spot_balance = account_manager.get_account_balance(api_key, api_secret, 'spot')
-            if spot_balance and 'result' in spot_balance:
-                message += f"\n🟢 **السبوت:**\n"
-                total_spot_balance = 0
-                for coin_data in spot_balance['result']['list']:
-                    coin = coin_data['coin']
-                    free = float(coin_data['free'])
-                    locked = float(coin_data['locked'])
-                    total = free + locked
-                    if total > 0:
-                        # الحصول على السعر الحالي
-                        ticker = account_manager.get_ticker_price(f"{coin}USDT")
-                        if ticker and 'result' in ticker:
-                            price = float(ticker['result']['price'])
-                            usdt_value = total * price
-                            total_spot_balance += usdt_value
-                            message += f"   💰 {coin}: {total:.6f} = {usdt_value:.2f} USDT\n"
+            if exchange == 'bybit':
+                from real_account_manager import BybitRealAccount
+                account = BybitRealAccount(api_key, api_secret)
+                spot_balance = account.get_wallet_balance('spot')
                 
-                message += f"   📊 إجمالي القيمة: {total_spot_balance:.2f} USDT\n"
+                if spot_balance and 'coins' in spot_balance:
+                    message += f"\n🟢 **السبوت (Bybit):**\n"
+                    message += f"   💳 الرصيد الكلي: {spot_balance.get('total_equity', 0):.2f} USDT\n"
+                    message += f"   💰 الرصيد المتاح: {spot_balance.get('available_balance', 0):.2f} USDT\n"
+                    message += f"   📊 القيمة الصافية: {spot_balance.get('total_wallet_balance', 0):.2f} USDT\n"
+                    
+            elif exchange == 'mexc':
+                from real_account_manager import MEXCRealAccount
+                account = MEXCRealAccount(api_key, api_secret)
+                spot_balance = account.get_wallet_balance()
+                
+                if spot_balance and 'coins' in spot_balance:
+                    message += f"\n🟢 **السبوت (MEXC):**\n"
+                    message += f"   💳 الرصيد الكلي: {spot_balance.get('total_equity', 0):.2f} USDT\n"
+                    message += f"   💰 الرصيد المتاح: {spot_balance.get('available_balance', 0):.2f} USDT\n"
+                    message += f"   📊 القيمة الصافية: {spot_balance.get('total_equity', 0):.2f} USDT\n"
             else:
                 message += f"\n🟢 **السبوت:**\n"
                 message += "   ❌ خطأ في الحصول على الرصيد\n"
@@ -6010,30 +6043,16 @@ async def show_real_balance_details(message: str, user_id: int, user_data: Dict)
         
         # رصيد الفيوتشر
         try:
-            futures_balance = account_manager.get_account_balance(api_key, api_secret, 'linear')
-            if futures_balance and 'result' in futures_balance:
-                message += f"\n⚡ **الفيوتشر:**\n"
-                for coin_data in futures_balance['result']['list']:
-                    coin = coin_data['coin']
-                    free = float(coin_data['free'])
-                    locked = float(coin_data['locked'])
-                    total = free + locked
-                    if total > 0:
-                        message += f"   💰 {coin}: {total:.6f}\n"
-                
-                # الحصول على الصفقات المفتوحة
-                positions = account_manager.get_open_positions(api_key, api_secret)
-                if positions and 'result' in positions:
-                    total_pnl = 0
-                    for position in positions['result']['list']:
-                        unrealized_pnl = float(position['unrealisedPnl'])
-                        total_pnl += unrealized_pnl
-                    
-                    if total_pnl != 0:
-                        message += f"   📊 إجمالي PnL: {total_pnl:.2f} USDT\n"
-            else:
-                message += f"\n⚡ **الفيوتشر:**\n"
-                message += "   ❌ خطأ في الحصول على الرصيد\n"
+            if exchange == 'bybit':
+                futures_balance = account.get_wallet_balance('linear')
+                if futures_balance and 'coins' in futures_balance:
+                    message += f"\n⚡ **الفيوتشر (Bybit):**\n"
+                    message += f"   💳 الرصيد الكلي: {futures_balance.get('total_equity', 0):.2f} USDT\n"
+                    message += f"   💰 الرصيد المتاح: {futures_balance.get('available_balance', 0):.2f} USDT\n"
+                    message += f"   📊 القيمة الصافية: {futures_balance.get('total_wallet_balance', 0):.2f} USDT\n"
+            elif exchange == 'mexc':
+                message += f"\n⚡ **الفيوتشر (MEXC):**\n"
+                message += "   ℹ️ MEXC يدعم Spot فقط\n"
         except Exception as e:
             message += f"\n⚡ **الفيوتشر:**\n"
             message += f"   ❌ خطأ في API: {str(e)}\n"
