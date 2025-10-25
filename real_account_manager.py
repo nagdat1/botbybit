@@ -44,16 +44,16 @@ class BybitRealAccount:
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء query string للطلبات غير الموقعة
-        params_str = urlencode(sorted(params.items())) if params else ""
+        # بناء query string للطلبات GET
+        if method == 'GET':
+            params_str = urlencode(sorted(params.items())) if params else ""
+        else:
+            # للطلبات POST، استخدام JSON string للتوقيع (مع مسافات)
+            import json
+            params_str = json.dumps(params, separators=(', ', ': ')) if params else ""
+        
         logger.info(f"Bybit Params Debug - params: {params}")
         logger.info(f"Bybit Params Debug - params_str: {params_str}")
-        
-        # للطلبات الموقعة، استخدام JSON string للتوقيع
-        if method == 'POST' and params:
-            import json
-            params_str = json.dumps(params, separators=(',', ':'))
-            logger.info(f"Bybit JSON Debug - params_str: {params_str}")
         
         # توليد التوقيع
         signature = self._generate_signature(timestamp, recv_window, params_str)
@@ -68,9 +68,9 @@ class BybitRealAccount:
         }
         
         url = f"{self.base_url}{endpoint}"
-        # إضافة query string فقط للطلبات غير الموقعة
+        # إضافة query string فقط للطلبات GET
         if method == 'GET' and params_str:
-            url += f"?{params_str}"
+            url += f"?{urlencode(sorted(params.items()))}"
         
         logger.info(f"Bybit URL Debug - url: {url}")
         
@@ -268,7 +268,7 @@ class BybitRealAccount:
         logger.info(f"Setting leverage for {symbol}: {leverage}x")
         result = self._make_request('POST', '/v5/position/set-leverage', params)
         
-        if result:
+        if result is not None:
             logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
             return True
         else:
