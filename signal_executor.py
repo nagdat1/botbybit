@@ -31,21 +31,17 @@ except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     print(f" النظام المحسن غير متاح في signal_executor.py: {e}")
 
-# استيراد نظام فحص الرصيد الموحد
+# استيراد مدير معرفات الإشارات
 try:
-    from unified_balance_checker import unified_balance_checker
-    UNIFIED_BALANCE_CHECKER_AVAILABLE = True
-    print(" نظام فحص الرصيد الموحد متاح في signal_executor.py")
+    from signal_id_manager import get_position_id_from_signal, get_signal_id_manager
+    SIGNAL_ID_MANAGER_AVAILABLE = True
+    print(" مدير معرفات الإشارات متاح في signal_executor.py")
 except ImportError as e:
-    UNIFIED_BALANCE_CHECKER_AVAILABLE = False
-    print(f" نظام فحص الرصيد الموحد غير متاح في signal_executor.py: {e}")
+    SIGNAL_ID_MANAGER_AVAILABLE = False
+    print(f" مدير معرفات الإشارات غير متاح في signal_executor.py: {e}")
 
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
-    
-    def __init__(self):
-        """تهيئة منفذ الإشارات"""
-        pass
     
     @staticmethod
     async def execute_signal(user_id: int, signal_data: Dict, user_data: Dict) -> Dict:
@@ -429,28 +425,43 @@ class SignalExecutor:
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
             min_quantity = 0.001  # الحد الأدنى لـ Bybit
             
-            # فحص الرصيد باستخدام النظام الموحد البسيط
-            balance_check_result = unified_balance_checker.check_balance_simple(
-                account, trade_amount, price, leverage, market_type, 'bybit', symbol
-            )
-            
-            if not balance_check_result.get('success', False):
-                # الرصيد غير كافي
-                logger.error(f"فشل فحص الرصيد: {balance_check_result.get('message', 'Unknown error')}")
-                return {
-                    'success': False,
-                    'message': balance_check_result.get('message', 'Balance check failed'),
-                    'error': balance_check_result.get('error', 'BALANCE_CHECK_FAILED'),
-                    'is_real': True,
-                    'available_balance': balance_check_result.get('available_balance', 0),
-                    'required_balance': balance_check_result.get('required_balance', 0),
-                    'shortage': balance_check_result.get('shortage', 0),
-                    'suggestions': balance_check_result.get('suggestions', [])
-                }
-            
-            # استخدام الكمية المحسوبة من فحص الرصيد
-            qty = balance_check_result.get('quantity', qty)
-            logger.info(f"فحص الرصيد نجح: {balance_check_result.get('message', 'Balance sufficient')}")
+            # فحص إذا كانت الكمية المحسوبة أقل من الحد الأدنى
+            if qty < min_quantity:
+                # حساب الهامش المطلوب للحد الأدنى
+                min_margin_required = (min_quantity * price) / leverage
+                
+                # فحص الرصيد المتاح
+                try:
+                    balance_info = account.get_wallet_balance('futures' if market_type == 'futures' else 'spot')
+                    if balance_info and 'coins' in balance_info and 'USDT' in balance_info['coins']:
+                        available_balance = float(balance_info['coins']['USDT']['equity'])
+                        
+                        logger.info(f"الرصيد المتاح: {available_balance} USDT")
+                        logger.info(f"الهامش المطلوب للحد الأدنى: {min_margin_required:.2f} USDT")
+                        
+                        if available_balance >= min_margin_required:
+                            # الرصيد كافي للحد الأدنى
+                            logger.warning(f"الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
+                            qty = min_quantity
+                        else:
+                            # الرصيد غير كافي حتى للحد الأدنى
+                            logger.error(f"الرصيد غير كافي حتى للحد الأدنى: {available_balance} < {min_margin_required}")
+                            return {
+                                'success': False,
+                                'message': f'Insufficient balance for minimum order. Available: {available_balance} USDT, Required: {min_margin_required:.2f} USDT',
+                                'error': 'INSUFFICIENT_BALANCE_MINIMUM',
+                                'is_real': True,
+                                'available_balance': available_balance,
+                                'required_balance': min_margin_required
+                            }
+                    else:
+                        logger.warning("لم يتم العثور على معلومات الرصيد USDT")
+                        # في حالة عدم العثور على الرصيد، نستخدم الحد الأدنى
+                        qty = min_quantity
+                except Exception as e:
+                    logger.warning(f"خطأ في فحص الرصيد للحد الأدنى: {e}")
+                    # في حالة الخطأ، نستخدم الحد الأدنى
+                    qty = min_quantity
             
             # تقريب الكمية حسب دقة الرمز
             qty = round(qty, 6)
@@ -603,30 +614,10 @@ class SignalExecutor:
             quantity = trade_amount / price
             
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
-            min_quantity = 0.001  # الحد الأدنى لـ MEXC
-            
-            # فحص الرصيد باستخدام النظام الموحد البسيط
-            balance_check_result = unified_balance_checker.check_balance_simple(
-                account, trade_amount, price, 1, 'spot', 'mexc', symbol
-            )
-            
-            if not balance_check_result.get('success', False):
-                # الرصيد غير كافي
-                logger.error(f"فشل فحص الرصيد: {balance_check_result.get('message', 'Unknown error')}")
-                return {
-                    'success': False,
-                    'message': balance_check_result.get('message', 'Balance check failed'),
-                    'error': balance_check_result.get('error', 'BALANCE_CHECK_FAILED'),
-                    'is_real': True,
-                    'available_balance': balance_check_result.get('available_balance', 0),
-                    'required_balance': balance_check_result.get('required_balance', 0),
-                    'shortage': balance_check_result.get('shortage', 0),
-                    'suggestions': balance_check_result.get('suggestions', [])
-                }
-            
-            # استخدام الكمية المحسوبة من فحص الرصيد
-            quantity = balance_check_result.get('quantity', quantity)
-            logger.info(f"فحص الرصيد نجح: {balance_check_result.get('message', 'Balance sufficient')}")
+            min_quantity = 0.001  # زيادة الحد الأدنى لـ Bybit
+            if quantity < min_quantity:
+                logger.warning(f" الكمية صغيرة جداً: {quantity}, تم تعديلها إلى الحد الأدنى")
+                quantity = min_quantity
             
             # تقريب الكمية حسب دقة الرمز
             quantity = round(quantity, 6)
