@@ -437,7 +437,7 @@ class SignalExecutor:
                     account, signal_data, side, qty, leverage, take_profit, stop_loss, market_type, user_id
                 )
             
-            if result:
+            if result and result.get('success'):
                 logger.info(f" تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
                 logger.info(f" تفاصيل الأمر: {result}")
                 
@@ -486,10 +486,13 @@ class SignalExecutor:
                 }
             else:
                 logger.error(f" فشل تنفيذ أمر {side} {symbol} على Bybit")
+                if result:
+                    logger.error(f" تفاصيل الفشل: {result}")
                 return {
                     'success': False,
                     'message': f'Failed to place order on Bybit',
-                    'error': 'ORDER_FAILED'
+                    'error': 'ORDER_FAILED',
+                    'error_details': result if result else 'No response from API'
                 }
                 
         except Exception as e:
