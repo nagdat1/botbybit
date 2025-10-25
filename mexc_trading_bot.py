@@ -112,9 +112,9 @@ class MEXCTradingBot:
             if method == 'GET':
                 response = self.session.get(url, params=params, headers=headers, timeout=15)
             elif method == 'POST':
-                # للطلبات الموقعة، نرسل البيانات في body
+                # للطلبات الموقعة، نرسل البيانات في query string
                 if signed:
-                    response = self.session.post(url, json=params, headers=headers, timeout=15)
+                    response = self.session.post(url, params=params, headers=headers, timeout=15)
                 else:
                     response = self.session.post(url, json=params, headers=headers, timeout=15)
             elif method == 'DELETE':
@@ -133,13 +133,13 @@ class MEXCTradingBot:
                     logger.info(f"MEXC Response - Success: {result}")
                     return result
                 except Exception as e:
-                    logger.error(f"❌ خطأ في تحليل JSON: {e}")
-                    logger.error(f"❌ النص الخام: {response.text}")
+                    logger.error(f"خطأ في تحليل JSON: {e}")
+                    logger.error(f"النص الخام: {response.text}")
                     return None
             else:
                 # استخدام معالج الأخطاء المحسن
-                logger.error(f"❌ MEXC API Error - Status: {response.status_code}")
-                logger.error(f"❌ Response Text: {response.text}")
+                logger.error(f"MEXC API Error - Status: {response.status_code}")
+                logger.error(f"Response Text: {response.text}")
                 self._handle_api_error(response, f"{method} {endpoint}")
                 return None
             
@@ -173,7 +173,7 @@ class MEXCTradingBot:
                 error_code = error_data.get('code', 'UNKNOWN')
                 error_msg = error_data.get('msg', 'خطأ غير معروف')
                 
-                logger.error(f"❌ خطأ MEXC API في {operation}:")
+                logger.error(f" خطأ MEXC API في {operation}:")
                 logger.error(f"   كود الخطأ: {error_code}")
                 logger.error(f"   الرسالة: {error_msg}")
                 
@@ -194,13 +194,13 @@ class MEXCTradingBot:
                     logger.error("   السبب: API Key غير صحيح أو صلاحيات غير كافية")
                 
             except:
-                logger.error(f"❌ خطأ MEXC API في {operation}: {response.status_code}")
+                logger.error(f" خطأ MEXC API في {operation}: {response.status_code}")
                 logger.error(f"   النص: {response.text[:200]}...")
             
             return False
             
         except Exception as e:
-            logger.error(f"❌ خطأ في معالجة خطأ API: {e}")
+            logger.error(f" خطأ في معالجة خطأ API: {e}")
             return False
     
     def get_account_balance(self) -> Optional[Dict]:
@@ -252,20 +252,20 @@ class MEXCTradingBot:
             السعر الحالي أو None في حالة الخطأ
         """
         try:
-            logger.info(f"🔍 جلب السعر من MEXC لـ {symbol}")
+            logger.info(f" جلب السعر من MEXC لـ {symbol}")
             # جلب السعر لا يحتاج توقيع - طلب عام
             result = self._make_request('GET', '/api/v3/ticker/price', {'symbol': symbol}, signed=False)
             
             if result and 'price' in result:
                 price = float(result['price'])
-                logger.info(f"✅ السعر من MEXC لـ {symbol}: {price}")
+                logger.info(f" السعر من MEXC لـ {symbol}: {price}")
                 return price
             else:
-                logger.error(f"❌ فشل جلب السعر من MEXC لـ {symbol} - النتيجة: {result}")
+                logger.error(f" فشل جلب السعر من MEXC لـ {symbol} - النتيجة: {result}")
                 return None
             
         except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على سعر {symbol} من MEXC: {e}")
+            logger.error(f" خطأ في الحصول على سعر {symbol} من MEXC: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -323,7 +323,7 @@ class MEXCTradingBot:
             base_size_precision = symbol_info.get('baseSizePrecision', '1')
             base_asset_precision = symbol_info.get('baseAssetPrecision', 5)
             
-            logger.info(f"📏 تنسيق الكمية لـ {symbol_info.get('symbol', 'UNKNOWN')}:")
+            logger.info(f" تنسيق الكمية لـ {symbol_info.get('symbol', 'UNKNOWN')}:")
             logger.info(f"   baseSizePrecision: {base_size_precision}")
             logger.info(f"   baseAssetPrecision: {base_asset_precision}")
             
@@ -345,13 +345,13 @@ class MEXCTradingBot:
                 
                 formatted_quantity = f"{quantity:.{precision}f}".rstrip('0').rstrip('.')
             
-            logger.info(f"📊 الكمية الأصلية: {quantity}")
-            logger.info(f"📊 الكمية المنسقة: {formatted_quantity}")
+            logger.info(f" الكمية الأصلية: {quantity}")
+            logger.info(f" الكمية المنسقة: {formatted_quantity}")
             
             return formatted_quantity
             
         except Exception as e:
-            logger.error(f"❌ خطأ في تنسيق الكمية: {e}")
+            logger.error(f"خطأ في تنسيق الكمية: {e}")
             # استخدام تنسيق افتراضي آمن
             return f"{max(quantity, 0.00000001):.8f}".rstrip('0').rstrip('.')
     
@@ -371,22 +371,22 @@ class MEXCTradingBot:
             معلومات الأمر أو None في حالة الخطأ
         """
         try:
-            logger.info(f"🔄 وضع أمر MEXC: {side} {quantity} {symbol} ({order_type})")
+            logger.info(f" وضع أمر MEXC: {side} {quantity} {symbol} ({order_type})")
             
             # الحصول على معلومات الرمز أولاً
             symbol_info = self.get_symbol_info(symbol)
             if not symbol_info:
-                logger.error(f"❌ فشل في الحصول على معلومات {symbol}")
+                logger.error(f" فشل في الحصول على معلومات {symbol}")
                 return None
             
             # التحقق من أن التداول الفوري مسموح
             if not symbol_info['is_spot_trading_allowed']:
-                logger.error(f"❌ التداول الفوري غير مسموح لـ {symbol}")
+                logger.error(f" التداول الفوري غير مسموح لـ {symbol}")
                 return None
             
             # تنسيق الكمية حسب متطلبات الرمز
             formatted_quantity = self._format_quantity(quantity, symbol_info)
-            logger.info(f"📊 الكمية المنسقة: {formatted_quantity}")
+            logger.info(f" الكمية المنسقة: {formatted_quantity}")
             
             # بناء معاملات الأمر
             params = {
@@ -399,22 +399,22 @@ class MEXCTradingBot:
             # إضافة السعر لأوامر LIMIT
             if order_type.upper() == 'LIMIT':
                 if price is None:
-                    logger.error("❌ السعر مطلوب لأوامر LIMIT")
+                    logger.error(" السعر مطلوب لأوامر LIMIT")
                     return None
                 params['price'] = f"{price:.8f}".rstrip('0').rstrip('.')
                 params['timeInForce'] = 'GTC'  # Good Till Cancel
-                logger.info(f"💰 السعر المحدد: {params['price']}")
+                logger.info(f" السعر المحدد: {params['price']}")
             
             # إرسال الأمر مع التوقيع
-            logger.info(f"📤 إرسال الأمر إلى MEXC: {params}")
-            logger.info(f"🔑 API Key: {self.api_key[:8]}...{self.api_key[-4:] if len(self.api_key) > 12 else 'SHORT'}")
+            logger.info(f" إرسال الأمر إلى MEXC: {params}")
+            logger.info(f" API Key: {self.api_key[:8]}...{self.api_key[-4:] if len(self.api_key) > 12 else 'SHORT'}")
             
             result = self._make_request('POST', '/api/v3/order', params, signed=True)
             
-            logger.info(f"📥 استجابة MEXC: {result}")
+            logger.info(f" استجابة MEXC: {result}")
             
             if result:
-                logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح")
+                logger.info(f" تم وضع أمر {side} لـ {symbol} بنجاح")
                 logger.info(f"📋 تفاصيل الأمر: {result}")
                 
                 # إرجاع معلومات منسقة ومفيدة
@@ -435,8 +435,8 @@ class MEXCTradingBot:
                 logger.info(f"🎯 معلومات الأمر النهائية: {order_info}")
                 return order_info
             else:
-                logger.error(f"❌ فشل وضع الأمر - لم يتم إرجاع نتيجة صحيحة")
-                logger.error(f"🔍 تشخيص المشكلة:")
+                logger.error(f" فشل وضع الأمر - لم يتم إرجاع نتيجة صحيحة")
+                logger.error(f" تشخيص المشكلة:")
                 logger.error(f"   - API Key موجود: {bool(self.api_key)}")
                 logger.error(f"   - API Secret موجود: {bool(self.api_secret)}")
                 logger.error(f"   - المعاملات: {params}")
@@ -444,7 +444,7 @@ class MEXCTradingBot:
                 return None
             
         except Exception as e:
-            logger.error(f"❌ خطأ في وضع أمر على MEXC: {e}")
+            logger.error(f" خطأ في وضع أمر على MEXC: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -604,24 +604,24 @@ class MEXCTradingBot:
             True إذا كان الاتصال ناجحاً، False خلاف ذلك
         """
         try:
-            logger.info("🔄 اختبار الاتصال بـ MEXC API...")
+            logger.info(" اختبار الاتصال بـ MEXC API...")
             
             # اختبار الاتصال العام
             result = self._make_request('GET', '/api/v3/ping')
             if result is not None:
-                logger.info("✅ الاتصال العام بـ MEXC API ناجح")
+                logger.info(" الاتصال العام بـ MEXC API ناجح")
                 
                 # اختبار الاتصال المصادق عليه
-                logger.info("🔄 اختبار المصادقة...")
+                logger.info(" اختبار المصادقة...")
                 account = self.get_account_balance()
                 if account:
-                    logger.info("✅ المصادقة على MEXC API ناجحة")
+                    logger.info(" المصادقة على MEXC API ناجحة")
                     
                     # اختبار إضافي للتوقيع
-                    logger.info("🔄 اختبار التوقيع...")
+                    logger.info(" اختبار التوقيع...")
                     test_result = self._test_signature()
                     if test_result:
-                        logger.info("✅ اختبار التوقيع ناجح")
+                        logger.info(" اختبار التوقيع ناجح")
                         return True
                     else:
                         logger.warning("⚠️ فشل اختبار التوقيع")
@@ -630,11 +630,11 @@ class MEXCTradingBot:
                     logger.warning("⚠️ فشلت المصادقة على MEXC API")
                     return False
             
-            logger.error("❌ فشل الاتصال العام بـ MEXC API")
+            logger.error(" فشل الاتصال العام بـ MEXC API")
             return False
             
         except Exception as e:
-            logger.error(f"❌ خطأ في اختبار الاتصال بـ MEXC: {e}")
+            logger.error(f" خطأ في اختبار الاتصال بـ MEXC: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -651,7 +651,7 @@ class MEXCTradingBot:
             result = self._make_request('GET', '/api/v3/account', signed=True)
             return result is not None
         except Exception as e:
-            logger.error(f"❌ خطأ في اختبار التوقيع: {e}")
+            logger.error(f" خطأ في اختبار التوقيع: {e}")
             return False
 
 
@@ -689,7 +689,7 @@ if __name__ == "__main__":
     api_secret = os.getenv('MEXC_API_SECRET', '')
     
     if not api_key or not api_secret:
-        print("❌ يرجى تعيين MEXC_API_KEY و MEXC_API_SECRET في ملف .env")
+        print(" يرجى تعيين MEXC_API_KEY و MEXC_API_SECRET في ملف .env")
         exit(1)
     
     # إنشاء البوت
@@ -698,10 +698,10 @@ if __name__ == "__main__":
     # اختبار الاتصال
     print("\n🔌 اختبار الاتصال...")
     if bot.test_connection():
-        print("✅ الاتصال ناجح!")
+        print(" الاتصال ناجح!")
         
         # عرض الرصيد
-        print("\n💰 الرصيد:")
+        print("\n الرصيد:")
         balance = bot.get_account_balance()
         if balance:
             for asset, info in balance['balances'].items():
@@ -709,14 +709,14 @@ if __name__ == "__main__":
                     print(f"   {asset}: {info['total']:.8f} (متاح: {info['free']:.8f})")
         
         # اختبار الحصول على السعر
-        print("\n📊 اختبار الحصول على السعر:")
+        print("\n اختبار الحصول على السعر:")
         price = bot.get_ticker_price('BTCUSDT')
         if price:
             print(f"   سعر BTC/USDT: ${price:,.2f}")
     else:
-        print("❌ فشل الاتصال!")
+        print(" فشل الاتصال!")
     
     print("\n" + "=" * 60)
-    print("✅ انتهى الاختبار")
+    print(" انتهى الاختبار")
     print("=" * 60)
 
