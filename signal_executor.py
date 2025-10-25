@@ -857,14 +857,16 @@ class SignalExecutor:
                     qty=round(qty, 4)
                 )
                 
-                # معالجة محسنة للأخطاء
+                # معالجة محسنة للأخطاء مع تمرير تفاصيل كاملة
                 if result is None:
                     logger.error(f" فشل وضع الأمر Spot - استجابة فارغة")
                     return {
                         'success': False,
                         'message': f'Spot order placement failed - empty response',
                         'is_real': True,
-                        'error_details': 'Empty response from Bybit Spot API'
+                        'error_details': 'Empty response from Bybit Spot API',
+                        'error': 'Empty response from Bybit Spot API',
+                        'error_type': 'NO_RESPONSE'
                     }
                 
                 if isinstance(result, dict) and 'error' in result:
@@ -873,7 +875,14 @@ class SignalExecutor:
                         'success': False,
                         'message': f'Spot API Error: {result["error"]}',
                         'is_real': True,
-                        'error_details': result
+                        'error_details': result,
+                        'error': result['error'],
+                        'error_type': result.get('error_type', 'API_ERROR'),
+                        'retCode': result.get('retCode'),
+                        'retMsg': result.get('retMsg'),
+                        'http_status': result.get('http_status'),
+                        'http_message': result.get('http_message'),
+                        'exception': result.get('exception')
                     }
                 
                 # فحص نجاح الأمر بناءً على وجود order_id
@@ -883,7 +892,9 @@ class SignalExecutor:
                         'success': False,
                         'message': f'Spot order placement failed - no order_id returned',
                         'is_real': True,
-                        'error_details': result
+                        'error_details': result,
+                        'error': 'Spot order placement failed - no order_id returned',
+                        'error_type': 'NO_ORDER_ID'
                     }
                 
                 logger.info(f" تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
@@ -1065,14 +1076,16 @@ class SignalExecutor:
                     stop_loss=stop_loss
                 )
             
-            # معالجة محسنة للأخطاء
+            # معالجة محسنة للأخطاء مع تمرير تفاصيل كاملة
             if result is None:
                 logger.error(f" فشل وضع الأمر - استجابة فارغة")
                 return {
                     'success': False,
                     'message': f'Order placement failed - empty response',
                     'is_real': True,
-                    'error_details': 'Empty response from Bybit API'
+                    'error_details': 'Empty response from Bybit API',
+                    'error': 'Empty response from Bybit API',
+                    'error_type': 'NO_RESPONSE'
                 }
             
             if isinstance(result, dict) and 'error' in result:
@@ -1081,7 +1094,14 @@ class SignalExecutor:
                     'success': False,
                     'message': f'API Error: {result["error"]}',
                     'is_real': True,
-                    'error_details': result
+                    'error_details': result,
+                    'error': result['error'],
+                    'error_type': result.get('error_type', 'API_ERROR'),
+                    'retCode': result.get('retCode'),
+                    'retMsg': result.get('retMsg'),
+                    'http_status': result.get('http_status'),
+                    'http_message': result.get('http_message'),
+                    'exception': result.get('exception')
                 }
             
             # فحص نجاح الأمر بناءً على وجود order_id
@@ -1091,7 +1111,9 @@ class SignalExecutor:
                     'success': False,
                     'message': f'Futures order placement failed - no order_id returned',
                     'is_real': True,
-                    'error_details': result
+                    'error_details': result,
+                    'error': 'Futures order placement failed - no order_id returned',
+                    'error_type': 'NO_ORDER_ID'
                 }
             
             # إذا وصلنا هنا، فالأمر نجح

@@ -326,22 +326,86 @@ class BybitRealAccount:
         }
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
-        """تعيين الرافعة المالية على المنصة"""
-        params = {
-            'category': category,
-            'symbol': symbol,
-            'buyLeverage': str(leverage),
-            'sellLeverage': str(leverage)
-        }
-        
-        logger.info(f"Setting leverage for {symbol}: {leverage}x")
-        result = self._make_request('POST', '/v5/position/set-leverage', params)
-        
-        if result is not None:
-            logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
-            return True
-        else:
-            logger.error(f"Failed to set leverage for {symbol}: {leverage}x")
+        """تعيين الرافعة المالية على المنصة مع معالجة محسنة للأخطاء"""
+        try:
+            # التحقق من صحة المعاملات
+            if not symbol or leverage <= 0:
+                logger.error(f"Invalid parameters for leverage: symbol={symbol}, leverage={leverage}")
+                return False
+            
+            # تحديد نوع الحساب الصحيح
+            if category == 'linear':
+                account_type = 'UNIFIED'  # استخدام UNIFIED للفيوتشر الخطي
+            elif category == 'inverse':
+                account_type = 'CONTRACT'  # استخدام CONTRACT للفيوتشر العكسي
+            else:
+                logger.error(f"Unsupported category for leverage: {category}")
+                return False
+            
+            params = {
+                'category': category,
+                'symbol': symbol,
+                'buyLeverage': str(leverage),
+                'sellLeverage': str(leverage)
+            }
+            
+            logger.info(f"Setting leverage for {symbol}: {leverage}x (category: {category})")
+            logger.info(f"Leverage params: {params}")
+            
+            result = self._make_request('POST', '/v5/position/set-leverage', params)
+            
+            # معالجة محسنة للنتيجة مع تسجيل مفصل
+            if result is None:
+                logger.error(f"Failed to set leverage for {symbol}: {leverage}x - No response from API")
+                return False
+            
+            # فحص إذا كانت النتيجة تحتوي على خطأ
+            if isinstance(result, dict) and result.get('error'):
+                logger.error(f"Failed to set leverage for {symbol}: {leverage}x - API Error")
+                
+                # تسجيل تفاصيل الخطأ
+                if 'retCode' in result:
+                    ret_code = result['retCode']
+                    ret_msg = result['retMsg']
+                    logger.error(f"Leverage error details - retCode: {ret_code}, retMsg: {ret_msg}")
+                    
+                    # معالجة أخطاء محددة
+                    if ret_code == 10001:
+                        logger.error("API key or signature error")
+                    elif ret_code == 10003:
+                        logger.error("Invalid request parameters")
+                    elif ret_code == 10016:
+                        logger.error(f"Symbol {symbol} not found or not supported")
+                    elif ret_code == 10017:
+                        logger.error(f"Invalid leverage {leverage} for symbol {symbol}")
+                    elif ret_code == 10018:
+                        logger.error("Permission denied - check API permissions")
+                    else:
+                        logger.error(f"Unknown leverage error: {ret_code} - {ret_msg}")
+                
+                if 'http_status' in result:
+                    logger.error(f"HTTP error: {result['http_status']} - {result['http_message']}")
+                
+                if 'exception' in result:
+                    logger.error(f"Exception: {result['exception']}")
+                
+                return False
+            
+            # النجاح
+            if result and not result.get('error'):
+                logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
+                logger.info(f"Leverage response: {result}")
+                return True
+            
+            # حالة غير متوقعة
+            logger.error(f"Failed to set leverage for {symbol}: {leverage}x - Unexpected response format")
+            logger.error(f"Unexpected response: {result}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Exception in set_leverage for {symbol}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def set_trading_stop(self, category: str, symbol: str, position_idx: int,
