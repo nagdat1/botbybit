@@ -9336,17 +9336,17 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id is not None and user_id in user_input_state:
                 del user_input_state[user_id]
     
-    elif text == " الإعدادات":
+    elif text.strip() == "الإعدادات":
         await settings_menu(update, context)
-    elif text == " حالة الحساب":
+    elif text.strip() == "حالة الحساب":
         await account_status(update, context)
-    elif text == " الصفقات المفتوحة":
+    elif text.strip() == "الصفقات المفتوحة":
         await open_positions(update, context)
-    elif text == " تاريخ التداول":
+    elif text.strip() == "تاريخ التداول":
         await trade_history(update, context)
-    elif text == " المحفظة":
+    elif text.strip() == "المحفظة":
         await wallet_overview(update, context)
-    elif text == " إحصائيات":
+    elif text.strip() == "إحصائيات":
         await show_user_statistics(update, context)
     elif text == "▶️ تشغيل البوت":
         trading_bot.is_running = True
@@ -9356,7 +9356,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         trading_bot.is_running = False
         if update.message is not None:
             await update.message.reply_text("⏹️ تم إيقاف البوت")
-    elif text == " إحصائيات الإشارات":
+    elif text.strip() == "إحصائيات الإشارات":
         # عرض إحصائيات الإشارات
         message = f"""
  إحصائيات الإشارات:
@@ -9366,7 +9366,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         if update.message is not None:
             await update.message.reply_text(message)
-    elif text == " تحديث الأزواج":
+    elif text.strip() == "تحديث الأزواج":
         try:
             await trading_bot.update_available_pairs()
             if update.message is not None:
@@ -9374,7 +9374,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             if update.message is not None:
                 await update.message.reply_text(f" فشل في تحديث الأزواج: {e}")
-    elif text == "💳 تعديل الرصيد":
+    elif text.strip() == "تعديل الرصيد":
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_demo_balance"
         if update.message is not None:
