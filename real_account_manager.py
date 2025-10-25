@@ -10,6 +10,7 @@ import hmac
 import hashlib
 import time
 import requests
+import json
 from typing import Dict, Optional, List, Any
 from urllib.parse import urlencode
 from datetime import datetime
@@ -25,16 +26,30 @@ class BybitRealAccount:
         self.base_url = "https://api.bybit.com"
         
     def _generate_signature(self, timestamp: str, recv_window: str, params_str: str) -> str:
-        """توليد التوقيع لـ Bybit V5"""
-        sign_str = timestamp + self.api_key + recv_window + params_str
-        signature = hmac.new(
-            self.api_secret.encode('utf-8'),
-            sign_str.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        logger.info(f"Bybit Signature Debug - sign_str: {sign_str}")
-        logger.info(f"Bybit Signature Debug - signature: {signature}")
-        return signature
+        """توليد التوقيع المحسن لـ Bybit V5"""
+        try:
+            # بناء سلسلة التوقيع بالترتيب الصحيح
+            sign_str = timestamp + self.api_key + recv_window + params_str
+            
+            logger.info(f"Bybit Signature Debug - timestamp: {timestamp}")
+            logger.info(f"Bybit Signature Debug - api_key: {self.api_key}")
+            logger.info(f"Bybit Signature Debug - recv_window: {recv_window}")
+            logger.info(f"Bybit Signature Debug - params_str: {params_str}")
+            logger.info(f"Bybit Signature Debug - sign_str: {sign_str}")
+            
+            # توليد التوقيع باستخدام HMAC-SHA256
+            signature = hmac.new(
+                self.api_secret.encode('utf-8'),
+                sign_str.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            logger.info(f"Bybit Signature Debug - signature: {signature}")
+            return signature
+            
+        except Exception as e:
+            logger.error(f"خطأ في توليد التوقيع: {e}")
+            raise
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None) -> Optional[Dict]:
         """إرسال طلب إلى Bybit API"""
@@ -44,13 +59,22 @@ class BybitRealAccount:
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء query string للطلبات GET
+        # بناء string المعاملات للتوقيع مع تحسينات
         if method == 'GET':
-            params_str = urlencode(sorted(params.items())) if params else ""
+            # للطلبات GET، استخدام query string مرتب أبجدياً
+            if params:
+                sorted_params = sorted(params.items())
+                params_str = urlencode(sorted_params)
+            else:
+                params_str = ""
         else:
-            # للطلبات POST، استخدام JSON string للتوقيع (مع مسافات)
-            import json
-            params_str = json.dumps(params, separators=(', ', ': ')) if params else ""
+            # للطلبات POST، استخدام JSON مرتب أبجدياً
+            if params:
+                # ترتيب المعاملات أبجدياً
+                sorted_params = dict(sorted(params.items()))
+                params_str = json.dumps(sorted_params, separators=(',', ':'), ensure_ascii=False)
+            else:
+                params_str = ""
         
         logger.info(f"Bybit Params Debug - params: {params}")
         logger.info(f"Bybit Params Debug - params_str: {params_str}")
