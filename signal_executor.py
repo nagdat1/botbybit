@@ -386,12 +386,37 @@ class SignalExecutor:
                 }
             
             # حساب الكمية بناءً على مبلغ التداول ونوع السوق
-            if category == 'linear':
-                # للفيوتشر مع الرافعة
-                qty = (trade_amount * leverage) / float(signal_data.get('price', 1))
+            # حساب الكمية - كود خفي للتحويل الذكي
+            price = float(signal_data.get('price', 1))
+            
+            # التحقق من أن السعر صحيح
+            if price <= 0:
+                logger.error(f"⚠️ سعر غير صحيح: {price}")
+                return {
+                    'success': False,
+                    'message': f'Invalid price: {price}',
+                    'is_real': True
+                }
+            
+            # حساب الكمية مع ضمان عدم وجود قيم صغيرة جداً
+            if market_type == 'futures':
+                qty = (trade_amount * leverage) / price
             else:
                 # للسبوت بدون رافعة
-                qty = trade_amount / float(signal_data.get('price', 1))
+                qty = trade_amount / price
+            
+            # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
+            min_quantity = 0.0001  # الحد الأدنى المقبول
+            if qty < min_quantity:
+                logger.warning(f"⚠️ الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
+                qty = min_quantity
+            
+            # تقريب الكمية حسب دقة الرمز
+            qty = round(qty, 6)
+            
+            logger.info(f"🧠 تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
+            logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
+            logger.info(f"📤 المخرجات (طريقة المنصة): qty = {qty} {symbol.split('USDT')[0]}")
             
             # استخراج TP/SL إذا كانت موجودة
             take_profit = signal_data.get('take_profit')
@@ -518,46 +543,79 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
-            # حساب الكمية
+            # حساب الكمية - كود خفي للتحويل الذكي
             price = float(signal_data.get('price', 1))
+            
+            # التحقق من أن السعر صحيح
+            if price <= 0:
+                logger.error(f"⚠️ سعر غير صحيح: {price}")
+                return {
+                    'success': False,
+                    'message': f'Invalid price: {price}',
+                    'is_real': True
+                }
+            
+            # حساب الكمية مع ضمان عدم وجود قيم صغيرة جداً
             quantity = trade_amount / price
+            
+            # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
+            min_quantity = 0.0001  # الحد الأدنى المقبول
+            if quantity < min_quantity:
+                logger.warning(f"⚠️ الكمية صغيرة جداً: {quantity}, تم تعديلها إلى الحد الأدنى")
+                quantity = min_quantity
+            
+            # تقريب الكمية حسب دقة الرمز
+            quantity = round(quantity, 6)
+            
+            logger.info(f"🧠 تحويل خفي: ${trade_amount} → {quantity} {symbol.split('USDT')[0]} (السعر: ${price})")
+            logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
+            logger.info(f"📤 المخرجات (طريقة المنصة): quantity = {quantity} {symbol.split('USDT')[0]}")
             
             # وضع الأمر
             logger.info(f"🔄 تنفيذ أمر MEXC: {side} {quantity} {symbol}")
             result = account.place_order(
                 symbol=symbol,
                 side=side,
-                quantity=round(quantity, 6),
+                quantity=quantity,
                 order_type='MARKET'
             )
             
-            if result:
-                logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
-                logger.info(f"📋 تفاصيل الأمر: {result}")
-                
-                # التحقق من وجود order_id في النتيجة
-                order_id = result.get('order_id') or result.get('orderId')
-                
-                return {
-                    'success': True,
-                    'message': f'Order placed: {side} {symbol}',
-                    'order_id': order_id,
-                    'symbol': symbol,
-                    'side': side,
-                    'qty': quantity,
-                    'is_real': True,
-                    'mexc_response': result  # إضافة الاستجابة الكاملة للتشخيص
-                }
-            else:
-                logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على MEXC - place_spot_order returned None")
+            # معالجة محسنة للأخطاء
+            if result is None:
+                logger.error(f"⚠️ فشل وضع الأمر - استجابة فارغة")
                 return {
                     'success': False,
-                    'message': f'Failed to place order on MEXC - place_spot_order returned None',
-                    'error': 'ORDER_FAILED',
-                    'symbol': symbol,
-                    'side': side,
-                    'quantity': quantity
+                    'message': f'Order placement failed - empty response',
+                    'is_real': True,
+                    'error_details': 'Empty response from MEXC API'
                 }
+            
+            if isinstance(result, dict) and 'error' in result:
+                logger.error(f"⚠️ خطأ في API: {result['error']}")
+                return {
+                    'success': False,
+                    'message': f'API Error: {result["error"]}',
+                    'is_real': True,
+                    'error_details': result
+                }
+            
+            # إذا وصلنا هنا، فالأمر نجح
+            logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
+            logger.info(f"📋 تفاصيل الأمر: {result}")
+            
+            # التحقق من وجود order_id في النتيجة
+            order_id = result.get('order_id') or result.get('orderId')
+            
+            return {
+                'success': True,
+                'message': f'Order placed: {side} {symbol}',
+                'order_id': order_id,
+                'symbol': symbol,
+                'side': side,
+                'qty': quantity,
+                'is_real': True,
+                'mexc_response': result  # إضافة الاستجابة الكاملة للتشخيص
+            }
                 
         except Exception as e:
             logger.error(f"❌ خطأ في تنفيذ إشارة MEXC: {e}")
@@ -738,6 +796,28 @@ class SignalExecutor:
                     qty=round(qty, 4)
                 )
                 
+                # معالجة محسنة للأخطاء
+                if result is None:
+                    logger.error(f"⚠️ فشل وضع الأمر Spot - استجابة فارغة")
+                    return {
+                        'success': False,
+                        'message': f'Spot order placement failed - empty response',
+                        'is_real': True,
+                        'error_details': 'Empty response from Bybit Spot API'
+                    }
+                
+                if isinstance(result, dict) and 'error' in result:
+                    logger.error(f"⚠️ خطأ في Spot API: {result['error']}")
+                    return {
+                        'success': False,
+                        'message': f'Spot API Error: {result["error"]}',
+                        'is_real': True,
+                        'error_details': result
+                    }
+                
+                logger.info(f"✅ تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
+                logger.info(f"📋 تفاصيل الأمر: {result}")
+                
                 if result and has_signal_id and signal_id:
                     # حفظ في قاعدة البيانات كمحفظة
                     position_data = {
@@ -787,6 +867,28 @@ class SignalExecutor:
                     order_type='Market',
                     qty=round(qty, 4)
                 )
+                
+                # معالجة محسنة للأخطاء
+                if result is None:
+                    logger.error(f"⚠️ فشل وضع أمر Sell - استجابة فارغة")
+                    return {
+                        'success': False,
+                        'message': f'Sell order placement failed - empty response',
+                        'is_real': True,
+                        'error_details': 'Empty response from Bybit Sell API'
+                    }
+                
+                if isinstance(result, dict) and 'error' in result:
+                    logger.error(f"⚠️ خطأ في Sell API: {result['error']}")
+                    return {
+                        'success': False,
+                        'message': f'Sell API Error: {result["error"]}',
+                        'is_real': True,
+                        'error_details': result
+                    }
+                
+                logger.info(f"✅ تم تنفيذ أمر Sell {side} {symbol} على Bybit بنجاح")
+                logger.info(f"📋 تفاصيل الأمر: {result}")
                 
                 if result and has_signal_id and signal_id:
                     # تحديث المحفظة
@@ -891,6 +993,29 @@ class SignalExecutor:
                     take_profit=take_profit,
                     stop_loss=stop_loss
                 )
+            
+            # معالجة محسنة للأخطاء
+            if result is None:
+                logger.error(f"⚠️ فشل وضع الأمر - استجابة فارغة")
+                return {
+                    'success': False,
+                    'message': f'Order placement failed - empty response',
+                    'is_real': True,
+                    'error_details': 'Empty response from Bybit API'
+                }
+            
+            if isinstance(result, dict) and 'error' in result:
+                logger.error(f"⚠️ خطأ في API: {result['error']}")
+                return {
+                    'success': False,
+                    'message': f'API Error: {result["error"]}',
+                    'is_real': True,
+                    'error_details': result
+                }
+            
+            # إذا وصلنا هنا، فالأمر نجح
+            logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
+            logger.info(f"📋 تفاصيل الأمر: {result}")
             
             # حفظ الصفقة في قاعدة البيانات
             if result and has_signal_id:

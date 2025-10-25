@@ -330,7 +330,11 @@ class MEXCTradingBot:
             # تحويل الكمية حسب القواعد
             if base_size_precision == '1':
                 # الكمية يجب أن تكون رقم صحيح
-                formatted_quantity = f"{int(quantity)}"
+                # لكن إذا كانت الكمية أقل من 1، نستخدم baseAssetPrecision
+                if quantity < 1:
+                    formatted_quantity = f"{quantity:.{base_asset_precision}f}".rstrip('0').rstrip('.')
+                else:
+                    formatted_quantity = f"{int(quantity)}"
             else:
                 # الكمية يمكن أن تكون عشرية
                 try:
