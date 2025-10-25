@@ -1154,10 +1154,162 @@ class SignalExecutor:
                     ]
                 }
             
-            # فحص الأخطاء الشائعة
-            error_msg = result.get('error', '')
+            # فحص الأخطاء الجديدة من API
             error_type = result.get('error_type', '')
+            error_msg = result.get('error', '')
             
+            # فحص أخطاء Bybit API المحددة
+            if 'retCode' in result:
+                ret_code = result['retCode']
+                ret_msg = result.get('retMsg', '')
+                
+                # أخطاء Bybit الشائعة
+                if ret_code == 10001:
+                    return {
+                        'message': 'مفاتيح API غير صحيحة',
+                        'solutions': [
+                            'تحقق من صحة API Key',
+                            'تحقق من صحة API Secret',
+                            'تأكد من تفعيل API في حساب Bybit'
+                        ]
+                    }
+                elif ret_code == 10003:
+                    return {
+                        'message': 'طلب غير صحيح',
+                        'solutions': [
+                            'تحقق من صحة المعاملات',
+                            'تأكد من صحة الرمز',
+                            'تحقق من الكمية والسعر'
+                        ]
+                    }
+                elif ret_code == 10004:
+                    return {
+                        'message': 'الرصيد غير كافي',
+                        'solutions': [
+                            'قم بإيداع المزيد من USDT',
+                            'قلل من مبلغ التداول',
+                            'تحقق من الرصيد المتاح'
+                        ]
+                    }
+                elif ret_code == 10006:
+                    return {
+                        'message': 'الكمية غير صحيحة',
+                        'solutions': [
+                            f'تأكد من أن الكمية أكبر من الحد الأدنى (0.001 لـ BTCUSDT)',
+                            'تحقق من دقة الكمية',
+                            'جرب كمية أكبر'
+                        ]
+                    }
+                elif ret_code == 10016:
+                    return {
+                        'message': 'الرمز غير مدعوم أو غير صحيح',
+                        'solutions': [
+                            'تحقق من صحة الرمز',
+                            'تأكد من أن الرمز مدعوم في Bybit',
+                            'استخدم رمز صحيح مثل BTCUSDT'
+                        ]
+                    }
+                elif ret_code == 10017:
+                    return {
+                        'message': 'مشكلة في الرافعة المالية',
+                        'solutions': [
+                            'تحقق من إعدادات الرافعة المالية',
+                            'تأكد من أن الرافعة مسموحة للرمز',
+                            'جرب رافعة أقل'
+                        ]
+                    }
+                elif ret_code == 10018:
+                    return {
+                        'message': 'مشكلة في الصلاحيات',
+                        'solutions': [
+                            'تحقق من صلاحيات التداول في حسابك',
+                            'تأكد من تفعيل التداول على Futures',
+                            'تحقق من إعدادات الحساب'
+                        ]
+                    }
+                else:
+                    return {
+                        'message': f'خطأ Bybit API {ret_code}: {ret_msg}',
+                        'solutions': [
+                            'تحقق من مفاتيح API',
+                            'تأكد من صحة البيانات',
+                            'راجع وثائق Bybit API',
+                            'اتصل بالدعم الفني إذا استمرت المشكلة'
+                        ]
+                    }
+            
+            # فحص أخطاء HTTP
+            if 'http_status' in result:
+                http_status = result['http_status']
+                if http_status == 401:
+                    return {
+                        'message': 'مشكلة في المصادقة',
+                        'solutions': [
+                            'تحقق من صحة مفاتيح API',
+                            'تأكد من صلاحيات API',
+                            'تحقق من التوقيع'
+                        ]
+                    }
+                elif http_status == 403:
+                    return {
+                        'message': 'مشكلة في الصلاحيات',
+                        'solutions': [
+                            'تحقق من صلاحيات التداول',
+                            'تأكد من تفعيل API',
+                            'راجع إعدادات الحساب'
+                        ]
+                    }
+                elif http_status == 429:
+                    return {
+                        'message': 'تم تجاوز حد الطلبات',
+                        'solutions': [
+                            'انتظر قليلاً قبل المحاولة مرة أخرى',
+                            'قلل من عدد الطلبات',
+                            'استخدم rate limiting'
+                        ]
+                    }
+                else:
+                    return {
+                        'message': f'خطأ HTTP {http_status}',
+                        'solutions': [
+                            'تحقق من اتصال الإنترنت',
+                            'جرب مرة أخرى بعد قليل',
+                            'تحقق من حالة خوادم Bybit'
+                        ]
+                    }
+            
+            # فحص أخطاء الاستثناء
+            if 'exception' in result:
+                exception_msg = result['exception']
+                if 'timeout' in exception_msg.lower():
+                    return {
+                        'message': 'انتهت مهلة الطلب',
+                        'solutions': [
+                            'تحقق من اتصال الإنترنت',
+                            'جرب مرة أخرى',
+                            'تحقق من سرعة الإنترنت'
+                        ]
+                    }
+                elif 'connection' in exception_msg.lower():
+                    return {
+                        'message': 'مشكلة في الاتصال',
+                        'solutions': [
+                            'تحقق من اتصال الإنترنت',
+                            'تحقق من إعدادات الشبكة',
+                            'جرب مرة أخرى'
+                        ]
+                    }
+                else:
+                    return {
+                        'message': f'خطأ في الطلب: {exception_msg}',
+                        'solutions': [
+                            'تحقق من اتصال الإنترنت',
+                            'جرب مرة أخرى',
+                            'تحقق من إعدادات النظام'
+                        ]
+                    }
+            
+            # فحص الأخطاء القديمة للتوافق
             if 'INSUFFICIENT_BALANCE' in error_type or 'insufficient' in error_msg.lower():
                 return {
                     'message': 'الرصيد غير كافي',
@@ -1208,13 +1360,14 @@ class SignalExecutor:
                     ]
                 }
             
-            # خطأ عام
+            # خطأ عام مع تفاصيل أكثر
             return {
-                'message': f'خطأ غير محدد: {error_msg}',
+                'message': f'خطأ غير محدد: {error_msg or "لا توجد تفاصيل خطأ"}',
                 'solutions': [
                     'تحقق من مفاتيح API',
                     'تأكد من صحة البيانات',
                     'جرب مرة أخرى',
+                    'راجع السجلات للتفاصيل',
                     'اتصل بالدعم الفني إذا استمرت المشكلة'
                 ]
             }

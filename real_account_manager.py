@@ -97,15 +97,37 @@ class BybitRealAccount:
                     logger.info(f"Bybit API Success: {result.get('result')}")
                     return result.get('result')
                 else:
-                    logger.error(f"Bybit API Error - retCode: {result.get('retCode')}, retMsg: {result.get('retMsg')}")
-                    return None
+                    error_msg = result.get('retMsg', 'Unknown error')
+                    ret_code = result.get('retCode', -1)
+                    logger.error(f"Bybit API Error - retCode: {ret_code}, retMsg: {error_msg}")
+                    
+                    # إرجاع معلومات الخطأ بدلاً من None
+                    return {
+                        'error': True,
+                        'retCode': ret_code,
+                        'retMsg': error_msg,
+                        'raw_response': result
+                    }
             
             logger.error(f"Bybit API HTTP Error: {response.status_code} - {response.text}")
-            return None
+            
+            # إرجاع معلومات الخطأ HTTP
+            return {
+                'error': True,
+                'http_status': response.status_code,
+                'http_message': response.text,
+                'raw_response': response.text
+            }
             
         except Exception as e:
             logger.error(f"خطأ في طلب Bybit: {e}")
-            return None
+            
+            # إرجاع معلومات الخطأ الاستثناء
+            return {
+                'error': True,
+                'exception': str(e),
+                'error_type': 'REQUEST_EXCEPTION'
+            }
     
     def get_wallet_balance(self, market_type: str = 'unified') -> Optional[Dict]:
         """
@@ -233,7 +255,51 @@ class BybitRealAccount:
         
         result = self._make_request('POST', '/v5/order/create', params)
         
-        if result:
+        # معالجة محسنة للنتيجة
+        if result is None:
+            logger.error(f"Bybit order placement failed for {symbol} - No response")
+            return {
+                'success': False,
+                'error': 'Order placement failed - No response from API',
+                'symbol': symbol,
+                'side': side,
+                'qty': qty,
+                'error_type': 'NO_RESPONSE'
+            }
+        
+        # فحص إذا كانت النتيجة تحتوي على خطأ
+        if isinstance(result, dict) and result.get('error'):
+            logger.error(f"Bybit order placement failed for {symbol} - API Error")
+            
+            # استخراج تفاصيل الخطأ
+            error_details = {
+                'success': False,
+                'symbol': symbol,
+                'side': side,
+                'qty': qty,
+                'error_type': 'API_ERROR'
+            }
+            
+            # إضافة تفاصيل الخطأ حسب النوع
+            if 'retCode' in result:
+                error_details['retCode'] = result['retCode']
+                error_details['retMsg'] = result['retMsg']
+                error_details['error'] = f"Bybit API Error {result['retCode']}: {result['retMsg']}"
+            elif 'http_status' in result:
+                error_details['http_status'] = result['http_status']
+                error_details['http_message'] = result['http_message']
+                error_details['error'] = f"HTTP Error {result['http_status']}: {result['http_message']}"
+            elif 'exception' in result:
+                error_details['exception'] = result['exception']
+                error_details['error'] = f"Request Exception: {result['exception']}"
+            else:
+                error_details['error'] = 'Unknown API error'
+            
+            error_details['raw_response'] = result
+            return error_details
+        
+        # النجاح
+        if result and not result.get('error'):
             logger.info(f"Bybit order placed successfully: {result}")
             return {
                 'order_id': result.get('orderId'),
@@ -246,16 +312,18 @@ class BybitRealAccount:
                 'success': True,
                 'raw_response': result
             }
-        else:
-            logger.error(f"Bybit order placement failed for {symbol}")
-            return {
-                'success': False,
-                'error': 'Order placement failed - API returned None',
-                'symbol': symbol,
-                'side': side,
-                'qty': qty,
-                'error_type': 'API_NULL_RESPONSE'
-            }
+        
+        # حالة غير متوقعة
+        logger.error(f"Bybit order placement failed for {symbol} - Unexpected response")
+        return {
+            'success': False,
+            'error': 'Order placement failed - Unexpected response format',
+            'symbol': symbol,
+            'side': side,
+            'qty': qty,
+            'error_type': 'UNEXPECTED_RESPONSE',
+            'raw_response': result
+        }
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
         """تعيين الرافعة المالية على المنصة"""
