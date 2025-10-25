@@ -401,38 +401,6 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
-            # استخدام النظام الشامل لإصلاح مشكلة عدم كفاية الرصيد
-            try:
-                from comprehensive_balance_fix import comprehensive_balance_fix
-                
-                logger.info("🔧 استخدام النظام الشامل لإصلاح مشكلة عدم كفاية الرصيد...")
-                
-                # تنفيذ الإشارة مع الإصلاح الشامل
-                comprehensive_result = await comprehensive_balance_fix.execute_signal_with_comprehensive_fix(
-                    user_id, signal_data, user_data
-                )
-                
-                if comprehensive_result.get('success'):
-                    logger.info("✅ تم تنفيذ الإشارة بنجاح باستخدام النظام الشامل")
-                    return comprehensive_result
-                else:
-                    logger.warning(f"⚠️ فشل النظام الشامل: {comprehensive_result.get('message')}")
-                    
-                    # إذا كان السبب هو عدم كفاية الرصيد، نعيد النتيجة المحسنة
-                    if comprehensive_result.get('error') == 'INSUFFICIENT_BALANCE':
-                        return comprehensive_result
-                    
-                    # للأخطاء الأخرى، نتابع بالنظام العادي
-                    logger.info("🔄 متابعة بالنظام العادي...")
-                    
-            except ImportError as e:
-                logger.warning(f"⚠️ النظام الشامل غير متاح: {e}")
-                logger.info("🔄 متابعة بالنظام العادي...")
-            except Exception as e:
-                logger.error(f"❌ خطأ في النظام الشامل: {e}")
-                logger.info("🔄 متابعة بالنظام العادي...")
-            
-            # النظام العادي (fallback)
             # حساب الكمية بناءً على مبلغ التداول ونوع السوق
             # حساب الكمية - كود خفي للتحويل الذكي
             # استخدام السعر الذي تم جلبه من API أو الموجود في البيانات
@@ -480,7 +448,7 @@ class SignalExecutor:
                             logger.error(f"الرصيد غير كافي حتى للحد الأدنى: {available_balance} < {min_margin_required}")
                             return {
                                 'success': False,
-                                'message': f'الرصيد غير كافي للحد الأدنى. متاح: {available_balance:.2f} USDT، مطلوب: {min_margin_required:.2f} USDT',
+                                'message': f'Insufficient balance for minimum order. Available: {available_balance} USDT, Required: {min_margin_required:.2f} USDT',
                                 'error': 'INSUFFICIENT_BALANCE_MINIMUM',
                                 'is_real': True,
                                 'available_balance': available_balance,
@@ -574,17 +542,11 @@ class SignalExecutor:
                 logger.error(f" فشل تنفيذ أمر {side} {symbol} على Bybit")
                 if result:
                     logger.error(f" تفاصيل الفشل: {result}")
-                
-                # تحليل مفصل لسبب الفشل
-                error_analysis = SignalExecutor._analyze_order_failure(result, symbol, side, qty)
-                
                 return {
                     'success': False,
-                    'message': f'Failed to place order on Bybit: {error_analysis["message"]}',
+                    'message': f'Failed to place order on Bybit',
                     'error': 'ORDER_FAILED',
-                    'error_details': result if result else 'No response from API',
-                    'error_analysis': error_analysis,
-                    'suggested_solutions': error_analysis.get('solutions', [])
+                    'error_details': result if result else 'No response from API'
                 }
                 
         except Exception as e:
@@ -889,16 +851,14 @@ class SignalExecutor:
                     qty=round(qty, 4)
                 )
                 
-                # معالجة محسنة للأخطاء مع تمرير تفاصيل كاملة
+                # معالجة محسنة للأخطاء
                 if result is None:
                     logger.error(f" فشل وضع الأمر Spot - استجابة فارغة")
                     return {
                         'success': False,
                         'message': f'Spot order placement failed - empty response',
                         'is_real': True,
-                        'error_details': 'Empty response from Bybit Spot API',
-                        'error': 'Empty response from Bybit Spot API',
-                        'error_type': 'NO_RESPONSE'
+                        'error_details': 'Empty response from Bybit Spot API'
                     }
                 
                 if isinstance(result, dict) and 'error' in result:
@@ -907,14 +867,7 @@ class SignalExecutor:
                         'success': False,
                         'message': f'Spot API Error: {result["error"]}',
                         'is_real': True,
-                        'error_details': result,
-                        'error': result['error'],
-                        'error_type': result.get('error_type', 'API_ERROR'),
-                        'retCode': result.get('retCode'),
-                        'retMsg': result.get('retMsg'),
-                        'http_status': result.get('http_status'),
-                        'http_message': result.get('http_message'),
-                        'exception': result.get('exception')
+                        'error_details': result
                     }
                 
                 # فحص نجاح الأمر بناءً على وجود order_id
@@ -924,9 +877,7 @@ class SignalExecutor:
                         'success': False,
                         'message': f'Spot order placement failed - no order_id returned',
                         'is_real': True,
-                        'error_details': result,
-                        'error': 'Spot order placement failed - no order_id returned',
-                        'error_type': 'NO_ORDER_ID'
+                        'error_details': result
                     }
                 
                 logger.info(f" تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
@@ -1108,16 +1059,14 @@ class SignalExecutor:
                     stop_loss=stop_loss
                 )
             
-            # معالجة محسنة للأخطاء مع تمرير تفاصيل كاملة
+            # معالجة محسنة للأخطاء
             if result is None:
                 logger.error(f" فشل وضع الأمر - استجابة فارغة")
                 return {
                     'success': False,
                     'message': f'Order placement failed - empty response',
                     'is_real': True,
-                    'error_details': 'Empty response from Bybit API',
-                    'error': 'Empty response from Bybit API',
-                    'error_type': 'NO_RESPONSE'
+                    'error_details': 'Empty response from Bybit API'
                 }
             
             if isinstance(result, dict) and 'error' in result:
@@ -1126,14 +1075,7 @@ class SignalExecutor:
                     'success': False,
                     'message': f'API Error: {result["error"]}',
                     'is_real': True,
-                    'error_details': result,
-                    'error': result['error'],
-                    'error_type': result.get('error_type', 'API_ERROR'),
-                    'retCode': result.get('retCode'),
-                    'retMsg': result.get('retMsg'),
-                    'http_status': result.get('http_status'),
-                    'http_message': result.get('http_message'),
-                    'exception': result.get('exception')
+                    'error_details': result
                 }
             
             # فحص نجاح الأمر بناءً على وجود order_id
@@ -1143,9 +1085,7 @@ class SignalExecutor:
                     'success': False,
                     'message': f'Futures order placement failed - no order_id returned',
                     'is_real': True,
-                    'error_details': result,
-                    'error': 'Futures order placement failed - no order_id returned',
-                    'error_type': 'NO_ORDER_ID'
+                    'error_details': result
                 }
             
             # إذا وصلنا هنا، فالأمر نجح
@@ -1193,245 +1133,6 @@ class SignalExecutor:
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
         random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
         return f"{symbol}-{timestamp}-{random_part}"
-    
-    @staticmethod
-    def _analyze_order_failure(result: Dict, symbol: str, side: str, qty: float) -> Dict:
-        """تحليل مفصل لسبب فشل الأمر"""
-        try:
-            if not result:
-                return {
-                    'message': 'لا توجد استجابة من API',
-                    'solutions': [
-                        'تحقق من اتصال الإنترنت',
-                        'تأكد من صحة مفاتيح API',
-                        'جرب مرة أخرى بعد قليل'
-                    ]
-                }
-            
-            # فحص الأخطاء الجديدة من API
-            error_type = result.get('error_type', '')
-            error_msg = result.get('error', '')
-            
-            # فحص أخطاء Bybit API المحددة
-            if 'retCode' in result:
-                ret_code = result['retCode']
-                ret_msg = result.get('retMsg', '')
-                
-                # أخطاء Bybit الشائعة
-                if ret_code == 10001:
-                    return {
-                        'message': 'مفاتيح API غير صحيحة',
-                        'solutions': [
-                            'تحقق من صحة API Key',
-                            'تحقق من صحة API Secret',
-                            'تأكد من تفعيل API في حساب Bybit'
-                        ]
-                    }
-                elif ret_code == 10003:
-                    return {
-                        'message': 'طلب غير صحيح',
-                        'solutions': [
-                            'تحقق من صحة المعاملات',
-                            'تأكد من صحة الرمز',
-                            'تحقق من الكمية والسعر'
-                        ]
-                    }
-                elif ret_code == 10004:
-                    return {
-                        'message': 'الرصيد غير كافي',
-                        'solutions': [
-                            'قم بإيداع المزيد من USDT',
-                            'قلل من مبلغ التداول',
-                            'تحقق من الرصيد المتاح'
-                        ]
-                    }
-                elif ret_code == 10006:
-                    return {
-                        'message': 'الكمية غير صحيحة',
-                        'solutions': [
-                            f'تأكد من أن الكمية أكبر من الحد الأدنى (0.001 لـ BTCUSDT)',
-                            'تحقق من دقة الكمية',
-                            'جرب كمية أكبر'
-                        ]
-                    }
-                elif ret_code == 10016:
-                    return {
-                        'message': 'الرمز غير مدعوم أو غير صحيح',
-                        'solutions': [
-                            'تحقق من صحة الرمز',
-                            'تأكد من أن الرمز مدعوم في Bybit',
-                            'استخدم رمز صحيح مثل BTCUSDT'
-                        ]
-                    }
-                elif ret_code == 10017:
-                    return {
-                        'message': 'مشكلة في الرافعة المالية',
-                        'solutions': [
-                            'تحقق من إعدادات الرافعة المالية',
-                            'تأكد من أن الرافعة مسموحة للرمز',
-                            'جرب رافعة أقل'
-                        ]
-                    }
-                elif ret_code == 10018:
-                    return {
-                        'message': 'مشكلة في الصلاحيات',
-                        'solutions': [
-                            'تحقق من صلاحيات التداول في حسابك',
-                            'تأكد من تفعيل التداول على Futures',
-                            'تحقق من إعدادات الحساب'
-                        ]
-                    }
-                else:
-                    return {
-                        'message': f'خطأ Bybit API {ret_code}: {ret_msg}',
-                        'solutions': [
-                            'تحقق من مفاتيح API',
-                            'تأكد من صحة البيانات',
-                            'راجع وثائق Bybit API',
-                            'اتصل بالدعم الفني إذا استمرت المشكلة'
-                        ]
-                    }
-            
-            # فحص أخطاء HTTP
-            if 'http_status' in result:
-                http_status = result['http_status']
-                if http_status == 401:
-                    return {
-                        'message': 'مشكلة في المصادقة',
-                        'solutions': [
-                            'تحقق من صحة مفاتيح API',
-                            'تأكد من صلاحيات API',
-                            'تحقق من التوقيع'
-                        ]
-                    }
-                elif http_status == 403:
-                    return {
-                        'message': 'مشكلة في الصلاحيات',
-                        'solutions': [
-                            'تحقق من صلاحيات التداول',
-                            'تأكد من تفعيل API',
-                            'راجع إعدادات الحساب'
-                        ]
-                    }
-                elif http_status == 429:
-                    return {
-                        'message': 'تم تجاوز حد الطلبات',
-                        'solutions': [
-                            'انتظر قليلاً قبل المحاولة مرة أخرى',
-                            'قلل من عدد الطلبات',
-                            'استخدم rate limiting'
-                        ]
-                    }
-                else:
-                    return {
-                        'message': f'خطأ HTTP {http_status}',
-                        'solutions': [
-                            'تحقق من اتصال الإنترنت',
-                            'جرب مرة أخرى بعد قليل',
-                            'تحقق من حالة خوادم Bybit'
-                        ]
-                    }
-            
-            # فحص أخطاء الاستثناء
-            if 'exception' in result:
-                exception_msg = result['exception']
-                if 'timeout' in exception_msg.lower():
-                    return {
-                        'message': 'انتهت مهلة الطلب',
-                        'solutions': [
-                            'تحقق من اتصال الإنترنت',
-                            'جرب مرة أخرى',
-                            'تحقق من سرعة الإنترنت'
-                        ]
-                    }
-                elif 'connection' in exception_msg.lower():
-                    return {
-                        'message': 'مشكلة في الاتصال',
-                        'solutions': [
-                            'تحقق من اتصال الإنترنت',
-                            'تحقق من إعدادات الشبكة',
-                            'جرب مرة أخرى'
-                        ]
-                    }
-                else:
-                    return {
-                        'message': f'خطأ في الطلب: {exception_msg}',
-                        'solutions': [
-                            'تحقق من اتصال الإنترنت',
-                            'جرب مرة أخرى',
-                            'تحقق من إعدادات النظام'
-                        ]
-                    }
-            
-            # فحص الأخطاء القديمة للتوافق
-            if 'INSUFFICIENT_BALANCE' in error_type or 'insufficient' in error_msg.lower():
-                return {
-                    'message': 'الرصيد غير كافي',
-                    'solutions': [
-                        'قم بإيداع المزيد من USDT',
-                        'قلل من مبلغ التداول',
-                        'تحقق من الرصيد المتاح'
-                    ]
-                }
-            
-            if 'INVALID_SYMBOL' in error_type or 'symbol' in error_msg.lower():
-                return {
-                    'message': 'الرمز غير صحيح أو غير مدعوم',
-                    'solutions': [
-                        'تحقق من صحة الرمز',
-                        'تأكد من أن الرمز مدعوم في Bybit',
-                        'استخدم رمز صحيح مثل BTCUSDT'
-                    ]
-                }
-            
-            if 'INVALID_QUANTITY' in error_type or 'quantity' in error_msg.lower():
-                return {
-                    'message': 'الكمية غير صحيحة',
-                    'solutions': [
-                        f'تأكد من أن الكمية أكبر من الحد الأدنى (0.001 لـ BTCUSDT)',
-                        'تحقق من دقة الكمية',
-                        'جرب كمية أكبر'
-                    ]
-                }
-            
-            if 'LEVERAGE' in error_msg.upper():
-                return {
-                    'message': 'مشكلة في الرافعة المالية',
-                    'solutions': [
-                        'تحقق من إعدادات الرافعة المالية',
-                        'تأكد من أن الرافعة مسموحة للرمز',
-                        'جرب رافعة أقل'
-                    ]
-                }
-            
-            if 'PERMISSION' in error_msg.upper() or 'ACCESS' in error_msg.upper():
-                return {
-                    'message': 'مشكلة في الصلاحيات',
-                    'solutions': [
-                        'تحقق من صلاحيات التداول في حسابك',
-                        'تأكد من تفعيل التداول على Futures',
-                        'تحقق من إعدادات الحساب'
-                    ]
-                }
-            
-            # خطأ عام مع تفاصيل أكثر
-            return {
-                'message': f'خطأ غير محدد: {error_msg or "لا توجد تفاصيل خطأ"}',
-                'solutions': [
-                    'تحقق من مفاتيح API',
-                    'تأكد من صحة البيانات',
-                    'جرب مرة أخرى',
-                    'راجع السجلات للتفاصيل',
-                    'اتصل بالدعم الفني إذا استمرت المشكلة'
-                ]
-            }
-            
-        except Exception as e:
-            logger.error(f"خطأ في تحليل فشل الأمر: {e}")
-            return {
-                'message': 'خطأ في تحليل الفشل',
-                'solutions': ['جرب مرة أخرى', 'تحقق من البيانات']
-            }
 
 
 # مثيل عام

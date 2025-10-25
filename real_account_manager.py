@@ -10,7 +10,6 @@ import hmac
 import hashlib
 import time
 import requests
-import json
 from typing import Dict, Optional, List, Any
 from urllib.parse import urlencode
 from datetime import datetime
@@ -26,30 +25,16 @@ class BybitRealAccount:
         self.base_url = "https://api.bybit.com"
         
     def _generate_signature(self, timestamp: str, recv_window: str, params_str: str) -> str:
-        """توليد التوقيع المحسن لـ Bybit V5"""
-        try:
-            # بناء سلسلة التوقيع بالترتيب الصحيح
-            sign_str = timestamp + self.api_key + recv_window + params_str
-            
-            logger.info(f"Bybit Signature Debug - timestamp: {timestamp}")
-            logger.info(f"Bybit Signature Debug - api_key: {self.api_key}")
-            logger.info(f"Bybit Signature Debug - recv_window: {recv_window}")
-            logger.info(f"Bybit Signature Debug - params_str: {params_str}")
-            logger.info(f"Bybit Signature Debug - sign_str: {sign_str}")
-            
-            # توليد التوقيع باستخدام HMAC-SHA256
-            signature = hmac.new(
-                self.api_secret.encode('utf-8'),
-                sign_str.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            
-            logger.info(f"Bybit Signature Debug - signature: {signature}")
-            return signature
-            
-        except Exception as e:
-            logger.error(f"خطأ في توليد التوقيع: {e}")
-            raise
+        """توليد التوقيع لـ Bybit V5"""
+        sign_str = timestamp + self.api_key + recv_window + params_str
+        signature = hmac.new(
+            self.api_secret.encode('utf-8'),
+            sign_str.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        logger.info(f"Bybit Signature Debug - sign_str: {sign_str}")
+        logger.info(f"Bybit Signature Debug - signature: {signature}")
+        return signature
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None) -> Optional[Dict]:
         """إرسال طلب إلى Bybit API"""
@@ -59,22 +44,13 @@ class BybitRealAccount:
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء string المعاملات للتوقيع مع تحسينات
+        # بناء query string للطلبات GET
         if method == 'GET':
-            # للطلبات GET، استخدام query string مرتب أبجدياً
-            if params:
-                sorted_params = sorted(params.items())
-                params_str = urlencode(sorted_params)
-            else:
-                params_str = ""
+            params_str = urlencode(sorted(params.items())) if params else ""
         else:
-            # للطلبات POST، استخدام JSON مرتب أبجدياً
-            if params:
-                # ترتيب المعاملات أبجدياً
-                sorted_params = dict(sorted(params.items()))
-                params_str = json.dumps(sorted_params, separators=(',', ':'), ensure_ascii=False)
-            else:
-                params_str = ""
+            # للطلبات POST، استخدام JSON string للتوقيع (مع مسافات)
+            import json
+            params_str = json.dumps(params, separators=(', ', ': ')) if params else ""
         
         logger.info(f"Bybit Params Debug - params: {params}")
         logger.info(f"Bybit Params Debug - params_str: {params_str}")
@@ -121,37 +97,15 @@ class BybitRealAccount:
                     logger.info(f"Bybit API Success: {result.get('result')}")
                     return result.get('result')
                 else:
-                    error_msg = result.get('retMsg', 'Unknown error')
-                    ret_code = result.get('retCode', -1)
-                    logger.error(f"Bybit API Error - retCode: {ret_code}, retMsg: {error_msg}")
-                    
-                    # إرجاع معلومات الخطأ بدلاً من None
-                    return {
-                        'error': True,
-                        'retCode': ret_code,
-                        'retMsg': error_msg,
-                        'raw_response': result
-                    }
+                    logger.error(f"Bybit API Error - retCode: {result.get('retCode')}, retMsg: {result.get('retMsg')}")
+                    return None
             
             logger.error(f"Bybit API HTTP Error: {response.status_code} - {response.text}")
-            
-            # إرجاع معلومات الخطأ HTTP
-            return {
-                'error': True,
-                'http_status': response.status_code,
-                'http_message': response.text,
-                'raw_response': response.text
-            }
+            return None
             
         except Exception as e:
             logger.error(f"خطأ في طلب Bybit: {e}")
-            
-            # إرجاع معلومات الخطأ الاستثناء
-            return {
-                'error': True,
-                'exception': str(e),
-                'error_type': 'REQUEST_EXCEPTION'
-            }
+            return None
     
     def get_wallet_balance(self, market_type: str = 'unified') -> Optional[Dict]:
         """
@@ -279,51 +233,7 @@ class BybitRealAccount:
         
         result = self._make_request('POST', '/v5/order/create', params)
         
-        # معالجة محسنة للنتيجة
-        if result is None:
-            logger.error(f"Bybit order placement failed for {symbol} - No response")
-            return {
-                'success': False,
-                'error': 'Order placement failed - No response from API',
-                'symbol': symbol,
-                'side': side,
-                'qty': qty,
-                'error_type': 'NO_RESPONSE'
-            }
-        
-        # فحص إذا كانت النتيجة تحتوي على خطأ
-        if isinstance(result, dict) and result.get('error'):
-            logger.error(f"Bybit order placement failed for {symbol} - API Error")
-            
-            # استخراج تفاصيل الخطأ
-            error_details = {
-                'success': False,
-                'symbol': symbol,
-                'side': side,
-                'qty': qty,
-                'error_type': 'API_ERROR'
-            }
-            
-            # إضافة تفاصيل الخطأ حسب النوع
-            if 'retCode' in result:
-                error_details['retCode'] = result['retCode']
-                error_details['retMsg'] = result['retMsg']
-                error_details['error'] = f"Bybit API Error {result['retCode']}: {result['retMsg']}"
-            elif 'http_status' in result:
-                error_details['http_status'] = result['http_status']
-                error_details['http_message'] = result['http_message']
-                error_details['error'] = f"HTTP Error {result['http_status']}: {result['http_message']}"
-            elif 'exception' in result:
-                error_details['exception'] = result['exception']
-                error_details['error'] = f"Request Exception: {result['exception']}"
-            else:
-                error_details['error'] = 'Unknown API error'
-            
-            error_details['raw_response'] = result
-            return error_details
-        
-        # النجاح
-        if result and not result.get('error'):
+        if result:
             logger.info(f"Bybit order placed successfully: {result}")
             return {
                 'order_id': result.get('orderId'),
@@ -336,100 +246,34 @@ class BybitRealAccount:
                 'success': True,
                 'raw_response': result
             }
-        
-        # حالة غير متوقعة
-        logger.error(f"Bybit order placement failed for {symbol} - Unexpected response")
-        return {
-            'success': False,
-            'error': 'Order placement failed - Unexpected response format',
-            'symbol': symbol,
-            'side': side,
-            'qty': qty,
-            'error_type': 'UNEXPECTED_RESPONSE',
-            'raw_response': result
-        }
+        else:
+            logger.error(f"Bybit order placement failed for {symbol}")
+            return {
+                'success': False,
+                'error': 'Order placement failed - API returned None',
+                'symbol': symbol,
+                'side': side,
+                'qty': qty,
+                'error_type': 'API_NULL_RESPONSE'
+            }
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
-        """تعيين الرافعة المالية على المنصة مع معالجة محسنة للأخطاء"""
-        try:
-            # التحقق من صحة المعاملات
-            if not symbol or leverage <= 0:
-                logger.error(f"Invalid parameters for leverage: symbol={symbol}, leverage={leverage}")
-                return False
-            
-            # تحديد نوع الحساب الصحيح
-            if category == 'linear':
-                account_type = 'UNIFIED'  # استخدام UNIFIED للفيوتشر الخطي
-            elif category == 'inverse':
-                account_type = 'CONTRACT'  # استخدام CONTRACT للفيوتشر العكسي
-            else:
-                logger.error(f"Unsupported category for leverage: {category}")
-                return False
-            
-            params = {
-                'category': category,
-                'symbol': symbol,
-                'buyLeverage': str(leverage),
-                'sellLeverage': str(leverage)
-            }
-            
-            logger.info(f"Setting leverage for {symbol}: {leverage}x (category: {category})")
-            logger.info(f"Leverage params: {params}")
-            
-            result = self._make_request('POST', '/v5/position/set-leverage', params)
-            
-            # معالجة محسنة للنتيجة مع تسجيل مفصل
-            if result is None:
-                logger.error(f"Failed to set leverage for {symbol}: {leverage}x - No response from API")
-                return False
-            
-            # فحص إذا كانت النتيجة تحتوي على خطأ
-            if isinstance(result, dict) and result.get('error'):
-                logger.error(f"Failed to set leverage for {symbol}: {leverage}x - API Error")
-                
-                # تسجيل تفاصيل الخطأ
-                if 'retCode' in result:
-                    ret_code = result['retCode']
-                    ret_msg = result['retMsg']
-                    logger.error(f"Leverage error details - retCode: {ret_code}, retMsg: {ret_msg}")
-                    
-                    # معالجة أخطاء محددة
-                    if ret_code == 10001:
-                        logger.error("API key or signature error")
-                    elif ret_code == 10003:
-                        logger.error("Invalid request parameters")
-                    elif ret_code == 10016:
-                        logger.error(f"Symbol {symbol} not found or not supported")
-                    elif ret_code == 10017:
-                        logger.error(f"Invalid leverage {leverage} for symbol {symbol}")
-                    elif ret_code == 10018:
-                        logger.error("Permission denied - check API permissions")
-                    else:
-                        logger.error(f"Unknown leverage error: {ret_code} - {ret_msg}")
-                
-                if 'http_status' in result:
-                    logger.error(f"HTTP error: {result['http_status']} - {result['http_message']}")
-                
-                if 'exception' in result:
-                    logger.error(f"Exception: {result['exception']}")
-                
-                return False
-            
-            # النجاح
-            if result and not result.get('error'):
-                logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
-                logger.info(f"Leverage response: {result}")
-                return True
-            
-            # حالة غير متوقعة
-            logger.error(f"Failed to set leverage for {symbol}: {leverage}x - Unexpected response format")
-            logger.error(f"Unexpected response: {result}")
-            return False
-            
-        except Exception as e:
-            logger.error(f"Exception in set_leverage for {symbol}: {e}")
-            import traceback
-            traceback.print_exc()
+        """تعيين الرافعة المالية على المنصة"""
+        params = {
+            'category': category,
+            'symbol': symbol,
+            'buyLeverage': str(leverage),
+            'sellLeverage': str(leverage)
+        }
+        
+        logger.info(f"Setting leverage for {symbol}: {leverage}x")
+        result = self._make_request('POST', '/v5/position/set-leverage', params)
+        
+        if result is not None:
+            logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
+            return True
+        else:
+            logger.error(f"Failed to set leverage for {symbol}: {leverage}x")
             return False
     
     def set_trading_stop(self, category: str, symbol: str, position_idx: int,
