@@ -315,7 +315,7 @@ class SignalExecutor:
                             return {
                                 'success': True,
                                 'message': f'Position closed: {symbol}',
-                                'order_id': result.get('order_id') or result.get('orderId'),
+                                'order_id': result.get('order_id'),
                                 'is_real': True
                             }
                     
@@ -371,7 +371,7 @@ class SignalExecutor:
                                 return {
                                     'success': True,
                                     'message': f'Partial close: {percentage}% of {symbol}',
-                                    'order_id': result.get('order_id') or result.get('orderId'),
+                                    'order_id': result.get('order_id'),
                                     'percentage': percentage,
                                     'is_real': True
                                 }
@@ -507,7 +507,7 @@ class SignalExecutor:
                             'quantity': qty,
                             'exchange': 'bybit',
                             'market_type': market_type,
-                            'order_id': order_id,
+                            'order_id': result.get('order_id', ''),
                             'status': 'OPEN',
                             'notes': f'Created from signal {signal_id}'
                         }
@@ -521,23 +521,23 @@ class SignalExecutor:
                             quantity=qty,
                             exchange='bybit',
                             market_type=market_type,
-                            order_id=order_id
+                            order_id=result.get('order_id', '')
                         )
                         
                         logger.info(f" تم حفظ الصفقة المرتبطة بالـ ID: {signal_id}")
                     except Exception as e:
                         logger.error(f" خطأ في حفظ الصفقة المرتبطة بالـ ID: {e}")
                 
-            return {
-                'success': True,
-                'message': f'Order placed: {side} {symbol}',
-                'order_id': order_id,
-                'symbol': symbol,
-                'side': side,
-                'qty': qty,
-                'is_real': True,
-                'signal_id': signal_id if has_signal_id else None
-            }
+                return {
+                    'success': True,
+                    'message': f'Order placed: {side} {symbol}',
+                    'order_id': result.get('order_id'),
+                    'symbol': symbol,
+                    'side': side,
+                    'qty': qty,
+                    'is_real': True,
+                    'signal_id': signal_id if has_signal_id else None
+                }
             else:
                 logger.error(f" فشل تنفيذ أمر {side} {symbol} على Bybit")
                 if result:
@@ -659,7 +659,7 @@ class SignalExecutor:
             logger.info(f" تفاصيل الأمر: {result}")
             
             # التحقق من وجود order_id في النتيجة
-            order_id = result.get('order_id') or result.get('orderId') or result.get('orderLinkId')
+            order_id = result.get('order_id') or result.get('orderId')
             
             return {
                 'success': True,
@@ -1079,10 +1079,8 @@ class SignalExecutor:
                 }
             
             # فحص نجاح الأمر بناءً على وجود order_id
-            order_id = result.get('order_id') or result.get('orderId')
-            if not order_id:
+            if not result.get('order_id'):
                 logger.error(f" فشل وضع الأمر Futures - لا يوجد order_id")
-                logger.error(f" تفاصيل الاستجابة: {result}")
                 return {
                     'success': False,
                     'message': f'Futures order placement failed - no order_id returned',
