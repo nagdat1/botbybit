@@ -813,6 +813,16 @@ class SignalExecutor:
                         'error_details': result
                     }
                 
+                # فحص نجاح الأمر بناءً على وجود order_id
+                if not result.get('order_id'):
+                    logger.error(f" فشل وضع الأمر Spot - لا يوجد order_id")
+                    return {
+                        'success': False,
+                        'message': f'Spot order placement failed - no order_id returned',
+                        'is_real': True,
+                        'error_details': result
+                    }
+                
                 logger.info(f" تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
                 logger.info(f" تفاصيل الأمر: {result}")
                 
@@ -1007,6 +1017,16 @@ class SignalExecutor:
                 return {
                     'success': False,
                     'message': f'API Error: {result["error"]}',
+                    'is_real': True,
+                    'error_details': result
+                }
+            
+            # فحص نجاح الأمر بناءً على وجود order_id
+            if not result.get('order_id'):
+                logger.error(f" فشل وضع الأمر Futures - لا يوجد order_id")
+                return {
+                    'success': False,
+                    'message': f'Futures order placement failed - no order_id returned',
                     'is_real': True,
                     'error_details': result
                 }

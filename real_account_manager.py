@@ -235,10 +235,11 @@ class BybitRealAccount:
             logger.error(f"Bybit order placement failed for {symbol}")
             return {
                 'success': False,
-                'error': 'Order placement failed',
+                'error': 'Order placement failed - API returned None',
                 'symbol': symbol,
                 'side': side,
-                'qty': qty
+                'qty': qty,
+                'error_type': 'API_NULL_RESPONSE'
             }
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
