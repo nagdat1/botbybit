@@ -546,7 +546,8 @@ class SignalExecutor:
                     'success': False,
                     'message': f'Failed to place order on Bybit',
                     'error': 'ORDER_FAILED',
-                    'error_details': result if result else 'No response from API'
+                    'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type') if result else 'No response from API'
                 }
                 
         except Exception as e:
@@ -651,7 +652,8 @@ class SignalExecutor:
                     'success': False,
                     'message': f'API Error: {result["error"]}',
                     'is_real': True,
-                    'error_details': result
+                    'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type')
                 }
             
             # إذا وصلنا هنا، فالأمر نجح
@@ -867,7 +869,10 @@ class SignalExecutor:
                         'success': False,
                         'message': f'Spot API Error: {result["error"]}',
                         'is_real': True,
-                        'error_details': result
+                        'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type'),
+                        'error_code': result.get('error_code'),
+                        'error_type': result.get('error_type')
                     }
                 
                 # فحص نجاح الأمر بناءً على وجود order_id
@@ -877,7 +882,8 @@ class SignalExecutor:
                         'success': False,
                         'message': f'Spot order placement failed - no order_id returned',
                         'is_real': True,
-                        'error_details': result
+                        'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type')
                     }
                 
                 logger.info(f" تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
@@ -949,7 +955,8 @@ class SignalExecutor:
                         'success': False,
                         'message': f'Sell API Error: {result["error"]}',
                         'is_real': True,
-                        'error_details': result
+                        'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type')
                     }
                 
                 logger.info(f" تم تنفيذ أمر Sell {side} {symbol} على Bybit بنجاح")
@@ -1075,7 +1082,8 @@ class SignalExecutor:
                     'success': False,
                     'message': f'API Error: {result["error"]}',
                     'is_real': True,
-                    'error_details': result
+                    'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type')
                 }
             
             # فحص نجاح الأمر بناءً على وجود order_id
@@ -1085,7 +1093,10 @@ class SignalExecutor:
                     'success': False,
                     'message': f'Futures order placement failed - no order_id returned',
                     'is_real': True,
-                    'error_details': result
+                    'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type'),
+                    'error_code': result.get('error_code'),
+                    'error_type': result.get('error_type')
                 }
             
             # إذا وصلنا هنا، فالأمر نجح

@@ -26,6 +26,7 @@ class BybitRealAccount:
         
     def _generate_signature(self, timestamp: str, recv_window: str, params_str: str) -> str:
         """توليد التوقيع لـ Bybit V5"""
+        # بناء string التوقيع حسب توثيق Bybit V5
         sign_str = timestamp + self.api_key + recv_window + params_str
         signature = hmac.new(
             self.api_secret.encode('utf-8'),
@@ -98,10 +99,20 @@ class BybitRealAccount:
                     return result.get('result')
                 else:
                     logger.error(f"Bybit API Error - retCode: {result.get('retCode')}, retMsg: {result.get('retMsg')}")
-                    return None
+                    # إرجاع تفاصيل الخطأ للمساعدة في التشخيص
+                    return {
+                        'error': True,
+                        'retCode': result.get('retCode'),
+                        'retMsg': result.get('retMsg'),
+                        'raw_response': result
+                    }
             
             logger.error(f"Bybit API HTTP Error: {response.status_code} - {response.text}")
-            return None
+            return {
+                'error': True,
+                'http_status': response.status_code,
+                'response_text': response.text
+            }
             
         except Exception as e:
             logger.error(f"خطأ في طلب Bybit: {e}")
@@ -230,10 +241,26 @@ class BybitRealAccount:
             leverage_result = self.set_leverage(category, symbol, leverage)
             if not leverage_result:
                 logger.error(f"Failed to set leverage for {symbol}")
+                # لا نوقف العملية، نتابع مع الرافعة الافتراضية
+                logger.warning(f"Continuing with default leverage for {symbol}")
         
         result = self._make_request('POST', '/v5/order/create', params)
         
         if result:
+            # فحص إذا كان هناك خطأ في الاستجابة
+            if isinstance(result, dict) and result.get('error'):
+                logger.error(f"Bybit order placement failed for {symbol}: {result.get('retMsg', 'Unknown error')}")
+                return {
+                    'success': False,
+                    'error': result.get('retMsg', 'Unknown error'),
+                    'error_code': result.get('retCode'),
+                    'symbol': symbol,
+                    'side': side,
+                    'qty': qty,
+                    'error_type': 'API_ERROR',
+                    'raw_response': result
+                }
+            
             logger.info(f"Bybit order placed successfully: {result}")
             return {
                 'order_id': result.get('orderId'),
@@ -247,14 +274,14 @@ class BybitRealAccount:
                 'raw_response': result
             }
         else:
-            logger.error(f"Bybit order placement failed for {symbol}")
+            logger.error(f"Bybit order placement failed for {symbol} - No response")
             return {
                 'success': False,
-                'error': 'Order placement failed - API returned None',
+                'error': 'Order placement failed - No response from API',
                 'symbol': symbol,
                 'side': side,
                 'qty': qty,
-                'error_type': 'API_NULL_RESPONSE'
+                'error_type': 'NO_RESPONSE'
             }
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
@@ -270,10 +297,15 @@ class BybitRealAccount:
         result = self._make_request('POST', '/v5/position/set-leverage', params)
         
         if result is not None:
+            # فحص إذا كان هناك خطأ في الاستجابة
+            if isinstance(result, dict) and result.get('error'):
+                logger.error(f"Failed to set leverage for {symbol}: {result.get('retMsg', 'Unknown error')}")
+                return False
+            
             logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
             return True
         else:
-            logger.error(f"Failed to set leverage for {symbol}: {leverage}x")
+            logger.error(f"Failed to set leverage for {symbol}: {leverage}x - No response")
             return False
     
     def set_trading_stop(self, category: str, symbol: str, position_idx: int,
