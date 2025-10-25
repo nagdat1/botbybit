@@ -5470,10 +5470,10 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إضافة الرافعة المالية فقط للفيوتشر
         if market_type.lower() == 'futures':
             status_message += f"""
- الرافعة المالية: {trading_bot.user_settings['leverage']}x"""
+ الرافعة المالية: {user_data.get('leverage', 1)}x"""
         
         status_message += f"""
- مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
+ مبلغ التداول: {user_data.get('trade_amount', 50.0)} USDT
         """
         
         # حالة الاتصال
@@ -7325,8 +7325,8 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
  **إعدادات التداول:**
 🏪 نوع السوق: {market_type.upper()}
- مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
- الرافعة المالية: {trading_bot.user_settings['leverage']}x
+ مبلغ التداول: {user_data.get('trade_amount', 50.0)} USDT
+ الرافعة المالية: {user_data.get('leverage', 1)}x
  Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
  Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
 
