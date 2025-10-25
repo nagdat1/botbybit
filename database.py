@@ -53,7 +53,10 @@ class DatabaseManager:
                         bybit_api_key TEXT,
                         bybit_api_secret TEXT,
                         mexc_api_key TEXT,
-                        mexc_api_secret TEXT
+                        mexc_api_secret TEXT,
+                        trade_amount REAL DEFAULT 50.0,
+                        leverage INTEGER DEFAULT 1,
+                        auto_calculate_amount BOOLEAN DEFAULT 1
                     )
                 """)
                 
@@ -341,6 +344,75 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في تحديث الرصيد للمستخدم {user_id}: {e}")
             return False
+    
+    def update_user_trading_settings(self, user_id: int, trade_amount: float = None, 
+                                    leverage: int = None, auto_calculate: bool = None) -> bool:
+        """تحديث إعدادات التداول للمستخدم"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # بناء الاستعلام ديناميكياً
+                updates = []
+                params = []
+                
+                if trade_amount is not None:
+                    updates.append("trade_amount = ?")
+                    params.append(trade_amount)
+                
+                if leverage is not None:
+                    updates.append("leverage = ?")
+                    params.append(leverage)
+                
+                if auto_calculate is not None:
+                    updates.append("auto_calculate_amount = ?")
+                    params.append(auto_calculate)
+                
+                if not updates:
+                    return True  # لا توجد تحديثات
+                
+                updates.append("updated_at = CURRENT_TIMESTAMP")
+                params.append(user_id)
+                
+                query = f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?"
+                cursor.execute(query, params)
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحديث إعدادات التداول للمستخدم {user_id}: {e}")
+            return False
+    
+    def get_user_trading_settings(self, user_id: int) -> Dict:
+        """الحصول على إعدادات التداول للمستخدم"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT trade_amount, leverage, auto_calculate_amount, 
+                           account_type, exchange, market_type
+                    FROM users 
+                    WHERE user_id = ?
+                """, (user_id,))
+                
+                result = cursor.fetchone()
+                if result:
+                    return {
+                        'trade_amount': result[0] or 50.0,
+                        'leverage': result[1] or 1,
+                        'auto_calculate_amount': bool(result[2]) if result[2] is not None else True,
+                        'account_type': result[3] or 'real',
+                        'exchange': result[4] or 'bybit',
+                        'market_type': result[5] or 'futures'
+                    }
+                
+                return {}
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على إعدادات التداول للمستخدم {user_id}: {e}")
+            return {}
     
     def toggle_user_active(self, user_id: int) -> bool:
         """تبديل حالة تشغيل/إيقاف المستخدم"""
