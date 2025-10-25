@@ -420,7 +420,7 @@ class SignalExecutor:
                 qty = trade_amount / price
             
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
-            min_quantity = 0.0001  # الحد الأدنى المقبول
+            min_quantity = 0.001  # زيادة الحد الأدنى لـ Bybit
             if qty < min_quantity:
                 logger.warning(f" الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
                 qty = min_quantity
@@ -576,7 +576,7 @@ class SignalExecutor:
             quantity = trade_amount / price
             
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
-            min_quantity = 0.0001  # الحد الأدنى المقبول
+            min_quantity = 0.001  # زيادة الحد الأدنى لـ Bybit
             if quantity < min_quantity:
                 logger.warning(f" الكمية صغيرة جداً: {quantity}, تم تعديلها إلى الحد الأدنى")
                 quantity = min_quantity
