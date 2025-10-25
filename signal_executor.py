@@ -420,10 +420,45 @@ class SignalExecutor:
                 qty = trade_amount / price
             
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
-            min_quantity = 0.001  # زيادة الحد الأدنى لـ Bybit
+            min_quantity = 0.001  # الحد الأدنى لـ Bybit
+            
+            # فحص إذا كانت الكمية المحسوبة أقل من الحد الأدنى
             if qty < min_quantity:
-                logger.warning(f" الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
-                qty = min_quantity
+                # حساب الهامش المطلوب للحد الأدنى
+                min_margin_required = (min_quantity * price) / leverage
+                
+                # فحص الرصيد المتاح
+                try:
+                    balance_info = account.get_wallet_balance('futures' if market_type == 'futures' else 'spot')
+                    if balance_info and 'coins' in balance_info and 'USDT' in balance_info['coins']:
+                        available_balance = float(balance_info['coins']['USDT']['equity'])
+                        
+                        logger.info(f"الرصيد المتاح: {available_balance} USDT")
+                        logger.info(f"الهامش المطلوب للحد الأدنى: {min_margin_required:.2f} USDT")
+                        
+                        if available_balance >= min_margin_required:
+                            # الرصيد كافي للحد الأدنى
+                            logger.warning(f"الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
+                            qty = min_quantity
+                        else:
+                            # الرصيد غير كافي حتى للحد الأدنى
+                            logger.error(f"الرصيد غير كافي حتى للحد الأدنى: {available_balance} < {min_margin_required}")
+                            return {
+                                'success': False,
+                                'message': f'Insufficient balance for minimum order. Available: {available_balance} USDT, Required: {min_margin_required:.2f} USDT',
+                                'error': 'INSUFFICIENT_BALANCE_MINIMUM',
+                                'is_real': True,
+                                'available_balance': available_balance,
+                                'required_balance': min_margin_required
+                            }
+                    else:
+                        logger.warning("لم يتم العثور على معلومات الرصيد USDT")
+                        # في حالة عدم العثور على الرصيد، نستخدم الحد الأدنى
+                        qty = min_quantity
+                except Exception as e:
+                    logger.warning(f"خطأ في فحص الرصيد للحد الأدنى: {e}")
+                    # في حالة الخطأ، نستخدم الحد الأدنى
+                    qty = min_quantity
             
             # تقريب الكمية حسب دقة الرمز
             qty = round(qty, 6)

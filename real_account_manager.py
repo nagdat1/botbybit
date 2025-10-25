@@ -122,10 +122,11 @@ class BybitRealAccount:
                 return default
         
         # تحديد نوع الحساب حسب نوع السوق
+        # ملاحظة: Bybit V5 يدعم فقط UNIFIED للحسابات الموحدة
         if market_type == 'spot':
-            account_type = 'SPOT'
+            account_type = 'UNIFIED'  # استخدام UNIFIED للسبوت أيضاً
         elif market_type == 'futures':
-            account_type = 'CONTRACT'
+            account_type = 'UNIFIED'  # استخدام UNIFIED للفيوتشر أيضاً
         else:
             account_type = 'UNIFIED'
         
