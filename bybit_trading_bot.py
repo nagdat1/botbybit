@@ -2358,10 +2358,33 @@ class TradingBot:
                 else:
                     logger.warning(" فشل في تحليل الصفقة باستخدام النظام المحسن")
             
-            if not self.bybit_api:
-                await self.send_message_to_admin(" API غير متاح للتداول الحقيقي")
-                logger.error("محاولة تنفيذ صفقة حقيقية بدون API")
+            # الحصول على مفاتيح API الخاصة بالمستخدم
+            if not self.user_id:
+                await self.send_message_to_admin("❌ معرف المستخدم غير متاح")
+                logger.error("معرف المستخدم غير متاح لتنفيذ الصفقة الحقيقية")
                 return
+            
+            # الحصول على بيانات المستخدم ومفاتيح API
+            user_data = user_manager.get_user(self.user_id)
+            if not user_data:
+                await self.send_message_to_admin("❌ بيانات المستخدم غير متاحة")
+                logger.error(f"بيانات المستخدم غير متاحة للمستخدم {self.user_id}")
+                return
+            
+            # الحصول على مفاتيح API الخاصة بالمستخدم
+            api_key = user_data.get('bybit_api_key')
+            api_secret = user_data.get('bybit_api_secret')
+            
+            if not api_key or not api_secret:
+                await self.send_message_to_admin("❌ مفاتيح API غير متاحة للمستخدم")
+                logger.error(f"مفاتيح API غير متاحة للمستخدم {self.user_id}")
+                return
+            
+            # إنشاء اتصال API باستخدام مفاتيح المستخدم
+            from real_account_manager import BybitRealAccount
+            user_bybit_api = BybitRealAccount(api_key, api_secret)
+            
+            logger.info(f"🔑 استخدام مفاتيح API الخاصة بالمستخدم {self.user_id}")
             
             user_market_type = self.user_settings['market_type']
             side = "Buy" if action == "buy" else "Sell"
@@ -2409,12 +2432,12 @@ class TradingBot:
                 first_tp = str(tp_prices[0]) if tp_prices else None
                 first_sl = str(sl_price) if sl_price else None
                 
-                response = self.bybit_api.place_order(
+                response = user_bybit_api.place_order(
+                    category=category,
                     symbol=symbol,
                     side=side,
                     order_type="Market",
                     qty=qty,
-                    category=category,
                     take_profit=first_tp,
                     stop_loss=first_sl
                 )
@@ -2463,12 +2486,12 @@ class TradingBot:
                 logger.info(f"🏪 سبوت: المبلغ={amount}, الكمية={qty}")
                 
                 # Spot لا يدعم TP/SL مباشرة، يجب استخدام أوامر محددة
-                response = self.bybit_api.place_order(
+                response = user_bybit_api.place_order(
+                    category=category,
                     symbol=symbol,
                     side=side,
                     order_type="Market",
-                    qty=qty,
-                    category=category
+                    qty=qty
                 )
                 
                 if response.get("retCode") == 0:
