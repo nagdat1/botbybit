@@ -7947,6 +7947,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
             db_manager.update_user_settings(user_id, {'market_type': 'spot'})
+            # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+            user_manager.reload_user_data(user_id)
             # تحديث في user_manager
             user_data = user_manager.get_user(user_id)
             if user_data:
@@ -7960,6 +7962,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
             db_manager.update_user_settings(user_id, {'market_type': 'futures'})
+            # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+            user_manager.reload_user_data(user_id)
             # تحديث في user_manager
             user_data = user_manager.get_user(user_id)
             if user_data:
@@ -7973,6 +7977,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
             db_manager.update_user_settings(user_id, {'account_type': 'real'})
+            # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+            user_manager.reload_user_data(user_id)
             # تحديث في user_manager
             user_data = user_manager.get_user(user_id)
             if user_data:
@@ -7986,6 +7992,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
             db_manager.update_user_settings(user_id, {'account_type': 'demo'})
+            # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+            user_manager.reload_user_data(user_id)
             # تحديث في user_manager
             user_data = user_manager.get_user(user_id)
             if user_data:
@@ -8838,6 +8846,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     trading_bot.user_settings['trade_amount'] = amount
                     # حفظ في قاعدة البيانات
                     db_manager.update_user_settings(user_id, {'trade_amount': amount})
+                    # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+                    user_manager.reload_user_data(user_id)
                     # تحديث في user_manager
                     user_data = user_manager.get_user(user_id)
                     if user_data:
@@ -8861,6 +8871,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     trading_bot.user_settings['leverage'] = leverage
                     # حفظ في قاعدة البيانات
                     db_manager.update_user_settings(user_id, {'leverage': leverage})
+                    # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+                    user_manager.reload_user_data(user_id)
                     # تحديث في user_manager
                     user_data = user_manager.get_user(user_id)
                     if user_data:
