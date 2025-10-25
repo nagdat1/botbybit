@@ -401,6 +401,38 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
+            # استخدام النظام الشامل لإصلاح مشكلة عدم كفاية الرصيد
+            try:
+                from comprehensive_balance_fix import comprehensive_balance_fix
+                
+                logger.info("🔧 استخدام النظام الشامل لإصلاح مشكلة عدم كفاية الرصيد...")
+                
+                # تنفيذ الإشارة مع الإصلاح الشامل
+                comprehensive_result = await comprehensive_balance_fix.execute_signal_with_comprehensive_fix(
+                    user_id, signal_data, user_data
+                )
+                
+                if comprehensive_result.get('success'):
+                    logger.info("✅ تم تنفيذ الإشارة بنجاح باستخدام النظام الشامل")
+                    return comprehensive_result
+                else:
+                    logger.warning(f"⚠️ فشل النظام الشامل: {comprehensive_result.get('message')}")
+                    
+                    # إذا كان السبب هو عدم كفاية الرصيد، نعيد النتيجة المحسنة
+                    if comprehensive_result.get('error') == 'INSUFFICIENT_BALANCE':
+                        return comprehensive_result
+                    
+                    # للأخطاء الأخرى، نتابع بالنظام العادي
+                    logger.info("🔄 متابعة بالنظام العادي...")
+                    
+            except ImportError as e:
+                logger.warning(f"⚠️ النظام الشامل غير متاح: {e}")
+                logger.info("🔄 متابعة بالنظام العادي...")
+            except Exception as e:
+                logger.error(f"❌ خطأ في النظام الشامل: {e}")
+                logger.info("🔄 متابعة بالنظام العادي...")
+            
+            # النظام العادي (fallback)
             # حساب الكمية بناءً على مبلغ التداول ونوع السوق
             # حساب الكمية - كود خفي للتحويل الذكي
             # استخدام السعر الذي تم جلبه من API أو الموجود في البيانات
@@ -448,7 +480,7 @@ class SignalExecutor:
                             logger.error(f"الرصيد غير كافي حتى للحد الأدنى: {available_balance} < {min_margin_required}")
                             return {
                                 'success': False,
-                                'message': f'Insufficient balance for minimum order. Available: {available_balance} USDT, Required: {min_margin_required:.2f} USDT',
+                                'message': f'الرصيد غير كافي للحد الأدنى. متاح: {available_balance:.2f} USDT، مطلوب: {min_margin_required:.2f} USDT',
                                 'error': 'INSUFFICIENT_BALANCE_MINIMUM',
                                 'is_real': True,
                                 'available_balance': available_balance,
