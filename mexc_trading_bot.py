@@ -64,8 +64,8 @@ class MEXCTradingBot:
             hashlib.sha256
         ).hexdigest()
         
-        logger.debug(f"MEXC Signature - Query: {query_string}")
-        logger.debug(f"MEXC Signature - Generated: {signature}")
+        logger.info(f"MEXC Signature - Query: {query_string}")
+        logger.info(f"MEXC Signature - Generated: {signature}")
         
         return signature
     
@@ -112,9 +112,9 @@ class MEXCTradingBot:
             if method == 'GET':
                 response = self.session.get(url, params=params, headers=headers, timeout=15)
             elif method == 'POST':
-                # للطلبات الموقعة، نرسل البيانات في query string
+                # للطلبات الموقعة، نرسل البيانات في body
                 if signed:
-                    response = self.session.post(url, params=params, headers=headers, timeout=15)
+                    response = self.session.post(url, json=params, headers=headers, timeout=15)
                 else:
                     response = self.session.post(url, json=params, headers=headers, timeout=15)
             elif method == 'DELETE':
@@ -125,13 +125,21 @@ class MEXCTradingBot:
             
             # تسجيل الاستجابة
             logger.info(f"MEXC Response - Status: {response.status_code}")
+            logger.info(f"MEXC Response - Headers: {dict(response.headers)}")
             
             if response.status_code == 200:
-                result = response.json()
-                logger.info(f"MEXC Response - Success: {result}")
-                return result
+                try:
+                    result = response.json()
+                    logger.info(f"MEXC Response - Success: {result}")
+                    return result
+                except Exception as e:
+                    logger.error(f"❌ خطأ في تحليل JSON: {e}")
+                    logger.error(f"❌ النص الخام: {response.text}")
+                    return None
             else:
                 # استخدام معالج الأخطاء المحسن
+                logger.error(f"❌ MEXC API Error - Status: {response.status_code}")
+                logger.error(f"❌ Response Text: {response.text}")
                 self._handle_api_error(response, f"{method} {endpoint}")
                 return None
             
@@ -301,7 +309,7 @@ class MEXCTradingBot:
     
     def _format_quantity(self, quantity: float, symbol_info: Dict) -> str:
         """
-        تنسيق الكمية حسب متطلبات الرمز
+        تنسيق الكمية حسب متطلبات الرمز - محسن لـ MEXC
         
         Args:
             quantity: الكمية
@@ -311,29 +319,41 @@ class MEXCTradingBot:
             الكمية المنسقة
         """
         try:
-            lot_size_filter = symbol_info['filters'].get('LOT_SIZE', {})
-            step_size = float(lot_size_filter.get('stepSize', '1'))
+            # استخدام baseSizePrecision من MEXC
+            base_size_precision = symbol_info.get('baseSizePrecision', '1')
+            base_asset_precision = symbol_info.get('baseAssetPrecision', 5)
             
-            # حساب عدد الأرقام العشرية
-            step_str = f"{step_size:.10f}".rstrip('0')
-            if '.' in step_str:
-                decimals = len(step_str.split('.')[1])
+            logger.info(f"📏 تنسيق الكمية لـ {symbol_info.get('symbol', 'UNKNOWN')}:")
+            logger.info(f"   baseSizePrecision: {base_size_precision}")
+            logger.info(f"   baseAssetPrecision: {base_asset_precision}")
+            
+            # تحويل الكمية حسب القواعد
+            if base_size_precision == '1':
+                # الكمية يجب أن تكون رقم صحيح
+                formatted_quantity = f"{int(quantity)}"
             else:
-                decimals = 0
+                # الكمية يمكن أن تكون عشرية
+                try:
+                    precision = int(base_size_precision) if base_size_precision.isdigit() else 8
+                except:
+                    precision = 8
+                
+                # التأكد من أن الكمية لا تقل عن الحد الأدنى
+                min_quantity = float(base_size_precision) if base_size_precision.replace('.', '').isdigit() else 0.00000001
+                if quantity < min_quantity:
+                    quantity = min_quantity
+                
+                formatted_quantity = f"{quantity:.{precision}f}".rstrip('0').rstrip('.')
             
-            # تقريب الكمية
-            quantity_decimal = Decimal(str(quantity))
-            step_decimal = Decimal(str(step_size))
+            logger.info(f"📊 الكمية الأصلية: {quantity}")
+            logger.info(f"📊 الكمية المنسقة: {formatted_quantity}")
             
-            # التأكد من أن الكمية من مضاعفات step_size
-            quantity_decimal = (quantity_decimal // step_decimal) * step_decimal
-            
-            # تنسيق النتيجة
-            return f"{float(quantity_decimal):.{decimals}f}"
+            return formatted_quantity
             
         except Exception as e:
-            logger.error(f"خطأ في تنسيق الكمية: {e}")
-            return f"{quantity:.8f}".rstrip('0').rstrip('.')
+            logger.error(f"❌ خطأ في تنسيق الكمية: {e}")
+            # استخدام تنسيق افتراضي آمن
+            return f"{max(quantity, 0.00000001):.8f}".rstrip('0').rstrip('.')
     
     def place_spot_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET', 
                         price: Optional[float] = None) -> Optional[Dict]:
@@ -387,7 +407,11 @@ class MEXCTradingBot:
             
             # إرسال الأمر مع التوقيع
             logger.info(f"📤 إرسال الأمر إلى MEXC: {params}")
+            logger.info(f"🔑 API Key: {self.api_key[:8]}...{self.api_key[-4:] if len(self.api_key) > 12 else 'SHORT'}")
+            
             result = self._make_request('POST', '/api/v3/order', params, signed=True)
+            
+            logger.info(f"📥 استجابة MEXC: {result}")
             
             if result:
                 logger.info(f"✅ تم وضع أمر {side} لـ {symbol} بنجاح")
@@ -412,6 +436,11 @@ class MEXCTradingBot:
                 return order_info
             else:
                 logger.error(f"❌ فشل وضع الأمر - لم يتم إرجاع نتيجة صحيحة")
+                logger.error(f"🔍 تشخيص المشكلة:")
+                logger.error(f"   - API Key موجود: {bool(self.api_key)}")
+                logger.error(f"   - API Secret موجود: {bool(self.api_secret)}")
+                logger.error(f"   - المعاملات: {params}")
+                logger.error(f"   - النتيجة: {result}")
                 return None
             
         except Exception as e:
