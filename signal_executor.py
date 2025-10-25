@@ -159,6 +159,7 @@ class SignalExecutor:
                         ticker = real_account.get_ticker(category, symbol)
                         if ticker and 'lastPrice' in ticker:
                             price = float(ticker['lastPrice'])
+                            signal_data['price'] = price  # حفظ السعر في البيانات
                             logger.info(f" السعر الحالي: {price}")
                         else:
                             logger.error(f" فشل جلب السعر من Bybit")
@@ -174,6 +175,7 @@ class SignalExecutor:
                             price_result = real_account.get_ticker('spot', symbol)
                             if price_result and 'lastPrice' in price_result:
                                 price = float(price_result['lastPrice'])
+                                signal_data['price'] = price  # حفظ السعر في البيانات
                                 logger.info(f" السعر الحالي من MEXC: {price}")
                             else:
                                 logger.error(f" فشل جلب السعر من MEXC")
@@ -401,7 +403,8 @@ class SignalExecutor:
             
             # حساب الكمية بناءً على مبلغ التداول ونوع السوق
             # حساب الكمية - كود خفي للتحويل الذكي
-            price = float(signal_data.get('price', 1))
+            # استخدام السعر الذي تم جلبه من API أو الموجود في البيانات
+            price = float(signal_data.get('price', 0)) if signal_data.get('price') else 0.0
             
             # التحقق من أن السعر صحيح
             if price <= 0:
