@@ -828,7 +828,7 @@ class DatabaseManager:
                 """, (new_status, developer_id))
                 
                 conn.commit()
-                logger.info(f"✅ تم تبديل التوزيع التلقائي للمطور {developer_id} إلى: {new_status}")
+                logger.info(f" تم تبديل التوزيع التلقائي للمطور {developer_id} إلى: {new_status}")
                 return cursor.rowcount > 0
                 
         except Exception as e:

@@ -37,8 +37,8 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
         mexc_linked = mexc_key and mexc_key != ''
     
     # بناء الأزرار مع الحالة الصحيحة
-    bybit_icon = "✅" if (current_exchange == 'bybit' and bybit_linked) else ("🔗" if bybit_linked else "⚪")
-    mexc_icon = "✅" if (current_exchange == 'mexc' and mexc_linked) else ("🔗" if mexc_linked else "⚪")
+    bybit_icon = "" if (current_exchange == 'bybit' and bybit_linked) else ("🔗" if bybit_linked else "⚪")
+    mexc_icon = "" if (current_exchange == 'mexc' and mexc_linked) else ("🔗" if mexc_linked else "⚪")
     
     keyboard = [
         [
@@ -59,7 +59,7 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     # تحديد حالة المنصة
     if current_exchange and (bybit_linked or mexc_linked):
-        status_text = f"**{current_exchange.upper()}** {'✅ (مفعّلة)' if (current_exchange == 'bybit' and bybit_linked) or (current_exchange == 'mexc' and mexc_linked) else ''}"
+        status_text = f"**{current_exchange.upper()}** {' (مفعّلة)' if (current_exchange == 'bybit' and bybit_linked) or (current_exchange == 'mexc' and mexc_linked) else ''}"
     else:
         status_text = "**لم يتم اختيار منصة**"
     
@@ -73,14 +73,14 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
 **الرموز:**
 ⚪ = غير مربوط
 🔗 = مربوط (غير مفعّل)
-✅ = مربوط ومفعّل
+ = مربوط ومفعّل
 
-🔹 **Bybit**
+ **Bybit**
    • يدعم Spot و Futures
    • رافعة مالية متاحة
    • حساب تجريبي متاح
 
-🔹 **MEXC**
+ **MEXC**
    • يدعم Spot فقط
    • لا يوجد دعم للفيوتشر
    • عدد كبير من العملات
@@ -147,11 +147,11 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if has_bybit_keys:
         keyboard.extend([
             [InlineKeyboardButton(
-                "✅ استخدام Bybit",
+                " استخدام Bybit",
                 callback_data="exchange_activate_bybit"
             )],
             [InlineKeyboardButton(
-                "📊 اختبار الاتصال بـ Bybit",
+                " اختبار الاتصال بـ Bybit",
                 callback_data="exchange_test_bybit"
             )]
         ])
@@ -180,16 +180,16 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 balance = real_account.get_wallet_balance()
                 if balance:
                     total_equity = balance.get('total_equity', 0)
-                    balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
+                    balance_text = f"\n **الرصيد:** ${total_equity:,.2f}"
             except Exception as e:
                 logger.error(f"خطأ في جلب الرصيد: {e}")
     
     message = f"""
 🏦 **إعداد منصة Bybit**
 
-📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
+ **حالة API:** {status_icon} **{status_text}**{balance_text}
 
-📋 **المميزات:**
+ **المميزات:**
 • التداول الفوري (Spot)
 • تداول الفيوتشر (Futures)
 • الرافعة المالية (حتى 100x)
@@ -201,7 +201,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 3. فعّل الصلاحيات المطلوبة
 4. اضغط "🔑 ربط/تحديث Bybit API Keys"
 
-{f"✅ **API مربوط بنجاح!**" if has_bybit_keys else "⚠️ **يجب ربط API أولاً**"}
+{f" **API مربوط بنجاح!**" if has_bybit_keys else " **يجب ربط API أولاً**"}
 """
     
     await query.edit_message_text(
@@ -241,11 +241,11 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if has_mexc_keys:
         keyboard.extend([
             [InlineKeyboardButton(
-                "✅ استخدام MEXC",
+                " استخدام MEXC",
                 callback_data="exchange_activate_mexc"
             )],
             [InlineKeyboardButton(
-                "📊 اختبار الاتصال بـ MEXC",
+                " اختبار الاتصال بـ MEXC",
                 callback_data="exchange_test_mexc"
             )]
         ])
@@ -274,21 +274,21 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 balance = real_account.get_wallet_balance()
                 if balance:
                     total_equity = balance.get('total_equity', 0)
-                    balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
+                    balance_text = f"\n **الرصيد:** ${total_equity:,.2f}"
             except Exception as e:
                 logger.error(f"خطأ في جلب الرصيد: {e}")
     
     message = f"""
 🏦 **إعداد منصة MEXC**
 
-📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
+ **حالة API:** {status_icon} **{status_text}**{balance_text}
 
-📋 **المميزات:**
+ **المميزات:**
 • التداول الفوري (Spot) فقط
 • عدد كبير من العملات
 • رسوم تداول منخفضة
 
-⚠️ **ملاحظة هامة:**
+ **ملاحظة هامة:**
 MEXC تدعم التداول الفوري فقط - لا يوجد دعم للفيوتشر عبر API
 
 🔐 **لربط API:**
@@ -300,7 +300,7 @@ MEXC تدعم التداول الفوري فقط - لا يوجد دعم للفي
 🔗 **للانضمام إلى MEXC:**
 [انضم عبر رابط الإحالة](https://www.mexc.com/ar-AE/auth/signup?inviteCode=3RwDp)
 
-{f"✅ **API مربوط بنجاح!**" if has_mexc_keys else "⚠️ **يجب ربط API أولاً**"}
+{f" **API مربوط بنجاح!**" if has_mexc_keys else " **يجب ربط API أولاً**"}
 """
     
     await query.edit_message_text(
@@ -315,26 +315,26 @@ async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="exchange_select_bybit")]]
+    keyboard = [[InlineKeyboardButton(" إلغاء", callback_data="exchange_select_bybit")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message = """
 🔑 **ربط Bybit API - الخطوة 1 من 2**
 
-📝 أرسل **API Key** الخاص بك
+ أرسل **API Key** الخاص بك
 
 **مثال:**
 ```
 abc123xyz456def789
 ```
 
-💡 **للحصول على API Key:**
+ **للحصول على API Key:**
 1. اذهب إلى Bybit.com
 2. Account → API Management
 3. Create New Key
 4. انسخ API Key
 
-📝 أرسل API Key الآن
+ أرسل API Key الآن
 """
     
     await query.edit_message_text(
@@ -351,28 +351,28 @@ async def start_mexc_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="exchange_select_mexc")]]
+    keyboard = [[InlineKeyboardButton(" إلغاء", callback_data="exchange_select_mexc")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message = """
 🔑 **ربط MEXC API - الخطوة 1 من 2**
 
-📝 أرسل **API Key** الخاص بك
+ أرسل **API Key** الخاص بك
 
 **مثال:**
 ```
 mx0vglBqh6abc123xyz456
 ```
 
-💡 **للحصول على API Key:**
+ **للحصول على API Key:**
 1. اذهب إلى MEXC.com
 2. Account → API Management
 3. Create New API Key
 4. انسخ API Key
 
-⚠️ **ملاحظة:** MEXC تدعم Spot فقط
+ **ملاحظة:** MEXC تدعم Spot فقط
 
-📝 أرسل API Key الآن
+ أرسل API Key الآن
 """
     
     await query.edit_message_text(
@@ -399,20 +399,20 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         exchange = 'bybit' if 'bybit' in state else 'mexc'
         
         if not text:
-            await update.message.reply_text("❌ API Key فارغ! أرسله مرة أخرى")
+            await update.message.reply_text(" API Key فارغ! أرسله مرة أخرى")
             return
         
         # حفظ API Key
         context.user_data['temp_api_key'] = text
         context.user_data['awaiting_exchange_keys'] = f'{exchange}_step2'
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"exchange_select_{exchange}")]]
+        keyboard = [[InlineKeyboardButton(" إلغاء", callback_data=f"exchange_select_{exchange}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            f"✅ **تم حفظ API Key**\n\n"
+            f" **تم حفظ API Key**\n\n"
             f"🔑 **الخطوة 2 من 2**\n\n"
-            f"📝 الآن أرسل **API Secret**",
+            f" الآن أرسل **API Secret**",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -423,7 +423,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         exchange = 'bybit' if 'bybit' in state else 'mexc'
         
         if not text:
-            await update.message.reply_text("❌ API Secret فارغ! أرسله مرة أخرى")
+            await update.message.reply_text(" API Secret فارغ! أرسله مرة أخرى")
             return
         
         api_key = context.user_data.get('temp_api_key')
@@ -431,7 +431,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         
         if not api_key:
             await update.message.reply_text(
-                "❌ حدث خطأ! ابدأ من جديد",
+                " حدث خطأ! ابدأ من جديد",
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange}")
                 ]])
@@ -441,7 +441,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
             return
         
         # اختبار المفاتيح
-        await update.message.reply_text("🔄 جاري اختبار الاتصال...")
+        await update.message.reply_text(" جاري اختبار الاتصال...")
         
         if exchange == 'bybit':
             success = await test_and_save_bybit_keys(user_id, api_key, api_secret, update)
@@ -453,12 +453,12 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data.pop('temp_api_key', None)
         
         if success:
-            keyboard = [[InlineKeyboardButton("✅ العودة للإعدادات", callback_data=f"exchange_select_{exchange}")]]
+            keyboard = [[InlineKeyboardButton(" العودة للإعدادات", callback_data=f"exchange_select_{exchange}")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                f"✅ **تم ربط {exchange.upper()} بنجاح!**\n\n"
-                f"🎉 يمكنك الآن:\n"
+                f" **تم ربط {exchange.upper()} بنجاح!**\n\n"
+                f" يمكنك الآن:\n"
                 f"• استقبال إشارات التداول\n"
                 f"• التداول على {exchange.upper()}\n"
                 f"• اختبار الاتصال\n\n"
@@ -471,7 +471,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                "❌ **فشل الاتصال!**\n\n"
+                " **فشل الاتصال!**\n\n"
                 "تحقق من:\n"
                 "• صحة المفاتيح\n"
                 "• الصلاحيات المطلوبة\n"
@@ -530,7 +530,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             
             if response.status_code != 200:
                 await update.message.reply_text(
-                    f"❌ **فشل الاتصال بـ Bybit**\n\n"
+                    f" **فشل الاتصال بـ Bybit**\n\n"
                     f"كود الخطأ: {response.status_code}\n\n"
                     f"تحقق من:\n"
                     f"• صحة API Key و Secret\n"
@@ -543,7 +543,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             
             if result.get('retCode') != 0:
                 await update.message.reply_text(
-                    f"❌ **خطأ من Bybit**\n\n"
+                    f" **خطأ من Bybit**\n\n"
                     f"{result.get('retMsg', 'خطأ غير معروف')}\n\n"
                     f"تحقق من صحة المفاتيح"
                 )
@@ -555,7 +555,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 wallet_data = response.json()
                 if wallet_data.get('retCode') == 0:
                     coins = wallet_data.get('result', {}).get('list', [{}])[0].get('coin', [])
-                    balance_info = "\n\n💰 **الرصيد المتاح:**\n"
+                    balance_info = "\n\n **الرصيد المتاح:**\n"
                     found_balance = False
                     for coin in coins[:5]:  # أول 5 عملات
                         equity = float(coin.get('equity', 0))
@@ -581,9 +581,9 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 # تهيئة الحساب الحقيقي فوراً
                 try:
                     real_account_manager.initialize_account(user_id, 'bybit', api_key, api_secret)
-                    logger.info(f"✅ تم تهيئة حساب Bybit الحقيقي للمستخدم {user_id}")
+                    logger.info(f" تم تهيئة حساب Bybit الحقيقي للمستخدم {user_id}")
                 except Exception as e:
-                    logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}")
+                    logger.error(f" خطأ في تهيئة الحساب: {e}")
                 
                 # حفظ في قاعدة البيانات
                 db_manager.update_user_settings(user_id, {
@@ -595,9 +595,9 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 
                 # إرسال رسالة نجاح مع معلومات الحساب
                 await update.message.reply_text(
-                    f"✅ **تم الاتصال بـ Bybit بنجاح!**\n\n"
+                    f" **تم الاتصال بـ Bybit بنجاح!**\n\n"
                     f"🔐 API مرتبط ويعمل\n"
-                    f"📊 نوع الحساب: حقيقي{balance_info}",
+                    f" نوع الحساب: حقيقي{balance_info}",
                     parse_mode='Markdown'
                 )
                 
@@ -608,7 +608,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             
         except requests.exceptions.RequestException as e:
             await update.message.reply_text(
-                f"❌ **خطأ في الاتصال**\n\n"
+                f" **خطأ في الاتصال**\n\n"
                 f"تحقق من الاتصال بالإنترنت\n"
                 f"الخطأ: {str(e)}"
             )
@@ -619,7 +619,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
         import traceback
         traceback.print_exc()
         await update.message.reply_text(
-            f"❌ **خطأ:**\n{str(e)}"
+            f" **خطأ:**\n{str(e)}"
         )
         return False
 
@@ -632,7 +632,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
         test_bot = create_mexc_bot(api_key, api_secret)
         if not test_bot.test_connection():
             await update.message.reply_text(
-                "❌ **فشل الاتصال بـ MEXC**\n\n"
+                " **فشل الاتصال بـ MEXC**\n\n"
                 "تحقق من:\n"
                 "• صحة المفاتيح\n"
                 "• تفعيل API Key في حسابك\n"
@@ -647,7 +647,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
         balance_info = ""
         
         if balance and 'balances' in balance:
-            balance_info = "\n\n💰 **الرصيد المتاح:**\n"
+            balance_info = "\n\n **الرصيد المتاح:**\n"
             found_balance = False
             count = 0
             for asset, info in balance['balances'].items():
@@ -674,9 +674,9 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
             # تهيئة الحساب الحقيقي فوراً
             try:
                 real_account_manager.initialize_account(user_id, 'mexc', api_key, api_secret)
-                logger.info(f"✅ تم تهيئة حساب MEXC الحقيقي للمستخدم {user_id}")
+                logger.info(f" تم تهيئة حساب MEXC الحقيقي للمستخدم {user_id}")
             except Exception as e:
-                logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}")
+                logger.error(f" خطأ في تهيئة الحساب: {e}")
             
             # حفظ في قاعدة البيانات
             from database import db_manager
@@ -690,9 +690,9 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
             
             # إرسال رسالة نجاح مع معلومات الحساب
             await update.message.reply_text(
-                f"✅ **تم الاتصال بـ MEXC بنجاح!**\n\n"
+                f" **تم الاتصال بـ MEXC بنجاح!**\n\n"
                 f"🔐 API مرتبط ويعمل\n"
-                f"📊 نوع الحساب: حقيقي (Spot فقط){balance_info}",
+                f" نوع الحساب: حقيقي (Spot فقط){balance_info}",
                 parse_mode='Markdown'
             )
             
@@ -703,7 +703,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
     
     except Exception as e:
         logger.error(f"خطأ في اختبار/حفظ مفاتيح MEXC: {e}")
-        await update.message.reply_text(f"❌ خطأ: {str(e)}")
+        await update.message.reply_text(f" خطأ: {str(e)}")
         return False
 
 async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -718,7 +718,7 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
-        await query.edit_message_text("❌ خطأ: المستخدم غير موجود")
+        await query.edit_message_text(" خطأ: المستخدم غير موجود")
         return
     
     # التحقق من وجود المفاتيح
@@ -735,7 +735,7 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not has_keys or not api_secret:
         await query.edit_message_text(
-            f"⚠️ **لم يتم ربط {exchange.upper()} API**\n\n"
+            f" **لم يتم ربط {exchange.upper()} API**\n\n"
             f"يجب ربط API أولاً قبل التفعيل\n\n"
             f"اضغط على \"🔗 ربط API\" أولاً",
             parse_mode='Markdown'
@@ -749,14 +749,14 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if current_exchange == exchange and account_type == 'real':
         # المنصة مفعّلة بالفعل
         await query.edit_message_text(
-            f"✅ **{exchange.upper()} مفعّلة بالفعل!**\n\n"
+            f" **{exchange.upper()} مفعّلة بالفعل!**\n\n"
             f"🔐 الحساب الحقيقي نشط ويعمل\n"
             f"🏦 المنصة: {exchange.upper()}\n\n"
-            f"💡 يمكنك:\n"
+            f" يمكنك:\n"
             f"• عرض المحفظة من القائمة الرئيسية\n"
             f"• عرض الصفقات المفتوحة\n"
             f"• استقبال إشارات التداول\n\n"
-            f"📊 لعرض التفاصيل، اذهب للقائمة الرئيسية",
+            f" لعرض التفاصيل، اذهب للقائمة الرئيسية",
             parse_mode='Markdown'
         )
         return
@@ -764,9 +764,9 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # تهيئة الحساب الحقيقي
     from real_account_manager import real_account_manager
     try:
-        logger.info(f"🔄 بدء تهيئة حساب {exchange} للمستخدم {user_id}")
+        logger.info(f" بدء تهيئة حساب {exchange} للمستخدم {user_id}")
         real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
-        logger.info(f"✅ تم تهيئة حساب {exchange} بنجاح")
+        logger.info(f" تم تهيئة حساب {exchange} بنجاح")
         
         # تفعيل المنصة
         user_data['exchange'] = exchange
@@ -790,14 +790,14 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if account:
             balance = account.get_wallet_balance()
             if balance:
-                balance_info = f"\n\n💰 **الرصيد الإجمالي:** ${balance.get('total_equity', 0):,.2f}"
+                balance_info = f"\n\n **الرصيد الإجمالي:** ${balance.get('total_equity', 0):,.2f}"
         
         await query.edit_message_text(
-            f"✅ **تم تفعيل {exchange.upper()} بنجاح!**\n\n"
+            f" **تم تفعيل {exchange.upper()} بنجاح!**\n\n"
             f"🔐 **الحساب:** حقيقي ونشط\n"
             f"🏦 **المنصة:** {exchange.upper()}\n"
-            f"📊 **الحالة:** متصل ويعمل{balance_info}\n\n"
-            f"🎉 **يمكنك الآن:**\n"
+            f" **الحالة:** متصل ويعمل{balance_info}\n\n"
+            f" **يمكنك الآن:**\n"
             f"• استقبال إشارات التداول\n"
             f"• التداول الحقيقي على المنصة\n"
             f"• عرض الرصيد والصفقات الفعلية\n"
@@ -825,9 +825,9 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
             error_details = f"تفاصيل الخطأ: {error_message[:100]}"
         
         await query.edit_message_text(
-            f"❌ **خطأ في التفعيل**\n\n"
+            f" **خطأ في التفعيل**\n\n"
             f"{error_details}\n\n"
-            f"💡 **الحلول المقترحة:**\n"
+            f" **الحلول المقترحة:**\n"
             f"1. تحقق من صحة مفاتيح API\n"
             f"2. تأكد من تفعيل API في حسابك\n"
             f"3. جرب إعادة ربط API\n"
@@ -847,13 +847,13 @@ async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
-        await query.edit_message_text("❌ خطأ: المستخدم غير موجود")
+        await query.edit_message_text(" خطأ: المستخدم غير موجود")
         return
     
     try:
         if exchange == 'bybit':
             # اختبار Bybit (يمكن تحسينه لاحقاً)
-            result = "✅ الاتصال بـ Bybit ناجح!"
+            result = " الاتصال بـ Bybit ناجح!"
         else:  # mexc
             from mexc_trading_bot import create_mexc_bot
             api_key = user_data.get('mexc_api_key', MEXC_API_KEY)
@@ -863,20 +863,20 @@ async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT
             if bot.test_connection():
                 # الحصول على معلومات الحساب
                 balance = bot.get_account_balance()
-                result = f"✅ **الاتصال بـ MEXC ناجح!**\n\n"
-                result += f"📊 **معلومات الحساب:**\n"
+                result = f" **الاتصال بـ MEXC ناجح!**\n\n"
+                result += f" **معلومات الحساب:**\n"
                 result += f"• يمكن التداول: {'نعم' if balance.get('can_trade') else 'لا'}\n"
                 
                 # عرض بعض الأرصدة
                 if balance and 'balances' in balance:
                     count = 0
-                    result += f"\n💰 **الأرصدة:**\n"
+                    result += f"\n **الأرصدة:**\n"
                     for asset, info in balance['balances'].items():
                         if info['total'] > 0 and count < 5:
                             result += f"• {asset}: {info['total']:.8f}\n"
                             count += 1
             else:
-                result = "❌ فشل الاتصال بـ MEXC"
+                result = " فشل الاتصال بـ MEXC"
         
         keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -889,12 +889,12 @@ async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT
     
     except Exception as e:
         logger.error(f"خطأ في اختبار الاتصال: {e}")
-        await query.edit_message_text(f"❌ خطأ: {str(e)}")
+        await query.edit_message_text(f" خطأ: {str(e)}")
 
 async def cancel_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إلغاء عملية الإعداد"""
     context.user_data.pop('awaiting_exchange_keys', None)
-    await update.message.reply_text("❌ تم إلغاء العملية")
+    await update.message.reply_text(" تم إلغاء العملية")
     return
 
 # دالة للتسجيل في التطبيق الرئيسي
@@ -910,5 +910,5 @@ def register_exchange_handlers(application):
     # معالجات الأزرار - تم نقلها إلى bybit_trading_bot.py
     # معالج إدخال المفاتيح - سيتم التعامل معه عبر context.user_data
     
-    logger.info("✅ تم تسجيل معالجات أوامر المنصات")
+    logger.info(" تم تسجيل معالجات أوامر المنصات")
 

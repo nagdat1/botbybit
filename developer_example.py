@@ -42,7 +42,7 @@ class DeveloperBotIntegration:
             dev_info = self.dev_manager.get_developer(developer_id)
             
             if not dev_info:
-                return "❌ خطأ: لم يتم العثور على معلومات المطور"
+                return " خطأ: لم يتم العثور على معلومات المطور"
             
             # بناء رسالة الإحصائيات
             message = DEVELOPER_MESSAGES['stats_header'].format(
@@ -55,9 +55,9 @@ class DeveloperBotIntegration:
             
             # إضافة الأزرار
             buttons = [
-                ["📡 إرسال إشارة", "👥 المتابعين"],
-                ["📊 الإحصائيات", "⚙️ الإعدادات"],
-                ["📱 إشعار جماعي", "📥 تصدير البيانات"]
+                [" إرسال إشارة", "👥 المتابعين"],
+                [" الإحصائيات", " الإعدادات"],
+                ["📱 إشعار جماعي", " تصدير البيانات"]
             ]
             
             return {
@@ -67,7 +67,7 @@ class DeveloperBotIntegration:
             
         except Exception as e:
             logger.error(f"خطأ في عرض لوحة المطور: {e}")
-            return "❌ حدث خطأ في عرض لوحة التحكم"
+            return " حدث خطأ في عرض لوحة التحكم"
     
     async def show_user_menu(self, user_id: int):
         """عرض قائمة المستخدم العادي"""
@@ -85,8 +85,8 @@ class DeveloperBotIntegration:
         """
         
         buttons = [
-            ["📊 حسابي", "💼 الصفقات"],
-            ["⚙️ الإعدادات", "📜 السجل"],
+            [" حسابي", "💼 الصفقات"],
+            [" الإعدادات", "📜 السجل"],
             ["⚡ متابعة إشارات المطور"]
         ]
         
@@ -100,44 +100,44 @@ class DeveloperBotIntegration:
         try:
             # التحقق من أن المطور نشط
             if not self.dev_manager.is_developer_active(developer_id):
-                return "❌ المطور غير نشط حالياً"
+                return " المطور غير نشط حالياً"
             
             # التحقق من أن المستخدم ليس متابعاً بالفعل
             if self.dev_manager.is_following(developer_id, user_id):
-                return "⚠️ أنت تتابع هذا المطور بالفعل"
+                return " أنت تتابع هذا المطور بالفعل"
             
             # إضافة المتابع
             success = self.dev_manager.add_follower(developer_id, user_id)
             
             if success:
                 dev_info = self.dev_manager.get_developer(developer_id)
-                return f"✅ تم متابعة المطور {dev_info['developer_name']} بنجاح\n\nستتلقى جميع الإشارات تلقائياً"
+                return f" تم متابعة المطور {dev_info['developer_name']} بنجاح\n\nستتلقى جميع الإشارات تلقائياً"
             else:
-                return "❌ فشل في متابعة المطور"
+                return " فشل في متابعة المطور"
                 
         except Exception as e:
             logger.error(f"خطأ في متابعة المطور: {e}")
-            return "❌ حدث خطأ أثناء المتابعة"
+            return " حدث خطأ أثناء المتابعة"
     
     async def handle_unfollow_developer(self, user_id: int, developer_id: int):
         """معالجة إلغاء متابعة المطور"""
         try:
             # التحقق من أن المستخدم يتابع المطور
             if not self.dev_manager.is_following(developer_id, user_id):
-                return "⚠️ أنت لا تتابع هذا المطور"
+                return " أنت لا تتابع هذا المطور"
             
             # إزالة المتابع
             success = self.dev_manager.remove_follower(developer_id, user_id)
             
             if success:
                 dev_info = self.dev_manager.get_developer(developer_id)
-                return f"✅ تم إلغاء متابعة المطور {dev_info['developer_name']}"
+                return f" تم إلغاء متابعة المطور {dev_info['developer_name']}"
             else:
-                return "❌ فشل في إلغاء المتابعة"
+                return " فشل في إلغاء المتابعة"
                 
         except Exception as e:
             logger.error(f"خطأ في إلغاء متابعة المطور: {e}")
-            return "❌ حدث خطأ أثناء إلغاء المتابعة"
+            return " حدث خطأ أثناء إلغاء المتابعة"
     
     async def broadcast_signal(self, developer_id: int, signal_data: dict):
         """إرسال إشارة من المطور لجميع المتابعين"""
@@ -176,7 +176,7 @@ class DeveloperBotIntegration:
             logger.error(f"خطأ في إرسال الإشارة: {e}")
             return {
                 'success': False,
-                'message': f"❌ حدث خطأ: {str(e)}"
+                'message': f" حدث خطأ: {str(e)}"
             }
     
     async def show_followers_list(self, developer_id: int):
@@ -204,7 +204,7 @@ class DeveloperBotIntegration:
             
         except Exception as e:
             logger.error(f"خطأ في عرض قائمة المتابعين: {e}")
-            return "❌ حدث خطأ في عرض القائمة"
+            return " حدث خطأ في عرض القائمة"
     
     async def process_developer_signal_for_users(self, signal_data: dict, target_users: list):
         """معالجة إشارة المطور لجميع المستخدمين المستهدفين"""
@@ -310,6 +310,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("🚀 مثال على نظام المطورين\n")
+    print(" مثال على نظام المطورين\n")
     asyncio.run(main())
 

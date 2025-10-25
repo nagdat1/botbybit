@@ -30,7 +30,7 @@ class SignalIDManager:
             random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
             
             signal_id = f"{symbol}-{date_str}-{time_str}-{random_suffix}"
-            logger.info(f"🆔 تم توليد ID عشوائي: {signal_id}")
+            logger.info(f" تم توليد ID عشوائي: {signal_id}")
             return signal_id
             
         except Exception as e:
@@ -69,7 +69,7 @@ class SignalIDManager:
             if position_id:
                 logger.info(f"📍 تم العثور على رقم الصفقة {position_id} للإشارة {signal_id}")
             else:
-                logger.warning(f"⚠️ لم يتم العثور على رقم صفقة للإشارة {signal_id}")
+                logger.warning(f" لم يتم العثور على رقم صفقة للإشارة {signal_id}")
             return position_id
             
         except Exception as e:
@@ -81,9 +81,9 @@ class SignalIDManager:
         try:
             signal_id = self.position_to_signal_map.get(position_id)
             if signal_id:
-                logger.info(f"🆔 تم العثور على ID الإشارة {signal_id} للصفقة {position_id}")
+                logger.info(f" تم العثور على ID الإشارة {signal_id} للصفقة {position_id}")
             else:
-                logger.warning(f"⚠️ لم يتم العثور على ID إشارة للصفقة {position_id}")
+                logger.warning(f" لم يتم العثور على ID إشارة للصفقة {position_id}")
             return signal_id
             
         except Exception as e:
@@ -101,10 +101,10 @@ class SignalIDManager:
                 signal_id = self.generate_random_id(symbol)
                 signal_data['id'] = signal_id
                 signal_data['generated_id'] = True
-                logger.info(f"🆔 تم توليد ID عشوائي للإشارة: {signal_id}")
+                logger.info(f" تم توليد ID عشوائي للإشارة: {signal_id}")
             else:
                 signal_data['generated_id'] = False
-                logger.info(f"🆔 تم استخدام ID محدد للإشارة: {signal_id}")
+                logger.info(f" تم استخدام ID محدد للإشارة: {signal_id}")
             
             # توليد رقم الصفقة المرتبط بـ ID الإشارة
             position_id = self.generate_position_id(signal_id)
@@ -113,7 +113,7 @@ class SignalIDManager:
             # ربط ID الإشارة برقم الصفقة
             self.link_signal_to_position(signal_id, position_id)
             
-            logger.info(f"✅ تم معالجة ID الإشارة: {signal_id} -> رقم الصفقة: {position_id}")
+            logger.info(f" تم معالجة ID الإشارة: {signal_id} -> رقم الصفقة: {position_id}")
             return signal_data
             
         except Exception as e:

@@ -56,14 +56,14 @@ class SignalPositionManager:
             success = self.db.create_signal_position(position_data)
             
             if success:
-                logger.info(f"✅ تم إنشاء صفقة مرتبطة بالـ ID: {signal_id} - {symbol} - {side}")
+                logger.info(f" تم إنشاء صفقة مرتبطة بالـ ID: {signal_id} - {symbol} - {side}")
             else:
-                logger.error(f"❌ فشل إنشاء صفقة مرتبطة بالـ ID: {signal_id}")
+                logger.error(f" فشل إنشاء صفقة مرتبطة بالـ ID: {signal_id}")
             
             return success
             
         except Exception as e:
-            logger.error(f"❌ خطأ في إنشاء صفقة مرتبطة بالـ ID: {e}")
+            logger.error(f" خطأ في إنشاء صفقة مرتبطة بالـ ID: {e}")
             return False
     
     def get_position(self, signal_id: str, user_id: int, symbol: str) -> Optional[Dict]:
@@ -82,14 +82,14 @@ class SignalPositionManager:
             position = self.db.get_position_by_signal_id(signal_id, user_id, symbol)
             
             if position:
-                logger.debug(f"📊 تم العثور على صفقة: {signal_id} - {symbol}")
+                logger.debug(f" تم العثور على صفقة: {signal_id} - {symbol}")
             else:
-                logger.debug(f"❌ لم يتم العثور على صفقة: {signal_id} - {symbol}")
+                logger.debug(f" لم يتم العثور على صفقة: {signal_id} - {symbol}")
             
             return position
             
         except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على الصفقة: {e}")
+            logger.error(f" خطأ في الحصول على الصفقة: {e}")
             return None
     
     def get_user_positions(self, user_id: int, status: str = None) -> List[Dict]:
@@ -105,11 +105,11 @@ class SignalPositionManager:
         """
         try:
             positions = self.db.get_user_signal_positions(user_id, status)
-            logger.info(f"📊 تم العثور على {len(positions)} صفقة للمستخدم {user_id}")
+            logger.info(f" تم العثور على {len(positions)} صفقة للمستخدم {user_id}")
             return positions
             
         except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على صفقات المستخدم: {e}")
+            logger.error(f" خطأ في الحصول على صفقات المستخدم: {e}")
             return []
     
     def get_signal_positions(self, signal_id: str, user_id: int = None) -> List[Dict]:
@@ -125,11 +125,11 @@ class SignalPositionManager:
         """
         try:
             positions = self.db.get_signal_positions(signal_id, user_id)
-            logger.info(f"📊 تم العثور على {len(positions)} صفقة للإشارة {signal_id}")
+            logger.info(f" تم العثور على {len(positions)} صفقة للإشارة {signal_id}")
             return positions
             
         except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على صفقات الإشارة: {e}")
+            logger.error(f" خطأ في الحصول على صفقات الإشارة: {e}")
             return []
     
     def close_position(self, signal_id: str, user_id: int, symbol: str) -> bool:
@@ -148,14 +148,14 @@ class SignalPositionManager:
             success = self.db.close_signal_position(signal_id, user_id, symbol)
             
             if success:
-                logger.info(f"✅ تم إغلاق صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
+                logger.info(f" تم إغلاق صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
             else:
-                logger.error(f"❌ فشل إغلاق صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
+                logger.error(f" فشل إغلاق صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
             
             return success
             
         except Exception as e:
-            logger.error(f"❌ خطأ في إغلاق الصفقة: {e}")
+            logger.error(f" خطأ في إغلاق الصفقة: {e}")
             return False
     
     def partial_close_position(self, signal_id: str, user_id: int, symbol: str, 
@@ -200,14 +200,14 @@ class SignalPositionManager:
             success = self.db.update_signal_position(signal_id, user_id, symbol, updates)
             
             if success:
-                logger.info(f"✅ تم إغلاق جزئي {percentage}% من صفقة {signal_id} - {symbol}")
+                logger.info(f" تم إغلاق جزئي {percentage}% من صفقة {signal_id} - {symbol}")
                 return True, f"تم إغلاق {percentage}% من الصفقة. المتبقي: {remaining_qty}"
             else:
-                logger.error(f"❌ فشل الإغلاق الجزئي لصفقة {signal_id}")
+                logger.error(f" فشل الإغلاق الجزئي لصفقة {signal_id}")
                 return False, "فشل في تحديث الصفقة"
             
         except Exception as e:
-            logger.error(f"❌ خطأ في الإغلاق الجزئي: {e}")
+            logger.error(f" خطأ في الإغلاق الجزئي: {e}")
             return False, f"خطأ في الإغلاق الجزئي: {e}"
     
     def update_position(self, signal_id: str, user_id: int, symbol: str, 
@@ -228,14 +228,14 @@ class SignalPositionManager:
             success = self.db.update_signal_position(signal_id, user_id, symbol, updates)
             
             if success:
-                logger.info(f"✅ تم تحديث صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
+                logger.info(f" تم تحديث صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
             else:
-                logger.error(f"❌ فشل تحديث صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
+                logger.error(f" فشل تحديث صفقة مرتبطة بالـ ID: {signal_id} - {symbol}")
             
             return success
             
         except Exception as e:
-            logger.error(f"❌ خطأ في تحديث الصفقة: {e}")
+            logger.error(f" خطأ في تحديث الصفقة: {e}")
             return False
     
     def find_positions_for_close(self, signal_id: str, user_id: int, symbol: str) -> List[Dict]:
@@ -260,12 +260,12 @@ class SignalPositionManager:
                 if pos['symbol'] == symbol and pos['status'] == 'OPEN'
             ]
             
-            logger.info(f"🔍 تم العثور على {len(open_positions)} صفقة مفتوحة للإشارة {signal_id} - {symbol}")
+            logger.info(f" تم العثور على {len(open_positions)} صفقة مفتوحة للإشارة {signal_id} - {symbol}")
             
             return open_positions
             
         except Exception as e:
-            logger.error(f"❌ خطأ في البحث عن الصفقات للإغلاق: {e}")
+            logger.error(f" خطأ في البحث عن الصفقات للإغلاق: {e}")
             return []
     
     def get_position_summary(self, user_id: int) -> Dict:
@@ -310,12 +310,12 @@ class SignalPositionManager:
                 'last_updated': datetime.now().isoformat()
             }
             
-            logger.info(f"📊 ملخص الصفقات للمستخدم {user_id}: {len(open_positions)} مفتوحة، {len(closed_positions)} مغلقة")
+            logger.info(f" ملخص الصفقات للمستخدم {user_id}: {len(open_positions)} مفتوحة، {len(closed_positions)} مغلقة")
             
             return summary
             
         except Exception as e:
-            logger.error(f"❌ خطأ في الحصول على ملخص الصفقات: {e}")
+            logger.error(f" خطأ في الحصول على ملخص الصفقات: {e}")
             return {
                 'total_positions': 0,
                 'open_positions': 0,
@@ -341,7 +341,7 @@ class SignalPositionManager:
             return 0
             
         except Exception as e:
-            logger.error(f"❌ خطأ في تنظيف الصفقات القديمة: {e}")
+            logger.error(f" خطأ في تنظيف الصفقات القديمة: {e}")
             return 0
 
 
@@ -386,7 +386,7 @@ if __name__ == "__main__":
     test_user_id = 123456789
     test_symbol = "BTCUSDT"
     
-    print(f"\n📊 اختبار إنشاء صفقة:")
+    print(f"\n اختبار إنشاء صفقة:")
     print(f"Signal ID: {test_signal_id}")
     print(f"User ID: {test_user_id}")
     print(f"Symbol: {test_symbol}")
@@ -404,21 +404,21 @@ if __name__ == "__main__":
         order_id="TEST_ORDER_001"
     )
     
-    print(f"✅ نتيجة الإنشاء: {success}")
+    print(f" نتيجة الإنشاء: {success}")
     
     if success:
         # الحصول على الصفقة
         position = get_signal_position(test_signal_id, test_user_id, test_symbol)
-        print(f"📊 الصفقة المنشأة: {position}")
+        print(f" الصفقة المنشأة: {position}")
         
         # اختبار الإغلاق الجزئي
         print(f"\n🟡 اختبار الإغلاق الجزئي 50%:")
         success, message = partial_close_signal_position(test_signal_id, test_user_id, test_symbol, 50)
-        print(f"✅ النتيجة: {success} - {message}")
+        print(f" النتيجة: {success} - {message}")
         
         # اختبار الإغلاق الكامل
         print(f"\n⚪ اختبار الإغلاق الكامل:")
         success = close_signal_position(test_signal_id, test_user_id, test_symbol)
-        print(f"✅ النتيجة: {success}")
+        print(f" النتيجة: {success}")
     
     print("\n" + "=" * 80)

@@ -33,7 +33,7 @@ class SystemIntegrationUpdate:
             'bybit_trading_bot.py'
         ]
         
-        self.logger.info("🔧 تم تهيئة تحديث تكامل النظام")
+        self.logger.info(" تم تهيئة تحديث تكامل النظام")
     
     def get_integration_plan(self) -> Dict[str, Any]:
         """الحصول على خطة التكامل"""
@@ -98,25 +98,25 @@ class SystemIntegrationUpdate:
 try:
     from signal_system_integration import signal_system_integration, process_signal_integrated
     NEW_SYSTEM_AVAILABLE = signal_system_integration.is_available()
-    print(f"✅ نظام الإشارات الجديد متاح: {NEW_SYSTEM_AVAILABLE}")
+    print(f" نظام الإشارات الجديد متاح: {NEW_SYSTEM_AVAILABLE}")
 except ImportError as e:
     NEW_SYSTEM_AVAILABLE = False
-    print(f"⚠️ نظام الإشارات الجديد غير متاح: {e}")
+    print(f" نظام الإشارات الجديد غير متاح: {e}")
 ''',
             'webhook_processing': '''
 # معالجة الإشارة باستخدام النظام الجديد أو المحسن أو العادي
 if NEW_SYSTEM_AVAILABLE:
-    print("🎯 معالجة الإشارة باستخدام النظام الجديد...")
+    print(" معالجة الإشارة باستخدام النظام الجديد...")
     result = loop.run_until_complete(process_signal_integrated(data, user_settings_copy['user_id']))
-    print(f"✅ [WEBHOOK جديد - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
+    print(f" [WEBHOOK جديد - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
 elif ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
-    print("🚀 معالجة الإشارة باستخدام النظام المحسن...")
+    print(" معالجة الإشارة باستخدام النظام المحسن...")
     result = enhanced_system.process_signal(user_settings_copy['user_id'], data)
-    print(f"✅ [WEBHOOK محسن - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
+    print(f" [WEBHOOK محسن - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
 else:
-    print("📝 معالجة الإشارة باستخدام النظام العادي...")
+    print(" معالجة الإشارة باستخدام النظام العادي...")
     loop.run_until_complete(trading_bot.process_signal(data))
-    print(f"✅ [WEBHOOK عادي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
+    print(f" [WEBHOOK عادي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
 ''',
             'index_page': '''
 # تحديد نوع النظام المستخدم
@@ -140,10 +140,10 @@ return jsonify({
             'keyboard_buttons': '''
 # إضافة أزرار النظام الجديد
 keyboard = [
-    [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
-    [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-    [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-    [KeyboardButton("🔧 الأدوات المتقدمة"), KeyboardButton("🎯 نظام الإشارات")],  # أزرار جديدة
+    [KeyboardButton(" الإعدادات"), KeyboardButton(" حالة الحساب")],
+    [KeyboardButton(" الصفقات المفتوحة"), KeyboardButton(" تاريخ التداول")],
+    [KeyboardButton(" المحفظة"), KeyboardButton(" إحصائيات")],
+    [KeyboardButton(" الأدوات المتقدمة"), KeyboardButton(" نظام الإشارات")],  # أزرار جديدة
     [KeyboardButton("🔙 الرجوع لحساب المطور")]
 ]
 ''',
@@ -151,10 +151,10 @@ keyboard = [
 # استخراج ID الإشارة لاستخدامه كمعرف للصفقة
 signal_id = signal_data.get('signal_id') or signal_data.get('id') or signal_data.get('original_signal', {}).get('id')
 if signal_id:
-    logger.info(f"🆔 تم استخراج ID الإشارة: {signal_id}")
+    logger.info(f" تم استخراج ID الإشارة: {signal_id}")
     self._current_signal_id = signal_id
 else:
-    logger.info("⚠️ لا يوجد ID في الإشارة - سيتم توليد ID عشوائي")
+    logger.info(" لا يوجد ID في الإشارة - سيتم توليد ID عشوائي")
     self._current_signal_id = None
 ''',
             'position_creation': '''
@@ -162,7 +162,7 @@ else:
 custom_position_id = None
 if hasattr(self, '_current_signal_id') and self._current_signal_id:
     custom_position_id = self._current_signal_id
-    logger.info(f"🆔 استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
+    logger.info(f" استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
 
 success, result = account.open_futures_position(
     symbol=symbol,
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     
     # خطة التكامل
     plan = get_integration_plan()
-    print(f"\n📋 خطة التكامل:")
+    print(f"\n خطة التكامل:")
     print(f"   الاسم: {plan['integration_name']}")
     print(f"   الإصدار: {plan['version']}")
     print(f"   الملفات الجديدة: {len(plan['new_files'])}")
@@ -300,7 +300,7 @@ if __name__ == "__main__":
     
     # حالة التكامل
     status = get_integration_status()
-    print(f"\n📊 حالة التكامل:")
+    print(f"\n حالة التكامل:")
     print(f"   الحالة: {status['status']}")
     print(f"   الملفات المتاحة: {status['available_files']}/{status['total_files']}")
     print(f"   نسبة الإكمال: {status['completion_percentage']:.1f}%")
@@ -308,16 +308,16 @@ if __name__ == "__main__":
     # قائمة الملفات
     print(f"\n📁 حالة الملفات:")
     for file_name, is_available in status['files_status'].items():
-        status_icon = "✅" if is_available else "❌"
+        status_icon = "" if is_available else ""
         print(f"   {status_icon} {file_name}")
     
     # خطوات التكامل
-    print(f"\n🔧 خطوات التكامل:")
+    print(f"\n خطوات التكامل:")
     for i, step in enumerate(plan['integration_steps'], 1):
         print(f"   {i}. {step}")
     
     # الميزات المضافة
-    print(f"\n✨ الميزات المضافة:")
+    print(f"\n الميزات المضافة:")
     for feature in plan['features_added']:
         print(f"   • {feature}")
     
@@ -325,6 +325,6 @@ if __name__ == "__main__":
     examples = system_integration_update.get_usage_examples()
     print(f"\n🧪 أمثلة الاستخدام:")
     for example_name, code_lines in examples.items():
-        print(f"\n   📝 {example_name}:")
+        print(f"\n    {example_name}:")
         for line in code_lines:
             print(f"      {line}")

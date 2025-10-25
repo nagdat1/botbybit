@@ -47,7 +47,7 @@ class SimpleEnhancedSystem:
     def process_signal(self, user_id: int, signal_data: Dict[str, Any]) -> Dict[str, Any]:
         """معالجة إشارة باستخدام النظام المحسن"""
         try:
-            logger.info(f"🚀 معالجة إشارة محسنة للمستخدم {user_id}")
+            logger.info(f" معالجة إشارة محسنة للمستخدم {user_id}")
             
             # تحليل الإشارة
             analysis = self._analyze_signal(signal_data)
@@ -79,11 +79,11 @@ class SimpleEnhancedSystem:
                 }
             }
             
-            logger.info(f"✅ تم معالجة الإشارة بنجاح: {result}")
+            logger.info(f" تم معالجة الإشارة بنجاح: {result}")
             return result
             
         except Exception as e:
-            logger.error(f"❌ خطأ في معالجة الإشارة: {e}")
+            logger.error(f" خطأ في معالجة الإشارة: {e}")
             self._update_stats(signal_data, False)
             return {
                 "status": "error",
@@ -256,17 +256,17 @@ def test_simple_enhanced_system():
     }
     
     result = simple_enhanced_system.process_signal(12345, test_signal)
-    print(f"✅ نتيجة المعالجة: {result}")
+    print(f" نتيجة المعالجة: {result}")
     
     # اختبار حالة النظام
     status = simple_enhanced_system.get_system_status()
-    print(f"✅ حالة النظام: {status}")
+    print(f" حالة النظام: {status}")
     
     # اختبار تقرير الأداء
     report = simple_enhanced_system.get_performance_report()
-    print(f"✅ تقرير الأداء: {report}")
+    print(f" تقرير الأداء: {report}")
     
-    print("🎉 جميع الاختبارات نجحت!")
+    print(" جميع الاختبارات نجحت!")
 
 if __name__ == "__main__":
     test_simple_enhanced_system()

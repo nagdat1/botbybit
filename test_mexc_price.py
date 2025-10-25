@@ -55,20 +55,20 @@ def test_mexc_price_fetching():
             price = bot.get_ticker_price(symbol)
             
             if price:
-                print(f"✅ سعر {symbol}: ${price:,.2f}")
+                print(f" سعر {symbol}: ${price:,.2f}")
             else:
-                print(f"❌ فشل جلب السعر لـ {symbol}")
+                print(f" فشل جلب السعر لـ {symbol}")
                 return False
         
         # اختبار معلومات الرمز
         print("\nاختبار معلومات الرمز...")
         symbol_info = bot.get_symbol_info('BTCUSDT')
         if symbol_info:
-            print(f"✅ معلومات BTCUSDT:")
+            print(f" معلومات BTCUSDT:")
             print(f"   التداول الفوري مسموح: {symbol_info['is_spot_trading_allowed']}")
             print(f"   الحالة: {symbol_info['status']}")
         else:
-            print("❌ فشل الحصول على معلومات الرمز")
+            print(" فشل الحصول على معلومات الرمز")
             return False
         
         print("\n" + "=" * 60)
@@ -111,10 +111,10 @@ def test_real_account_price_fetching():
         
         if ticker_result and 'lastPrice' in ticker_result:
             price = float(ticker_result['lastPrice'])
-            print(f"✅ السعر عبر RealAccount: ${price:,.2f}")
+            print(f" السعر عبر RealAccount: ${price:,.2f}")
             return True
         else:
-            print(f"❌ فشل جلب السعر عبر RealAccount: {ticker_result}")
+            print(f" فشل جلب السعر عبر RealAccount: {ticker_result}")
             return False
         
     except Exception as e:

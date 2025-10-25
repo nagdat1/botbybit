@@ -35,12 +35,12 @@ def test_mexc_api_keys():
     try:
         response = requests.get('https://api.mexc.com/api/v3/ping', timeout=10)
         if response.status_code == 200:
-            print("✅ الاتصال العام ناجح")
+            print(" الاتصال العام ناجح")
         else:
-            print(f"❌ فشل الاتصال العام: {response.status_code}")
+            print(f" فشل الاتصال العام: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ خطأ في الاتصال العام: {e}")
+        print(f" خطأ في الاتصال العام: {e}")
         return False
     
     # اختبار جلب السعر
@@ -49,12 +49,12 @@ def test_mexc_api_keys():
         response = requests.get('https://api.mexc.com/api/v3/ticker/price?symbol=BTCUSDT', timeout=10)
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ السعر الحالي: ${float(data['price']):,.2f}")
+            print(f" السعر الحالي: ${float(data['price']):,.2f}")
         else:
-            print(f"❌ فشل جلب السعر: {response.status_code}")
+            print(f" فشل جلب السعر: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ خطأ في جلب السعر: {e}")
+        print(f" خطأ في جلب السعر: {e}")
         return False
     
     # اختبار التوقيع
@@ -93,14 +93,14 @@ def test_mexc_api_keys():
         print(f"Response: {response.text}")
         
         if response.status_code == 200:
-            print("✅ التوقيع صحيح!")
+            print(" التوقيع صحيح!")
             return True
         else:
-            print("❌ التوقيع غير صحيح!")
+            print(" التوقيع غير صحيح!")
             return False
             
     except Exception as e:
-        print(f"❌ خطأ في اختبار التوقيع: {e}")
+        print(f" خطأ في اختبار التوقيع: {e}")
         return False
 
 def show_solution():
@@ -148,10 +148,10 @@ if __name__ == "__main__":
     success = test_mexc_api_keys()
     
     if success:
-        print("\n🎉 النتيجة: مفاتيح API صحيحة!")
-        print("✅ يمكنك الآن استخدام MEXC للتداول")
+        print("\n النتيجة: مفاتيح API صحيحة!")
+        print(" يمكنك الآن استخدام MEXC للتداول")
     else:
-        print("\n❌ النتيجة: مفاتيح API غير صحيحة!")
+        print("\n النتيجة: مفاتيح API غير صحيحة!")
         show_solution()
     
     print("\n" + "=" * 60)

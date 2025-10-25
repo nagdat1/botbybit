@@ -252,7 +252,7 @@ class EnhancedPortfolioManager:
                     }
                     success = db_manager.update_order(unified_position_id, updates)
                     
-                    logger.info(f"✅ تم تحديث المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
+                    logger.info(f" تم تحديث المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
                     
                 else:  # sell
                     # بيع: تقليل كمية وحساب الربح
@@ -270,13 +270,13 @@ class EnhancedPortfolioManager:
                                 'last_update': datetime.now().isoformat()
                             }
                             success = db_manager.update_order(unified_position_id, updates)
-                            logger.info(f"✅ تم تقليل كمية المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, ربح البيع={profit_usdt:.2f} USDT")
+                            logger.info(f" تم تقليل كمية المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, ربح البيع={profit_usdt:.2f} USDT")
                         else:
                             # إغلاق المركز بالكامل
                             success = db_manager.close_order(unified_position_id, entry_price, profit_usdt)
-                            logger.info(f"✅ تم إغلاق المركز الموحد {unified_position_id} بالكامل، ربح إجمالي={profit_usdt:.2f} USDT")
+                            logger.info(f" تم إغلاق المركز الموحد {unified_position_id} بالكامل، ربح إجمالي={profit_usdt:.2f} USDT")
                     else:
-                        logger.warning(f"⚠️ كمية البيع {quantity} أكبر من الكمية المتاحة {old_quantity}")
+                        logger.warning(f" كمية البيع {quantity} أكبر من الكمية المتاحة {old_quantity}")
                         return False
             else:
                 # إنشاء مركز جديد للعملة
@@ -287,9 +287,9 @@ class EnhancedPortfolioManager:
                     position_data['market_type'] = 'spot'
                     
                     success = db_manager.create_comprehensive_position(position_data)
-                    logger.info(f"✅ تم إنشاء مركز موحد جديد {unified_position_id}: كمية={quantity}, سعر={entry_price:.6f}")
+                    logger.info(f" تم إنشاء مركز موحد جديد {unified_position_id}: كمية={quantity}, سعر={entry_price:.6f}")
                 else:
-                    logger.warning(f"⚠️ محاولة بيع {symbol} بدون رصيد متاح")
+                    logger.warning(f" محاولة بيع {symbol} بدون رصيد متاح")
                     return False
             
             return success
@@ -441,20 +441,20 @@ class EnhancedPortfolioManager:
             
             if account_type == 'demo':
                 # 1. من الذاكرة (user_manager.user_positions)
-                logger.info(f"🔍 DEBUG: user_manager.user_positions = {user_manager.user_positions}")
-                logger.info(f"🔍 DEBUG: self.user_id = {self.user_id}")
-                logger.info(f"🔍 DEBUG: type(self.user_id) = {type(self.user_id)}")
+                logger.info(f" DEBUG: user_manager.user_positions = {user_manager.user_positions}")
+                logger.info(f" DEBUG: self.user_id = {self.user_id}")
+                logger.info(f" DEBUG: type(self.user_id) = {type(self.user_id)}")
                 
                 memory_positions = user_manager.user_positions.get(self.user_id, {})
-                logger.info(f"🔍 DEBUG: memory_positions للمستخدم {self.user_id} = {memory_positions}")
-                logger.info(f"🔍 DEBUG: type(memory_positions) = {type(memory_positions)}")
+                logger.info(f" DEBUG: memory_positions للمستخدم {self.user_id} = {memory_positions}")
+                logger.info(f" DEBUG: type(memory_positions) = {type(memory_positions)}")
                 logger.info(f"صفقات من الذاكرة: {len(memory_positions)}")
                 
                 # فحص مفصل لكل صفقة
                 for pos_id, pos_info in memory_positions.items():
-                    logger.info(f"🔍 DEBUG: صفقة {pos_id} = {pos_info}")
-                    logger.info(f"🔍 DEBUG: account_type في الصفقة = {pos_info.get('account_type')}")
-                    logger.info(f"🔍 DEBUG: market_type في الصفقة = {pos_info.get('market_type')}")
+                    logger.info(f" DEBUG: صفقة {pos_id} = {pos_info}")
+                    logger.info(f" DEBUG: account_type في الصفقة = {pos_info.get('account_type')}")
+                    logger.info(f" DEBUG: market_type في الصفقة = {pos_info.get('market_type')}")
                 
                 for position_id, position_info in memory_positions.items():
                     if position_id not in position_ids_seen:
@@ -598,13 +598,13 @@ class EnhancedPortfolioManager:
             stats = portfolio.get('portfolio_stats', {})
             
             message = f"""
-📊 **ملخص المحفظة**
+ **ملخص المحفظة**
 
-💰 **القيمة الإجمالية:** ${summary.get('portfolio_value', 0):,.2f}
-📈 **الربح/الخسارة:** ${stats.get('total_pnl', 0):,.2f}
-🎯 **معدل الفوز:** {summary.get('win_rate', 0):.1f}%
+ **القيمة الإجمالية:** ${summary.get('portfolio_value', 0):,.2f}
+ **الربح/الخسارة:** ${stats.get('total_pnl', 0):,.2f}
+ **معدل الفوز:** {summary.get('win_rate', 0):.1f}%
 
-📋 **الصفقات:**
+ **الصفقات:**
 • الصفقات المفتوحة: {summary.get('total_open_positions', 0)}
 • الصفقات المغلقة: {summary.get('total_closed_positions', 0)}
 • الرموز المتداولة: {summary.get('total_symbols', 0)}
@@ -616,7 +616,7 @@ class EnhancedPortfolioManager:
             
         except Exception as e:
             logger.error(f"خطأ في إنشاء ملخص المحفظة: {e}")
-            return f"❌ خطأ في تحميل المحفظة: {e}"
+            return f" خطأ في تحميل المحفظة: {e}"
 
 # مدير عام للمحافظ
 class PortfolioManagerFactory:

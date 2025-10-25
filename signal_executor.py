@@ -26,19 +26,19 @@ except ImportError:
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("✅ النظام المحسن متاح في signal_executor.py")
+    print(" النظام المحسن متاح في signal_executor.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
-    print(f"⚠️ النظام المحسن غير متاح في signal_executor.py: {e}")
+    print(f" النظام المحسن غير متاح في signal_executor.py: {e}")
 
 # استيراد مدير معرفات الإشارات
 try:
     from signal_id_manager import get_position_id_from_signal, get_signal_id_manager
     SIGNAL_ID_MANAGER_AVAILABLE = True
-    print("✅ مدير معرفات الإشارات متاح في signal_executor.py")
+    print(" مدير معرفات الإشارات متاح في signal_executor.py")
 except ImportError as e:
     SIGNAL_ID_MANAGER_AVAILABLE = False
-    print(f"⚠️ مدير معرفات الإشارات غير متاح في signal_executor.py: {e}")
+    print(f" مدير معرفات الإشارات غير متاح في signal_executor.py: {e}")
 
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
@@ -61,28 +61,28 @@ class SignalExecutor:
             if ENHANCED_SYSTEM_AVAILABLE:
                 try:
                     enhanced_system = SimpleEnhancedSystem()
-                    logger.info("🚀 معالجة الإشارة باستخدام النظام المحسن في signal_executor...")
+                    logger.info(" معالجة الإشارة باستخدام النظام المحسن في signal_executor...")
                     enhanced_result = enhanced_system.process_signal(user_id, signal_data)
-                    logger.info(f"✅ نتيجة النظام المحسن في signal_executor: {enhanced_result}")
+                    logger.info(f" نتيجة النظام المحسن في signal_executor: {enhanced_result}")
                     
                     # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
                     if enhanced_result.get('status') == 'success':
-                        logger.info("✅ تم استخدام نتيجة النظام المحسن في signal_executor، نتابع التنفيذ العادي")
+                        logger.info(" تم استخدام نتيجة النظام المحسن في signal_executor، نتابع التنفيذ العادي")
                         # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
                         signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
                         signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
                         signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
                     else:
-                        logger.warning("⚠️ فشل النظام المحسن في signal_executor، نعود للنظام العادي")
+                        logger.warning(" فشل النظام المحسن في signal_executor، نعود للنظام العادي")
                 except Exception as e:
-                    logger.warning(f"⚠️ خطأ في النظام المحسن في signal_executor: {e}")
+                    logger.warning(f" خطأ في النظام المحسن في signal_executor: {e}")
             
             account_type = user_data.get('account_type', 'demo')
             exchange = user_data.get('exchange', 'bybit')
             market_type = user_data.get('market_type', 'spot')
             
-            logger.info(f"🎯 تنفيذ إشارة للمستخدم {user_id}: {signal_data.get('action')} {signal_data.get('symbol')}")
-            logger.info(f"📊 نوع الحساب: {account_type}, المنصة: {exchange}, السوق: {market_type}")
+            logger.info(f" تنفيذ إشارة للمستخدم {user_id}: {signal_data.get('action')} {signal_data.get('symbol')}")
+            logger.info(f" نوع الحساب: {account_type}, المنصة: {exchange}, السوق: {market_type}")
             
             # إذا كان حساب تجريبي، إرجاع استجابة محاكاة
             if account_type == 'demo':
@@ -97,7 +97,7 @@ class SignalExecutor:
             real_account = real_account_manager.get_account(user_id)
             
             if not real_account:
-                logger.error(f"❌ حساب حقيقي غير مفعّل للمستخدم {user_id}")
+                logger.error(f" حساب حقيقي غير مفعّل للمستخدم {user_id}")
                 return {
                     'success': False,
                     'message': 'Real account not activated',
@@ -109,11 +109,11 @@ class SignalExecutor:
             
             # التحقق من نوع الإشارة (جديدة أو قديمة)
             if 'signal' in signal_data and 'action' not in signal_data:
-                logger.info(f"📡 تحويل إشارة جديدة: {signal_data}")
+                logger.info(f" تحويل إشارة جديدة: {signal_data}")
                 converted_signal = convert_simple_signal(signal_data, user_data)
                 
                 if not converted_signal:
-                    logger.error(f"❌ فشل تحويل الإشارة الجديدة")
+                    logger.error(f" فشل تحويل الإشارة الجديدة")
                     return {
                         'success': False,
                         'message': 'Failed to convert signal',
@@ -121,7 +121,7 @@ class SignalExecutor:
                     }
                 
                 signal_data = converted_signal
-                logger.info(f"✅ تم تحويل الإشارة: {signal_data}")
+                logger.info(f" تم تحويل الإشارة: {signal_data}")
             
             # استخراج معلومات الإشارة
             action = signal_data.get('action', '').lower()
@@ -130,12 +130,12 @@ class SignalExecutor:
             signal_id = signal_data.get('signal_id', '')
             has_signal_id = signal_data.get('has_signal_id', False)
             
-            logger.info(f"🆔 معلومات الـ ID: {signal_id} (موجود: {has_signal_id})")
+            logger.info(f" معلومات الـ ID: {signal_id} (موجود: {has_signal_id})")
             
             # إذا لم يكن السعر موجود، جلبه من API
             if not price or price == 0.0:
                 try:
-                    logger.info(f"🔍 جلب السعر الحالي لـ {symbol}...")
+                    logger.info(f" جلب السعر الحالي لـ {symbol}...")
                     
                     if exchange == 'bybit':
                         # جلب السعر من Bybit
@@ -143,9 +143,9 @@ class SignalExecutor:
                         ticker = real_account.get_ticker(category, symbol)
                         if ticker and 'lastPrice' in ticker:
                             price = float(ticker['lastPrice'])
-                            logger.info(f"✅ السعر الحالي: {price}")
+                            logger.info(f" السعر الحالي: {price}")
                         else:
-                            logger.error(f"❌ فشل جلب السعر من Bybit")
+                            logger.error(f" فشل جلب السعر من Bybit")
                             return {
                                 'success': False,
                                 'message': f'Failed to get current price for {symbol}',
@@ -153,28 +153,28 @@ class SignalExecutor:
                             }
                     else:
                         # جلب السعر من MEXC
-                        logger.info(f"🔍 جلب السعر من MEXC لـ {symbol}...")
+                        logger.info(f" جلب السعر من MEXC لـ {symbol}...")
                         try:
                             price_result = real_account.get_ticker('spot', symbol)
                             if price_result and 'lastPrice' in price_result:
                                 price = float(price_result['lastPrice'])
-                                logger.info(f"✅ السعر الحالي من MEXC: {price}")
+                                logger.info(f" السعر الحالي من MEXC: {price}")
                             else:
-                                logger.error(f"❌ فشل جلب السعر من MEXC")
+                                logger.error(f" فشل جلب السعر من MEXC")
                                 return {
                                     'success': False,
                                     'message': f'Failed to get current price for {symbol} from MEXC',
                                     'error': 'PRICE_FETCH_FAILED'
                                 }
                         except Exception as e:
-                            logger.error(f"❌ خطأ في جلب السعر من MEXC: {e}")
+                            logger.error(f" خطأ في جلب السعر من MEXC: {e}")
                             return {
                                 'success': False,
                                 'message': f'Error fetching price from MEXC: {e}',
                                 'error': 'PRICE_FETCH_ERROR'
                             }
                 except Exception as e:
-                    logger.error(f"❌ خطأ في جلب السعر: {e}")
+                    logger.error(f" خطأ في جلب السعر: {e}")
                     return {
                         'success': False,
                         'message': f'Error fetching price: {e}',
@@ -185,7 +185,7 @@ class SignalExecutor:
             trade_amount = user_data.get('trade_amount', 100.0)
             leverage = user_data.get('leverage', 10)
             
-            logger.info(f"💰 مبلغ التداول: {trade_amount}, الرافعة: {leverage}")
+            logger.info(f" مبلغ التداول: {trade_amount}, الرافعة: {leverage}")
             
             # تنفيذ الإشارة حسب المنصة
             if exchange == 'bybit':
@@ -218,16 +218,16 @@ class SignalExecutor:
                         result['risk_stopped'] = True
                         result['risk_message'] = risk_check.get('message', '')
                     else:
-                        logger.info(f"✅ فحص المخاطر نجح للمستخدم {user_id}")
+                        logger.info(f" فحص المخاطر نجح للمستخدم {user_id}")
                         
                 except Exception as e:
-                    logger.error(f"❌ خطأ في فحص المخاطر: {e}")
+                    logger.error(f" خطأ في فحص المخاطر: {e}")
                     # لا نوقف الصفقة بسبب خطأ في فحص المخاطر
             
             return result
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في تنفيذ الإشارة: {e}")
+            logger.error(f" خطأ في تنفيذ الإشارة: {e}")
             import traceback
             traceback.print_exc()
             return {
@@ -245,29 +245,31 @@ class SignalExecutor:
             if ENHANCED_SYSTEM_AVAILABLE:
                 try:
                     enhanced_system = SimpleEnhancedSystem()
-                    logger.info("🚀 تحليل إشارة Bybit باستخدام النظام المحسن...")
+                    logger.info(" تحليل إشارة Bybit باستخدام النظام المحسن...")
                     enhanced_result = enhanced_system.process_signal(user_id, signal_data)
-                    logger.info(f"✅ نتيجة النظام المحسن في Bybit: {enhanced_result}")
+                    logger.info(f" نتيجة النظام المحسن في Bybit: {enhanced_result}")
                     
                     # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
                     if enhanced_result.get('status') == 'success':
-                        logger.info("✅ تم استخدام نتيجة النظام المحسن في Bybit، نتابع التنفيذ العادي")
+                        logger.info(" تم استخدام نتيجة النظام المحسن في Bybit، نتابع التنفيذ العادي")
                         # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
                         signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
                         signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
                         signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
                     else:
-                        logger.warning("⚠️ فشل النظام المحسن في Bybit، نعود للنظام العادي")
+                        logger.warning(" فشل النظام المحسن في Bybit، نعود للنظام العادي")
                 except Exception as e:
-                    logger.warning(f"⚠️ خطأ في النظام المحسن في Bybit: {e}")
+                    logger.warning(f" خطأ في النظام المحسن في Bybit: {e}")
             
             action = signal_data.get('action', '').lower()
             symbol = signal_data.get('symbol', '')
+            signal_id = signal_data.get('signal_id', '')
+            has_signal_id = signal_data.get('has_signal_id', False)
             
             # تحديد الفئة
             category = 'linear' if market_type == 'futures' else 'spot'
             
-            logger.info(f"📡 Bybit {category.upper()}: {action} {symbol}")
+            logger.info(f" Bybit {category.upper()}: {action} {symbol}")
             
             # تحديد جهة الأمر
             if action in ['buy', 'long']:
@@ -276,8 +278,6 @@ class SignalExecutor:
                 side = 'Sell'
             elif action == 'close':
                 # إغلاق الصفقة المفتوحة بالكامل
-                has_signal_id = signal_data.get('has_signal_id', False)
-                signal_id = signal_data.get('signal_id', '')
                 if has_signal_id and signal_id:
                     # إغلاق الصفقات المرتبطة بالـ ID
                     return await SignalExecutor._close_signal_positions(
@@ -293,7 +293,7 @@ class SignalExecutor:
                     if target_position:
                         result = account.close_position(category, symbol, target_position['side'])
                         if result:
-                            logger.info(f"✅ تم إغلاق صفقة {symbol} بالكامل بنجاح")
+                            logger.info(f" تم إغلاق صفقة {symbol} بالكامل بنجاح")
                             return {
                                 'success': True,
                                 'message': f'Position closed: {symbol}',
@@ -318,8 +318,6 @@ class SignalExecutor:
                         'error': 'INVALID_PERCENTAGE'
                     }
                 
-                has_signal_id = signal_data.get('has_signal_id', False)
-                signal_id = signal_data.get('signal_id', '')
                 if has_signal_id and signal_id:
                     # إغلاق جزئي للصفقات المرتبطة بالـ ID
                     return await SignalExecutor._partial_close_signal_positions(
@@ -351,7 +349,7 @@ class SignalExecutor:
                             )
                             
                             if result:
-                                logger.info(f"✅ تم إغلاق {percentage}% من صفقة {symbol} بنجاح")
+                                logger.info(f" تم إغلاق {percentage}% من صفقة {symbol} بنجاح")
                                 return {
                                     'success': True,
                                     'message': f'Partial close: {percentage}% of {symbol}',
@@ -366,7 +364,7 @@ class SignalExecutor:
                                     'error': 'PARTIAL_CLOSE_FAILED'
                                 }
                         except Exception as e:
-                            logger.error(f"❌ خطأ في الإغلاق الجزئي: {e}")
+                            logger.error(f" خطأ في الإغلاق الجزئي: {e}")
                             return {
                                 'success': False,
                                 'message': f'Error in partial close: {str(e)}',
@@ -391,7 +389,7 @@ class SignalExecutor:
             
             # التحقق من أن السعر صحيح
             if price <= 0:
-                logger.error(f"⚠️ سعر غير صحيح: {price}")
+                logger.error(f" سعر غير صحيح: {price}")
                 return {
                     'success': False,
                     'message': f'Invalid price: {price}',
@@ -408,15 +406,15 @@ class SignalExecutor:
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
             min_quantity = 0.0001  # الحد الأدنى المقبول
             if qty < min_quantity:
-                logger.warning(f"⚠️ الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
+                logger.warning(f" الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
                 qty = min_quantity
             
             # تقريب الكمية حسب دقة الرمز
             qty = round(qty, 6)
             
-            logger.info(f"🧠 تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
-            logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
-            logger.info(f"📤 المخرجات (طريقة المنصة): qty = {qty} {symbol.split('USDT')[0]}")
+            logger.info(f" تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
+            logger.info(f" المدخلات (طريقتك): amount = ${trade_amount}")
+            logger.info(f" المخرجات (طريقة المنصة): qty = {qty} {symbol.split('USDT')[0]}")
             
             # استخراج TP/SL إذا كانت موجودة
             take_profit = signal_data.get('take_profit')
@@ -440,8 +438,8 @@ class SignalExecutor:
                 )
             
             if result:
-                logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
-                logger.info(f"📋 تفاصيل الأمر: {result}")
+                logger.info(f" تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
+                logger.info(f" تفاصيل الأمر: {result}")
                 
                 # حفظ الصفقة في قاعدة البيانات إذا كان هناك ID
                 if has_signal_id and signal_id:
@@ -472,9 +470,9 @@ class SignalExecutor:
                             order_id=result.get('order_id', '')
                         )
                         
-                        logger.info(f"🆔 تم حفظ الصفقة المرتبطة بالـ ID: {signal_id}")
+                        logger.info(f" تم حفظ الصفقة المرتبطة بالـ ID: {signal_id}")
                     except Exception as e:
-                        logger.error(f"❌ خطأ في حفظ الصفقة المرتبطة بالـ ID: {e}")
+                        logger.error(f" خطأ في حفظ الصفقة المرتبطة بالـ ID: {e}")
                 
                 return {
                     'success': True,
@@ -487,7 +485,7 @@ class SignalExecutor:
                     'signal_id': signal_id if has_signal_id else None
                 }
             else:
-                logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على Bybit")
+                logger.error(f" فشل تنفيذ أمر {side} {symbol} على Bybit")
                 return {
                     'success': False,
                     'message': f'Failed to place order on Bybit',
@@ -495,7 +493,7 @@ class SignalExecutor:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في تنفيذ إشارة Bybit: {e}")
+            logger.error(f" خطأ في تنفيذ إشارة Bybit: {e}")
             return {
                 'success': False,
                 'message': str(e),
@@ -510,26 +508,26 @@ class SignalExecutor:
             if ENHANCED_SYSTEM_AVAILABLE:
                 try:
                     enhanced_system = SimpleEnhancedSystem()
-                    logger.info("🚀 تحليل إشارة MEXC باستخدام النظام المحسن...")
+                    logger.info(" تحليل إشارة MEXC باستخدام النظام المحسن...")
                     enhanced_result = enhanced_system.process_signal(user_id, signal_data)
-                    logger.info(f"✅ نتيجة النظام المحسن في MEXC: {enhanced_result}")
+                    logger.info(f" نتيجة النظام المحسن في MEXC: {enhanced_result}")
                     
                     # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
                     if enhanced_result.get('status') == 'success':
-                        logger.info("✅ تم استخدام نتيجة النظام المحسن في MEXC، نتابع التنفيذ العادي")
+                        logger.info(" تم استخدام نتيجة النظام المحسن في MEXC، نتابع التنفيذ العادي")
                         # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
                         signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
                         signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
                         signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
                     else:
-                        logger.warning("⚠️ فشل النظام المحسن في MEXC، نعود للنظام العادي")
+                        logger.warning(" فشل النظام المحسن في MEXC، نعود للنظام العادي")
                 except Exception as e:
-                    logger.warning(f"⚠️ خطأ في النظام المحسن في MEXC: {e}")
+                    logger.warning(f" خطأ في النظام المحسن في MEXC: {e}")
             
             action = signal_data.get('action', '').lower()
             symbol = signal_data.get('symbol', '')
             
-            logger.info(f"📡 MEXC SPOT: {action} {symbol}")
+            logger.info(f" MEXC SPOT: {action} {symbol}")
             
             # تحديد جهة الأمر
             if action in ['buy', 'long']:
@@ -548,7 +546,7 @@ class SignalExecutor:
             
             # التحقق من أن السعر صحيح
             if price <= 0:
-                logger.error(f"⚠️ سعر غير صحيح: {price}")
+                logger.error(f" سعر غير صحيح: {price}")
                 return {
                     'success': False,
                     'message': f'Invalid price: {price}',
@@ -561,18 +559,18 @@ class SignalExecutor:
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
             min_quantity = 0.0001  # الحد الأدنى المقبول
             if quantity < min_quantity:
-                logger.warning(f"⚠️ الكمية صغيرة جداً: {quantity}, تم تعديلها إلى الحد الأدنى")
+                logger.warning(f" الكمية صغيرة جداً: {quantity}, تم تعديلها إلى الحد الأدنى")
                 quantity = min_quantity
             
             # تقريب الكمية حسب دقة الرمز
             quantity = round(quantity, 6)
             
-            logger.info(f"🧠 تحويل خفي: ${trade_amount} → {quantity} {symbol.split('USDT')[0]} (السعر: ${price})")
-            logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
-            logger.info(f"📤 المخرجات (طريقة المنصة): quantity = {quantity} {symbol.split('USDT')[0]}")
+            logger.info(f" تحويل خفي: ${trade_amount} → {quantity} {symbol.split('USDT')[0]} (السعر: ${price})")
+            logger.info(f" المدخلات (طريقتك): amount = ${trade_amount}")
+            logger.info(f" المخرجات (طريقة المنصة): quantity = {quantity} {symbol.split('USDT')[0]}")
             
             # وضع الأمر
-            logger.info(f"🔄 تنفيذ أمر MEXC: {side} {quantity} {symbol}")
+            logger.info(f" تنفيذ أمر MEXC: {side} {quantity} {symbol}")
             result = account.place_order(
                 symbol=symbol,
                 side=side,
@@ -582,7 +580,7 @@ class SignalExecutor:
             
             # معالجة محسنة للأخطاء
             if result is None:
-                logger.error(f"⚠️ فشل وضع الأمر - استجابة فارغة")
+                logger.error(f" فشل وضع الأمر - استجابة فارغة")
                 return {
                     'success': False,
                     'message': f'Order placement failed - empty response',
@@ -591,7 +589,7 @@ class SignalExecutor:
                 }
             
             if isinstance(result, dict) and 'error' in result:
-                logger.error(f"⚠️ خطأ في API: {result['error']}")
+                logger.error(f" خطأ في API: {result['error']}")
                 return {
                     'success': False,
                     'message': f'API Error: {result["error"]}',
@@ -600,8 +598,8 @@ class SignalExecutor:
                 }
             
             # إذا وصلنا هنا، فالأمر نجح
-            logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
-            logger.info(f"📋 تفاصيل الأمر: {result}")
+            logger.info(f" تم تنفيذ أمر {side} {symbol} على MEXC بنجاح")
+            logger.info(f" تفاصيل الأمر: {result}")
             
             # التحقق من وجود order_id في النتيجة
             order_id = result.get('order_id') or result.get('orderId')
@@ -618,7 +616,7 @@ class SignalExecutor:
             }
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في تنفيذ إشارة MEXC: {e}")
+            logger.error(f" خطأ في تنفيذ إشارة MEXC: {e}")
             return {
                 'success': False,
                 'message': str(e),
@@ -631,13 +629,13 @@ class SignalExecutor:
                                     account, category: str) -> Dict:
         """إغلاق الصفقات المرتبطة بالـ ID"""
         try:
-            logger.info(f"🆔 إغلاق الصفقات المرتبطة بالـ ID: {signal_id} - {symbol}")
+            logger.info(f" إغلاق الصفقات المرتبطة بالـ ID: {signal_id} - {symbol}")
             
             # البحث عن الصفقات المرتبطة بالـ ID
             positions = signal_position_manager.find_positions_for_close(signal_id, user_id, symbol)
             
             if not positions:
-                logger.warning(f"⚠️ لم يتم العثور على صفقات مرتبطة بالـ ID: {signal_id}")
+                logger.warning(f" لم يتم العثور على صفقات مرتبطة بالـ ID: {signal_id}")
                 return {
                     'success': False,
                     'message': f'No positions found for signal ID: {signal_id}',
@@ -656,14 +654,14 @@ class SignalExecutor:
                         # تحديث حالة الصفقة في قاعدة البيانات
                         signal_position_manager.close_position(signal_id, user_id, symbol)
                         closed_count += 1
-                        logger.info(f"✅ تم إغلاق صفقة مرتبطة بالـ ID: {signal_id}")
+                        logger.info(f" تم إغلاق صفقة مرتبطة بالـ ID: {signal_id}")
                     else:
                         failed_count += 1
-                        logger.error(f"❌ فشل إغلاق صفقة مرتبطة بالـ ID: {signal_id}")
+                        logger.error(f" فشل إغلاق صفقة مرتبطة بالـ ID: {signal_id}")
                         
                 except Exception as e:
                     failed_count += 1
-                    logger.error(f"❌ خطأ في إغلاق صفقة مرتبطة بالـ ID: {e}")
+                    logger.error(f" خطأ في إغلاق صفقة مرتبطة بالـ ID: {e}")
             
             if closed_count > 0:
                 return {
@@ -684,7 +682,7 @@ class SignalExecutor:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في إغلاق الصفقات المرتبطة بالـ ID: {e}")
+            logger.error(f" خطأ في إغلاق الصفقات المرتبطة بالـ ID: {e}")
             return {
                 'success': False,
                 'message': f'Error closing signal positions: {str(e)}',
@@ -696,13 +694,13 @@ class SignalExecutor:
                                             percentage: float, account, category: str) -> Dict:
         """إغلاق جزئي للصفقات المرتبطة بالـ ID"""
         try:
-            logger.info(f"🆔 إغلاق جزئي {percentage}% للصفقات المرتبطة بالـ ID: {signal_id} - {symbol}")
+            logger.info(f" إغلاق جزئي {percentage}% للصفقات المرتبطة بالـ ID: {signal_id} - {symbol}")
             
             # البحث عن الصفقات المرتبطة بالـ ID
             positions = signal_position_manager.find_positions_for_close(signal_id, user_id, symbol)
             
             if not positions:
-                logger.warning(f"⚠️ لم يتم العثور على صفقات مرتبطة بالـ ID: {signal_id}")
+                logger.warning(f" لم يتم العثور على صفقات مرتبطة بالـ ID: {signal_id}")
                 return {
                     'success': False,
                     'message': f'No positions found for signal ID: {signal_id}',
@@ -740,14 +738,14 @@ class SignalExecutor:
                         signal_position_manager.update_position(signal_id, user_id, symbol, updates)
                         
                         closed_count += 1
-                        logger.info(f"✅ تم إغلاق جزئي {percentage}% من صفقة مرتبطة بالـ ID: {signal_id}")
+                        logger.info(f" تم إغلاق جزئي {percentage}% من صفقة مرتبطة بالـ ID: {signal_id}")
                     else:
                         failed_count += 1
-                        logger.error(f"❌ فشل الإغلاق الجزئي لصفقة مرتبطة بالـ ID: {signal_id}")
+                        logger.error(f" فشل الإغلاق الجزئي لصفقة مرتبطة بالـ ID: {signal_id}")
                         
                 except Exception as e:
                     failed_count += 1
-                    logger.error(f"❌ خطأ في الإغلاق الجزئي لصفقة مرتبطة بالـ ID: {e}")
+                    logger.error(f" خطأ في الإغلاق الجزئي لصفقة مرتبطة بالـ ID: {e}")
             
             if closed_count > 0:
                 return {
@@ -769,7 +767,7 @@ class SignalExecutor:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في الإغلاق الجزئي للصفقات المرتبطة بالـ ID: {e}")
+            logger.error(f" خطأ في الإغلاق الجزئي للصفقات المرتبطة بالـ ID: {e}")
             return {
                 'success': False,
                 'message': f'Error partial closing signal positions: {str(e)}',
@@ -798,7 +796,7 @@ class SignalExecutor:
                 
                 # معالجة محسنة للأخطاء
                 if result is None:
-                    logger.error(f"⚠️ فشل وضع الأمر Spot - استجابة فارغة")
+                    logger.error(f" فشل وضع الأمر Spot - استجابة فارغة")
                     return {
                         'success': False,
                         'message': f'Spot order placement failed - empty response',
@@ -807,7 +805,7 @@ class SignalExecutor:
                     }
                 
                 if isinstance(result, dict) and 'error' in result:
-                    logger.error(f"⚠️ خطأ في Spot API: {result['error']}")
+                    logger.error(f" خطأ في Spot API: {result['error']}")
                     return {
                         'success': False,
                         'message': f'Spot API Error: {result["error"]}',
@@ -815,8 +813,8 @@ class SignalExecutor:
                         'error_details': result
                     }
                 
-                logger.info(f"✅ تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
-                logger.info(f"📋 تفاصيل الأمر: {result}")
+                logger.info(f" تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
+                logger.info(f" تفاصيل الأمر: {result}")
                 
                 if result and has_signal_id and signal_id:
                     # حفظ في قاعدة البيانات كمحفظة
@@ -870,7 +868,7 @@ class SignalExecutor:
                 
                 # معالجة محسنة للأخطاء
                 if result is None:
-                    logger.error(f"⚠️ فشل وضع أمر Sell - استجابة فارغة")
+                    logger.error(f" فشل وضع أمر Sell - استجابة فارغة")
                     return {
                         'success': False,
                         'message': f'Sell order placement failed - empty response',
@@ -879,7 +877,7 @@ class SignalExecutor:
                     }
                 
                 if isinstance(result, dict) and 'error' in result:
-                    logger.error(f"⚠️ خطأ في Sell API: {result['error']}")
+                    logger.error(f" خطأ في Sell API: {result['error']}")
                     return {
                         'success': False,
                         'message': f'Sell API Error: {result["error"]}',
@@ -887,8 +885,8 @@ class SignalExecutor:
                         'error_details': result
                     }
                 
-                logger.info(f"✅ تم تنفيذ أمر Sell {side} {symbol} على Bybit بنجاح")
-                logger.info(f"📋 تفاصيل الأمر: {result}")
+                logger.info(f" تم تنفيذ أمر Sell {side} {symbol} على Bybit بنجاح")
+                logger.info(f" تفاصيل الأمر: {result}")
                 
                 if result and has_signal_id and signal_id:
                     # تحديث المحفظة
@@ -913,7 +911,7 @@ class SignalExecutor:
             return result
             
         except Exception as e:
-            logger.error(f"❌ خطأ في معالجة أمر السبوت: {e}")
+            logger.error(f" خطأ في معالجة أمر السبوت: {e}")
             return {
                 'success': False,
                 'message': str(e),
@@ -996,7 +994,7 @@ class SignalExecutor:
             
             # معالجة محسنة للأخطاء
             if result is None:
-                logger.error(f"⚠️ فشل وضع الأمر - استجابة فارغة")
+                logger.error(f" فشل وضع الأمر - استجابة فارغة")
                 return {
                     'success': False,
                     'message': f'Order placement failed - empty response',
@@ -1005,7 +1003,7 @@ class SignalExecutor:
                 }
             
             if isinstance(result, dict) and 'error' in result:
-                logger.error(f"⚠️ خطأ في API: {result['error']}")
+                logger.error(f" خطأ في API: {result['error']}")
                 return {
                     'success': False,
                     'message': f'API Error: {result["error"]}',
@@ -1014,8 +1012,8 @@ class SignalExecutor:
                 }
             
             # إذا وصلنا هنا، فالأمر نجح
-            logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
-            logger.info(f"📋 تفاصيل الأمر: {result}")
+            logger.info(f" تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
+            logger.info(f" تفاصيل الأمر: {result}")
             
             # حفظ الصفقة في قاعدة البيانات
             if result and has_signal_id:
@@ -1040,7 +1038,7 @@ class SignalExecutor:
             return result
             
         except Exception as e:
-            logger.error(f"❌ خطأ في معالجة أمر الفيوتشر: {e}")
+            logger.error(f" خطأ في معالجة أمر الفيوتشر: {e}")
             return {
                 'success': False,
                 'message': str(e),

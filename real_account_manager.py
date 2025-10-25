@@ -369,19 +369,19 @@ class MEXCRealAccount:
                    order_type: str = 'MARKET', price: float = None) -> Optional[Dict]:
         """وضع أمر تداول حقيقي - محسن للمعالجة الصحيحة"""
         try:
-            logger.info(f"🔄 MEXCRealAccount - وضع أمر: {side} {quantity} {symbol}")
+            logger.info(f" MEXCRealAccount - وضع أمر: {side} {quantity} {symbol}")
             
             result = self.bot.place_spot_order(symbol, side, quantity, order_type, price)
             
             if result:
-                logger.info(f"✅ MEXCRealAccount - تم وضع الأمر بنجاح: {result}")
+                logger.info(f" MEXCRealAccount - تم وضع الأمر بنجاح: {result}")
             else:
-                logger.error(f"❌ MEXCRealAccount - فشل وضع الأمر: {symbol} {side} {quantity}")
+                logger.error(f" MEXCRealAccount - فشل وضع الأمر: {symbol} {side} {quantity}")
             
             return result
             
         except Exception as e:
-            logger.error(f"❌ MEXCRealAccount - خطأ في وضع الأمر: {e}")
+            logger.error(f" MEXCRealAccount - خطأ في وضع الأمر: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -393,16 +393,16 @@ class MEXCRealAccount:
     def get_ticker(self, category: str, symbol: str) -> Optional[Dict]:
         """الحصول على معلومات السعر - محسن لـ MEXC"""
         try:
-            logger.info(f"🔍 MEXCRealAccount - جلب السعر لـ {symbol}")
+            logger.info(f" MEXCRealAccount - جلب السعر لـ {symbol}")
             price = self.bot.get_ticker_price(symbol)
             if price:
-                logger.info(f"✅ MEXCRealAccount - السعر: {price}")
+                logger.info(f" MEXCRealAccount - السعر: {price}")
                 return {'lastPrice': str(price)}
             else:
-                logger.error(f"❌ MEXCRealAccount - فشل جلب السعر لـ {symbol}")
+                logger.error(f" MEXCRealAccount - فشل جلب السعر لـ {symbol}")
                 return None
         except Exception as e:
-            logger.error(f"❌ MEXCRealAccount - خطأ في جلب السعر: {e}")
+            logger.error(f" MEXCRealAccount - خطأ في جلب السعر: {e}")
             return None
 
 

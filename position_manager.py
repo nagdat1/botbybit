@@ -33,7 +33,7 @@ class PositionManager:
             real_account = real_account_manager.get_account(user_id)
             
             if not real_account:
-                await query.answer("❌ الحساب غير مهيأ")
+                await query.answer(" الحساب غير مهيأ")
                 return
             
             # جلب الصفقات المفتوحة
@@ -44,15 +44,15 @@ class PositionManager:
             position = next((p for p in positions if f"real_{p['symbol']}" in position_id), None)
             
             if not position:
-                await query.answer("❌ الصفقة غير موجودة")
+                await query.answer(" الصفقة غير موجودة")
                 return
             
             # بناء لوحة التحكم
             keyboard = [
-                [InlineKeyboardButton("🎯 تعيين TP", callback_data=f"set_tp_{position['symbol']}")],
+                [InlineKeyboardButton(" تعيين TP", callback_data=f"set_tp_{position['symbol']}")],
                 [InlineKeyboardButton("🛡️ تعيين SL", callback_data=f"set_sl_{position['symbol']}")],
-                [InlineKeyboardButton("📊 تعيين TP/SL معاً", callback_data=f"set_tpsl_{position['symbol']}")],
-                [InlineKeyboardButton("❌ إغلاق الصفقة", callback_data=f"close_position_{position['symbol']}")],
+                [InlineKeyboardButton(" تعيين TP/SL معاً", callback_data=f"set_tpsl_{position['symbol']}")],
+                [InlineKeyboardButton(" إغلاق الصفقة", callback_data=f"close_position_{position['symbol']}")],
                 [InlineKeyboardButton("🔙 رجوع", callback_data="open_positions")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -62,16 +62,16 @@ class PositionManager:
             pnl_emoji = "🟢" if pnl >= 0 else "🔴"
             
             message = f"""
-📊 **إدارة الصفقة**
+ **إدارة الصفقة**
 
 💎 **الرمز:** {position['symbol']}
-📈 **الاتجاه:** {position['side']}
-💰 **الحجم:** {position['size']}
+ **الاتجاه:** {position['side']}
+ **الحجم:** {position['size']}
 💵 **سعر الدخول:** ${position['entry_price']:,.2f}
-📊 **السعر الحالي:** ${position['mark_price']:,.2f}
+ **السعر الحالي:** ${position['mark_price']:,.2f}
 {pnl_emoji} **الربح/الخسارة:** ${pnl:,.2f}
 
-🎯 **Take Profit:** {f"${position['take_profit']:,.2f}" if position.get('take_profit') else "غير محدد"}
+ **Take Profit:** {f"${position['take_profit']:,.2f}" if position.get('take_profit') else "غير محدد"}
 🛡️ **Stop Loss:** {f"${position['stop_loss']:,.2f}" if position.get('stop_loss') else "غير محدد"}
 
 ⚡ **المنصة:** {exchange.upper()} (حقيقي)
@@ -79,7 +79,7 @@ class PositionManager:
             
             await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
         else:
-            await query.answer("⚠️ هذه الميزة متاحة للحسابات الحقيقية فقط")
+            await query.answer(" هذه الميزة متاحة للحسابات الحقيقية فقط")
     
     @staticmethod
     async def set_take_profit(update: Update, context: ContextTypes.DEFAULT_TYPE, symbol: str):
@@ -92,7 +92,7 @@ class PositionManager:
         context.user_data['awaiting_tp_price'] = True
         
         await query.edit_message_text(
-            f"🎯 **تعيين Take Profit لـ {symbol}**\n\n"
+            f" **تعيين Take Profit لـ {symbol}**\n\n"
             f"أرسل السعر المستهدف:\n"
             f"مثال: 50000\n\n"
             f"أو اضغط /cancel للإلغاء",
@@ -151,14 +151,14 @@ class PositionManager:
             )
             
             if result:
-                logger.info(f"✅ تم تطبيق TP/SL على {symbol} للمستخدم {user_id}")
+                logger.info(f" تم تطبيق TP/SL على {symbol} للمستخدم {user_id}")
                 return True
             else:
-                logger.error(f"❌ فشل تطبيق TP/SL على {symbol}")
+                logger.error(f" فشل تطبيق TP/SL على {symbol}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في تطبيق TP/SL: {e}")
+            logger.error(f" خطأ في تطبيق TP/SL: {e}")
             return False
     
     @staticmethod
@@ -193,14 +193,14 @@ class PositionManager:
             result = real_account.close_position(category, symbol, position['side'])
             
             if result:
-                logger.info(f"✅ تم إغلاق صفقة {symbol} للمستخدم {user_id}")
+                logger.info(f" تم إغلاق صفقة {symbol} للمستخدم {user_id}")
                 return True
             else:
-                logger.error(f"❌ فشل إغلاق صفقة {symbol}")
+                logger.error(f" فشل إغلاق صفقة {symbol}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في إغلاق الصفقة: {e}")
+            logger.error(f" خطأ في إغلاق الصفقة: {e}")
             return False
 
 

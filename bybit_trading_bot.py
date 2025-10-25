@@ -32,19 +32,19 @@ from config import *
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("✅ النظام المحسن متاح في bybit_trading_bot.py")
+    print("النظام المحسن متاح في bybit_trading_bot.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
-    print(f"⚠️ النظام المحسن غير متاح في bybit_trading_bot.py: {e}")
+    print(f" النظام المحسن غير متاح في bybit_trading_bot.py: {e}")
 
 # استيراد مدير معرفات الإشارات
 try:
     from signal_id_manager import get_position_id_from_signal, get_signal_id_manager
     SIGNAL_ID_MANAGER_AVAILABLE = True
-    print("✅ مدير معرفات الإشارات متاح في bybit_trading_bot.py")
+    print("مدير معرفات الإشارات متاح في bybit_trading_bot.py")
 except ImportError as e:
     SIGNAL_ID_MANAGER_AVAILABLE = False
-    print(f"⚠️ مدير معرفات الإشارات غير متاح في bybit_trading_bot.py: {e}")
+    print(f" مدير معرفات الإشارات غير متاح في bybit_trading_bot.py: {e}")
 
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
@@ -309,11 +309,11 @@ class TradingAccount:
             if available_balance < margin_amount:
                 return False, f"الرصيد غير كافي. متاح: {available_balance:.2f}, مطلوب: {margin_amount:.2f}"
             
-            # 🆔 استخدام ID المخصص إذا كان متاحاً، وإلا إنشاء معرف فريد
+            #  استخدام ID المخصص إذا كان متاحاً، وإلا إنشاء معرف فريد
             if not position_id:
                 position_id = f"{symbol}_{side}_{int(time.time() * 1000000)}"
             else:
-                logger.info(f"🆔 استخدام ID مخصص للصفقة: {position_id}")
+                logger.info(f" استخدام ID مخصص للصفقة: {position_id}")
             
             # إنشاء صفقة جديدة
             position = FuturesPosition(
@@ -1271,7 +1271,7 @@ class StopLoss:
                     old_price = self.price
                     self.price = new_stop
                     self.last_update = datetime.now()
-                    logger.info(f"✅ تم تحديث Trailing Stop من {old_price:.6f} إلى {new_stop:.6f}")
+                    logger.info(f" تم تحديث Trailing Stop من {old_price:.6f} إلى {new_stop:.6f}")
                     return True
             else:  # sell
                 # في صفقة البيع، الـ stop ينخفض مع السعر
@@ -1280,7 +1280,7 @@ class StopLoss:
                     old_price = self.price
                     self.price = new_stop
                     self.last_update = datetime.now()
-                    logger.info(f"✅ تم تحديث Trailing Stop من {old_price:.6f} إلى {new_stop:.6f}")
+                    logger.info(f" تم تحديث Trailing Stop من {old_price:.6f} إلى {new_stop:.6f}")
                     return True
         except Exception as e:
             logger.error(f"خطأ في تحديث trailing stop: {e}")
@@ -1340,7 +1340,7 @@ class PositionManagement:
             self.take_profits.append(tp)
             # ترتيب حسب السعر
             self.take_profits.sort(key=lambda x: x.price if self.side.lower() == "buy" else -x.price)
-            logger.info(f"✅ تم إضافة TP: {price:.6f} ({percentage}%)")
+            logger.info(f" تم إضافة TP: {price:.6f} ({percentage}%)")
             return True
             
         except Exception as e:
@@ -1366,7 +1366,7 @@ class PositionManagement:
                 trailing_distance=trailing_distance,
                 last_update=datetime.now()
             )
-            logger.info(f"✅ تم تعيين SL: {price:.6f} {'(Trailing)' if is_trailing else ''}")
+            logger.info(f" تم تعيين SL: {price:.6f} {'(Trailing)' if is_trailing else ''}")
             return True
             
         except Exception as e:
@@ -1417,7 +1417,7 @@ class PositionManagement:
                 self.closed_parts.append(close_info)
                 executed.append(close_info)
                 
-                logger.info(f"🎯 تم تحقيق TP عند {current_price:.6f}: إغلاق {tp.percentage}% بربح {pnl:.2f}")
+                logger.info(f" تم تحقيق TP عند {current_price:.6f}: إغلاق {tp.percentage}% بربح {pnl:.2f}")
                 
                 # نقل SL للتعادل بعد أول هدف
                 if len(executed) == 1 and self.stop_loss and not self.stop_loss.moved_to_breakeven:
@@ -1478,17 +1478,17 @@ class PositionManagement:
             
             total_pnl = self.realized_pnl + unrealized_pnl
             
-            message = f"📊 **إدارة الصفقة: {self.symbol}**\n\n"
-            message += f"🔄 النوع: {self.side.upper()}\n"
+            message = f" **إدارة الصفقة: {self.symbol}**\n\n"
+            message += f" النوع: {self.side.upper()}\n"
             message += f"💲 سعر الدخول: {self.entry_price:.6f}\n"
             message += f"💲 السعر الحالي: {current_price:.6f}\n"
-            message += f"📈 الكمية الأصلية: {self.quantity:.6f}\n"
-            message += f"📉 المتبقي: {self.remaining_quantity:.6f} ({100 - self.total_closed_percentage:.1f}%)\n\n"
+            message += f" الكمية الأصلية: {self.quantity:.6f}\n"
+            message += f" المتبقي: {self.remaining_quantity:.6f} ({100 - self.total_closed_percentage:.1f}%)\n\n"
             
             # الأهداف
-            message += "🎯 **أهداف الربح:**\n"
+            message += " **أهداف الربح:**\n"
             for i, tp in enumerate(self.take_profits, 1):
-                status = "✅" if tp.hit else "⏳"
+                status = "" if tp.hit else "⏳"
                 distance = ((tp.price - current_price) / current_price) * 100
                 message += f"  {status} TP{i}: {tp.price:.6f} ({tp.percentage}%) - "
                 message += f"{'تم تحقيقه' if tp.hit else f'{abs(distance):.2f}% متبقي'}\n"
@@ -1506,7 +1506,7 @@ class PositionManagement:
                 message += f"   المسافة: {abs(distance):.2f}%\n"
             
             # الأرباح/الخسائر
-            message += f"\n💰 **النتائج:**\n"
+            message += f"\n **النتائج:**\n"
             message += f"  الربح المحقق: {self.realized_pnl:.2f}\n"
             message += f"  الربح غير المحقق: {unrealized_pnl:.2f}\n"
             message += f"  الإجمالي: {total_pnl:.2f}\n"
@@ -1515,7 +1515,7 @@ class PositionManagement:
             
         except Exception as e:
             logger.error(f"خطأ في إنشاء رسالة الحالة: {e}")
-            return "❌ خطأ في عرض حالة الصفقة"
+            return " خطأ في عرض حالة الصفقة"
     
     def calculate_risk_reward_ratio(self) -> float:
         """حساب نسبة المخاطرة إلى العائد"""
@@ -1561,7 +1561,7 @@ class TradeToolsManager:
         self.default_trailing_enabled: bool = False
         self.default_trailing_distance: float = 2.0
         self.auto_breakeven_on_tp1: bool = True
-        logger.info("✅ تم تهيئة TradeToolsManager")
+        logger.info(" تم تهيئة TradeToolsManager")
     
     def create_managed_position(self, position_id: str, symbol: str, side: str,
                                entry_price: float, quantity: float, market_type: str,
@@ -1584,7 +1584,7 @@ class TradeToolsManager:
             )
             
             self.managed_positions[position_id] = pm
-            logger.info(f"✅ تم إنشاء إدارة للصفقة {position_id}")
+            logger.info(f" تم إنشاء إدارة للصفقة {position_id}")
             return pm
             
         except Exception as e:
@@ -1599,7 +1599,7 @@ class TradeToolsManager:
         """إزالة صفقة مدارة"""
         if position_id in self.managed_positions:
             del self.managed_positions[position_id]
-            logger.info(f"✅ تم إزالة إدارة الصفقة {position_id}")
+            logger.info(f" تم إزالة إدارة الصفقة {position_id}")
             return True
         return False
     
@@ -1662,7 +1662,7 @@ class TradeToolsManager:
             
             pm.set_stop_loss(sl_price, is_trailing=trailing, trailing_distance=sl_percentage)
             
-            logger.info(f"✅ تم تعيين مستويات افتراضية للصفقة {position_id}")
+            logger.info(f" تم تعيين مستويات افتراضية للصفقة {position_id}")
             return True
             
         except Exception as e:
@@ -1681,7 +1681,7 @@ class TradeToolsManager:
             self.default_trailing_distance = trailing_distance
             self.auto_breakeven_on_tp1 = breakeven_on_tp1
             
-            logger.info(f"✅ تم حفظ الإعدادات التلقائية: TP={tp_percentages}, SL={sl_percentage}%")
+            logger.info(f" تم حفظ الإعدادات التلقائية: TP={tp_percentages}, SL={sl_percentage}%")
             return True
         except Exception as e:
             logger.error(f"خطأ في حفظ الإعدادات التلقائية: {e}")
@@ -1690,12 +1690,12 @@ class TradeToolsManager:
     def enable_auto_apply(self):
         """تفعيل التطبيق التلقائي"""
         self.auto_apply_enabled = True
-        logger.info("✅ تم تفعيل التطبيق التلقائي للإعدادات")
+        logger.info(" تم تفعيل التطبيق التلقائي للإعدادات")
     
     def disable_auto_apply(self):
         """تعطيل التطبيق التلقائي"""
         self.auto_apply_enabled = False
-        logger.info("⏸️ تم تعطيل التطبيق التلقائي للإعدادات")
+        logger.info(" تم تعطيل التطبيق التلقائي للإعدادات")
     
     def apply_auto_settings_to_position(self, position_id: str, symbol: str, side: str,
                                        entry_price: float, quantity: float, 
@@ -1735,7 +1735,7 @@ class TradeToolsManager:
                                is_trailing=self.default_trailing_enabled,
                                trailing_distance=self.default_trailing_distance)
             
-            logger.info(f"✅ تم تطبيق الإعدادات التلقائية على الصفقة {position_id}")
+            logger.info(f" تم تطبيق الإعدادات التلقائية على الصفقة {position_id}")
             return True
             
         except Exception as e:
@@ -1745,17 +1745,17 @@ class TradeToolsManager:
     def get_auto_settings_summary(self) -> str:
         """الحصول على ملخص الإعدادات التلقائية"""
         if not self.auto_apply_enabled:
-            return "⏸️ **التطبيق التلقائي معطل**"
+            return " **التطبيق التلقائي معطل**"
         
-        summary = "✅ **التطبيق التلقائي مُفعّل**\n\n"
+        summary = " **التطبيق التلقائي مُفعّل**\n\n"
         
         if self.default_tp_percentages:
-            summary += "🎯 **أهداف الربح:**\n"
+            summary += " **أهداف الربح:**\n"
             for i, (tp, close) in enumerate(zip(self.default_tp_percentages, 
                                                self.default_tp_close_percentages), 1):
                 summary += f"• TP{i}: +{tp}% → إغلاق {close}%\n"
         else:
-            summary += "🎯 **أهداف الربح:** غير محددة\n"
+            summary += " **أهداف الربح:** غير محددة\n"
         
         summary += "\n"
         
@@ -1808,9 +1808,9 @@ class TradingBot:
         if ENHANCED_SYSTEM_AVAILABLE:
             try:
                 self.enhanced_system = SimpleEnhancedSystem()
-                print("✅ تم تهيئة النظام المحسن في TradingBot")
+                print("تم تهيئة النظام المحسن في TradingBot")
             except Exception as e:
-                print(f"⚠️ فشل في تهيئة النظام المحسن: {e}")
+                print(f" فشل في تهيئة النظام المحسن: {e}")
                 self.enhanced_system = None
         else:
             self.enhanced_system = None
@@ -1959,13 +1959,13 @@ class TradingBot:
             pairs = self.available_pairs.get(api_category, [])
             
             if not pairs:
-                return f"❌ لا توجد أزواج متاحة في {category.upper()}"
+                return f" لا توجد أزواج متاحة في {category.upper()}"
             
             if brief:
                 # رسالة موجزة بأهم الأزواج فقط
                 top_pairs = pairs[:20]
                 pairs_text = ", ".join(top_pairs)
-                return f"💱 أهم أزواج {category.upper()}:\n{pairs_text}\n\n📊 المجموع: {len(pairs)} زوج متاح"
+                return f"💱 أهم أزواج {category.upper()}:\n{pairs_text}\n\n المجموع: {len(pairs)} زوج متاح"
             else:
                 # رسالة مفصلة
                 pairs_to_show = pairs[:limit]
@@ -1975,18 +1975,18 @@ class TradingBot:
                     if i % 20 == 0:  # فاصل كل 20 زوج
                         pairs_text += "\n"
                 
-                title = f"📊 أزواج {category.upper()} المتاحة"
+                title = f" أزواج {category.upper()} المتاحة"
                 message = f"{title}\n{'='*30}\n\n{pairs_text}"
                 
                 if len(pairs) > limit:
                     message += f"\n... و {len(pairs) - limit} أزواج أخرى"
                 
-                message += f"\n\n📈 إجمالي الأزواج: {len(pairs)}"
+                message += f"\n\n إجمالي الأزواج: {len(pairs)}"
                 return message
                 
         except Exception as e:
             logger.error(f"خطأ في الحصول على الأزواج: {e}")
-            return "❌ خطأ في الحصول على الأزواج"
+            return " خطأ في الحصول على الأزواج"
     
     async def broadcast_signal_to_followers(self, signal_data: dict, developer_id: int):
         """
@@ -2001,8 +2001,8 @@ class TradingBot:
                 logger.info("لا يوجد متابعين لإرسال الإشارة")
                 return
             
-            logger.info(f"📡 إرسال إشارة المطور إلى {len(followers)} متابع")
-            logger.info(f"📊 تفاصيل الإشارة: {signal_data}")
+            logger.info(f" إرسال إشارة المطور إلى {len(followers)} متابع")
+            logger.info(f" تفاصيل الإشارة: {signal_data}")
             
             # الحصول على السعر الحالي للرمز
             current_price = self.get_current_price(signal_data.get('symbol', 'BTCUSDT'))
@@ -2014,26 +2014,26 @@ class TradingBot:
             
             for follower_id in followers:
                 try:
-                    logger.info(f"🔍 معالجة المتابع {follower_id}...")
+                    logger.info(f" معالجة المتابع {follower_id}...")
                     
                     # التحقق من وجود المتابع ونشاطه
                     follower_data = user_manager.get_user(follower_id)
                     if not follower_data:
-                        logger.warning(f"⚠️ المتابع {follower_id} غير موجود في user_manager")
+                        logger.warning(f" المتابع {follower_id} غير موجود في user_manager")
                         # محاولة التحميل من قاعدة البيانات
                         from database import db_manager
                         follower_data = db_manager.get_user(follower_id)
                         if follower_data:
-                            logger.info(f"✅ تم تحميل المتابع {follower_id} من قاعدة البيانات")
+                            logger.info(f" تم تحميل المتابع {follower_id} من قاعدة البيانات")
                         else:
-                            logger.error(f"❌ المتابع {follower_id} غير موجود في قاعدة البيانات أيضاً")
+                            logger.error(f" المتابع {follower_id} غير موجود في قاعدة البيانات أيضاً")
                             failed_count += 1
                             continue
                     
-                    logger.info(f"📊 المتابع {follower_id}: is_active={follower_data.get('is_active')}, market_type={follower_data.get('market_type')}")
+                    logger.info(f" المتابع {follower_id}: is_active={follower_data.get('is_active')}, market_type={follower_data.get('market_type')}")
                     
                     if not follower_data.get('is_active', False):
-                        logger.warning(f"⏸️ المتابع {follower_id} غير نشط (is_active=False) - تم التخطي")
+                        logger.warning(f" المتابع {follower_id} غير نشط (is_active=False) - تم التخطي")
                         failed_count += 1
                         continue
                     
@@ -2045,13 +2045,13 @@ class TradingBot:
                     # الحصول على إعدادات المتابع
                     follower_settings = user_manager.get_user_settings(follower_id)
                     if follower_settings:
-                        logger.info(f"⚙️ إعدادات المتابع {follower_id}: {follower_settings}")
+                        logger.info(f" إعدادات المتابع {follower_id}: {follower_settings}")
                         follower_bot.user_settings = follower_settings
                         
                         # تطبيق إعدادات الإشارة (تجاوز إعدادات المستخدم إذا كانت موجودة في الإشارة)
                         if 'market_type' in signal_data:
                             follower_bot.user_settings['market_type'] = signal_data['market_type']
-                            logger.info(f"📊 تطبيق market_type من الإشارة: {signal_data['market_type']}")
+                            logger.info(f" تطبيق market_type من الإشارة: {signal_data['market_type']}")
                         
                         if 'leverage' in signal_data:
                             follower_bot.user_settings['leverage'] = signal_data['leverage']
@@ -2059,37 +2059,37 @@ class TradingBot:
                         
                         if 'amount' in signal_data:
                             follower_bot.user_settings['trade_amount'] = signal_data['amount']
-                            logger.info(f"💰 تطبيق trade_amount من الإشارة: {signal_data['amount']}")
+                            logger.info(f" تطبيق trade_amount من الإشارة: {signal_data['amount']}")
                     else:
-                        logger.warning(f"⚠️ لم يتم العثور على إعدادات للمتابع {follower_id}")
+                        logger.warning(f" لم يتم العثور على إعدادات للمتابع {follower_id}")
                     
                     # إضافة السعر للإشارة
                     enriched_signal = signal_data.copy()
                     enriched_signal['price'] = price
                     
-                    logger.info(f"📡 إرسال الإشارة للمتابع {follower_id}: {enriched_signal}")
+                    logger.info(f" إرسال الإشارة للمتابع {follower_id}: {enriched_signal}")
                     
                     # تنفيذ الإشارة على حساب المتابع
                     await follower_bot.process_signal(enriched_signal)
                     success_count += 1
-                    logger.info(f"✅ تم تنفيذ الإشارة بنجاح للمتابع {follower_id} - Market: {follower_bot.user_settings.get('market_type', 'spot')}")
+                    logger.info(f" تم تنفيذ الإشارة بنجاح للمتابع {follower_id} - Market: {follower_bot.user_settings.get('market_type', 'spot')}")
                     
                     # إرسال إشعار للمتابع
                     try:
                         from telegram import Bot
                         bot = Bot(token=TELEGRAM_TOKEN)
                         
-                        market_emoji = "📈" if signal_data.get('market_type') == 'spot' else "🚀"
+                        market_emoji = "" if signal_data.get('market_type') == 'spot' else ""
                         action_emoji = "🟢" if signal_data.get('action') == 'buy' else "🔴"
                         
                         notification_message = f"""
-📡 إشارة جديدة من Nagdat!
+ إشارة جديدة من Nagdat!
 
 {action_emoji} الإجراء: {signal_data.get('action', 'N/A').upper()}
 💎 الرمز: {signal_data.get('symbol', 'N/A')}
 💲 السعر: {price:.2f}
 {market_emoji} السوق: {signal_data.get('market_type', 'spot').upper()}
-💰 المبلغ: {signal_data.get('amount', 100)}
+ المبلغ: {signal_data.get('amount', 100)}
 """
                         if signal_data.get('market_type') == 'futures':
                             notification_message += f"⚡ الرافعة: {signal_data.get('leverage', 10)}x\n"
@@ -2104,24 +2104,24 @@ class TradingBot:
                         logger.error(f"خطأ في إرسال الإشعار للمتابع {follower_id}: {notify_error}")
                         
                 except Exception as e:
-                    logger.error(f"❌ خطأ في إرسال الإشارة للمتابع {follower_id}: {e}")
+                    logger.error(f" خطأ في إرسال الإشارة للمتابع {follower_id}: {e}")
                     failed_count += 1
             
             # إرسال تقرير مفصل للمطور
-            market_emoji = "📈" if signal_data.get('market_type') == 'spot' else "🚀"
+            market_emoji = "" if signal_data.get('market_type') == 'spot' else ""
             
             message = f"""
-📡 تم توزيع الإشارة
+ تم توزيع الإشارة
 
-✅ نجح: {success_count} 
-❌ فشل: {failed_count}
-📊 الإجمالي: {len(followers)} متابع
+ نجح: {success_count} 
+ فشل: {failed_count}
+ الإجمالي: {len(followers)} متابع
 
-📊 تفاصيل الإشارة:
+ تفاصيل الإشارة:
 💎 الرمز: {signal_data.get('symbol', 'N/A')}
 {market_emoji} السوق: {signal_data.get('market_type', 'spot').upper()}
-🔄 الإجراء: {signal_data.get('action', 'N/A').upper()}
-💰 المبلغ: {signal_data.get('amount', 100)}
+ الإجراء: {signal_data.get('action', 'N/A').upper()}
+ المبلغ: {signal_data.get('amount', 100)}
 """
             if signal_data.get('market_type') == 'futures':
                 message += f"⚡ الرافعة: {signal_data.get('leverage', 10)}x\n"
@@ -2155,36 +2155,36 @@ class TradingBot:
             
             # استخدام النظام المحسن إذا كان متاحاً
             if self.enhanced_system:
-                logger.info("🚀 معالجة الإشارة باستخدام النظام المحسن...")
+                logger.info(" معالجة الإشارة باستخدام النظام المحسن...")
                 enhanced_result = self.enhanced_system.process_signal(self.user_id or 0, signal_data)
-                logger.info(f"✅ نتيجة النظام المحسن: {enhanced_result}")
+                logger.info(f" نتيجة النظام المحسن: {enhanced_result}")
                 
                 # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التنفيذ العادي
                 if enhanced_result.get('status') == 'success':
-                    logger.info("✅ تم استخدام نتيجة النظام المحسن، نتابع التنفيذ العادي")
+                    logger.info(" تم استخدام نتيجة النظام المحسن، نتابع التنفيذ العادي")
                     # نستخدم النتيجة المحسنة ولكن نتابع التنفيذ العادي
                     signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
                     signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
                     signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
                 else:
-                    logger.warning("⚠️ فشل النظام المحسن، نعود للنظام العادي")
+                    logger.warning(" فشل النظام المحسن، نعود للنظام العادي")
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
             from signal_converter import convert_simple_signal, validate_simple_signal
             
             # التحقق من نوع الإشارة (جديدة أو قديمة)
             if 'signal' in signal_data and 'action' not in signal_data:
-                logger.info(f"📡 استقبال إشارة جديدة بالتنسيق البسيط: {signal_data}")
+                logger.info(f" استقبال إشارة جديدة بالتنسيق البسيط: {signal_data}")
                 
                 # التحقق من صحة الإشارة
                 is_valid, validation_message = validate_simple_signal(signal_data)
                 
                 if not is_valid:
-                    logger.error(f"❌ إشارة غير صحيحة: {validation_message}")
+                    logger.error(f" إشارة غير صحيحة: {validation_message}")
                     await self.send_message_to_admin(
-                        f"❌ إشارة غير صحيحة\n\n"
-                        f"📋 التفاصيل: {validation_message}\n"
-                        f"📥 البيانات: {signal_data}"
+                        f" إشارة غير صحيحة\n\n"
+                        f" التفاصيل: {validation_message}\n"
+                        f" البيانات: {signal_data}"
                     )
                     return
                 
@@ -2196,26 +2196,26 @@ class TradingBot:
                     self.current_signal_data = converted_signal
                 
                 if not converted_signal:
-                    logger.error(f"❌ فشل تحويل الإشارة")
+                    logger.error(f" فشل تحويل الإشارة")
                     await self.send_message_to_admin(
-                        f"❌ فشل تحويل الإشارة\n\n"
-                        f"📥 البيانات الأصلية: {signal_data}"
+                        f" فشل تحويل الإشارة\n\n"
+                        f" البيانات الأصلية: {signal_data}"
                     )
                     return
                 
-                logger.info(f"✅ تم تحويل الإشارة بنجاح: {converted_signal}")
+                logger.info(f" تم تحويل الإشارة بنجاح: {converted_signal}")
                 signal_data = converted_signal
             
             # حفظ بيانات الإشارة للاستخدام في execute_demo_trade
             self._current_signal_data = signal_data
             
-            # 🆔 استخراج ID الإشارة لاستخدامه كمعرف للصفقة
+            #  استخراج ID الإشارة لاستخدامه كمعرف للصفقة
             signal_id = signal_data.get('signal_id') or signal_data.get('id') or signal_data.get('original_signal', {}).get('id')
             if signal_id:
-                logger.info(f"🆔 تم استخراج ID الإشارة: {signal_id}")
+                logger.info(f" تم استخراج ID الإشارة: {signal_id}")
                 self._current_signal_id = signal_id
             else:
-                logger.info("⚠️ لا يوجد ID في الإشارة - سيتم توليد ID عشوائي")
+                logger.info(" لا يوجد ID في الإشارة - سيتم توليد ID عشوائي")
                 self._current_signal_id = None
             
             symbol = signal_data.get('symbol', '').upper()
@@ -2225,7 +2225,7 @@ class TradingBot:
                 logger.error("بيانات الإشارة غير مكتملة")
                 return
             
-            # 🔥 ميزة جديدة: إذا كان المستخدم هو مطور وفعّل التوزيع التلقائي
+            #  ميزة جديدة: إذا كان المستخدم هو مطور وفعّل التوزيع التلقائي
             # سيتم إرسال الإشارة لجميع المتابعين
             if developer_manager.is_developer(self.user_id):
                 # التحقق من تفعيل التوزيع التلقائي من قاعدة البيانات
@@ -2233,7 +2233,7 @@ class TradingBot:
                 
                 if auto_broadcast_enabled:
                     try:
-                        logger.info(f"📡 التوزيع التلقائي مفعّل للمطور {self.user_id}")
+                        logger.info(f" التوزيع التلقائي مفعّل للمطور {self.user_id}")
                         
                         # حفظ الإشارة في قاعدة البيانات أولاً
                         signal_saved = db_manager.create_developer_signal(
@@ -2260,8 +2260,8 @@ class TradingBot:
             bybit_category = "spot" if user_market_type == "spot" else "linear"
             market_type = user_market_type
             
-            # 🔍 التحقق من وجود الرمز في منصة Bybit
-            logger.info(f"🔍 التحقق من وجود الرمز {symbol} في Bybit {user_market_type.upper()}")
+            #  التحقق من وجود الرمز في منصة Bybit
+            logger.info(f" التحقق من وجود الرمز {symbol} في Bybit {user_market_type.upper()}")
             
             symbol_exists_in_bybit = False
             
@@ -2286,20 +2286,20 @@ class TradingBot:
                     available_pairs = self.available_pairs.get('futures', []) + self.available_pairs.get('inverse', [])
                 
                 pairs_list = ", ".join(available_pairs[:20])
-                error_message = f"❌ الرمز {symbol} غير موجود في منصة Bybit!\n\n"
+                error_message = f" الرمز {symbol} غير موجود في منصة Bybit!\n\n"
                 error_message += f"🏪 نوع السوق: {user_market_type.upper()}\n"
-                error_message += f"📋 أمثلة للأزواج المتاحة:\n{pairs_list}..."
+                error_message += f" أمثلة للأزواج المتاحة:\n{pairs_list}..."
                 await self.send_message_to_admin(error_message)
                 logger.warning(f"الرمز {symbol} غير موجود في Bybit {user_market_type}")
                 return
             
-            logger.info(f"✅ الرمز {symbol} موجود في Bybit {user_market_type.upper()}")
+            logger.info(f" الرمز {symbol} موجود في Bybit {user_market_type.upper()}")
             
             # الحصول على السعر الحالي
             if self.bybit_api:
                 current_price = self.bybit_api.get_ticker_price(symbol, bybit_category)
                 if current_price is None:
-                    await self.send_message_to_admin(f"❌ فشل في الحصول على سعر {symbol} من Bybit")
+                    await self.send_message_to_admin(f" فشل في الحصول على سعر {symbol} من Bybit")
                     return
                 logger.info(f"💲 سعر {symbol} الحالي: {current_price}")
             else:
@@ -2307,7 +2307,7 @@ class TradingBot:
                 current_price = 100.0
                 logger.warning("استخدام سعر وهمي - API غير متاح")
             
-            # 🎯 تنفيذ الصفقة بناءً على نوع الحساب
+            #  تنفيذ الصفقة بناءً على نوع الحساب
             account_type = self.user_settings['account_type']
             
             if account_type == 'real':
@@ -2321,14 +2321,14 @@ class TradingBot:
             
         except Exception as e:
             logger.error(f"خطأ في معالجة الإشارة: {e}")
-            await self.send_message_to_admin(f"❌ خطأ في معالجة الإشارة: {e}")
+            await self.send_message_to_admin(f" خطأ في معالجة الإشارة: {e}")
     
     async def execute_real_trade(self, symbol: str, action: str, price: float, category: str):
         """تنفيذ صفقة حقيقية عبر Bybit API مع تطبيق TP/SL التلقائي"""
         try:
             # استخدام النظام المحسن إذا كان متاحاً
             if self.enhanced_system:
-                logger.info("🚀 تحليل الصفقة باستخدام النظام المحسن...")
+                logger.info(" تحليل الصفقة باستخدام النظام المحسن...")
                 enhanced_analysis = self.enhanced_system.process_signal(self.user_id or 0, {
                     "action": action,
                     "symbol": symbol,
@@ -2337,29 +2337,29 @@ class TradingBot:
                 })
                 
                 if enhanced_analysis.get('status') == 'success':
-                    logger.info("✅ تم تحليل الصفقة باستخدام النظام المحسن")
+                    logger.info(" تم تحليل الصفقة باستخدام النظام المحسن")
                     analysis = enhanced_analysis.get('analysis', {})
                     risk_assessment = enhanced_analysis.get('risk_assessment', {})
                     execution_plan = enhanced_analysis.get('execution_plan', {})
                     
                     # تطبيق التحليل المحسن
                     if analysis.get('recommendation') == 'execute':
-                        logger.info(f"✅ النظام المحسن يوصي بالتنفيذ: {analysis.get('confidence_level', 0)*100:.1f}% ثقة")
+                        logger.info(f" النظام المحسن يوصي بالتنفيذ: {analysis.get('confidence_level', 0)*100:.1f}% ثقة")
                     else:
-                        logger.warning(f"⚠️ النظام المحسن لا يوصي بالتنفيذ: {analysis.get('recommendation', 'unknown')}")
+                        logger.warning(f" النظام المحسن لا يوصي بالتنفيذ: {analysis.get('recommendation', 'unknown')}")
                     
                     # تطبيق تقييم المخاطر المحسن
                     if risk_assessment.get('risk_level') == 'high':
-                        logger.warning(f"⚠️ تحذير من المخاطر العالية: {risk_assessment.get('recommendation', 'unknown')}")
+                        logger.warning(f" تحذير من المخاطر العالية: {risk_assessment.get('recommendation', 'unknown')}")
                     
                     # تطبيق خطة التنفيذ المحسنة
                     if execution_plan.get('strategy'):
-                        logger.info(f"🎯 استراتيجية التنفيذ المحسنة: {execution_plan.get('strategy', 'unknown')}")
+                        logger.info(f" استراتيجية التنفيذ المحسنة: {execution_plan.get('strategy', 'unknown')}")
                 else:
-                    logger.warning("⚠️ فشل في تحليل الصفقة باستخدام النظام المحسن")
+                    logger.warning(" فشل في تحليل الصفقة باستخدام النظام المحسن")
             
             if not self.bybit_api:
-                await self.send_message_to_admin("❌ API غير متاح للتداول الحقيقي")
+                await self.send_message_to_admin(" API غير متاح للتداول الحقيقي")
                 logger.error("محاولة تنفيذ صفقة حقيقية بدون API")
                 return
             
@@ -2368,7 +2368,7 @@ class TradingBot:
             
             logger.info(f"🔴 بدء تنفيذ صفقة حقيقية: {symbol} {side} في {user_market_type.upper()}")
             
-            # 🎯 حساب TP/SL التلقائي إذا كان مفعلاً
+            #  حساب TP/SL التلقائي إذا كان مفعلاً
             tp_prices = []
             sl_price = None
             
@@ -2383,7 +2383,7 @@ class TradingBot:
                         else:  # sell
                             tp_price = price * (1 - tp_percent / 100)
                         tp_prices.append(tp_price)
-                        logger.info(f"   🎯 TP: {tp_percent}% = {tp_price:.6f}")
+                        logger.info(f"    TP: {tp_percent}% = {tp_price:.6f}")
                 
                 # حساب Stop Loss
                 if trade_tools_manager.default_sl_percentage:
@@ -2424,35 +2424,35 @@ class TradingBot:
                     
                     # إذا كان هناك أكثر من TP، إضافة الباقي
                     if len(tp_prices) > 1:
-                        logger.info(f"📝 إضافة {len(tp_prices)-1} أهداف ربح إضافية...")
+                        logger.info(f" إضافة {len(tp_prices)-1} أهداف ربح إضافية...")
                         # ملاحظة: Bybit يدعم TP/SL واحد فقط للفيوتشر
                         # يمكن استخدام أوامر محددة إضافية إذا لزم الأمر
                     
-                    message = f"✅ تم تنفيذ صفقة فيوتشر حقيقية\n\n"
+                    message = f" تم تنفيذ صفقة فيوتشر حقيقية\n\n"
                     if self.user_id:
-                        message += f"👤 المستخدم: {self.user_id}\n"
-                    message += f"📊 الرمز: {symbol}\n"
-                    message += f"🔄 النوع: {side}\n"
-                    message += f"💰 الهامش: {margin_amount}\n"
+                        message += f" المستخدم: {self.user_id}\n"
+                    message += f" الرمز: {symbol}\n"
+                    message += f" النوع: {side}\n"
+                    message += f" الهامش: {margin_amount}\n"
                     message += f"⚡ الرافعة: {leverage}x\n"
-                    message += f"📈 حجم الصفقة: {position_size:.2f}\n"
+                    message += f" حجم الصفقة: {position_size:.2f}\n"
                     message += f"💲 السعر التقريبي: {price:.6f}\n"
                     message += f"🏪 السوق: FUTURES\n"
-                    message += f"🆔 رقم الأمر: {order_id}\n"
+                    message += f" رقم الأمر: {order_id}\n"
                     
                     if first_tp:
-                        message += f"\n🎯 Take Profit: {float(first_tp):.6f}"
+                        message += f"\n Take Profit: {float(first_tp):.6f}"
                     if first_sl:
                         message += f"\n🛑 Stop Loss: {float(first_sl):.6f}"
                     
-                    message += f"\n\n⚠️ تحذير: هذه صفقة حقيقية على منصة Bybit!"
-                    message += "\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك الحقيقية"
+                    message += f"\n\n تحذير: هذه صفقة حقيقية على منصة Bybit!"
+                    message += "\n اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك الحقيقية"
                     
                     await self.send_message_to_admin(message)
-                    logger.info(f"✅ تم تنفيذ صفقة فيوتشر حقيقية: {order_id}")
+                    logger.info(f" تم تنفيذ صفقة فيوتشر حقيقية: {order_id}")
                 else:
                     error_msg = response.get("retMsg", "خطأ غير محدد")
-                    await self.send_message_to_admin(f"❌ فشل في تنفيذ صفقة الفيوتشر: {error_msg}")
+                    await self.send_message_to_admin(f" فشل في تنفيذ صفقة الفيوتشر: {error_msg}")
                     logger.error(f"فشل تنفيذ صفقة فيوتشر: {error_msg}")
                     
             else:  # spot
@@ -2476,47 +2476,47 @@ class TradingBot:
                     
                     # إضافة أوامر TP/SL المحددة للسبوت إذا كانت موجودة
                     if tp_prices or sl_price:
-                        logger.info("📝 إضافة أوامر TP/SL للسبوت...")
+                        logger.info(" إضافة أوامر TP/SL للسبوت...")
                         # يمكن إضافة أوامر Limit للسبوت هنا
                     
-                    message = f"✅ تم تنفيذ صفقة سبوت حقيقية\n\n"
+                    message = f" تم تنفيذ صفقة سبوت حقيقية\n\n"
                     if self.user_id:
-                        message += f"👤 المستخدم: {self.user_id}\n"
-                    message += f"📊 الرمز: {symbol}\n"
-                    message += f"🔄 النوع: {side}\n"
-                    message += f"💰 المبلغ: {amount}\n"
+                        message += f" المستخدم: {self.user_id}\n"
+                    message += f" الرمز: {symbol}\n"
+                    message += f" النوع: {side}\n"
+                    message += f" المبلغ: {amount}\n"
                     message += f"📦 الكمية: {qty}\n"
                     message += f"💲 السعر التقريبي: {price:.6f}\n"
                     message += f"🏪 السوق: SPOT\n"
-                    message += f"🆔 رقم الأمر: {order_id}\n"
+                    message += f" رقم الأمر: {order_id}\n"
                     
                     if tp_prices:
-                        message += f"\n🎯 أهداف الربح محسوبة (يتطلب إضافة أوامر يدوية)"
+                        message += f"\n أهداف الربح محسوبة (يتطلب إضافة أوامر يدوية)"
                     if sl_price:
                         message += f"\n🛑 Stop Loss محسوب: {sl_price:.6f}"
                     
-                    message += f"\n\n⚠️ تحذير: هذه صفقة حقيقية على منصة Bybit!"
-                    message += "\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك الحقيقية"
+                    message += f"\n\n تحذير: هذه صفقة حقيقية على منصة Bybit!"
+                    message += "\n اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك الحقيقية"
                     
                     await self.send_message_to_admin(message)
-                    logger.info(f"✅ تم تنفيذ صفقة سبوت حقيقية: {order_id}")
+                    logger.info(f" تم تنفيذ صفقة سبوت حقيقية: {order_id}")
                 else:
                     error_msg = response.get("retMsg", "خطأ غير محدد")
-                    await self.send_message_to_admin(f"❌ فشل في تنفيذ صفقة السبوت: {error_msg}")
+                    await self.send_message_to_admin(f" فشل في تنفيذ صفقة السبوت: {error_msg}")
                     logger.error(f"فشل تنفيذ صفقة سبوت: {error_msg}")
                 
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة الحقيقية: {e}")
             import traceback
             logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
-            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة الحقيقية: {e}")
+            await self.send_message_to_admin(f" خطأ في تنفيذ الصفقة الحقيقية: {e}")
     
     async def execute_demo_trade(self, symbol: str, action: str, price: float, category: str, market_type: str):
         """تنفيذ صفقة تجريبية داخلية مع دعم محسن للفيوتشر"""
         try:
             # استخدام النظام المحسن إذا كان متاحاً
             if self.enhanced_system:
-                logger.info("🚀 تحليل الصفقة التجريبية باستخدام النظام المحسن...")
+                logger.info(" تحليل الصفقة التجريبية باستخدام النظام المحسن...")
                 enhanced_analysis = self.enhanced_system.process_signal(self.user_id or 0, {
                     "action": action,
                     "symbol": symbol,
@@ -2526,26 +2526,26 @@ class TradingBot:
                 })
                 
                 if enhanced_analysis.get('status') == 'success':
-                    logger.info("✅ تم تحليل الصفقة التجريبية باستخدام النظام المحسن")
+                    logger.info(" تم تحليل الصفقة التجريبية باستخدام النظام المحسن")
                     analysis = enhanced_analysis.get('analysis', {})
                     risk_assessment = enhanced_analysis.get('risk_assessment', {})
                     execution_plan = enhanced_analysis.get('execution_plan', {})
                     
                     # تطبيق التحليل المحسن
                     if analysis.get('recommendation') == 'execute':
-                        logger.info(f"✅ النظام المحسن يوصي بالتنفيذ التجريبي: {analysis.get('confidence_level', 0)*100:.1f}% ثقة")
+                        logger.info(f" النظام المحسن يوصي بالتنفيذ التجريبي: {analysis.get('confidence_level', 0)*100:.1f}% ثقة")
                     else:
-                        logger.warning(f"⚠️ النظام المحسن لا يوصي بالتنفيذ التجريبي: {analysis.get('recommendation', 'unknown')}")
+                        logger.warning(f" النظام المحسن لا يوصي بالتنفيذ التجريبي: {analysis.get('recommendation', 'unknown')}")
                     
                     # تطبيق تقييم المخاطر المحسن
                     if risk_assessment.get('risk_level') == 'high':
-                        logger.warning(f"⚠️ تحذير من المخاطر العالية في الصفقة التجريبية: {risk_assessment.get('recommendation', 'unknown')}")
+                        logger.warning(f" تحذير من المخاطر العالية في الصفقة التجريبية: {risk_assessment.get('recommendation', 'unknown')}")
                     
                     # تطبيق خطة التنفيذ المحسنة
                     if execution_plan.get('strategy'):
-                        logger.info(f"🎯 استراتيجية التنفيذ المحسنة للصفقة التجريبية: {execution_plan.get('strategy', 'unknown')}")
+                        logger.info(f" استراتيجية التنفيذ المحسنة للصفقة التجريبية: {execution_plan.get('strategy', 'unknown')}")
                 else:
-                    logger.warning("⚠️ فشل في تحليل الصفقة التجريبية باستخدام النظام المحسن")
+                    logger.warning(" فشل في تحليل الصفقة التجريبية باستخدام النظام المحسن")
             
             # اختيار الحساب الصحيح بناءً على إعدادات المستخدم وليس على نوع السوق المكتشف
             user_market_type = self.user_settings['market_type']
@@ -2558,7 +2558,7 @@ class TradingBot:
                 account = user_manager.get_user_account(self.user_id, user_market_type)
                 if not account:
                     logger.error(f"لم يتم العثور على حساب للمستخدم {self.user_id}")
-                    await self.send_message_to_user(self.user_id, f"❌ خطأ: لم يتم العثور على حساب {user_market_type}")
+                    await self.send_message_to_user(self.user_id, f" خطأ: لم يتم العثور على حساب {user_market_type}")
                     return
                 # استخدام صفقات المستخدم - التأكد من وجود القاموس
                 if self.user_id not in user_manager.user_positions:
@@ -2577,7 +2577,7 @@ class TradingBot:
             
             # معالجة إشارات الإغلاق (close, close_long, close_short)
             if action == 'close':
-                logger.info(f"🔄 معالجة إشارة إغلاق للرمز {symbol}")
+                logger.info(f" معالجة إشارة إغلاق للرمز {symbol}")
                 
                 # البحث عن الصفقات المفتوحة لهذا الرمز
                 positions_to_close = []
@@ -2587,10 +2587,10 @@ class TradingBot:
                         positions_to_close.append(pos_id)
                 
                 if not positions_to_close:
-                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
+                    logger.warning(f" لا توجد صفقات مفتوحة للرمز {symbol}")
                     await self.send_message_to_admin(
-                        f"⚠️ لا توجد صفقات مفتوحة للإغلاق\n\n"
-                        f"📊 الرمز: {symbol}\n"
+                        f" لا توجد صفقات مفتوحة للإغلاق\n\n"
+                        f" الرمز: {symbol}\n"
                         f"🏪 السوق: {user_market_type.upper()}"
                     )
                     return
@@ -2607,78 +2607,78 @@ class TradingBot:
                             success, result = account.close_futures_position(pos_id, price)
                             
                             if success:
-                                logger.info(f"✅ تم إغلاق صفقة الفيوتشر: {pos_id}")
+                                logger.info(f" تم إغلاق صفقة الفيوتشر: {pos_id}")
                                 
                                 # إزالة من قائمة الصفقات
                                 del user_positions[pos_id]
                                 
                                 # إرسال إشعار
-                                message = f"✅ تم إغلاق صفقة فيوتشر\n\n"
+                                message = f" تم إغلاق صفقة فيوتشر\n\n"
                                 if self.user_id:
-                                    message += f"👤 المستخدم: {self.user_id}\n"
-                                message += f"📊 الرمز: {symbol}\n"
-                                message += f"🔄 النوع: {pos_info.get('side', '').upper()}\n"
-                                message += f"💰 الربح/الخسارة: {pnl:.2f}\n"
+                                    message += f" المستخدم: {self.user_id}\n"
+                                message += f" الرمز: {symbol}\n"
+                                message += f" النوع: {pos_info.get('side', '').upper()}\n"
+                                message += f" الربح/الخسارة: {pnl:.2f}\n"
                                 message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
                                 message += f"💲 سعر الإغلاق: {price:.6f}\n"
-                                message += f"🆔 رقم الصفقة: {pos_id}\n"
+                                message += f" رقم الصفقة: {pos_id}\n"
                                 
                                 # معلومات الحساب
                                 account_info = account.get_account_info()
-                                message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                                message += f"\n الرصيد الكلي: {account_info['balance']:.2f}"
                                 message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
                                 
                                 await self.send_message_to_admin(message)
                             else:
-                                logger.error(f"❌ فشل إغلاق صفقة الفيوتشر: {result}")
-                                await self.send_message_to_admin(f"❌ فشل إغلاق الصفقة: {result}")
+                                logger.error(f" فشل إغلاق صفقة الفيوتشر: {result}")
+                                await self.send_message_to_admin(f" فشل إغلاق الصفقة: {result}")
                     else:
                         # إغلاق صفقة سبوت
                         success, result = account.close_spot_position(pos_id, price)
                         
                         if success:
                             pnl = result  # PnL
-                            logger.info(f"✅ تم إغلاق صفقة السبوت: {pos_id}")
+                            logger.info(f" تم إغلاق صفقة السبوت: {pos_id}")
                             
                             # إزالة من قائمة الصفقات
                             del user_positions[pos_id]
                             
                             # إرسال إشعار
-                            message = f"✅ تم إغلاق صفقة سبوت\n\n"
+                            message = f" تم إغلاق صفقة سبوت\n\n"
                             if self.user_id:
-                                message += f"👤 المستخدم: {self.user_id}\n"
-                            message += f"📊 الرمز: {symbol}\n"
-                            message += f"🔄 النوع: {pos_info.get('side', '').upper()}\n"
-                            message += f"💰 الربح/الخسارة: {pnl:.2f}\n"
+                                message += f" المستخدم: {self.user_id}\n"
+                            message += f" الرمز: {symbol}\n"
+                            message += f" النوع: {pos_info.get('side', '').upper()}\n"
+                            message += f" الربح/الخسارة: {pnl:.2f}\n"
                             message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
                             message += f"💲 سعر الإغلاق: {price:.6f}\n"
-                            message += f"🆔 رقم الصفقة: {pos_id}\n"
+                            message += f" رقم الصفقة: {pos_id}\n"
                             
                             # معلومات الحساب
                             account_info = account.get_account_info()
-                            message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
+                            message += f"\n الرصيد: {account_info['balance']:.2f}"
                             
                             await self.send_message_to_admin(message)
                         else:
-                            logger.error(f"❌ فشل إغلاق صفقة السبوت: {result}")
-                            await self.send_message_to_admin(f"❌ فشل إغلاق الصفقة: {result}")
+                            logger.error(f" فشل إغلاق صفقة السبوت: {result}")
+                            await self.send_message_to_admin(f" فشل إغلاق الصفقة: {result}")
                 
                 return  # انتهى معالجة إشارة الإغلاق
             
             # معالجة إشارات الإغلاق الجزئي (partial_close)
             if action == 'partial_close':
-                logger.info(f"📊 معالجة إشارة إغلاق جزئي للرمز {symbol}")
+                logger.info(f" معالجة إشارة إغلاق جزئي للرمز {symbol}")
                 
                 # الحصول على النسبة المئوية
                 percentage = float(self._current_signal_data.get('percentage', 50))
                 
                 # التحقق من صحة النسبة
                 if percentage <= 0 or percentage > 100:
-                    logger.error(f"❌ نسبة غير صحيحة: {percentage}%")
+                    logger.error(f" نسبة غير صحيحة: {percentage}%")
                     await self.send_message_to_admin(
-                        f"❌ نسبة إغلاق جزئي غير صحيحة\n\n"
-                        f"📊 النسبة: {percentage}%\n"
-                        f"✅ النطاق المسموح: 1 - 100%"
+                        f" نسبة إغلاق جزئي غير صحيحة\n\n"
+                        f" النسبة: {percentage}%\n"
+                        f" النطاق المسموح: 1 - 100%"
                     )
                     return
                 
@@ -2690,10 +2690,10 @@ class TradingBot:
                         positions_to_partial_close.append(pos_id)
                 
                 if not positions_to_partial_close:
-                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
+                    logger.warning(f" لا توجد صفقات مفتوحة للرمز {symbol}")
                     await self.send_message_to_admin(
-                        f"⚠️ لا توجد صفقات للإغلاق الجزئي\n\n"
-                        f"📊 الرمز: {symbol}\n"
+                        f" لا توجد صفقات للإغلاق الجزئي\n\n"
+                        f" الرمز: {symbol}\n"
                         f"🏪 السوق: {user_market_type.upper()}"
                     )
                     return
@@ -2734,35 +2734,35 @@ class TradingBot:
                             user_positions[pos_id]['contracts'] = new_contracts
                             
                             # إرسال إشعار
-                            message = f"📊 تم إغلاق جزئي لصفقة فيوتشر\n\n"
+                            message = f" تم إغلاق جزئي لصفقة فيوتشر\n\n"
                             if self.user_id:
-                                message += f"👤 المستخدم: {self.user_id}\n"
-                            message += f"📊 الرمز: {symbol}\n"
-                            message += f"🔄 النوع: {pos_info.get('side', '').upper()}\n"
-                            message += f"📈 النسبة المغلقة: {percentage}%\n"
-                            message += f"💰 الربح/الخسارة الجزئي: {partial_pnl:.2f}\n"
+                                message += f" المستخدم: {self.user_id}\n"
+                            message += f" الرمز: {symbol}\n"
+                            message += f" النوع: {pos_info.get('side', '').upper()}\n"
+                            message += f" النسبة المغلقة: {percentage}%\n"
+                            message += f" الربح/الخسارة الجزئي: {partial_pnl:.2f}\n"
                             message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
                             message += f"💲 سعر الإغلاق: {price:.6f}\n"
-                            message += f"\n📊 **الصفقة المتبقية:**\n"
-                            message += f"📈 الحجم المتبقي: {new_position_size:.2f} USDT ({100-percentage}%)\n"
+                            message += f"\n **الصفقة المتبقية:**\n"
+                            message += f" الحجم المتبقي: {new_position_size:.2f} USDT ({100-percentage}%)\n"
                             message += f"🔒 الهامش المتبقي: {new_margin:.2f} USDT\n"
-                            message += f"📊 العقود المتبقية: {new_contracts:.6f}\n"
-                            message += f"🆔 رقم الصفقة: {pos_id}\n"
+                            message += f" العقود المتبقية: {new_contracts:.6f}\n"
+                            message += f" رقم الصفقة: {pos_id}\n"
                             
                             # معلومات الحساب
                             account_info = account.get_account_info()
-                            message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                            message += f"\n الرصيد الكلي: {account_info['balance']:.2f}"
                             message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
                             
                             await self.send_message_to_admin(message)
-                            logger.info(f"✅ تم الإغلاق الجزئي ({percentage}%) لصفقة {pos_id}")
+                            logger.info(f" تم الإغلاق الجزئي ({percentage}%) لصفقة {pos_id}")
                     else:
                         # الإغلاق الجزئي غير مدعوم حالياً في Spot
-                        logger.warning(f"⚠️ الإغلاق الجزئي غير مدعوم في Spot حالياً")
+                        logger.warning(f" الإغلاق الجزئي غير مدعوم في Spot حالياً")
                         await self.send_message_to_admin(
-                            f"⚠️ الإغلاق الجزئي مدعوم فقط في Futures\n\n"
+                            f" الإغلاق الجزئي مدعوم فقط في Futures\n\n"
                             f"🏪 نوع السوق الحالي: {user_market_type.upper()}\n"
-                            f"💡 للإغلاق الجزئي، استخدم نوع سوق FUTURES"
+                            f" للإغلاق الجزئي، استخدم نوع سوق FUTURES"
                         )
                 
                 return  # انتهى معالجة الإغلاق الجزئي
@@ -2772,11 +2772,11 @@ class TradingBot:
                 margin_amount = self.user_settings['trade_amount']  # مبلغ الهامش
                 leverage = self.user_settings['leverage']
                 
-                # 🆔 استخدام ID الإشارة كمعرف للصفقة إذا كان متاحاً
+                #  استخدام ID الإشارة كمعرف للصفقة إذا كان متاحاً
                 custom_position_id = None
                 if hasattr(self, '_current_signal_id') and self._current_signal_id:
                     custom_position_id = self._current_signal_id
-                    logger.info(f"🆔 استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
+                    logger.info(f" استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
                 
                 success, result = account.open_futures_position(
                     symbol=symbol,
@@ -2816,7 +2816,7 @@ class TradingBot:
                             if self.user_id not in user_manager.user_positions:
                                 user_manager.user_positions[self.user_id] = {}
                             user_manager.user_positions[self.user_id][position_id] = position_data_dict.copy()
-                            logger.info(f"✅ تم حفظ صفقة الفيوتشر مباشرة في user_manager.user_positions[{self.user_id}][{position_id}]")
+                            logger.info(f" تم حفظ صفقة الفيوتشر مباشرة في user_manager.user_positions[{self.user_id}][{position_id}]")
                         
                         # حفظ الصفقة في قاعدة البيانات
                         if self.user_id:
@@ -2842,11 +2842,11 @@ class TradingBot:
                                 
                                 success = portfolio_manager.add_position(position_data)
                                 if success:
-                                    logger.info(f"✅ تم حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
+                                    logger.info(f" تم حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
                                 else:
-                                    logger.warning(f"⚠️ فشل في حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
+                                    logger.warning(f" فشل في حفظ صفقة الفيوتشر في قاعدة البيانات: {position_id}")
                             except Exception as e:
-                                logger.error(f"❌ خطأ في حفظ صفقة الفيوتشر في قاعدة البيانات: {e}")
+                                logger.error(f" خطأ في حفظ صفقة الفيوتشر في قاعدة البيانات: {e}")
                         
                         # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                         if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
@@ -2862,26 +2862,26 @@ class TradingBot:
                         
                         logger.info(f"تم فتح صفقة فيوتشر: ID={position_id}, الرمز={symbol}, user_id={self.user_id}")
                         
-                        message = f"📈 تم فتح صفقة فيوتشر تجريبية\n"
+                        message = f" تم فتح صفقة فيوتشر تجريبية\n"
                         if self.user_id:
-                            message += f"👤 المستخدم: {self.user_id}\n"
-                        message += f"📊 الرمز: {symbol}\n"
-                        message += f"🔄 النوع: {action.upper()}\n"
-                        message += f"💰 الهامش المحجوز: {margin_amount}\n"
-                        message += f"📈 حجم الصفقة: {position.position_size:.2f}\n"
+                            message += f" المستخدم: {self.user_id}\n"
+                        message += f" الرمز: {symbol}\n"
+                        message += f" النوع: {action.upper()}\n"
+                        message += f" الهامش المحجوز: {margin_amount}\n"
+                        message += f" حجم الصفقة: {position.position_size:.2f}\n"
                         message += f"💲 سعر الدخول: {price:.6f}\n"
                         message += f"⚡ الرافعة: {leverage}x\n"
-                        message += f"⚠️ سعر التصفية: {position.liquidation_price:.6f}\n"
-                        message += f"📊 عدد العقود: {position.contracts:.6f}\n"
-                        message += f"🆔 رقم الصفقة: {position_id}\n"
+                        message += f" سعر التصفية: {position.liquidation_price:.6f}\n"
+                        message += f" عدد العقود: {position.contracts:.6f}\n"
+                        message += f" رقم الصفقة: {position_id}\n"
                         
                         # إضافة معلومات ID الإشارة إذا كان متاحاً
                         if hasattr(self, '_current_signal_id') and self._current_signal_id:
-                            message += f"🎯 ID الإشارة: {self._current_signal_id}\n"
+                            message += f" ID الإشارة: {self._current_signal_id}\n"
                         
                         # إضافة معلومات الحساب
                         account_info = account.get_account_info()
-                        message += f"\n💰 الرصيد الكلي: {account_info['balance']:.2f}"
+                        message += f"\n الرصيد الكلي: {account_info['balance']:.2f}"
                         message += f"\n💳 الرصيد المتاح: {account_info['available_balance']:.2f}"
                         message += f"\n🔒 الهامش المحجوز: {account_info['margin_locked']:.2f}"
                         
@@ -2895,22 +2895,22 @@ class TradingBot:
                                 message += "\n\n🤖 تم تطبيق الإعدادات التلقائية!"
                         
                         # إضافة زر للوصول السريع إلى الصفقات المفتوحة
-                        message += "\n\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك"
+                        message += "\n\n اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك"
                         
                         await self.send_message_to_admin(message)
                     else:
-                        await self.send_message_to_admin("❌ فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
+                        await self.send_message_to_admin(" فشل في فتح صفقة الفيوتشر: نوع الصفقة غير صحيح")
                 else:
-                    await self.send_message_to_admin(f"❌ فشل في فتح صفقة الفيوتشر: {result}")
+                    await self.send_message_to_admin(f" فشل في فتح صفقة الفيوتشر: {result}")
                     
             else:  # spot
                 amount = self.user_settings['trade_amount']
                 
-                # 🆔 استخدام ID الإشارة كمعرف للصفقة إذا كان متاحاً
+                #  استخدام ID الإشارة كمعرف للصفقة إذا كان متاحاً
                 custom_position_id = None
                 if hasattr(self, '_current_signal_id') and self._current_signal_id:
                     custom_position_id = self._current_signal_id
-                    logger.info(f"🆔 استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
+                    logger.info(f" استخدام ID الإشارة كمعرف للصفقة: {custom_position_id}")
                 
                 success, result = account.open_spot_position(
                     symbol=symbol,
@@ -2923,8 +2923,8 @@ class TradingBot:
                 if success:
                     position_id = result
                     
-                    logger.info(f"🔍 DEBUG: قبل الحفظ - user_positions = {user_positions}")
-                    logger.info(f"🔍 DEBUG: قبل الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
+                    logger.info(f" DEBUG: قبل الحفظ - user_positions = {user_positions}")
+                    logger.info(f" DEBUG: قبل الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
                     
                     # لا نحفظ في user_positions القديم - سنستخدم النظام الجديد فقط
                     
@@ -2971,7 +2971,7 @@ class TradingBot:
                                     'last_update': datetime.now().isoformat()
                                 })
                                 
-                                logger.info(f"✅ تم تحديث المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
+                                logger.info(f" تم تحديث المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, متوسط السعر={new_average_price:.6f}")
                                 
                             else:  # sell
                                 # بيع: تقليل كمية وحساب الربح
@@ -2989,13 +2989,13 @@ class TradingBot:
                                             'current_price': price,
                                             'last_update': datetime.now().isoformat()
                                         })
-                                        logger.info(f"✅ تم تقليل كمية المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, ربح البيع={profit_usdt:.2f} USDT")
+                                        logger.info(f" تم تقليل كمية المركز الموحد {unified_position_id}: كمية جديدة={new_quantity}, ربح البيع={profit_usdt:.2f} USDT")
                                     else:
                                         # إغلاق المركز بالكامل
                                         del user_manager.user_positions[self.user_id][unified_position_id]
-                                        logger.info(f"✅ تم إغلاق المركز الموحد {unified_position_id} بالكامل، ربح إجمالي={profit_usdt:.2f} USDT")
+                                        logger.info(f" تم إغلاق المركز الموحد {unified_position_id} بالكامل، ربح إجمالي={profit_usdt:.2f} USDT")
                                 else:
-                                    logger.warning(f"⚠️ كمية البيع {amount} أكبر من الكمية المتاحة {old_quantity}")
+                                    logger.warning(f" كمية البيع {amount} أكبر من الكمية المتاحة {old_quantity}")
                         else:
                             # إنشاء مركز جديد للعملة
                             if action.lower() == 'buy':
@@ -3013,12 +3013,12 @@ class TradingBot:
                                     'created_at': datetime.now().isoformat(),
                                     'last_update': datetime.now().isoformat()
                                 }
-                                logger.info(f"✅ تم إنشاء مركز موحد جديد {unified_position_id}: كمية={amount}, سعر={price:.6f}")
+                                logger.info(f" تم إنشاء مركز موحد جديد {unified_position_id}: كمية={amount}, سعر={price:.6f}")
                             else:
-                                logger.warning(f"⚠️ محاولة بيع {symbol} بدون رصيد متاح")
+                                logger.warning(f" محاولة بيع {symbol} بدون رصيد متاح")
                     
-                    logger.info(f"🔍 DEBUG: بعد الحفظ - user_positions = {user_positions}")
-                    logger.info(f"🔍 DEBUG: بعد الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
+                    logger.info(f" DEBUG: بعد الحفظ - user_positions = {user_positions}")
+                    logger.info(f" DEBUG: بعد الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
                     
                     # حفظ الصفقة في قاعدة البيانات
                     if self.user_id:
@@ -3044,11 +3044,11 @@ class TradingBot:
                             
                             success = portfolio_manager.add_position(position_data)
                             if success:
-                                logger.info(f"✅ تم حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
+                                logger.info(f" تم حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
                             else:
-                                logger.warning(f"⚠️ فشل في حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
+                                logger.warning(f" فشل في حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
                         except Exception as e:
-                            logger.error(f"❌ خطأ في حفظ صفقة السبوت في قاعدة البيانات: {e}")
+                            logger.error(f" خطأ في حفظ صفقة السبوت في قاعدة البيانات: {e}")
                     
                     # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                     if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
@@ -3070,54 +3070,54 @@ class TradingBot:
                         updated_position = user_manager.user_positions[self.user_id][unified_position_id]
                         current_avg_price = updated_position.get('entry_price', price)
                         
-                        message = f"📈 تم تحديث المركز الموحد للعملة\n"
-                        message += f"👤 المستخدم: {self.user_id}\n"
-                        message += f"📊 العملة: {base_currency}\n"
-                        message += f"🔄 العملية: {action.upper()} (مجمعة)\n"
-                        message += f"💰 الكمية المضافة: {amount}\n"
+                        message = f" تم تحديث المركز الموحد للعملة\n"
+                        message += f" المستخدم: {self.user_id}\n"
+                        message += f" العملة: {base_currency}\n"
+                        message += f" العملية: {action.upper()} (مجمعة)\n"
+                        message += f" الكمية المضافة: {amount}\n"
                         message += f"💲 متوسط السعر الجديد: {current_avg_price:.6f}\n"
                         message += f"🏪 السوق: SPOT\n"
-                        message += f"🆔 معرف المركز: {unified_position_id}\n"
+                        message += f" معرف المركز: {unified_position_id}\n"
                     elif action.lower() == 'sell' and unified_position_id in user_manager.user_positions.get(self.user_id, {}):
                         # تم بيع جزئي أو كامل
                         old_quantity = user_manager.user_positions[self.user_id][unified_position_id].get('amount', 0)
                         if old_quantity > amount:
-                            message = f"📉 تم بيع جزئي من المركز\n"
-                            message += f"👤 المستخدم: {self.user_id}\n"
-                            message += f"📊 العملة: {base_currency}\n"
-                            message += f"🔄 العملية: {action.upper()}\n"
-                            message += f"💰 الكمية المباعة: {amount}\n"
+                            message = f" تم بيع جزئي من المركز\n"
+                            message += f" المستخدم: {self.user_id}\n"
+                            message += f" العملة: {base_currency}\n"
+                            message += f" العملية: {action.upper()}\n"
+                            message += f" الكمية المباعة: {amount}\n"
                             message += f"💲 السعر الحالي: {price:.6f}\n"
                             message += f"🏪 السوق: SPOT\n"
-                            message += f"🆔 معرف المركز: {unified_position_id}\n"
+                            message += f" معرف المركز: {unified_position_id}\n"
                         else:
-                            message = f"📉 تم إغلاق المركز بالكامل\n"
-                            message += f"👤 المستخدم: {self.user_id}\n"
-                            message += f"📊 العملة: {base_currency}\n"
-                            message += f"🔄 العملية: {action.upper()}\n"
-                            message += f"💰 الكمية المباعة: {amount}\n"
+                            message = f" تم إغلاق المركز بالكامل\n"
+                            message += f" المستخدم: {self.user_id}\n"
+                            message += f" العملة: {base_currency}\n"
+                            message += f" العملية: {action.upper()}\n"
+                            message += f" الكمية المباعة: {amount}\n"
                             message += f"💲 السعر النهائي: {price:.6f}\n"
                             message += f"🏪 السوق: SPOT\n"
-                            message += f"🆔 معرف المركز: {unified_position_id}\n"
+                            message += f" معرف المركز: {unified_position_id}\n"
                     else:
                         # مركز جديد
-                        message = f"📈 تم إنشاء مركز موحد جديد\n"
+                        message = f" تم إنشاء مركز موحد جديد\n"
                         if self.user_id:
-                            message += f"👤 المستخدم: {self.user_id}\n"
-                        message += f"📊 العملة: {base_currency}\n"
-                        message += f"🔄 العملية: {action.upper()}\n"
-                        message += f"💰 الكمية: {amount}\n"
+                            message += f" المستخدم: {self.user_id}\n"
+                        message += f" العملة: {base_currency}\n"
+                        message += f" العملية: {action.upper()}\n"
+                        message += f" الكمية: {amount}\n"
                         message += f"💲 سعر الدخول: {price:.6f}\n"
                         message += f"🏪 السوق: SPOT\n"
-                        message += f"🆔 معرف المركز: {unified_position_id}\n"
+                        message += f" معرف المركز: {unified_position_id}\n"
                     
                     # إضافة معلومات ID الإشارة إذا كان متاحاً
                     if hasattr(self, '_current_signal_id') and self._current_signal_id:
-                        message += f"🎯 ID الإشارة: {self._current_signal_id}\n"
+                        message += f" ID الإشارة: {self._current_signal_id}\n"
                     
                     # إضافة معلومات الحساب
                     account_info = account.get_account_info()
-                    message += f"\n💰 الرصيد: {account_info['balance']:.2f}"
+                    message += f"\n الرصيد: {account_info['balance']:.2f}"
                     
                     # تطبيق الإعدادات التلقائية إن كانت مفعلة
                     if trade_tools_manager.auto_apply_enabled:
@@ -3129,15 +3129,15 @@ class TradingBot:
                             message += "\n\n🤖 تم تطبيق الإعدادات التلقائية!"
                     
                     # إضافة زر للوصول السريع إلى الصفقات المفتوحة
-                    message += "\n\n💡 اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك"
+                    message += "\n\n اضغط على 'الصفقات المفتوحة' لعرض جميع صفقاتك"
                     
                     await self.send_message_to_admin(message)
                 else:
-                    await self.send_message_to_admin(f"❌ فشل في فتح الصفقة التجريبية: {result}")
+                    await self.send_message_to_admin(f" فشل في فتح الصفقة التجريبية: {result}")
                 
         except Exception as e:
             logger.error(f"خطأ في تنفيذ الصفقة التجريبية: {e}")
-            await self.send_message_to_admin(f"❌ خطأ في تنفيذ الصفقة التجريبية: {e}")
+            await self.send_message_to_admin(f" خطأ في تنفيذ الصفقة التجريبية: {e}")
     
     async def send_message_to_admin(self, message: str):
         """إرسال رسالة للمدير أو المستخدم الحالي"""
@@ -3175,7 +3175,7 @@ user_manager.load_all_users()
 try:
     # تشغيل init_developers
     init_developers.init_developers()
-    logger.info("✅ تم تهيئة نظام المطورين بنجاح")
+    logger.info(" تم تهيئة نظام المطورين بنجاح")
     
     # إعادة تحميل المطورين
     developer_manager.load_all_developers()
@@ -3184,7 +3184,7 @@ try:
     dev_exists = db_manager.get_developer(ADMIN_USER_ID)
     
     if not dev_exists:
-        logger.warning(f"⚠️ المطور الرئيسي غير موجود، سيتم إضافته الآن...")
+        logger.warning(f" المطور الرئيسي غير موجود، سيتم إضافته الآن...")
         success = db_manager.create_developer(
             developer_id=ADMIN_USER_ID,
             developer_name="Nagdat",
@@ -3194,14 +3194,14 @@ try:
         if success:
             # إعادة تحميل المطورين
             developer_manager.load_all_developers()
-            logger.info(f"✅ تم إضافة المطور الرئيسي: {ADMIN_USER_ID}")
+            logger.info(f" تم إضافة المطور الرئيسي: {ADMIN_USER_ID}")
         else:
-            logger.error(f"❌ فشل في إضافة المطور الرئيسي")
+            logger.error(f" فشل في إضافة المطور الرئيسي")
     else:
-        logger.info(f"✅ المطور الرئيسي موجود: {ADMIN_USER_ID}")
+        logger.info(f" المطور الرئيسي موجود: {ADMIN_USER_ID}")
         
 except Exception as e:
-    logger.error(f"❌ خطأ في تهيئة نظام المطورين: {e}")
+    logger.error(f" خطأ في تهيئة نظام المطورين: {e}")
     import traceback
     traceback.print_exc()
     
@@ -3215,9 +3215,9 @@ except Exception as e:
             webhook_url=None
         )
         developer_manager.load_all_developers()
-        logger.info("✅ تم إنشاء المطور بنجاح (المحاولة الثانية)")
+        logger.info(" تم إنشاء المطور بنجاح (المحاولة الثانية)")
     except Exception as e2:
-        logger.error(f"❌ فشلت المحاولة الثانية: {e2}")
+        logger.error(f" فشلت المحاولة الثانية: {e2}")
 
 # تعيين لتتبع حالة إدخال المستخدم
 user_input_state = {}
@@ -3242,17 +3242,17 @@ async def check_api_connection(api_key: str, api_secret: str) -> bool:
         # إذا تم الحصول على معلومات الحساب بنجاح
         if account_info and 'retCode' in account_info:
             if account_info['retCode'] == 0:
-                logger.info("✅ API keys صحيحة")
+                logger.info(" API keys صحيحة")
                 return True
             else:
-                logger.warning(f"❌ API keys غير صحيحة: {account_info.get('retMsg', 'Unknown error')}")
+                logger.warning(f" API keys غير صحيحة: {account_info.get('retMsg', 'Unknown error')}")
                 return False
         
-        logger.warning("❌ فشل في التحقق من API - استجابة غير صالحة")
+        logger.warning(" فشل في التحقق من API - استجابة غير صالحة")
         return False
         
     except Exception as e:
-        logger.error(f"❌ خطأ في التحقق من API: {e}")
+        logger.error(f" خطأ في التحقق من API: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -3298,7 +3298,7 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
                     # إعادة تحميل معلومات المطور
                     developer_manager.load_all_developers()
                     dev_info = developer_manager.get_developer(developer_id)
-                    logger.info(f"✅ تم إضافة المطور {developer_id} بنجاح")
+                    logger.info(f" تم إضافة المطور {developer_id} بنجاح")
             except Exception as e:
                 logger.error(f"خطأ في إنشاء المطور: {e}")
         
@@ -3335,23 +3335,23 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     message = f"""
 👨‍💻 لوحة تحكم المطور - {dev_info['developer_name']}
 
-📊 إحصائيات سريعة:
+ إحصائيات سريعة:
 • 👥 إجمالي المستخدمين: {total_users}
 • ⚡ متابعي Nagdat: {stats['follower_count']}
-• 📡 الإشارات المرسلة: {stats['total_signals']}
+•  الإشارات المرسلة: {stats['total_signals']}
 • 🟢 الحالة: {'نشط' if stats['is_active'] else '🔴 غير نشط'}
-• ✅ صلاحية البث: {'مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
-• 📡 التوزيع التلقائي: {'✅ مُفعّل' if auto_broadcast else '❌ مُعطّل'}
+•  صلاحية البث: {'مفعلة' if stats['can_broadcast'] else ' معطلة'}
+•  التوزيع التلقائي: {' مُفعّل' if auto_broadcast else ' مُعطّل'}
 
 استخدم الأزرار أدناه للتحكم الكامل في البوت:
     """
     
     # إنشاء الأزرار
     keyboard = [
-        [KeyboardButton("📡 إرسال إشارة"), KeyboardButton("👥 المتابعين")],
-        [KeyboardButton("📊 إحصائيات المطور"), KeyboardButton("👥 إدارة المستخدمين")],
-        [KeyboardButton("📱 إشعار جماعي"), KeyboardButton("⚙️ إعدادات المطور")],
-        [KeyboardButton("🔄 تحديث"), KeyboardButton("👤 الوضع العادي")]
+        [KeyboardButton(" إرسال إشارة"), KeyboardButton("👥 المتابعين")],
+        [KeyboardButton(" إحصائيات المطور"), KeyboardButton("👥 إدارة المستخدمين")],
+        [KeyboardButton("📱 إشعار جماعي"), KeyboardButton(" إعدادات المطور")],
+        [KeyboardButton(" تحديث"), KeyboardButton(" الوضع العادي")]
     ]
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -3446,7 +3446,7 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
     
     if not developer_manager.can_broadcast_signals(user_id):
         if update.message:
-            await update.message.reply_text("❌ ليس لديك صلاحية لإرسال إشارات")
+            await update.message.reply_text(" ليس لديك صلاحية لإرسال إشارات")
         return
     
     # بدء عملية إرسال إشارة جديدة - الخطوة الأولى
@@ -3461,13 +3461,13 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
     
     # عرض الخطوة الأولى مباشرة
     message = """
-📡 إرسال إشارة للمتابعين
+ إرسال إشارة للمتابعين
 
-📝 الخطوة 1 من 5
+ الخطوة 1 من 5
 
 🔤 أدخل رمز العملة:
 
-💡 أمثلة:
+ أمثلة:
 • BTCUSDT
 • BTC
 • ETH/USDT
@@ -3477,7 +3477,7 @@ async def handle_send_signal_developer(update: Update, context: ContextTypes.DEF
     """
     
     keyboard = [
-        [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+        [InlineKeyboardButton(" إلغاء", callback_data="developer_panel")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3512,7 +3512,7 @@ async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TY
             message += f"{i}. {status} User ID: {follower_id}\n"
             # إضافة زر لإزالة هذا المتابع
             keyboard.append([InlineKeyboardButton(
-                f"❌ إزالة {follower_id}", 
+                f" إزالة {follower_id}", 
                 callback_data=f"dev_remove_follower_{follower_id}"
             )])
         else:
@@ -3521,7 +3521,7 @@ async def handle_show_followers(update: Update, context: ContextTypes.DEFAULT_TY
     if len(followers) > 20:
         message += f"\n... و {len(followers) - 20} متابع آخرين"
     
-    keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="dev_show_followers")])
+    keyboard.append([InlineKeyboardButton(" تحديث", callback_data="dev_show_followers")])
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3546,29 +3546,29 @@ async def handle_developer_stats(update: Update, context: ContextTypes.DEFAULT_T
     active_users = len(all_users)
     
     message = f"""
-📊 إحصائيات مفصلة - {dev_info['developer_name']}
+ إحصائيات مفصلة - {dev_info['developer_name']}
 
 👥 إحصائيات المتابعة:
 • إجمالي المتابعين: {stats['follower_count']}
 • المتابعين النشطين: {len([u for u in all_users if u['user_id'] in developer_manager.get_followers(user_id)])}
 
-📡 إحصائيات الإشارات:
+ إحصائيات الإشارات:
 • إجمالي الإشارات المرسلة: {stats['total_signals']}
 • متوسط الإشارات اليومية: {stats['total_signals'] / 30:.1f}
 
-👤 إحصائيات المستخدمين:
+ إحصائيات المستخدمين:
 • إجمالي المستخدمين: {total_users}
 • المستخدمين النشطين: {active_users}
 • معدل التفاعل: {(stats['follower_count'] / max(total_users, 1)) * 100:.1f}%
 
-⚙️ حالة النظام:
+ حالة النظام:
 • حالة المطور: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
-• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+• صلاحية البث: {' مفعلة' if stats['can_broadcast'] else ' معطلة'}
 • آخر تحديث: {datetime.now().strftime('%Y-%m-%d %H:%M')}
     """
     
     keyboard = [
-        [InlineKeyboardButton("🔄 تحديث", callback_data="dev_stats")],
+        [InlineKeyboardButton(" تحديث", callback_data="dev_stats")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
     ]
     
@@ -3595,9 +3595,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_admin:
         # عرض القائمة الرئيسية للمطور مع زر الرجوع لحساب المطور
         keyboard = [
-            [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
-            [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+            [KeyboardButton(" الإعدادات"), KeyboardButton(" حالة الحساب")],
+            [KeyboardButton(" الصفقات المفتوحة"), KeyboardButton(" تاريخ التداول")],
+            [KeyboardButton(" المحفظة"), KeyboardButton(" إحصائيات")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -3664,30 +3664,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if api_key and api_secret and len(api_key) > 10:
                 try:
                     real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
-                    logger.info(f"✅ تم إعادة تحميل حساب {exchange} للمستخدم {user_id}")
+                    logger.info(f" تم إعادة تحميل حساب {exchange} للمستخدم {user_id}")
                 except Exception as e:
-                    logger.error(f"⚠️ خطأ في إعادة تحميل الحساب: {e}")
+                    logger.error(f" خطأ في إعادة تحميل الحساب: {e}")
         
         # رسالة ترحيب للمستخدم الجديد
         welcome_message = f"""
 🤖 مرحباً بك {update.effective_user.first_name}!
 
-أهلاً وسهلاً بك في بوت المطور نجدت 🎉
+أهلاً وسهلاً بك في بوت المطور نجدت 
 
-🚀 **ما يفعله البوت:**
+ **ما يفعله البوت:**
 • تنفيذ إشارات التداول تلقائياً من TradingView
 • دعم منصات متعددة (Bybit & MEXC)
 • تداول ذكي مع إدارة مخاطر متقدمة
 • إحصائيات مفصلة ومتابعة الصفقات
 
-💡 **كيف يعمل:**
+ **كيف يعمل:**
 1. تربط حسابك على المنصة المفضلة
 2. تحصل على رابط webhook شخصي
 3. تستخدم الرابط في TradingView لإرسال الإشارات
 4. البوت ينفذ التداولات تلقائياً!
 
 🔗 **للبدء:**
-اضغط على "⚙️ الإعدادات" لربط حسابك
+اضغط على " الإعدادات" لربط حسابك
 
 📞 **إذا احتجت مساعدة من المطور:**
 رابط التلجرام: [@nagdatbasheer](https://t.me/nagdatbasheer)
@@ -3708,15 +3708,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # مستخدم موجود - عرض القائمة الرئيسية
     keyboard = [
-        [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
-        [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton(" الإعدادات"), KeyboardButton(" حالة الحساب")],
+        [KeyboardButton(" الصفقات المفتوحة"), KeyboardButton(" تاريخ التداول")],
+        [KeyboardButton(" المحفظة"), KeyboardButton(" إحصائيات")]
     ]
     
     # إضافة زر متابعة Nagdat
     is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
     if is_following:
-        keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
+        keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ")])
     else:
         keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     
@@ -3766,22 +3766,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = f"""
 🤖 مرحباً بك {update.effective_user.first_name}!
 
-أهلاً وسهلاً بك في بوت المطور نجدت 🎉
+أهلاً وسهلاً بك في بوت المطور نجدت 
 
 📞 **إذا احتجت مساعدة من المطور:**
 رابط التلجرام: [@nagdatbasheer](https://t.me/nagdatbasheer)
 
-🚀 **عن البوت:**
+ **عن البوت:**
 هذا بوت تداول ذكي متطور مصمم لتنفيذ إشاراتك التداولية تلقائياً. يعمل مع منصات التداول الكبرى مثل Bybit و MEXC، ويوفر لك تجربة تداول سلسة وآمنة.
 
-✨ **المميزات الرئيسية:**
+ **المميزات الرئيسية:**
 • تنفيذ فوري للإشارات من TradingView
 • دعم التداول الفوري والآجل
 • إدارة مخاطر ذكية مع Stop Loss و Take Profit
 • إحصائيات مفصلة ومتابعة مستمرة للصفقات
 • واجهة سهلة الاستخدام باللغة العربية
 
-💡 **كيفية الاستخدام:**
+ **كيفية الاستخدام:**
 1. اربط حسابك المفضل من الإعدادات
 2. احصل على رابط webhook شخصي
 3. استخدم الرابط في TradingView لإرسال الإشارات
@@ -3808,7 +3808,7 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if not user_data:
             if update.message is not None:
-                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+                await update.message.reply_text(" يرجى استخدام /start أولاً")
             return
         
         # الحصول على إعدادات إدارة المخاطر
@@ -3840,29 +3840,29 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
                 'weekly_loss_limit': 2000.0
             }
         
-        enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
-        stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
+        enabled_status = "" if risk_settings.get('enabled', True) else ""
+        stop_status = "" if risk_settings.get('stop_trading_on_loss', True) else ""
         
         # بناء رسالة إدارة المخاطر
         risk_message = f"""
 🛡️ **إدارة المخاطر**
 
-📊 **الحالة الحالية:**
+ **الحالة الحالية:**
 🛡️ إدارة المخاطر: {enabled_status}
 ⏹️ إيقاف التداول عند الخسارة: {stop_status}
 
-💰 **حدود الخسارة:**
-📉 الحد الأقصى للخسارة: {risk_settings.get('max_loss_percent', 10.0):.1f}%
+ **حدود الخسارة:**
+ الحد الأقصى للخسارة: {risk_settings.get('max_loss_percent', 10.0):.1f}%
 💸 الحد الأقصى بالمبلغ: {risk_settings.get('max_loss_amount', 1000.0):.0f} USDT
 📅 الحد اليومي: {risk_settings.get('daily_loss_limit', 500.0):.0f} USDT
 📆 الحد الأسبوعي: {risk_settings.get('weekly_loss_limit', 2000.0):.0f} USDT
 
-📊 **الإحصائيات الحالية:**
+ **الإحصائيات الحالية:**
 💸 الخسارة اليومية: {user_data.get('daily_loss', 0):.2f} USDT
-📈 الخسارة الأسبوعية: {user_data.get('weekly_loss', 0):.2f} USDT
-📉 إجمالي الخسارة: {user_data.get('total_loss', 0):.2f} USDT
+ الخسارة الأسبوعية: {user_data.get('weekly_loss', 0):.2f} USDT
+ إجمالي الخسارة: {user_data.get('total_loss', 0):.2f} USDT
 
-🔍 **الفرق بين الخيارات:**
+ **الفرق بين الخيارات:**
 
 🛡️ **إدارة المخاطر:**
 • عند التفعيل: مراقبة مستمرة للخسائر وفحص الحدود
@@ -3872,7 +3872,7 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
 • عند التفعيل: إيقاف البوت تلقائياً عند الوصول للحدود
 • عند التعطيل: البوت يستمر حتى لو وصل للحدود
 
-💡 **التوصيات:**
+ **التوصيات:**
 • 🟢 الأفضل: تفعيل الاثنين معاً للحماية الكاملة
 • 🟡 مقبول: تفعيل إدارة المخاطر فقط (مراقبة بدون حماية)
 • 🔴 خطير: تعطيل الاثنين (لا يوجد حماية)
@@ -3881,13 +3881,13 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         # بناء الأزرار
         keyboard = [
             [InlineKeyboardButton(f"🛡️ تفعيل/إلغاء إدارة المخاطر", callback_data="toggle_risk_management")],
-            [InlineKeyboardButton("📉 تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
+            [InlineKeyboardButton(" تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
             [InlineKeyboardButton("💸 تعديل حد الخسارة بالمبلغ", callback_data="set_max_loss_amount")],
             [InlineKeyboardButton("📅 تعديل الحد اليومي", callback_data="set_daily_loss_limit")],
             [InlineKeyboardButton("📆 تعديل الحد الأسبوعي", callback_data="set_weekly_loss_limit")],
             [InlineKeyboardButton(f"⏹️ إيقاف التداول عند الخسارة", callback_data="toggle_stop_trading")],
-            [InlineKeyboardButton("📊 عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
-            [InlineKeyboardButton("🔄 إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
+            [InlineKeyboardButton(" عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
+            [InlineKeyboardButton(" إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
             [InlineKeyboardButton("📖 شرح مفصل للخيارات", callback_data="risk_management_guide")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
         ]
@@ -3910,11 +3910,11 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error(f"خطأ في قائمة إدارة المخاطر: {e}")
         if update.callback_query:
             try:
-                await update.callback_query.edit_message_text(f"❌ خطأ في إدارة المخاطر: {e}")
+                await update.callback_query.edit_message_text(f" خطأ في إدارة المخاطر: {e}")
             except:
-                await update.callback_query.message.reply_text(f"❌ خطأ في إدارة المخاطر: {e}")
+                await update.callback_query.message.reply_text(f" خطأ في إدارة المخاطر: {e}")
         elif update.message:
-            await update.message.reply_text(f"❌ خطأ في إدارة المخاطر: {e}")
+            await update.message.reply_text(f" خطأ في إدارة المخاطر: {e}")
 
 async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة إعدادات التطبيق التلقائي"""
@@ -3927,28 +3927,28 @@ async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT
         summary = trade_tools_manager.get_auto_settings_summary()
         
         message = f"""
-⚙️ **إعدادات التطبيق التلقائي**
+ **إعدادات التطبيق التلقائي**
 
 {summary}
 
-💡 **ما هو التطبيق التلقائي؟**
+ **ما هو التطبيق التلقائي؟**
 عند التفعيل، كل صفقة جديدة تُفتح ستحصل تلقائياً على:
 • أهداف الربح المحددة
 • Stop Loss المحدد
 • Trailing Stop (إن كان مفعلاً)
 
-🎯 هذا يوفر عليك الوقت ويضمن حماية كل صفقاتك!
+ هذا يوفر عليك الوقت ويضمن حماية كل صفقاتك!
         """
         
-        status_button = "⏸️ تعطيل" if trade_tools_manager.auto_apply_enabled else "✅ تفعيل"
+        status_button = " تعطيل" if trade_tools_manager.auto_apply_enabled else " تفعيل"
         
         keyboard = [
             [InlineKeyboardButton(
                 f"{status_button} التطبيق التلقائي", 
                 callback_data="toggle_auto_apply"
             )],
-            [InlineKeyboardButton("⚙️ تعديل الإعدادات", callback_data="edit_auto_settings")],
-            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
+            [InlineKeyboardButton(" تعديل الإعدادات", callback_data="edit_auto_settings")],
+            [InlineKeyboardButton(" إعداد سريع", callback_data="quick_auto_setup")],
             [InlineKeyboardButton("🗑️ حذف الإعدادات", callback_data="clear_auto_settings")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="settings")]
         ]
@@ -3962,7 +3962,7 @@ async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT
     except Exception as e:
         logger.error(f"خطأ في قائمة التطبيق التلقائي: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تبديل حالة التطبيق التلقائي"""
@@ -3972,22 +3972,22 @@ async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if trade_tools_manager.auto_apply_enabled:
             trade_tools_manager.disable_auto_apply()
-            message = "⏸️ تم تعطيل التطبيق التلقائي"
+            message = " تم تعطيل التطبيق التلقائي"
         else:
             # التحقق من وجود إعدادات محفوظة
             if not trade_tools_manager.default_tp_percentages and trade_tools_manager.default_sl_percentage == 0:
                 await query.edit_message_text(
-                    "⚠️ لا توجد إعدادات محفوظة!\n\n"
+                    " لا توجد إعدادات محفوظة!\n\n"
                     "يرجى تعديل الإعدادات أولاً قبل التفعيل.",
                     reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("⚙️ تعديل الإعدادات", callback_data="edit_auto_settings"),
+                        InlineKeyboardButton(" تعديل الإعدادات", callback_data="edit_auto_settings"),
                         InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
                     ]])
                 )
                 return
             
             trade_tools_manager.enable_auto_apply()
-            message = "✅ تم تفعيل التطبيق التلقائي!\n\nالآن كل صفقة جديدة ستحصل على الإعدادات المحفوظة"
+            message = " تم تفعيل التطبيق التلقائي!\n\nالآن كل صفقة جديدة ستحصل على الإعدادات المحفوظة"
         
         keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3997,7 +3997,7 @@ async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في تبديل التطبيق التلقائي: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 # ===== دوال إدارة المخاطر =====
 
@@ -4011,7 +4011,7 @@ async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_T
         user_data = user_manager.get_user(user_id)
         
         if not user_data:
-            await query.edit_message_text("❌ لم يتم العثور على بيانات المستخدم")
+            await query.edit_message_text(" لم يتم العثور على بيانات المستخدم")
             return
         
         # الحصول على إعدادات إدارة المخاطر الحالية
@@ -4023,7 +4023,7 @@ async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_T
         # حفظ الإعدادات
         user_manager.update_user(user_id, {'risk_management': risk_settings})
         
-        status = "✅ مفعل" if risk_settings.get('enabled', True) else "❌ معطل"
+        status = " مفعل" if risk_settings.get('enabled', True) else " معطل"
         message = f"🛡️ إدارة المخاطر: {status}"
         
         try:
@@ -4041,7 +4041,7 @@ async def toggle_risk_management(update: Update, context: ContextTypes.DEFAULT_T
     except Exception as e:
         logger.error(f"خطأ في تبديل إدارة المخاطر: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_max_loss_percent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل حد الخسارة المئوي"""
@@ -4053,13 +4053,13 @@ async def set_max_loss_percent(update: Update, context: ContextTypes.DEFAULT_TYP
         user_input_state[user_id] = 'waiting_max_loss_percent'
         
         message = """
-📉 **تعديل حد الخسارة المئوي**
+ **تعديل حد الخسارة المئوي**
 
 أدخل النسبة المئوية للحد الأقصى للخسارة (1-50%):
 
 مثال: 10 (يعني 10%)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
+ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -4067,7 +4067,7 @@ async def set_max_loss_percent(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"خطأ في تعديل حد الخسارة المئوي: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_max_loss_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل حد الخسارة بالمبلغ"""
@@ -4085,7 +4085,7 @@ async def set_max_loss_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 مثال: 1000 (يعني 1000 USDT)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
+ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -4093,7 +4093,7 @@ async def set_max_loss_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logger.error(f"خطأ في تعديل حد الخسارة بالمبلغ: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_daily_loss_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل حد الخسارة اليومية"""
@@ -4111,7 +4111,7 @@ async def set_daily_loss_limit(update: Update, context: ContextTypes.DEFAULT_TYP
 
 مثال: 500 (يعني 500 USDT في اليوم)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
+ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -4119,7 +4119,7 @@ async def set_daily_loss_limit(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"خطأ في تعديل حد الخسارة اليومية: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_weekly_loss_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل حد الخسارة الأسبوعية"""
@@ -4137,7 +4137,7 @@ async def set_weekly_loss_limit(update: Update, context: ContextTypes.DEFAULT_TY
 
 مثال: 2000 (يعني 2000 USDT في الأسبوع)
 
-⚠️ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
+ **تحذير:** عند الوصول لهذا الحد، سيتم إيقاف التداول تلقائياً (إذا كان إيقاف التداول مفعل)
         """
         
         await query.edit_message_text(message, parse_mode='Markdown')
@@ -4145,7 +4145,7 @@ async def set_weekly_loss_limit(update: Update, context: ContextTypes.DEFAULT_TY
     except Exception as e:
         logger.error(f"خطأ في تعديل حد الخسارة الأسبوعية: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تبديل إيقاف التداول عند الخسارة"""
@@ -4157,7 +4157,7 @@ async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFA
         user_data = user_manager.get_user(user_id)
         
         if not user_data:
-            await query.edit_message_text("❌ لم يتم العثور على بيانات المستخدم")
+            await query.edit_message_text(" لم يتم العثور على بيانات المستخدم")
             return
         
         # الحصول على إعدادات إدارة المخاطر الحالية
@@ -4169,7 +4169,7 @@ async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFA
         # حفظ الإعدادات
         user_manager.update_user(user_id, {'risk_management': risk_settings})
         
-        status = "✅ مفعل" if risk_settings.get('stop_trading_on_loss', True) else "❌ معطل"
+        status = " مفعل" if risk_settings.get('stop_trading_on_loss', True) else " معطل"
         message = f"⏹️ إيقاف التداول عند الخسارة: {status}"
         
         try:
@@ -4187,7 +4187,7 @@ async def toggle_stop_trading_on_loss(update: Update, context: ContextTypes.DEFA
     except Exception as e:
         logger.error(f"خطأ في تبديل إيقاف التداول: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def show_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض إحصائيات المخاطر"""
@@ -4199,7 +4199,7 @@ async def show_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         user_data = user_manager.get_user(user_id)
         
         if not user_data:
-            await query.edit_message_text("❌ لم يتم العثور على بيانات المستخدم")
+            await query.edit_message_text(" لم يتم العثور على بيانات المستخدم")
             return
         
         # الحصول على إحصائيات المخاطر
@@ -4223,27 +4223,27 @@ async def show_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         weekly_status = "🔴" if weekly_percent >= 80 else "🟡" if weekly_percent >= 50 else "🟢"
         
         stats_message = f"""
-📊 **إحصائيات المخاطر**
+ **إحصائيات المخاطر**
 
 📅 **الخسارة اليومية:**
 {daily_status} المبلغ: {daily_loss:.2f} USDT
-📊 النسبة: {daily_percent:.1f}% من الحد ({daily_limit:.0f} USDT)
+ النسبة: {daily_percent:.1f}% من الحد ({daily_limit:.0f} USDT)
 
 📆 **الخسارة الأسبوعية:**
 {weekly_status} المبلغ: {weekly_loss:.2f} USDT
-📊 النسبة: {weekly_percent:.1f}% من الحد ({weekly_limit:.0f} USDT)
+ النسبة: {weekly_percent:.1f}% من الحد ({weekly_limit:.0f} USDT)
 
-📉 **إجمالي الخسارة:**
+ **إجمالي الخسارة:**
 💸 المبلغ: {total_loss:.2f} USDT
-📊 الحد المئوي: {max_loss_percent:.1f}%
+ الحد المئوي: {max_loss_percent:.1f}%
 💸 الحد بالمبلغ: {max_loss_amount:.0f} USDT
 
-🎯 **التوصيات:**
+ **التوصيات:**
 {_get_risk_recommendations(daily_percent, weekly_percent, total_loss, max_loss_amount)}
         """
         
         keyboard = [
-            [InlineKeyboardButton("🔄 تحديث", callback_data="show_risk_stats")],
+            [InlineKeyboardButton(" تحديث", callback_data="show_risk_stats")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="risk_management_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -4260,7 +4260,7 @@ async def show_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"خطأ في عرض إحصائيات المخاطر: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def reset_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إعادة تعيين إحصائيات المخاطر"""
@@ -4278,7 +4278,7 @@ async def reset_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TY
             'last_reset_date': datetime.now().strftime('%Y-%m-%d')
         })
         
-        message = "🔄 تم إعادة تعيين إحصائيات المخاطر بنجاح"
+        message = " تم إعادة تعيين إحصائيات المخاطر بنجاح"
         
         try:
             await query.edit_message_text(message)
@@ -4295,7 +4295,7 @@ async def reset_risk_statistics(update: Update, context: ContextTypes.DEFAULT_TY
     except Exception as e:
         logger.error(f"خطأ في إعادة تعيين إحصائيات المخاطر: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 def _get_risk_settings_safe(user_data):
     """الحصول على إعدادات إدارة المخاطر بشكل آمن"""
@@ -4328,20 +4328,20 @@ def _get_risk_recommendations(daily_percent, weekly_percent, total_loss, max_los
     if daily_percent >= 80:
         recommendations.append("🚨 خطر عالي اليوم - توقف عن التداول")
     elif daily_percent >= 50:
-        recommendations.append("⚠️ خطر متوسط اليوم - قلل من حجم التداول")
+        recommendations.append(" خطر متوسط اليوم - قلل من حجم التداول")
     
     if weekly_percent >= 80:
         recommendations.append("🚨 خطر عالي أسبوعياً - راجع استراتيجيتك")
     elif weekly_percent >= 50:
-        recommendations.append("⚠️ خطر متوسط أسبوعياً - احذر من الخسائر")
+        recommendations.append(" خطر متوسط أسبوعياً - احذر من الخسائر")
     
     if total_loss >= max_loss_amount * 0.8:
         recommendations.append("🚨 قريب من الحد الأقصى - توقف فوراً")
     elif total_loss >= max_loss_amount * 0.5:
-        recommendations.append("⚠️ وصلت لنصف الحد الأقصى - احذر")
+        recommendations.append(" وصلت لنصف الحد الأقصى - احذر")
     
     if not recommendations:
-        recommendations.append("✅ الوضع آمن - استمر بحذر")
+        recommendations.append(" الوضع آمن - استمر بحذر")
     
     return "\n".join(recommendations)
 
@@ -4351,7 +4351,7 @@ async def send_risk_management_menu(message, user_id: int):
         user_data = user_manager.get_user(user_id)
         
         if not user_data:
-            await message.reply_text("❌ يرجى استخدام /start أولاً")
+            await message.reply_text(" يرجى استخدام /start أولاً")
             return
         
         # الحصول على إعدادات إدارة المخاطر
@@ -4383,29 +4383,29 @@ async def send_risk_management_menu(message, user_id: int):
                 'weekly_loss_limit': 2000.0
             }
         
-        enabled_status = "✅" if risk_settings.get('enabled', True) else "❌"
-        stop_status = "✅" if risk_settings.get('stop_trading_on_loss', True) else "❌"
+        enabled_status = "" if risk_settings.get('enabled', True) else ""
+        stop_status = "" if risk_settings.get('stop_trading_on_loss', True) else ""
         
         # بناء رسالة إدارة المخاطر
         risk_message = f"""
 🛡️ **إدارة المخاطر**
 
-📊 **الحالة الحالية:**
+ **الحالة الحالية:**
 🛡️ إدارة المخاطر: {enabled_status}
 ⏹️ إيقاف التداول عند الخسارة: {stop_status}
 
-💰 **حدود الخسارة:**
-📉 الحد الأقصى للخسارة: {risk_settings.get('max_loss_percent', 10.0):.1f}%
+ **حدود الخسارة:**
+ الحد الأقصى للخسارة: {risk_settings.get('max_loss_percent', 10.0):.1f}%
 💸 الحد الأقصى بالمبلغ: {risk_settings.get('max_loss_amount', 1000.0):.0f} USDT
 📅 الحد اليومي: {risk_settings.get('daily_loss_limit', 500.0):.0f} USDT
 📆 الحد الأسبوعي: {risk_settings.get('weekly_loss_limit', 2000.0):.0f} USDT
 
-📊 **الإحصائيات الحالية:**
+ **الإحصائيات الحالية:**
 💸 الخسارة اليومية: {user_data.get('daily_loss', 0):.2f} USDT
-📈 الخسارة الأسبوعية: {user_data.get('weekly_loss', 0):.2f} USDT
-📉 إجمالي الخسارة: {user_data.get('total_loss', 0):.2f} USDT
+ الخسارة الأسبوعية: {user_data.get('weekly_loss', 0):.2f} USDT
+ إجمالي الخسارة: {user_data.get('total_loss', 0):.2f} USDT
 
-🔍 **الفرق بين الخيارات:**
+ **الفرق بين الخيارات:**
 
 🛡️ **إدارة المخاطر:**
 • عند التفعيل: مراقبة مستمرة للخسائر وفحص الحدود
@@ -4415,7 +4415,7 @@ async def send_risk_management_menu(message, user_id: int):
 • عند التفعيل: إيقاف البوت تلقائياً عند الوصول للحدود
 • عند التعطيل: البوت يستمر حتى لو وصل للحدود
 
-💡 **التوصيات:**
+ **التوصيات:**
 • 🟢 الأفضل: تفعيل الاثنين معاً للحماية الكاملة
 • 🟡 مقبول: تفعيل إدارة المخاطر فقط (مراقبة بدون حماية)
 • 🔴 خطير: تعطيل الاثنين (لا يوجد حماية)
@@ -4424,13 +4424,13 @@ async def send_risk_management_menu(message, user_id: int):
         # بناء الأزرار
         keyboard = [
             [InlineKeyboardButton(f"🛡️ تفعيل/إلغاء إدارة المخاطر", callback_data="toggle_risk_management")],
-            [InlineKeyboardButton("📉 تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
+            [InlineKeyboardButton(" تعديل حد الخسارة المئوي", callback_data="set_max_loss_percent")],
             [InlineKeyboardButton("💸 تعديل حد الخسارة بالمبلغ", callback_data="set_max_loss_amount")],
             [InlineKeyboardButton("📅 تعديل الحد اليومي", callback_data="set_daily_loss_limit")],
             [InlineKeyboardButton("📆 تعديل الحد الأسبوعي", callback_data="set_weekly_loss_limit")],
             [InlineKeyboardButton(f"⏹️ إيقاف التداول عند الخسارة", callback_data="toggle_stop_trading")],
-            [InlineKeyboardButton("📊 عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
-            [InlineKeyboardButton("🔄 إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
+            [InlineKeyboardButton(" عرض إحصائيات المخاطر", callback_data="show_risk_stats")],
+            [InlineKeyboardButton(" إعادة تعيين الإحصائيات", callback_data="reset_risk_stats")],
             [InlineKeyboardButton("📖 شرح مفصل للخيارات", callback_data="risk_management_guide")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
         ]
@@ -4441,7 +4441,7 @@ async def send_risk_management_menu(message, user_id: int):
     except Exception as e:
         logger.error(f"خطأ في إرسال قائمة إدارة المخاطر: {e}")
         try:
-            await message.reply_text(f"❌ خطأ في إرسال قائمة إدارة المخاطر: {e}")
+            await message.reply_text(f" خطأ في إرسال قائمة إدارة المخاطر: {e}")
         except Exception as reply_error:
             logger.error(f"خطأ في إرسال رسالة الخطأ: {reply_error}")
 
@@ -4454,12 +4454,12 @@ async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TY
         guide_message = """
 📖 **دليل إدارة المخاطر المفصل**
 
-🔍 **الفرق بين الخيارات:**
+ **الفرق بين الخيارات:**
 
 🛡️ **إدارة المخاطر (Risk Management):**
 هذا هو النظام الكامل لإدارة المخاطر:
 
-✅ **عند التفعيل:**
+ **عند التفعيل:**
 • مراقبة مستمرة للخسائر بعد كل صفقة
 • فحص الحدود المحددة (يومية، أسبوعية، مئوية، بالمبلغ)
 • حساب الإحصائيات وتحديثها تلقائياً
@@ -4467,7 +4467,7 @@ async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TY
 • إشعارات عند الوصول للحدود
 • توصيات ذكية بناءً على الأداء
 
-❌ **عند التعطيل:**
+ **عند التعطيل:**
 • لا يوجد مراقبة للخسائر
 • لا يوجد فحص للحدود
 • لا يوجد تحديث للإحصائيات
@@ -4478,49 +4478,49 @@ async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TY
 ⏹️ **إيقاف التداول عند الخسارة (Stop Trading on Loss):**
 هذا هو جزء من نظام إدارة المخاطر:
 
-✅ **عند التفعيل:**
+ **عند التفعيل:**
 • إيقاف البوت تلقائياً عند الوصول لأي حد
 • منع تنفيذ صفقات جديدة
 • إرسال إشعار للمستخدم
 • حماية الرصيد من المزيد من الخسائر
 • **ملاحظة مهمة:** الإيقاف يحدث فقط إذا كان هذا الخيار مفعل!
 
-❌ **عند التعطيل:**
+ **عند التعطيل:**
 • البوت يستمر في التداول حتى لو وصل للحدود
 • لا يوجد إيقاف تلقائي
 • لا يوجد حماية من المزيد من الخسائر
 • المخاطر عالية جداً
 • **تحذير:** حتى لو وصلت للحدود، البوت لن يتوقف!
 
-📊 **مثال عملي:**
+ **مثال عملي:**
 
 السيناريو: الحد اليومي 500 USDT، الخسارة الحالية 450 USDT، صفقة جديدة خسارة 100 USDT
 
 🟢 **إدارة المخاطر مفعلة + إيقاف التداول مفعل:**
-• النظام يراقب الخسائر ✅
-• يحسب الخسارة الجديدة: 450 + 100 = 550 USDT ✅
-• يكتشف تجاوز الحد اليومي (550 > 500) ✅
-• يوقف البوت تلقائياً ✅
-• يرسل إشعار للمستخدم ✅
-• يحمي الرصيد من المزيد من الخسائر ✅
+• النظام يراقب الخسائر 
+• يحسب الخسارة الجديدة: 450 + 100 = 550 USDT 
+• يكتشف تجاوز الحد اليومي (550 > 500) 
+• يوقف البوت تلقائياً 
+• يرسل إشعار للمستخدم 
+• يحمي الرصيد من المزيد من الخسائر 
 
 🟡 **إدارة المخاطر مفعلة + إيقاف التداول معطل:**
-• النظام يراقب الخسائر ✅
-• يحسب الخسارة الجديدة: 450 + 100 = 550 USDT ✅
-• يكتشف تجاوز الحد اليومي (550 > 500) ✅
-• لكن البوت يستمر في التداول ❌
-• لا يوجد حماية من المزيد من الخسائر ❌
-• خطر عالي! ⚠️
+• النظام يراقب الخسائر 
+• يحسب الخسارة الجديدة: 450 + 100 = 550 USDT 
+• يكتشف تجاوز الحد اليومي (550 > 500) 
+• لكن البوت يستمر في التداول 
+• لا يوجد حماية من المزيد من الخسائر 
+• خطر عالي! 
 
 🔴 **إدارة المخاطر معطلة:**
-• لا يوجد مراقبة للخسائر ❌
-• لا يوجد فحص للحدود ❌
-• لا يوجد إيقاف تلقائي ❌
-• لا يوجد حماية ❌
-• لا يوجد إشعارات ❌
+• لا يوجد مراقبة للخسائر 
+• لا يوجد فحص للحدود 
+• لا يوجد إيقاف تلقائي 
+• لا يوجد حماية 
+• لا يوجد إشعارات 
 • خطر عالي جداً! 🚨
 
-💡 **التوصيات:**
+ **التوصيات:**
 
 🟢 **الأفضل (آمن):**
 • إدارة المخاطر: مفعل
@@ -4537,11 +4537,11 @@ async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TY
 • إيقاف التداول: معطل
 • النتيجة: لا يوجد حماية على الإطلاق
 
-🎯 **الخلاصة:**
+ **الخلاصة:**
 إدارة المخاطر = النظام الكامل للمراقبة والتحليل
 إيقاف التداول = الإجراء الوقائي عند الخطر
 
-الأفضل هو تفعيل الاثنين معاً للحصول على حماية كاملة! 🛡️✨
+الأفضل هو تفعيل الاثنين معاً للحصول على حماية كاملة! 🛡️
         """
         
         keyboard = [
@@ -4560,7 +4560,7 @@ async def risk_management_guide(update: Update, context: ContextTypes.DEFAULT_TY
     except Exception as e:
         logger.error(f"خطأ في عرض دليل إدارة المخاطر: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 # ===== نظام إدارة المخاطر المتقدم =====
 
@@ -4685,20 +4685,20 @@ def check_risk_management(user_id: int, trade_result: dict) -> dict:
                         stop_message = f"""
 🚨 **تم إيقاف البوت تلقائياً**
 
-📊 **سبب الإيقاف:** {stop_reason}
+ **سبب الإيقاف:** {stop_reason}
 
-💰 **إحصائيات الخسارة:**
+ **إحصائيات الخسارة:**
 📅 اليومية: {new_daily_loss:.2f} USDT
 📆 الأسبوعية: {new_weekly_loss:.2f} USDT
-📉 الإجمالية: {new_total_loss:.2f} USDT
+ الإجمالية: {new_total_loss:.2f} USDT
 
 🛡️ **حدود المخاطر:**
 📅 الحد اليومي: {daily_limit:.0f} USDT
 📆 الحد الأسبوعي: {weekly_limit:.0f} USDT
-📊 الحد المئوي: {max_loss_percent:.1f}%
+ الحد المئوي: {max_loss_percent:.1f}%
 💸 الحد بالمبلغ: {max_loss_amount:.0f} USDT
 
-⚠️ **لإعادة تشغيل البوت، اذهب إلى الإعدادات وافعل زر التشغيل**
+ **لإعادة تشغيل البوت، اذهب إلى الإعدادات وافعل زر التشغيل**
                         """
                         
                         await application.bot.send_message(
@@ -4781,9 +4781,9 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             trade_tools_manager.enable_auto_apply()
             
             message = """
-✅ **تم تطبيق الإعداد السريع بنجاح!**
+ **تم تطبيق الإعداد السريع بنجاح!**
 
-🎯 **أهداف الربح:**
+ **أهداف الربح:**
 • TP1: +1.5% → إغلاق 50%
 • TP2: +3.0% → إغلاق 30%
 • TP3: +5.0% → إغلاق 20%
@@ -4792,25 +4792,25 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🔁 **نقل تلقائي للتعادل** عند تحقيق TP1
 
-✅ **التطبيق التلقائي مُفعّل**
+ **التطبيق التلقائي مُفعّل**
 
-💡 الآن كل صفقة جديدة ستحصل على هذه الإعدادات تلقائياً!
+ الآن كل صفقة جديدة ستحصل على هذه الإعدادات تلقائياً!
             """
             
             keyboard = [[
-                InlineKeyboardButton("⚙️ تعديل", callback_data="edit_auto_settings"),
+                InlineKeyboardButton(" تعديل", callback_data="edit_auto_settings"),
                 InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
             ]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
         else:
-            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            await query.edit_message_text(" فشل في تطبيق الإعداد السريع")
             
     except Exception as e:
         logger.error(f"خطأ في الإعداد السريع: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل الإعدادات التلقائية"""
@@ -4820,12 +4820,12 @@ async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         current_settings = ""
         if trade_tools_manager.default_tp_percentages:
-            current_settings += "🎯 **الأهداف الحالية:**\n"
+            current_settings += " **الأهداف الحالية:**\n"
             for i, (tp, close) in enumerate(zip(trade_tools_manager.default_tp_percentages,
                                                 trade_tools_manager.default_tp_close_percentages), 1):
                 current_settings += f"• TP{i}: +{tp}% → {close}%\n"
         else:
-            current_settings += "🎯 لا توجد أهداف محددة\n"
+            current_settings += " لا توجد أهداف محددة\n"
         
         current_settings += "\n"
         
@@ -4837,7 +4837,7 @@ async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE)
             current_settings += "🛑 لا يوجد Stop Loss\n"
         
         message = f"""
-⚙️ **تعديل الإعدادات التلقائية**
+ **تعديل الإعدادات التلقائية**
 
 {current_settings}
 
@@ -4845,10 +4845,10 @@ async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE)
         """
         
         keyboard = [
-            [InlineKeyboardButton("🎯 تعديل أهداف الربح", callback_data="edit_auto_tp")],
+            [InlineKeyboardButton(" تعديل أهداف الربح", callback_data="edit_auto_tp")],
             [InlineKeyboardButton("🛑 تعديل Stop Loss", callback_data="edit_auto_sl")],
             [InlineKeyboardButton("⚡ تفعيل/تعطيل Trailing", callback_data="toggle_auto_trailing")],
-            [InlineKeyboardButton("🎲 إعداد سريع", callback_data="quick_auto_setup")],
+            [InlineKeyboardButton(" إعداد سريع", callback_data="quick_auto_setup")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -4858,7 +4858,7 @@ async def edit_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.error(f"خطأ في تعديل الإعدادات: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def edit_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعديل أهداف الربح التلقائية - واجهة تفاعلية"""
@@ -4877,16 +4877,16 @@ async def edit_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = "building_auto_tp_count"
         
         message = """
-🎯 **إعداد أهداف الربح التلقائية**
+ **إعداد أهداف الربح التلقائية**
 
 **الخطوة 1 من 2:** كم هدف تريد إضافة؟
 
-💡 **أمثلة:**
+ **أمثلة:**
 • `1` → هدف واحد فقط
 • `2` → هدفين
 • `3` → ثلاثة أهداف (موصى به)
 
-📊 **الحد الأقصى:** 5 أهداف
+ **الحد الأقصى:** 5 أهداف
 
 أدخل الرقم:
         """
@@ -4901,7 +4901,7 @@ async def edit_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("4️⃣", callback_data="auto_tp_targets_4"),
                 InlineKeyboardButton("5️⃣", callback_data="auto_tp_targets_5")
             ],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+            [InlineKeyboardButton(" إلغاء", callback_data="edit_auto_settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -4910,7 +4910,7 @@ async def edit_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في edit_auto_tp: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_auto_tp_targets_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعيين عدد الأهداف"""
@@ -4934,17 +4934,17 @@ async def set_auto_tp_targets_count(update: Update, context: ContextTypes.DEFAUL
             user_input_state[user_id] = f"building_auto_tp_target_1_percent"
         
         message = f"""
-🎯 **هدف الربح رقم 1 من {count}**
+ **هدف الربح رقم 1 من {count}**
 
 **الخطوة 2:** أدخل نسبة الربح لهذا الهدف
 
-💡 **أمثلة:**
+ **أمثلة:**
 • `1.5` → هدف عند +1.5%
 • `2` → هدف عند +2%
 • `3` → هدف عند +3%
 • `5` → هدف عند +5%
 
-📊 **نطاق مقترح:** 0.5% إلى 20%
+ **نطاق مقترح:** 0.5% إلى 20%
 
 أدخل النسبة:
         """
@@ -4961,7 +4961,7 @@ async def set_auto_tp_targets_count(update: Update, context: ContextTypes.DEFAUL
                 InlineKeyboardButton("10%", callback_data="quick_tp_10")
             ],
             [InlineKeyboardButton("✏️ إدخال رقم مخصص", callback_data="custom_tp_percent_input")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+            [InlineKeyboardButton(" إلغاء", callback_data="edit_auto_settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -4970,7 +4970,7 @@ async def set_auto_tp_targets_count(update: Update, context: ContextTypes.DEFAUL
     except Exception as e:
         logger.error(f"خطأ في set_auto_tp_targets_count: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def process_tp_target_input(update: Update, context: ContextTypes.DEFAULT_TYPE, tp_percent: float = None):
     """معالجة إدخال هدف TP"""
@@ -4993,19 +4993,19 @@ async def process_tp_target_input(update: Update, context: ContextTypes.DEFAULT_
         tp_pct = builder.get('temp_tp_percent', 0)
         
         message = f"""
-🎯 **هدف الربح رقم {current_target} من {total_count}**
+ **هدف الربح رقم {current_target} من {total_count}**
 
-✅ **نسبة الربح:** +{tp_pct}%
+ **نسبة الربح:** +{tp_pct}%
 
 **الآن:** أدخل نسبة الإغلاق عند هذا الهدف
 
-💡 **أمثلة:**
+ **أمثلة:**
 • `25` → إغلاق 25% من الصفقة
 • `33` → إغلاق 33% من الصفقة
 • `50` → إغلاق نصف الصفقة
 • `100` → إغلاق كامل الصفقة
 
-📊 **نطاق مسموح:** 1% إلى 100%
+ **نطاق مسموح:** 1% إلى 100%
 
 أدخل النسبة:
         """
@@ -5021,7 +5021,7 @@ async def process_tp_target_input(update: Update, context: ContextTypes.DEFAULT_
                 InlineKeyboardButton("100%", callback_data="quick_close_100")
             ],
             [InlineKeyboardButton("✏️ إدخال رقم مخصص", callback_data="custom_close_percent_input")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+            [InlineKeyboardButton(" إلغاء", callback_data="edit_auto_settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -5051,7 +5051,7 @@ async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE,
         total_count = builder.get('count', 3)
         
         # عرض معاينة
-        preview = "📋 **معاينة الأهداف المضافة:**\n\n"
+        preview = " **معاينة الأهداف المضافة:**\n\n"
         for i, target in enumerate(builder['targets'], 1):
             preview += f"• TP{i}: +{target['tp']}% → إغلاق {target['close']}%\n"
         
@@ -5065,7 +5065,7 @@ async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 user_input_state[user_id] = f"building_auto_tp_target_{current_target + 1}_percent"
             
             message = f"""
-✅ **تم إضافة الهدف {current_target}!**
+ **تم إضافة الهدف {current_target}!**
 
 {preview}
 
@@ -5086,7 +5086,7 @@ async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE,
                     InlineKeyboardButton("10%", callback_data="quick_tp_10")
                 ],
                 [InlineKeyboardButton("✏️ إدخال رقم مخصص", callback_data="custom_tp_percent_input")],
-                [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+                [InlineKeyboardButton(" إلغاء", callback_data="edit_auto_settings")]
             ]
         else:
             # حفظ نهائي
@@ -5104,7 +5104,7 @@ async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE,
             
             if success:
                 message = f"""
-✅ **تم حفظ جميع الأهداف بنجاح!**
+ **تم حفظ جميع الأهداف بنجاح!**
 
 {preview}
 
@@ -5114,11 +5114,11 @@ async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 """
                 
                 keyboard = [[
-                    InlineKeyboardButton("✅ تفعيل التطبيق التلقائي", callback_data="toggle_auto_apply"),
+                    InlineKeyboardButton(" تفعيل التطبيق التلقائي", callback_data="toggle_auto_apply"),
                     InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")
                 ]]
             else:
-                message = "❌ فشل في حفظ الإعدادات"
+                message = " فشل في حفظ الإعدادات"
                 keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]
             
             # مسح البيانات المؤقتة
@@ -5155,11 +5155,11 @@ async def edit_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = f"""
 🛑 **تعديل Stop Loss التلقائي**
 
-{'✅ **الحالي:** -' + str(current_sl) + '%' if current_sl > 0 else '⏸️ **غير محدد حالياً**'}
+{' **الحالي:** -' + str(current_sl) + '%' if current_sl > 0 else ' **غير محدد حالياً**'}
 
 **اختر نسبة Stop Loss:**
 
-💡 **التوصيات:**
+ **التوصيات:**
 • **محافظ:** 1-2% (حماية قوية)
 • **متوازن:** 2-3% (موصى به)
 • **عدواني:** 3-5% (مجال أكبر)
@@ -5171,7 +5171,7 @@ async def edit_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton("1% 🛡️", callback_data="quick_sl_1"),
                 InlineKeyboardButton("1.5% 🛡️", callback_data="quick_sl_1.5"),
-                InlineKeyboardButton("2% ⭐", callback_data="quick_sl_2")
+                InlineKeyboardButton("2% ", callback_data="quick_sl_2")
             ],
             [
                 InlineKeyboardButton("2.5%", callback_data="quick_sl_2.5"),
@@ -5179,7 +5179,7 @@ async def edit_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("5%", callback_data="quick_sl_5")
             ],
             [InlineKeyboardButton("✏️ إدخال مخصص", callback_data="custom_sl_input")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_settings")]
+            [InlineKeyboardButton(" إلغاء", callback_data="edit_auto_settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -5188,7 +5188,7 @@ async def edit_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في edit_auto_sl: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def toggle_auto_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تبديل حالة Trailing Stop التلقائي"""
@@ -5200,17 +5200,17 @@ async def toggle_auto_trailing(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if trade_tools_manager.default_trailing_enabled:
             message = f"""
-✅ **تم تفعيل Trailing Stop التلقائي**
+ **تم تفعيل Trailing Stop التلقائي**
 
 ⚡ المسافة: {trade_tools_manager.default_trailing_distance}%
 
-💡 الآن كل صفقة جديدة ستحصل على Trailing Stop بدلاً من SL الثابت
+ الآن كل صفقة جديدة ستحصل على Trailing Stop بدلاً من SL الثابت
 
-⚠️ **تحذير:** Trailing Stop يتحرك مع السعر ولا يمكن أن ينخفض
+ **تحذير:** Trailing Stop يتحرك مع السعر ولا يمكن أن ينخفض
             """
         else:
             message = """
-⏸️ **تم تعطيل Trailing Stop التلقائي**
+ **تم تعطيل Trailing Stop التلقائي**
 
 الصفقات الجديدة ستحصل على Stop Loss ثابت
             """
@@ -5223,7 +5223,7 @@ async def toggle_auto_trailing(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"خطأ في toggle trailing: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def clear_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """حذف جميع الإعدادات التلقائية"""
@@ -5239,15 +5239,15 @@ async def clear_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
         trade_tools_manager.disable_auto_apply()
         
         message = """
-✅ **تم حذف جميع الإعدادات التلقائية**
+ **تم حذف جميع الإعدادات التلقائية**
 
-⏸️ تم تعطيل التطبيق التلقائي
+ تم تعطيل التطبيق التلقائي
 
-💡 يمكنك إعداد إعدادات جديدة في أي وقت
+ يمكنك إعداد إعدادات جديدة في أي وقت
         """
         
         keyboard = [[
-            InlineKeyboardButton("🎲 إعداد جديد", callback_data="quick_auto_setup"),
+            InlineKeyboardButton(" إعداد جديد", callback_data="quick_auto_setup"),
             InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -5257,7 +5257,7 @@ async def clear_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logger.error(f"خطأ في حذف الإعدادات: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة الإعدادات لكل مستخدم"""
@@ -5269,10 +5269,10 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not user_data:
         if update.message is not None:
-            await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+            await update.message.reply_text(" يرجى استخدام /start أولاً")
         return
     
-    auto_status = "✅" if trade_tools_manager.auto_apply_enabled else "⏸️"
+    auto_status = "" if trade_tools_manager.auto_apply_enabled else ""
     
     # الحصول على نوع السوق ونوع الحساب الحالي
     market_type = user_data.get('market_type', 'spot')
@@ -5281,9 +5281,9 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # بناء القائمة الأساسية
     keyboard = [
         [InlineKeyboardButton("🏦 اختيار المنصة (Bybit/MEXC)", callback_data="select_exchange")],
-        [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
+        [InlineKeyboardButton(" مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
-        [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]
+        [InlineKeyboardButton(" نوع الحساب", callback_data="set_account")]
     ]
     
     # إضافة زر الرافعة المالية فقط إذا كان السوق Futures
@@ -5312,7 +5312,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # الحصول على معلومات حساب المستخدم
     market_type = user_data.get('market_type', 'spot')
     
-    # 🔍 التحقق من نوع الحساب وجلب البيانات المناسبة
+    #  التحقق من نوع الحساب وجلب البيانات المناسبة
     if account_type == 'real':
         # 🔴 حساب حقيقي - جلب البيانات من المنصة عبر real_account_manager
         exchange = user_data.get('exchange', 'bybit')
@@ -5335,9 +5335,9 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         'unrealized_pnl': balance.get('unrealized_pnl', 0)
                     }
                     
-                    logger.info(f"✅ تم جلب بيانات المحفظة من {exchange} ({market_type}): الرصيد={account_info['balance']:.2f}, المتاح={account_info['available_balance']:.2f}")
+                    logger.info(f" تم جلب بيانات المحفظة من {exchange} ({market_type}): الرصيد={account_info['balance']:.2f}, المتاح={account_info['available_balance']:.2f}")
                 else:
-                    logger.warning(f"⚠️ فشل جلب بيانات المحفظة من {exchange}")
+                    logger.warning(f" فشل جلب بيانات المحفظة من {exchange}")
                     account_info = {
                         'balance': 0.0,
                         'available_balance': 0.0,
@@ -5345,7 +5345,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         'unrealized_pnl': 0.0
                     }
             else:
-                logger.warning(f"⚠️ الحساب الحقيقي غير مهيأ للمستخدم {user_id}")
+                logger.warning(f" الحساب الحقيقي غير مهيأ للمستخدم {user_id}")
                 account_info = {
                     'balance': 0.0,
                     'available_balance': 0.0,
@@ -5353,7 +5353,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'unrealized_pnl': 0.0
                 }
         except Exception as e:
-            logger.error(f"❌ خطأ في جلب بيانات المحفظة: {e}")
+            logger.error(f" خطأ في جلب بيانات المحفظة: {e}")
             import traceback
             traceback.print_exc()
             account_info = {
@@ -5409,14 +5409,14 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # بناء نص الإعدادات بشكل ديناميكي
     settings_text = f"""
-⚙️ إعدادات البوت الحالية:
+ إعدادات البوت الحالية:
 
-📊 حالة البوت: {bot_status}
+ حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
 
-💰 مبلغ التداول: {trade_amount}
+ مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
-👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}"""
+ نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}"""
     
     # إضافة معلومات الرافعة المالية فقط للفيوتشر
     if market_type == 'futures':
@@ -5424,14 +5424,14 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     settings_text += f"""
 
-📊 معلومات الحساب الحالي ({market_type.upper()}):
-💰 الرصيد الكلي: {account_info.get('balance', 0):.2f}
+ معلومات الحساب الحالي ({market_type.upper()}):
+ الرصيد الكلي: {account_info.get('balance', 0):.2f}
 💳 الرصيد المتاح: {account_info.get('available_balance', 0):.2f}"""
     
     # إضافة معلومات الهامش المحجوز فقط للفيوتشر
     if market_type == 'futures':
         settings_text += f"\n🔒 الهامش المحجوز: {account_info.get('margin_locked', 0):.2f}"
-        settings_text += f"\n📈 الربح/الخسارة غير المحققة: {account_info.get('unrealized_pnl', 0):.2f}"
+        settings_text += f"\n الربح/الخسارة غير المحققة: {account_info.get('unrealized_pnl', 0):.2f}"
     
     settings_text += "\n    "
     
@@ -5449,7 +5449,7 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
-        await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+        await update.message.reply_text(" لم يتم العثور على بيانات المستخدم")
         return
     
     try:
@@ -5458,21 +5458,21 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         market_type = user_data.get('market_type', 'spot')
         
         # بناء رسالة حالة الحساب
-        status_message = "📊 **حالة الحساب الفنية**\n\n"
+        status_message = " **حالة الحساب الفنية**\n\n"
         
         # معلومات الحساب الأساسية
         status_message += f"""
 🔐 **معلومات الحساب:**
-👤 نوع الحساب: {account_type.upper()}
+ نوع الحساب: {account_type.upper()}
 🏪 نوع السوق: {market_type.upper()}"""
         
         # إضافة الرافعة المالية فقط للفيوتشر
         if market_type.lower() == 'futures':
             status_message += f"""
-🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x"""
+ الرافعة المالية: {trading_bot.user_settings['leverage']}x"""
         
         status_message += f"""
-💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
+ مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
         """
         
         # حالة الاتصال
@@ -5484,33 +5484,33 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mexc_connected = user_data.get('mexc_api_connected', False)
             
             if bybit_connected:
-                status_message += "🏦 Bybit: 🟢 متصل ✅\n"
+                status_message += "🏦 Bybit: 🟢 متصل \n"
             else:
-                status_message += "🏦 Bybit: 🔴 غير متصل ❌\n"
+                status_message += "🏦 Bybit: 🔴 غير متصل \n"
             
             if mexc_connected:
-                status_message += "🏦 MEXC: 🟢 متصل ✅\n"
+                status_message += "🏦 MEXC: 🟢 متصل \n"
             else:
-                status_message += "🏦 MEXC: 🔴 غير متصل ❌\n"
+                status_message += "🏦 MEXC: 🔴 غير متصل \n"
             
             # معلومات API
             if bybit_connected or mexc_connected:
                 status_message += f"""
-📡 **معلومات API:**
+ **معلومات API:**
 🔑 API Keys: {'🟢 مفعلة' if user_data.get('api_connected', False) else '🔴 معطلة'}
 🔒 الصلاحيات: Trading Enabled
 🌐 البيئة: Production
 ⏰ آخر تحديث: {user_data.get('last_api_check', 'لم يتم التحقق')}
                 """
             else:
-                status_message += "\n⚠️ **لا توجد منصات مرتبطة**\n"
+                status_message += "\n **لا توجد منصات مرتبطة**\n"
                 status_message += "اذهب إلى الإعدادات لربط حسابك الحقيقي\n"
         else:
             status_message += f"""
 🔗 **حالة الاتصال:**
-🟢 الحساب التجريبي: نشط ✅
-📊 البيانات: محلية
-🔄 التحديث: فوري
+🟢 الحساب التجريبي: نشط 
+ البيانات: محلية
+ التحديث: فوري
 ⏰ آخر نشاط: {user_data.get('last_activity', 'الآن')}
             """
         
@@ -5522,28 +5522,28 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         status_message += f"""
 
-⚙️ **إعدادات التداول المتقدمة:**
-🎯 Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
-🎯 Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
-🔄 Auto Close: {'مفعل' if trading_bot.user_settings.get('auto_close', False) else 'معطل'}
-📊 Risk Management: {risk_management_status}
+ **إعدادات التداول المتقدمة:**
+ Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
+ Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
+ Auto Close: {'مفعل' if trading_bot.user_settings.get('auto_close', False) else 'معطل'}
+ Risk Management: {risk_management_status}
         """
         
         # معلومات النظام
         status_message += f"""
 
 🖥️ **معلومات النظام:**
-🤖 البوت: نشط ✅
-📡 Webhook: {user_data.get('webhook_url', 'غير محدد')}
-🔄 آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
-📊 إجمالي الإشارات: {user_data.get('total_signals', 0)}
+🤖 البوت: نشط 
+ Webhook: {user_data.get('webhook_url', 'غير محدد')}
+ آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
+ إجمالي الإشارات: {user_data.get('total_signals', 0)}
         """
         
         await update.message.reply_text(status_message, parse_mode='Markdown')
         
     except Exception as e:
         logger.error(f"خطأ في عرض حالة الحساب: {e}")
-        await update.message.reply_text("❌ خطأ في عرض حالة الحساب")
+        await update.message.reply_text(" خطأ في عرض حالة الحساب")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - محسن"""
@@ -5552,28 +5552,28 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id if update.effective_user else None
         
         if not user_id:
-            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            await update.message.reply_text(" خطأ في تحديد المستخدم")
             return
         
         # استخدام مدير المحفظة المحسن
         portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
         
-        # 🔍 التحقق من نوع الحساب
+        #  التحقق من نوع الحساب
         user_settings = user_manager.get_user_settings(user_id) if user_id else None
         account_type = user_settings.get('account_type', 'demo') if user_settings else 'demo'
         market_type = user_settings.get('market_type', 'spot') if user_settings else 'spot'
         
-        logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
-        logger.info(f"🔍 DEBUG: user_settings = {user_settings}")
+        logger.info(f" المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
+        logger.info(f" DEBUG: user_settings = {user_settings}")
         
         # استخدام الدالة الموحدة لجمع جميع الصفقات
         all_positions_list = portfolio_manager.get_all_user_positions_unified(account_type)
-        logger.info(f"🔍 DEBUG: all_positions_list = {all_positions_list}")
+        logger.info(f" DEBUG: all_positions_list = {all_positions_list}")
         
         # إضافة الصفقات مباشرة من user_manager.user_positions كإصلاح مؤقت
-        logger.info(f"🔍 DEBUG: جلب الصفقات مباشرة من user_manager.user_positions")
+        logger.info(f" DEBUG: جلب الصفقات مباشرة من user_manager.user_positions")
         direct_positions = user_manager.user_positions.get(user_id, {})
-        logger.info(f"🔍 DEBUG: direct_positions = {direct_positions}")
+        logger.info(f" DEBUG: direct_positions = {direct_positions}")
         
         # تحويل القائمة إلى قاموس
         all_positions = {}
@@ -5598,7 +5598,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # إضافة الصفقات مباشرة من user_manager.user_positions
         for position_id, position_info in direct_positions.items():
             if position_id not in all_positions:
-                logger.info(f"🔍 DEBUG: إضافة صفقة مباشرة: {position_id} = {position_info}")
+                logger.info(f" DEBUG: إضافة صفقة مباشرة: {position_id} = {position_info}")
                 all_positions[position_id] = {
                     'symbol': position_info.get('symbol'),
                     'entry_price': position_info.get('entry_price', 0),
@@ -5619,14 +5619,14 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 all_positions[position_id]['margin_amount'] = position_info.get('margin_amount', 0)
                 all_positions[position_id]['contracts'] = position_info.get('contracts', 0)
         
-        logger.info(f"📊 إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
-        logger.info(f"🔍 DEBUG: all_positions = {all_positions}")
+        logger.info(f" إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
+        logger.info(f" DEBUG: all_positions = {all_positions}")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
         
         if not all_positions:
-            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
+            message_text = " لا توجد صفقات مفتوحة حالياً"
             if update.callback_query is not None:
                 # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
                 if update.callback_query.message.text != message_text:
@@ -5658,7 +5658,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # إذا لم تكن هناك صفقات من أي نوع
         if not spot_positions and not futures_positions:
-            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
+            message_text = " لا توجد صفقات مفتوحة حالياً"
             if update.callback_query is not None:
                 # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
                 if update.callback_query.message.text != message_text:
@@ -5670,7 +5670,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"خطأ في عرض الصفقات المفتوحة: {e}")
         import traceback
         logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
-        error_message = f"❌ خطأ في عرض الصفقات المفتوحة: {e}"
+        error_message = f" خطأ في عرض الصفقات المفتوحة: {e}"
         if update.callback_query is not None:
             # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
             if update.callback_query.message.text != error_message:
@@ -5688,7 +5688,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_spot_positions_message(update: Update, spot_positions: dict):
     """إرسال رسالة صفقات السبوت مع عرض زر إغلاق وسعر الربح/الخسارة"""
     if not spot_positions:
-        message_text = "🔄 لا توجد صفقات سبوت مفتوحة حالياً"
+        message_text = " لا توجد صفقات سبوت مفتوحة حالياً"
         if update.callback_query is not None:
             # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
             if update.callback_query.message.text != message_text:
@@ -5697,7 +5697,7 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
             await update.message.reply_text(message_text)
         return
         
-    spot_text = "🔄 الصفقات المفتوحة - سبوت:\n\n"
+    spot_text = " الصفقات المفتوحة - سبوت:\n\n"
     spot_keyboard = []
     
     for position_id, position_info in spot_positions.items():
@@ -5734,7 +5734,7 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
                 pnl_percent = (pnl_value / amount) * 100
             
             # تحديد مؤشرات الربح/الخسارة
-            pnl_emoji = "🟢💰" if pnl_value >= 0 else "🔴💸"
+            pnl_emoji = "🟢" if pnl_value >= 0 else "🔴💸"
             pnl_status = "رابح" if pnl_value >= 0 else "خاسر"
             arrow = "⬆️" if pnl_value >= 0 else "⬇️"
             
@@ -5746,18 +5746,18 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:
-                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                        signal_id_display = f" ID الإشارة: {signal_id}\n"
                 except Exception as e:
                     logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
             
             spot_text += f"""
 {pnl_emoji} {symbol}
-🔄 النوع: {side.upper()}
+ النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: {current_price:.6f}
-💰 المبلغ: {amount:.2f}
+ المبلغ: {amount:.2f}
 {arrow} الربح/الخسارة: {pnl_value:.2f} ({pnl_percent:.2f}%) - {pnl_status}
-{signal_id_display}🆔 رقم الصفقة: {position_id}
+{signal_id_display} رقم الصفقة: {position_id}
             """
         else:
             # إضافة ID الإشارة إذا كان متاحاً
@@ -5768,27 +5768,27 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:
-                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                        signal_id_display = f" ID الإشارة: {signal_id}\n"
                 except Exception as e:
                     logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
             
             spot_text += f"""
-📊 {symbol}
-🔄 النوع: {side.upper()}
+ {symbol}
+ النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: غير متاح
-💰 المبلغ: {amount:.2f}
-{signal_id_display}🆔 رقم الصفقة: {position_id}
+ المبلغ: {amount:.2f}
+{signal_id_display} رقم الصفقة: {position_id}
             """
         
         # إضافة أزرار إدارة الصفقة
         pnl_display = f"({pnl_value:+.2f})" if current_price else ""
         spot_keyboard.append([
-            InlineKeyboardButton(f"⚙️ إدارة {symbol}", callback_data=f"manage_{position_id}"),
-            InlineKeyboardButton(f"❌ إغلاق {pnl_display}", callback_data=f"close_{position_id}")
+            InlineKeyboardButton(f" إدارة {symbol}", callback_data=f"manage_{position_id}"),
+            InlineKeyboardButton(f" إغلاق {pnl_display}", callback_data=f"close_{position_id}")
         ])
     
-    spot_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
+    spot_keyboard.append([InlineKeyboardButton(" تحديث", callback_data="refresh_positions")])
     spot_reply_markup = InlineKeyboardMarkup(spot_keyboard)
     
     if update.callback_query is not None:
@@ -5808,7 +5808,7 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
 async def send_futures_positions_message(update: Update, futures_positions: dict):
     """إرسال رسالة صفقات الفيوتشر مع معلومات مفصلة وزر إغلاق وسعر الربح/الخسارة"""
     if not futures_positions:
-        message_text = "🔄 لا توجد صفقات فيوتشر مفتوحة حالياً"
+        message_text = " لا توجد صفقات فيوتشر مفتوحة حالياً"
         if update.callback_query is not None:
             # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
             if update.callback_query.message.text != message_text:
@@ -5817,7 +5817,7 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
             await update.message.reply_text(message_text)
         return
         
-    futures_text = "🔄 الصفقات المفتوحة - فيوتشر:\n\n"
+    futures_text = " الصفقات المفتوحة - فيوتشر:\n\n"
     futures_keyboard = []
     
     account = trading_bot.demo_account_futures
@@ -5865,10 +5865,10 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
                 
                 # تحذير فقط إذا كان قريب 1% أو أقل
                 if distance_percent <= 1.0:
-                    liquidation_warning = "⚠️ قريب من التصفية! "
+                    liquidation_warning = " قريب من التصفية! "
             
             # تحديد مؤشرات الربح/الخسارة
-            pnl_emoji = "🟢💰" if unrealized_pnl >= 0 else "🔴💸"
+            pnl_emoji = "🟢" if unrealized_pnl >= 0 else "🔴💸"
             pnl_status = "رابح" if unrealized_pnl >= 0 else "خاسر"
             arrow = "⬆️" if unrealized_pnl >= 0 else "⬇️"
             
@@ -5880,22 +5880,22 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:
-                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                        signal_id_display = f" ID الإشارة: {signal_id}\n"
                 except Exception as e:
                     logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
             
             futures_text += f"""
 {liquidation_warning}{pnl_emoji} {symbol}
-🔄 النوع: {side.upper()}
+ النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: {current_price:.6f}
-💰 الهامش المحجوز: {margin_amount:.2f}
-📈 حجم الصفقة: {position_size:.2f}
+ الهامش المحجوز: {margin_amount:.2f}
+ حجم الصفقة: {position_size:.2f}
 {arrow} الربح/الخسارة: {unrealized_pnl:.2f} ({pnl_percent:.2f}%) - {pnl_status}
 ⚡ الرافعة: {leverage}x
-⚠️ سعر التصفية: {actual_position.liquidation_price:.6f}
-📊 عدد العقود: {actual_position.contracts:.6f}
-{signal_id_display}🆔 رقم الصفقة: {position_id}
+ سعر التصفية: {actual_position.liquidation_price:.6f}
+ عدد العقود: {actual_position.contracts:.6f}
+{signal_id_display} رقم الصفقة: {position_id}
             """
         else:
             # إضافة ID الإشارة إذا كان متاحاً
@@ -5906,30 +5906,30 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:
-                        signal_id_display = f"🆔 ID الإشارة: {signal_id}\n"
+                        signal_id_display = f" ID الإشارة: {signal_id}\n"
                 except Exception as e:
                     logger.warning(f"خطأ في الحصول على ID الإشارة: {e}")
             
             futures_text += f"""
-📊 {symbol}
-🔄 النوع: {side.upper()}
+ {symbol}
+ النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 السعر الحالي: غير متاح
-💰 الهامش المحجوز: {margin_amount:.2f}
-📈 حجم الصفقة: {position_size:.2f}
+ الهامش المحجوز: {margin_amount:.2f}
+ حجم الصفقة: {position_size:.2f}
 ⚡ الرافعة: {leverage}x
-⚠️ سعر التصفية: {liquidation_price:.6f}
-{signal_id_display}🆔 رقم الصفقة: {position_id}
+ سعر التصفية: {liquidation_price:.6f}
+{signal_id_display} رقم الصفقة: {position_id}
             """
         
         # إضافة أزرار إدارة الصفقة
         pnl_display = f"({unrealized_pnl:+.2f})" if current_price else ""
         futures_keyboard.append([
-            InlineKeyboardButton(f"⚙️ إدارة {symbol}", callback_data=f"manage_{position_id}"),
-            InlineKeyboardButton(f"❌ إغلاق {pnl_display}", callback_data=f"close_{position_id}")
+            InlineKeyboardButton(f" إدارة {symbol}", callback_data=f"manage_{position_id}"),
+            InlineKeyboardButton(f" إغلاق {pnl_display}", callback_data=f"close_{position_id}")
         ])
     
-    futures_keyboard.append([InlineKeyboardButton("🔄 تحديث", callback_data="refresh_positions")])
+    futures_keyboard.append([InlineKeyboardButton(" تحديث", callback_data="refresh_positions")])
     futures_reply_markup = InlineKeyboardMarkup(futures_keyboard)
     
     if update.callback_query is not None:
@@ -5950,7 +5950,7 @@ async def apply_tool_to_real_position(position_info: dict, tool_type: str, **kwa
     """تطبيق أداة على صفقة حقيقية عبر Bybit API"""
     try:
         if not trading_bot.bybit_api:
-            return False, "❌ API غير متاح"
+            return False, " API غير متاح"
         
         symbol = position_info['symbol']
         category = position_info.get('category', 'linear')
@@ -5958,7 +5958,7 @@ async def apply_tool_to_real_position(position_info: dict, tool_type: str, **kwa
         
         if not is_real:
             # صفقة تجريبية - لا حاجة لتطبيق عبر API
-            return True, "✅ تم التطبيق محلياً (صفقة تجريبية)"
+            return True, " تم التطبيق محلياً (صفقة تجريبية)"
         
         logger.info(f"🔴 تطبيق {tool_type} على صفقة حقيقية: {symbol}")
         
@@ -6009,20 +6009,20 @@ async def apply_tool_to_real_position(position_info: dict, tool_type: str, **kwa
             )
         
         else:
-            return False, f"❌ أداة غير مدعومة: {tool_type}"
+            return False, f" أداة غير مدعومة: {tool_type}"
         
         # التحقق من النتيجة
         if response.get("retCode") == 0:
-            logger.info(f"✅ تم تطبيق {tool_type} بنجاح على {symbol}")
-            return True, f"✅ تم تطبيق {tool_type} على المنصة بنجاح"
+            logger.info(f" تم تطبيق {tool_type} بنجاح على {symbol}")
+            return True, f" تم تطبيق {tool_type} على المنصة بنجاح"
         else:
             error_msg = response.get("retMsg", "خطأ غير محدد")
-            logger.error(f"❌ فشل تطبيق {tool_type}: {error_msg}")
-            return False, f"❌ فشل: {error_msg}"
+            logger.error(f" فشل تطبيق {tool_type}: {error_msg}")
+            return False, f" فشل: {error_msg}"
             
     except Exception as e:
         logger.error(f"خطأ في apply_tool_to_real_position: {e}")
-        return False, f"❌ خطأ: {e}"
+        return False, f" خطأ: {e}"
 
 async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض أدوات إدارة الصفقة (TP/SL/Partial Close) - يعمل مع الصفقات الحقيقية والتجريبية"""
@@ -6045,7 +6045,7 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
             position_info = trading_bot.open_positions.get(position_id)
         
         if not position_info:
-            await query.edit_message_text("❌ الصفقة غير موجودة")
+            await query.edit_message_text(" الصفقة غير موجودة")
             return
         
         # التحقق من نوع الصفقة
@@ -6083,8 +6083,8 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
             if rr_ratio > 0:
                 status_message += f"\n⚖️ نسبة المخاطرة/العائد: 1:{rr_ratio:.2f}"
         else:
-            status_message = f"📊 **إدارة الصفقة: {symbol}**\n\n"
-            status_message += f"🔄 النوع: {side.upper()}\n"
+            status_message = f" **إدارة الصفقة: {symbol}**\n\n"
+            status_message += f" النوع: {side.upper()}\n"
             status_message += f"💲 سعر الدخول: {entry_price:.6f}\n"
             status_message += f"💲 السعر الحالي: {current_price:.6f}\n"
         
@@ -6101,33 +6101,33 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [
             [
                 InlineKeyboardButton(
-                    f"🎯 أهداف الربح {'✅' if has_tp else '➕'}", 
+                    f" أهداف الربح {'' if has_tp else '➕'}", 
                     callback_data=f"setTP_menu_{position_id}"
                 ),
                 InlineKeyboardButton(
-                    f"🛑 وقف الخسارة {'✅' if has_sl else '➕'}", 
+                    f"🛑 وقف الخسارة {'' if has_sl else '➕'}", 
                     callback_data=f"setSL_menu_{position_id}"
                 )
             ],
             [
-                InlineKeyboardButton("📊 إغلاق جزئي مخصص", callback_data=f"partial_custom_{position_id}")
+                InlineKeyboardButton(" إغلاق جزئي مخصص", callback_data=f"partial_custom_{position_id}")
             ],
             [
                 InlineKeyboardButton(
-                    f"🔁 نقل للتعادل {'🔒' if is_breakeven else '⏸️'}", 
+                    f"🔁 نقل للتعادل {'🔒' if is_breakeven else ''}", 
                     callback_data=f"moveBE_{position_id}"
                 ),
                 InlineKeyboardButton(
-                    f"⚡ Trailing Stop {'✅' if is_trailing else '⏸️'}", 
+                    f"⚡ Trailing Stop {'' if is_trailing else ''}", 
                     callback_data=f"trailing_menu_{position_id}"
                 )
             ],
             [
-                InlineKeyboardButton("🎲 إعداد سريع (ذكي)", callback_data=f"quick_setup_{position_id}"),
+                InlineKeyboardButton(" إعداد سريع (ذكي)", callback_data=f"quick_setup_{position_id}"),
                 InlineKeyboardButton("ℹ️ دليل الأدوات", callback_data=f"tools_guide_{position_id}")
             ],
             [
-                InlineKeyboardButton("❌ إغلاق كامل", callback_data=f"close_{position_id}"),
+                InlineKeyboardButton(" إغلاق كامل", callback_data=f"close_{position_id}"),
                 InlineKeyboardButton("🔙 رجوع", callback_data="show_positions")
             ]
         ]
@@ -6140,7 +6140,7 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
         import traceback
         logger.error(traceback.format_exc())
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def show_tools_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض دليل استخدام الأدوات"""
@@ -6153,17 +6153,17 @@ async def show_tools_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
         guide_text = """
 📚 **دليل أدوات إدارة الصفقات**
 
-🎯 **أهداف الربح (Take Profit)**
+ **أهداف الربح (Take Profit)**
 تحديد مستويات أسعار لإغلاق أجزاء من الصفقة تلقائياً عند الربح
 • يمكن إضافة عدة أهداف بنسب مختلفة
 • مثال: TP1 عند +2% إغلاق 50%
 
 🛑 **وقف الخسارة (Stop Loss)**
 حماية رأس المال بإغلاق الصفقة عند خسارة محددة
-• ⚠️ تحذير: Trailing Stop يُلغي SL الثابت تلقائياً
+•  تحذير: Trailing Stop يُلغي SL الثابت تلقائياً
 • ينصح بتعيينه عند -2% من سعر الدخول
 
-📊 **الإغلاق الجزئي**
+ **الإغلاق الجزئي**
 إغلاق نسبة معينة من الصفقة يدوياً
 • يمكن إدخال أي نسبة من 1% إلى 100%
 • مفيد لتأمين الأرباح مع استمرار الصفقة
@@ -6175,18 +6175,18 @@ async def show_tools_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚡ **Trailing Stop (الإيقاف المتحرك)**
 SL يتحرك تلقائياً مع السعر في اتجاه الربح
-• ⚠️ تفعيله يُلغي SL الثابت
+•  تفعيله يُلغي SL الثابت
 • يحمي الأرباح المتراكمة
 • المسافة الافتراضية: 2%
 
-🎲 **الإعداد السريع**
+ **الإعداد السريع**
 تطبيق إعدادات ذكية متوازنة:
 • 3 أهداف: 1.5%, 3%, 5%
 • نسب الإغلاق: 50%, 30%, 20%
 • Stop Loss: -2%
 • نقل تلقائي للتعادل عند TP1
 
-💡 **نصائح ذكية:**
+ **نصائح ذكية:**
 1. لا تستخدم Trailing Stop و SL الثابت معاً
 2. نقل SL للتعادل بعد تحقيق ربح معقول
 3. نسبة R:R المثالية: 1:2 أو أكثر
@@ -6200,7 +6200,7 @@ SL يتحرك تلقائياً مع السعر في اتجاه الربح
     except Exception as e:
         logger.error(f"خطأ في عرض الدليل: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_tp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة تعيين أهداف الربح"""
@@ -6211,7 +6211,7 @@ async def set_tp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         position_id = query.data.replace("setTP_menu_", "")
         
         message = """
-🎯 **تعيين أهداف الربح**
+ **تعيين أهداف الربح**
 
 اختر طريقة التعيين:
 
@@ -6224,7 +6224,7 @@ async def set_tp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         
         keyboard = [
-            [InlineKeyboardButton("🎲 تلقائي (ذكي)", callback_data=f"autoTP_{position_id}")],
+            [InlineKeyboardButton(" تلقائي (ذكي)", callback_data=f"autoTP_{position_id}")],
             [InlineKeyboardButton("✏️ إدخال مخصص", callback_data=f"customTP_{position_id}")],
             [InlineKeyboardButton("🗑️ حذف جميع الأهداف", callback_data=f"clearTP_{position_id}")],
             [InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]
@@ -6236,7 +6236,7 @@ async def set_tp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في قائمة TP: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_sl_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة تعيين وقف الخسارة"""
@@ -6258,7 +6258,7 @@ async def set_sl_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 **مخصص:** أدخل نسبة الخسارة المقبولة
 
-⚠️ **تحذير:** تفعيل Trailing Stop سيُلغي SL الثابت تلقائياً
+ **تحذير:** تفعيل Trailing Stop سيُلغي SL الثابت تلقائياً
         """
         
         keyboard = [
@@ -6274,7 +6274,7 @@ async def set_sl_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في قائمة SL: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def trailing_stop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة Trailing Stop"""
@@ -6290,14 +6290,14 @@ async def trailing_stop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         message = f"""
 ⚡ **Trailing Stop (الإيقاف المتحرك)**
 
-الحالة: {'✅ **نشط**' if is_active else '⏸️ **غير نشط**'}
+الحالة: {' **نشط**' if is_active else ' **غير نشط**'}
 
 **كيف يعمل؟**
 يتحرك SL تلقائياً مع السعر في اتجاه الربح، ولا ينخفض أبداً
 
 **المسافة:** النسبة بين السعر الحالي و SL
 
-⚠️ **تحذير:** تفعيله سيُلغي Stop Loss الثابت
+ **تحذير:** تفعيله سيُلغي Stop Loss الثابت
 
 **مثال:** 
 سعر الدخول: 100$
@@ -6309,7 +6309,7 @@ async def trailing_stop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         keyboard = [
             [InlineKeyboardButton("⚡ تفعيل (2%)", callback_data=f"trailing_{position_id}")],
             [InlineKeyboardButton("✏️ مسافة مخصصة", callback_data=f"customTrailing_{position_id}")],
-            [InlineKeyboardButton("⏸️ تعطيل", callback_data=f"stopTrailing_{position_id}")],
+            [InlineKeyboardButton(" تعطيل", callback_data=f"stopTrailing_{position_id}")],
             [InlineKeyboardButton("🔙 رجوع", callback_data=f"manage_{position_id}")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -6319,7 +6319,7 @@ async def trailing_stop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.error(f"خطأ في قائمة Trailing: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def custom_partial_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """طلب إدخال نسبة مخصصة للإغلاق الجزئي"""
@@ -6334,7 +6334,7 @@ async def custom_partial_close(update: Update, context: ContextTypes.DEFAULT_TYP
             user_input_state[user_id] = f"waiting_partial_percentage_{position_id}"
         
         message = """
-📊 **إغلاق جزئي مخصص**
+ **إغلاق جزئي مخصص**
 
 أدخل النسبة المئوية التي تريد إغلاقها من الصفقة:
 
@@ -6345,10 +6345,10 @@ async def custom_partial_close(update: Update, context: ContextTypes.DEFAULT_TYP
 
 **النطاق المسموح:** من 1 إلى 100
 
-💡 **نصيحة:** ابق على الأقل 20% من الصفقة مفتوحة للاستفادة من الحركة
+ **نصيحة:** ابق على الأقل 20% من الصفقة مفتوحة للاستفادة من الحركة
         """
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"manage_{position_id}")]]
+        keyboard = [[InlineKeyboardButton(" إلغاء", callback_data=f"manage_{position_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -6356,7 +6356,7 @@ async def custom_partial_close(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"خطأ في custom partial: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إعداد سريع ذكي لجميع الأدوات"""
@@ -6376,9 +6376,9 @@ async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if success:
             message = """
-✅ **تم تطبيق الإعداد الذكي بنجاح!**
+ **تم تطبيق الإعداد الذكي بنجاح!**
 
-🎯 **أهداف الربح:**
+ **أهداف الربح:**
 • TP1: +1.5% → إغلاق 50%
 • TP2: +3.0% → إغلاق 30%
 • TP3: +5.0% → إغلاق 20%
@@ -6389,23 +6389,23 @@ async def quick_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚖️ **نسبة المخاطرة/العائد:** 1:2.5
 
-💡 هذه إعدادات متوازنة توفر حماية جيدة مع إمكانية ربح معقولة
+ هذه إعدادات متوازنة توفر حماية جيدة مع إمكانية ربح معقولة
             """
             
             keyboard = [[
-                InlineKeyboardButton("⚙️ تعديل", callback_data=f"manage_{position_id}"),
-                InlineKeyboardButton("✅ تم", callback_data="show_positions")
+                InlineKeyboardButton(" تعديل", callback_data=f"manage_{position_id}"),
+                InlineKeyboardButton(" تم", callback_data="show_positions")
             ]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
         else:
-            await query.edit_message_text("❌ فشل في تطبيق الإعداد السريع")
+            await query.edit_message_text(" فشل في تطبيق الإعداد السريع")
             
     except Exception as e:
         logger.error(f"خطأ في quick setup: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def custom_tp_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """طلب إدخال Take Profit مخصص"""
@@ -6420,7 +6420,7 @@ async def custom_tp_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = f"waiting_custom_tp_{position_id}"
         
         message = """
-🎯 **إدخال هدف ربح مخصص**
+ **إدخال هدف ربح مخصص**
 
 أدخل البيانات بالصيغة التالية:
 `نسبة_الربح نسبة_الإغلاق`
@@ -6433,7 +6433,7 @@ async def custom_tp_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 **نصيحة:** يمكنك إدخال عدة أهداف، كل واحد في رسالة منفصلة
         """
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"setTP_menu_{position_id}")]]
+        keyboard = [[InlineKeyboardButton(" إلغاء", callback_data=f"setTP_menu_{position_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -6441,7 +6441,7 @@ async def custom_tp_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في custom TP input: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def custom_sl_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """طلب إدخال Stop Loss مخصص"""
@@ -6466,10 +6466,10 @@ async def custom_sl_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `1` → SL عند -1% (محافظ)
 • `5` → SL عند -5% (عدواني)
 
-⚠️ **تحذير:** نسبة أقل = حماية أفضل، لكن احتمالية خروج مبكر أعلى
+ **تحذير:** نسبة أقل = حماية أفضل، لكن احتمالية خروج مبكر أعلى
         """
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"setSL_menu_{position_id}")]]
+        keyboard = [[InlineKeyboardButton(" إلغاء", callback_data=f"setSL_menu_{position_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -6477,7 +6477,7 @@ async def custom_sl_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في custom SL input: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def custom_trailing_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """طلب إدخال مسافة Trailing Stop مخصصة"""
@@ -6501,15 +6501,15 @@ async def custom_trailing_input(update: Update, context: ContextTypes.DEFAULT_TY
 • `2` → مسافة 2% (موصى به)
 • `3` → مسافة 3%
 
-💡 **ملاحظة:**
+ **ملاحظة:**
 - مسافة أصغر = حماية أسرع للأرباح
 - مسافة أكبر = حرية أكثر للسعر
 - الافتراضي: 2%
 
-⚠️ **تحذير:** سيُلغي Stop Loss الثابت
+ **تحذير:** سيُلغي Stop Loss الثابت
         """
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"trailing_menu_{position_id}")]]
+        keyboard = [[InlineKeyboardButton(" إلغاء", callback_data=f"trailing_menu_{position_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -6517,7 +6517,7 @@ async def custom_trailing_input(update: Update, context: ContextTypes.DEFAULT_TY
     except Exception as e:
         logger.error(f"خطأ في custom trailing input: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def clear_take_profits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """حذف جميع أهداف الربح"""
@@ -6529,13 +6529,13 @@ async def clear_take_profits(update: Update, context: ContextTypes.DEFAULT_TYPE)
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
         if not managed_pos:
-            await query.edit_message_text("❌ الصفقة غير موجودة")
+            await query.edit_message_text(" الصفقة غير موجودة")
             return
         
         managed_pos.take_profits.clear()
         
         await query.edit_message_text(
-            "✅ تم حذف جميع أهداف الربح",
+            " تم حذف جميع أهداف الربح",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 رجوع", callback_data=f"setTP_menu_{position_id}")
             ]])
@@ -6544,7 +6544,7 @@ async def clear_take_profits(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.error(f"خطأ في حذف TP: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def clear_stop_loss(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """حذف Stop Loss"""
@@ -6556,13 +6556,13 @@ async def clear_stop_loss(update: Update, context: ContextTypes.DEFAULT_TYPE):
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
         if not managed_pos:
-            await query.edit_message_text("❌ الصفقة غير موجودة")
+            await query.edit_message_text(" الصفقة غير موجودة")
             return
         
         managed_pos.stop_loss = None
         
         await query.edit_message_text(
-            "✅ تم حذف Stop Loss\n\n⚠️ تحذير: الصفقة الآن بدون حماية!",
+            " تم حذف Stop Loss\n\n تحذير: الصفقة الآن بدون حماية!",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 رجوع", callback_data=f"setSL_menu_{position_id}")
             ]])
@@ -6571,7 +6571,7 @@ async def clear_stop_loss(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في حذف SL: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def stop_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إيقاف Trailing Stop"""
@@ -6583,7 +6583,7 @@ async def stop_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
         if not managed_pos or not managed_pos.stop_loss:
-            await query.edit_message_text("❌ لا يوجد Stop Loss نشط")
+            await query.edit_message_text(" لا يوجد Stop Loss نشط")
             return
         
         if not managed_pos.stop_loss.is_trailing:
@@ -6595,7 +6595,7 @@ async def stop_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
         managed_pos.stop_loss.trailing_distance = 0
         
         await query.edit_message_text(
-            f"✅ تم تعطيل Trailing Stop\n\n"
+            f" تم تعطيل Trailing Stop\n\n"
             f"🛑 Stop Loss الحالي ثابت عند: {managed_pos.stop_loss.price:.6f}",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 رجوع", callback_data=f"trailing_menu_{position_id}")
@@ -6605,7 +6605,7 @@ async def stop_trailing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"خطأ في إيقاف trailing: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعيين أهداف تلقائية ذكية"""
@@ -6619,22 +6619,22 @@ async def set_auto_tp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if success:
             await query.edit_message_text(
-                "✅ تم تعيين أهداف تلقائية:\n\n"
-                "🎯 TP1: 1.5% (إغلاق 50%)\n"
-                "🎯 TP2: 3.0% (إغلاق 30%)\n"
-                "🎯 TP3: 5.0% (إغلاق 20%)\n\n"
+                " تم تعيين أهداف تلقائية:\n\n"
+                " TP1: 1.5% (إغلاق 50%)\n"
+                " TP2: 3.0% (إغلاق 30%)\n"
+                " TP3: 5.0% (إغلاق 20%)\n\n"
                 "سيتم نقل Stop Loss للتعادل عند تحقيق TP1",
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
                 ]])
             )
         else:
-            await query.edit_message_text("❌ فشل في تعيين الأهداف التلقائية")
+            await query.edit_message_text(" فشل في تعيين الأهداف التلقائية")
             
     except Exception as e:
         logger.error(f"خطأ في تعيين الأهداف التلقائية: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def set_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تعيين ستوب لوز تلقائي بنسبة 2%"""
@@ -6646,7 +6646,7 @@ async def set_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
         if not managed_pos:
-            await query.edit_message_text("❌ الصفقة غير موجودة في النظام المدار")
+            await query.edit_message_text(" الصفقة غير موجودة في النظام المدار")
             return
         
         # تعيين SL بنسبة 2%
@@ -6659,21 +6659,21 @@ async def set_auto_sl(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if success:
             await query.edit_message_text(
-                f"✅ تم تعيين Stop Loss:\n\n"
+                f" تم تعيين Stop Loss:\n\n"
                 f"🛑 السعر: {sl_price:.6f}\n"
-                f"📉 المخاطرة: 2% من رأس المال\n\n"
-                f"💡 نصيحة: سيتم نقله للتعادل عند تحقيق أول هدف",
+                f" المخاطرة: 2% من رأس المال\n\n"
+                f" نصيحة: سيتم نقله للتعادل عند تحقيق أول هدف",
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
                 ]])
             )
         else:
-            await query.edit_message_text("❌ فشل في تعيين Stop Loss")
+            await query.edit_message_text(" فشل في تعيين Stop Loss")
             
     except Exception as e:
         logger.error(f"خطأ في تعيين Stop Loss التلقائي: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إغلاق جزئي للصفقة"""
@@ -6708,7 +6708,7 @@ async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_T
             position_info = trading_bot.open_positions.get(position_id)
         
         if not position_info:
-            await query.edit_message_text("❌ الصفقة غير موجودة")
+            await query.edit_message_text(" الصفقة غير موجودة")
             return
         
         # التحقق من نوع الصفقة
@@ -6723,9 +6723,9 @@ async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_T
             )
             
             if success:
-                await query.edit_message_text(f"✅ تم إغلاق {percentage}% من الصفقة على المنصة\n\n{msg}")
+                await query.edit_message_text(f" تم إغلاق {percentage}% من الصفقة على المنصة\n\n{msg}")
             else:
-                await query.edit_message_text(f"❌ فشل الإغلاق الجزئي\n\n{msg}")
+                await query.edit_message_text(f" فشل الإغلاق الجزئي\n\n{msg}")
             return
         
         # 🟢 صفقة تجريبية - الإغلاق داخل البوت
@@ -6760,25 +6760,25 @@ async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_T
             account.balance += pnl
             account.margin_locked -= close_amount
         
-        pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
+        pnl_emoji = "🟢" if pnl >= 0 else "🔴💸"
         message = f"""
 {pnl_emoji} تم إغلاق {percentage}% من الصفقة (تجريبي)
 
-📊 الرمز: {position_info['symbol']}
-🔄 النوع: {side.upper()}
+ الرمز: {position_info['symbol']}
+ النوع: {side.upper()}
 💲 سعر الإغلاق: {current_price:.6f}
-💰 المبلغ المغلق: {close_amount:.2f}
+ المبلغ المغلق: {close_amount:.2f}
 {pnl_emoji} الربح/الخسارة: {pnl:+.2f}
 
-📈 المتبقي: {position_info['amount']:.2f} ({100-percentage}%)
-💰 الرصيد الجديد: {account.balance:.2f}
+ المتبقي: {position_info['amount']:.2f} ({100-percentage}%)
+ الرصيد الجديد: {account.balance:.2f}
         """
         
         await query.edit_message_text(
             message,
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 رجوع للإدارة", callback_data=f"manage_{position_id}"),
-                InlineKeyboardButton("📊 الصفقات المفتوحة", callback_data="show_positions")
+                InlineKeyboardButton(" الصفقات المفتوحة", callback_data="show_positions")
             ]])
         )
         
@@ -6787,7 +6787,7 @@ async def partial_close_position(update: Update, context: ContextTypes.DEFAULT_T
         import traceback
         logger.error(traceback.format_exc())
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def move_sl_to_breakeven(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """نقل Stop Loss إلى نقطة التعادل"""
@@ -6799,7 +6799,7 @@ async def move_sl_to_breakeven(update: Update, context: ContextTypes.DEFAULT_TYP
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
         if not managed_pos or not managed_pos.stop_loss:
-            await query.edit_message_text("❌ لا يوجد Stop Loss مُعيّن لهذه الصفقة")
+            await query.edit_message_text(" لا يوجد Stop Loss مُعيّن لهذه الصفقة")
             return
         
         if managed_pos.stop_loss.moved_to_breakeven:
@@ -6810,20 +6810,20 @@ async def move_sl_to_breakeven(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if success:
             await query.edit_message_text(
-                f"✅ تم نقل Stop Loss إلى التعادل!\n\n"
+                f" تم نقل Stop Loss إلى التعادل!\n\n"
                 f"🔒 السعر الجديد: {managed_pos.entry_price:.6f}\n"
-                f"✨ الآن الصفقة محمية من الخسارة",
+                f" الآن الصفقة محمية من الخسارة",
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
                 ]])
             )
         else:
-            await query.edit_message_text("❌ فشل في نقل Stop Loss")
+            await query.edit_message_text(" فشل في نقل Stop Loss")
             
     except Exception as e:
         logger.error(f"خطأ في نقل SL للتعادل: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def enable_trailing_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تفعيل Trailing Stop"""
@@ -6835,7 +6835,7 @@ async def enable_trailing_stop(update: Update, context: ContextTypes.DEFAULT_TYP
         managed_pos = trade_tools_manager.get_managed_position(position_id)
         
         if not managed_pos:
-            await query.edit_message_text("❌ الصفقة غير موجودة في النظام المدار")
+            await query.edit_message_text(" الصفقة غير موجودة في النظام المدار")
             return
         
         # تعيين trailing stop بمسافة 2%
@@ -6851,10 +6851,10 @@ async def enable_trailing_stop(update: Update, context: ContextTypes.DEFAULT_TYP
             managed_pos.stop_loss.trailing_distance = 2.0
         
         await query.edit_message_text(
-            f"✅ تم تفعيل Trailing Stop!\n\n"
+            f" تم تفعيل Trailing Stop!\n\n"
             f"⚡ المسافة: 2%\n"
             f"🔒 السعر الحالي: {managed_pos.stop_loss.price:.6f}\n\n"
-            f"💡 سيتحرك Stop Loss تلقائياً مع تحرك السعر لصالحك",
+            f" سيتحرك Stop Loss تلقائياً مع تحرك السعر لصالحك",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 عودة للإدارة", callback_data=f"manage_{position_id}")
             ]])
@@ -6863,7 +6863,7 @@ async def enable_trailing_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"خطأ في تفعيل Trailing Stop: {e}")
         if update.callback_query:
-            await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
+            await update.callback_query.edit_message_text(f" خطأ: {e}")
 
 async def close_position(position_id: str, update: Update, context: ContextTypes.DEFAULT_TYPE):
     """إغلاق صفقة مع دعم محسن للفيوتشر"""
@@ -6887,7 +6887,7 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
         
         if not position_info:
             if update.callback_query is not None:
-                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+                await update.callback_query.edit_message_text(" الصفقة غير موجودة")
             return
         
         symbol = position_info['symbol']
@@ -6927,12 +6927,12 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                     
                     # مؤشرات بصرية واضحة للربح والخسارة
                     if pnl > 0:
-                        pnl_emoji = "🟢💰✅"
+                        pnl_emoji = "🟢"
                         status_text = "رابحة"
                         arrow = "⬆️💚"
                         visual_indicator = "🟩🟩🟩🟩🟩"
                     else:
-                        pnl_emoji = "🔴💸❌"
+                        pnl_emoji = "🔴💸"
                         status_text = "خاسرة"
                         arrow = "⬇️💔"
                         visual_indicator = "🟥🟥🟥🟥🟥"
@@ -6945,42 +6945,42 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                         pnl_percent = (pnl / margin_amount) * 100 if margin_amount > 0 else 0
                         
                         message = f"""
-✅ تم إغلاق صفقة الفيوتشر
+ تم إغلاق صفقة الفيوتشر
 {pnl_emoji} {symbol}
 {visual_indicator}
-🔄 النوع: {position_info['side'].upper()}
+ النوع: {position_info['side'].upper()}
 💲 سعر الدخول: {position_info['entry_price']:.6f}
 💲 سعر الإغلاق: {current_price:.6f}
-💰 الهامش المحجوز: {margin_amount:.2f}
-📈 حجم الصفقة: {position_size:.2f}
+ الهامش المحجوز: {margin_amount:.2f}
+ حجم الصفقة: {position_size:.2f}
 {arrow} الربح/الخسارة: {pnl:.2f} ({pnl_percent:.2f}%) - {status_text}
 ⚡ الرافعة: {leverage}x
-⚠️ سعر التصفية كان: {liquidation_price:.6f}
-📊 عدد العقود: {trade_record.get('contracts', 0):.6f}
+ سعر التصفية كان: {liquidation_price:.6f}
+ عدد العقود: {trade_record.get('contracts', 0):.6f}
 
-💰 رصيد الحساب الجديد: {account.balance:.2f}
+ رصيد الحساب الجديد: {account.balance:.2f}
 💳 الرصيد المتاح: {account.get_available_balance():.2f}
 🔒 الهامش المحجوز: {account.margin_locked:.2f}
-📈 إجمالي الصفقات: {account.total_trades}
-✅ الصفقات الرابحة: {account.winning_trades}
-❌ الصفقات الخاسرة: {account.losing_trades}
-🎯 معدل النجاح: {account.get_account_info()['win_rate']}%
+ إجمالي الصفقات: {account.total_trades}
+ الصفقات الرابحة: {account.winning_trades}
+ الصفقات الخاسرة: {account.losing_trades}
+ معدل النجاح: {account.get_account_info()['win_rate']}%
                         """
                     else:
                         message = f"""
-✅ تم إغلاق الصفقة التجريبية
+ تم إغلاق الصفقة التجريبية
 {pnl_emoji} {symbol}
 {visual_indicator}
-🔄 النوع: {position_info['side'].upper()}
+ النوع: {position_info['side'].upper()}
 💲 سعر الدخول: {position_info['entry_price']:.6f}
 💲 سعر الإغلاق: {current_price:.6f}
 {arrow} الربح/الخسارة: {pnl:.2f} ({status_text})
 
-💰 رصيد الحساب الجديد: {account.balance:.2f}
-📈 إجمالي الصفقات: {account.total_trades}
-✅ الصفقات الرابحة: {account.winning_trades}
-❌ الصفقات الخاسرة: {account.losing_trades}
-🎯 معدل النجاح: {account.get_account_info()['win_rate']}%
+ رصيد الحساب الجديد: {account.balance:.2f}
+ إجمالي الصفقات: {account.total_trades}
+ الصفقات الرابحة: {account.winning_trades}
+ الصفقات الخاسرة: {account.losing_trades}
+ معدل النجاح: {account.get_account_info()['win_rate']}%
                         """
                     
                     if update.callback_query is not None:
@@ -6988,13 +6988,13 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                 else:
                     # إذا لم يكن trade_record dict أو لم يحتوي على 'pnl'
                     message = f"""
-✅ تم إغلاق الصفقة التجريبية
-📊 {symbol}
-🔄 النوع: {position_info['side'].upper()}
+ تم إغلاق الصفقة التجريبية
+ {symbol}
+ النوع: {position_info['side'].upper()}
 💲 سعر الدخول: {position_info['entry_price']:.6f}
 💲 سعر الإغلاق: {current_price:.6f}
 
-💰 رصيد الحساب الجديد: {account.balance:.2f}
+ رصيد الحساب الجديد: {account.balance:.2f}
                     """
                     
                     if update.callback_query is not None:
@@ -7012,16 +7012,16 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
                 
             else:
                 if update.callback_query is not None:
-                    await update.callback_query.edit_message_text(f"❌ فشل في إغلاق الصفقة: {result}")
+                    await update.callback_query.edit_message_text(f" فشل في إغلاق الصفقة: {result}")
         else:
             # إغلاق الصفقة الحقيقية (يتطلب تنفيذ API إضافي)
             if update.callback_query is not None:
-                await update.callback_query.edit_message_text("⚠️ إغلاق الصفقات الحقيقية يتطلب تنفيذاً يدوياً حالياً")
+                await update.callback_query.edit_message_text(" إغلاق الصفقات الحقيقية يتطلب تنفيذاً يدوياً حالياً")
         
     except Exception as e:
         logger.error(f"خطأ في إغلاق الصفقة: {e}")
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text(f"❌ خطأ في إغلاق الصفقة: {e}")
+            await update.callback_query.edit_message_text(f" خطأ في إغلاق الصفقة: {e}")
 
 async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض تاريخ التداول مع تفاصيل محسنة للفيوتشر"""
@@ -7061,9 +7061,9 @@ async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 'is_real': True
                             })
                     
-                    logger.info(f"✅ تم جلب {len(all_history)} أمر من {exchange}")
+                    logger.info(f" تم جلب {len(all_history)} أمر من {exchange}")
                 except Exception as e:
-                    logger.error(f"❌ خطأ في جلب تاريخ الأوامر: {e}")
+                    logger.error(f" خطأ في جلب تاريخ الأوامر: {e}")
         else:
             # الحصول على تاريخ الصفقات من الحسابات التجريبية
             spot_history = trading_bot.demo_account_spot.trade_history
@@ -7077,11 +7077,11 @@ async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if not all_history:
             if update.message is not None:
-                await update.message.reply_text("📋 لا يوجد تاريخ صفقات حتى الآن")
+                await update.message.reply_text(" لا يوجد تاريخ صفقات حتى الآن")
             return
         
         # عرض أول 10 صفقات
-        history_text = "📋 تاريخ التداول (آخر 10 صفقات):\n\n"
+        history_text = " تاريخ التداول (آخر 10 صفقات):\n\n"
         for i, trade in enumerate(all_history[:10], 1):
             symbol = trade.get('symbol', 'N/A')
             side = trade.get('side', 'N/A')
@@ -7104,7 +7104,7 @@ async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 time_str = str(timestamp)
             
             # تحديد مؤشرات الربح/الخسارة
-            pnl_emoji = "🟢💰" if pnl > 0 else "🔴💸"
+            pnl_emoji = "🟢" if pnl > 0 else "🔴💸"
             status_text = "رابحة" if pnl > 0 else "خاسرة"
             arrow = "⬆️💚" if pnl > 0 else "⬇️💔"
             visual_indicator = "🟩🟩🟩🟩🟩" if pnl > 0 else "🟥🟥🟥🟥🟥"
@@ -7114,14 +7114,14 @@ async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 history_text += f"""
 {pnl_emoji} {symbol} (FUTURES)
-🔄 النوع: {side.upper()}
+ النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 سعر الإغلاق: {closing_price:.6f}
-💰 الهامش: {margin_amount:.2f}
-📈 حجم الصفقة: {position_size:.2f}
+ الهامش: {margin_amount:.2f}
+ حجم الصفقة: {position_size:.2f}
 {arrow} الربح/الخسارة: {pnl:.2f} ({pnl_percent:.2f}%) - {status_text}
 ⚡ الرافعة: {leverage}x
-⚠️ سعر التصفية: {liquidation_price:.6f}
+ سعر التصفية: {liquidation_price:.6f}
 {visual_indicator}
 
 exampleInputEmail: {time_str}
@@ -7131,7 +7131,7 @@ exampleInputEmail: {time_str}
             else:
                 history_text += f"""
 {pnl_emoji} {symbol} (SPOT)
-🔄 النوع: {side.upper()}
+ النوع: {side.upper()}
 💲 سعر الدخول: {entry_price:.6f}
 💲 سعر الإغلاق: {closing_price:.6f}
 {arrow} الربح/الخسارة: {pnl:.2f} ({status_text})
@@ -7148,7 +7148,7 @@ exampleInputEmail: {time_str}
     except Exception as e:
         logger.error(f"خطأ في عرض تاريخ التداول: {e}")
         if update.message is not None:
-            await update.message.reply_text(f"❌ خطأ في عرض تاريخ التداول: {e}")
+            await update.message.reply_text(f" خطأ في عرض تاريخ التداول: {e}")
 
 async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض نظرة عامة ذكية على المحفظة مع دعم متعدد المنصات - محسن"""
@@ -7159,7 +7159,7 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
-        await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+        await update.message.reply_text(" لم يتم العثور على بيانات المستخدم")
         return
     
     try:
@@ -7171,7 +7171,7 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         account_type = user_data.get('account_type', 'demo')
         market_type = user_data.get('market_type', 'spot')
         
-        wallet_message = "💰 **المحفظة الذكية المحسنة**\n\n"
+        wallet_message = " **المحفظة الذكية المحسنة**\n\n"
         
         if account_type == 'demo':
             # عرض الحساب التجريبي
@@ -7204,29 +7204,29 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # تحديد حالة PnL
             if total_pnl > 0:
-                total_pnl_arrow = "📈"
+                total_pnl_arrow = ""
                 total_pnl_status = "ربح"
             elif total_pnl < 0:
-                total_pnl_arrow = "📉"
+                total_pnl_arrow = ""
                 total_pnl_status = "خسارة"
             else:
                 total_pnl_arrow = "➖"
                 total_pnl_status = "متعادل"
             
             wallet_message += f"""
-📊 **الرصيد التجريبي:**
+ **الرصيد التجريبي:**
 💳 الرصيد الكلي: {total_balance:.2f} USDT
 💳 الرصيد المتاح: {total_available:.2f} USDT
 🔒 الهامش المحجوز: {total_margin_locked:.2f} USDT
 💼 القيمة الصافية: {total_equity:.2f} USDT
 {total_pnl_arrow} إجمالي PnL: {total_pnl:.2f} USDT - {total_pnl_status}
 
-📈 **إحصائيات التداول:**
-🔄 الصفقات المفتوحة: {total_open_positions}
-📊 إجمالي الصفقات: {total_trades}
-✅ الصفقات الرابحة: {total_winning_trades}
-❌ الصفقات الخاسرة: {total_losing_trades}
-🎯 معدل النجاح: {total_win_rate}%
+ **إحصائيات التداول:**
+ الصفقات المفتوحة: {total_open_positions}
+ إجمالي الصفقات: {total_trades}
+ الصفقات الرابحة: {total_winning_trades}
+ الصفقات الخاسرة: {total_losing_trades}
+ معدل النجاح: {total_win_rate}%
 
 🏪 **تفاصيل الحسابات:**
 • السبوت: {spot_info['balance']:.2f} USDT
@@ -7267,12 +7267,12 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🏦 **Bybit:**
 💳 الرصيد: {bybit_info.get('balance', 0):.2f} USDT
 💳 المتاح: {bybit_info.get('available_balance', 0):.2f} USDT
-📈 PnL: {bybit_info.get('unrealized_pnl', 0):.2f} USDT
-🔄 الصفقات: {bybit_info.get('open_positions', 0)}
+ PnL: {bybit_info.get('unrealized_pnl', 0):.2f} USDT
+ الصفقات: {bybit_info.get('open_positions', 0)}
                         """
                 except Exception as e:
                     logger.error(f"خطأ في جلب بيانات Bybit: {e}")
-                    wallet_message += "\n🏦 **Bybit:** ❌ خطأ في الاتصال\n"
+                    wallet_message += "\n🏦 **Bybit:**  خطأ في الاتصال\n"
             
             if mexc_connected:
                 try:
@@ -7289,57 +7289,57 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🏦 **MEXC:**
 💳 الرصيد: {mexc_info.get('balance', 0):.2f} USDT
 💳 المتاح: {mexc_info.get('available_balance', 0):.2f} USDT
-📈 PnL: {mexc_info.get('unrealized_pnl', 0):.2f} USDT
-🔄 الصفقات: {mexc_info.get('open_positions', 0)}
+ PnL: {mexc_info.get('unrealized_pnl', 0):.2f} USDT
+ الصفقات: {mexc_info.get('open_positions', 0)}
                         """
                 except Exception as e:
                     logger.error(f"خطأ في جلب بيانات MEXC: {e}")
-                    wallet_message += "\n🏦 **MEXC:** ❌ خطأ في الاتصال\n"
+                    wallet_message += "\n🏦 **MEXC:**  خطأ في الاتصال\n"
             
             if not bybit_connected and not mexc_connected:
-                wallet_message += "\n⚠️ **لا توجد منصات مرتبطة**\n"
+                wallet_message += "\n **لا توجد منصات مرتبطة**\n"
                 wallet_message += "اذهب إلى الإعدادات لربط حسابك الحقيقي\n"
             else:
                 # عرض الإجمالي
                 if total_real_pnl > 0:
-                    total_pnl_arrow = "📈"
+                    total_pnl_arrow = ""
                     total_pnl_status = "ربح"
                 elif total_real_pnl < 0:
-                    total_pnl_arrow = "📉"
+                    total_pnl_arrow = ""
                     total_pnl_status = "خسارة"
                 else:
                     total_pnl_arrow = "➖"
                     total_pnl_status = "متعادل"
                 
                 wallet_message += f"""
-📊 **الإجمالي:**
+ **الإجمالي:**
 💳 الرصيد الكلي: {total_real_balance:.2f} USDT
 💳 الرصيد المتاح: {total_real_available:.2f} USDT
 {total_pnl_arrow} إجمالي PnL: {total_real_pnl:.2f} USDT - {total_pnl_status}
-🔄 الصفقات المفتوحة: {total_real_positions}
+ الصفقات المفتوحة: {total_real_positions}
                 """
         
         # إضافة معلومات إضافية
         wallet_message += f"""
 
-⚙️ **إعدادات التداول:**
+ **إعدادات التداول:**
 🏪 نوع السوق: {market_type.upper()}
-💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
-🔢 الرافعة المالية: {trading_bot.user_settings['leverage']}x
-🎯 Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
-🎯 Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
+ مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
+ الرافعة المالية: {trading_bot.user_settings['leverage']}x
+ Stop Loss: {trading_bot.user_settings.get('stop_loss', 'غير محدد')}%
+ Take Profit: {trading_bot.user_settings.get('take_profit', 'غير محدد')}%
 
 📅 **معلومات الحساب:**
-👤 نوع الحساب: {account_type.upper()}
+ نوع الحساب: {account_type.upper()}
 🔗 حالة API: {'🟢 مرتبط' if user_data.get('api_connected', False) else '🔴 غير مرتبط'}
-📡 آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
+ آخر إشارة: {user_data.get('last_signal_time', 'لم يتم استقبال إشارات')}
         """
         
         await update.message.reply_text(wallet_message, parse_mode='Markdown')
         
     except Exception as e:
         logger.error(f"خطأ في عرض المحفظة: {e}")
-        await update.message.reply_text("❌ خطأ في عرض معلومات المحفظة")
+        await update.message.reply_text(" خطأ في عرض معلومات المحفظة")
 
 async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض تحليل الأداء والربحية المتقدم"""
@@ -7350,7 +7350,7 @@ async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
-        await update.message.reply_text("❌ لم يتم العثور على بيانات المستخدم")
+        await update.message.reply_text(" لم يتم العثور على بيانات المستخدم")
         return
     
     try:
@@ -7409,36 +7409,36 @@ async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # بناء رسالة التحليل
         analysis_message = f"""
-📊 **تحليل الأداء والربحية**
+ **تحليل الأداء والربحية**
 
 {performance_color} **مستوى الأداء:** {performance_level}
-🎯 معدل النجاح: {total_win_rate:.1f}%
+ معدل النجاح: {total_win_rate:.1f}%
 
-📈 **إحصائيات الأداء:**
-🔄 الصفقات المفتوحة: {total_open_positions}
-📊 إجمالي الصفقات: {total_trades}
-✅ الصفقات الرابحة: {total_winning_trades}
-❌ الصفقات الخاسرة: {total_losing_trades}
+ **إحصائيات الأداء:**
+ الصفقات المفتوحة: {total_open_positions}
+ إجمالي الصفقات: {total_trades}
+ الصفقات الرابحة: {total_winning_trades}
+ الصفقات الخاسرة: {total_losing_trades}
 
-📊 **تحليل الربحية:**
-📈 متوسط الربح: {avg_profit:.2f} USDT
-📉 متوسط الخسارة: {avg_loss:.2f} USDT
+ **تحليل الربحية:**
+ متوسط الربح: {avg_profit:.2f} USDT
+ متوسط الخسارة: {avg_loss:.2f} USDT
 ⚖️ نسبة الربح/الخسارة: {profit_loss_ratio:.2f}
-📊 مؤشر شارب: {sharpe_ratio:.2f}
+ مؤشر شارب: {sharpe_ratio:.2f}
 
-💰 **الرصيد الحالي:**
+ **الرصيد الحالي:**
 💳 الرصيد الكلي: {total_balance:.2f} USDT
 💳 الرصيد المتاح: {total_available:.2f} USDT
 🔒 الهامش المحجوز: {total_margin_locked:.2f} USDT
 💼 القيمة الصافية: {total_equity:.2f} USDT
 
-📊 **تحليل السوق:**
+ **تحليل السوق:**
 🏪 السبوت: {spot_info['balance']:.2f} USDT
 🏪 الفيوتشر: {futures_info['balance']:.2f} USDT
-📈 PnL السبوت: {spot_info['unrealized_pnl']:.2f} USDT
-📈 PnL الفيوتشر: {futures_info['unrealized_pnl']:.2f} USDT
+ PnL السبوت: {spot_info['unrealized_pnl']:.2f} USDT
+ PnL الفيوتشر: {futures_info['unrealized_pnl']:.2f} USDT
 
-🎯 **التوصيات:**
+ **التوصيات:**
 {_get_trading_recommendations(total_win_rate, total_trades, profit_loss_ratio)}
         """
         
@@ -7446,18 +7446,18 @@ async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
         
     except Exception as e:
         logger.error(f"خطأ في عرض تحليل الأداء: {e}")
-        await update.message.reply_text("❌ خطأ في عرض تحليل الأداء")
+        await update.message.reply_text(" خطأ في عرض تحليل الأداء")
 
 def _get_trading_recommendations(win_rate, total_trades, profit_loss_ratio):
     """الحصول على توصيات التداول"""
     recommendations = []
     
     if total_trades < 10:
-        recommendations.append("📊 تحتاج المزيد من الصفقات لتقييم دقيق")
+        recommendations.append(" تحتاج المزيد من الصفقات لتقييم دقيق")
     elif win_rate < 40:
-        recommendations.append("⚠️ معدل النجاح منخفض - راجع استراتيجيتك")
+        recommendations.append(" معدل النجاح منخفض - راجع استراتيجيتك")
     elif win_rate > 70:
-        recommendations.append("🎉 أداء ممتاز - استمر في استراتيجيتك")
+        recommendations.append(" أداء ممتاز - استمر في استراتيجيتك")
     
     if profit_loss_ratio < 1:
         recommendations.append("⚖️ نسبة الربح/الخسارة منخفضة - حسّن إدارة المخاطر")
@@ -7465,7 +7465,7 @@ def _get_trading_recommendations(win_rate, total_trades, profit_loss_ratio):
         recommendations.append("💎 نسبة ممتازة - استراتيجية فعالة")
     
     if not recommendations:
-        recommendations.append("📈 أداء متوازن - استمر في التطوير")
+        recommendations.append(" أداء متوازن - استمر في التطوير")
     
     return "\n".join(recommendations)
 
@@ -7484,7 +7484,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id if update.effective_user else None
     data = query.data
     
-    logger.info(f"📥 Callback received: {data} from user {user_id}")
+    logger.info(f" Callback received: {data} from user {user_id}")
     
     # معالجة زر اختيار المنصة
     if data == "select_exchange":
@@ -7551,13 +7551,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # تأكيد الإغلاق
         keyboard = [
-            [InlineKeyboardButton("✅ نعم، أغلق الصفقة", callback_data=f"confirm_close_{symbol}")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="open_positions")]
+            [InlineKeyboardButton(" نعم، أغلق الصفقة", callback_data=f"confirm_close_{symbol}")],
+            [InlineKeyboardButton(" إلغاء", callback_data="open_positions")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            f"⚠️ **تأكيد إغلاق الصفقة**\n\n"
+            f" **تأكيد إغلاق الصفقة**\n\n"
             f"هل أنت متأكد من إغلاق صفقة {symbol}؟\n\n"
             f"سيتم تنفيذ الإغلاق على المنصة الحقيقية!",
             reply_markup=reply_markup,
@@ -7576,14 +7576,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if result:
             await query.edit_message_text(
-                f"✅ **تم إغلاق الصفقة بنجاح!**\n\n"
+                f" **تم إغلاق الصفقة بنجاح!**\n\n"
                 f"💎 الرمز: {symbol}\n"
                 f"⚡ تم التنفيذ على المنصة الحقيقية",
                 parse_mode='Markdown'
             )
         else:
             await query.edit_message_text(
-                f"❌ **فشل إغلاق الصفقة**\n\n"
+                f" **فشل إغلاق الصفقة**\n\n"
                 f"حاول مرة أخرى أو تحقق من الاتصال",
                 parse_mode='Markdown'
             )
@@ -7597,9 +7597,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text("""
 🔗 ربط API - الخطوة 1 من 2
 
-📝 أرسل API_KEY الخاص بك من Bybit
+ أرسل API_KEY الخاص بك من Bybit
 
-⚠️ تأكد من:
+ تأكد من:
 • عدم مشاركة المفاتيح مع أي شخص
 • إنشاء مفاتيح API محدودة الصلاحيات
 • تفعيل صلاحيات القراءة والكتابة والتداول
@@ -7620,29 +7620,29 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_data and user_data.get('api_key') and user_data.get('api_secret'):
                 # عرض رسالة فحص
                 if update.callback_query is not None:
-                    await update.callback_query.edit_message_text("🔄 جاري فحص API...")
+                    await update.callback_query.edit_message_text(" جاري فحص API...")
                 
                 # التحقق من صحة API
                 is_valid = await check_api_connection(user_data['api_key'], user_data['api_secret'])
                 
                 if is_valid:
                     status_message = """
-✅ API يعمل بشكل صحيح!
+ API يعمل بشكل صحيح!
 
 🟢 الاتصال: نشط
 🔗 الخادم: https://api.bybit.com
-📊 الصلاحيات: مفعلة
+ الصلاحيات: مفعلة
 🔐 الحالة: آمن
 
 يمكنك استخدام جميع ميزات البوت
                     """
                 else:
                     status_message = """
-❌ مشكلة في API!
+ مشكلة في API!
 
 🔴 الاتصال: فشل
 🔗 الخادم: https://api.bybit.com
-📊 الصلاحيات: غير مفعلة أو خطأ في المفاتيح
+ الصلاحيات: غير مفعلة أو خطأ في المفاتيح
 🔐 الحالة: غير آمن
 
 يرجى تحديث API keys
@@ -7666,12 +7666,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if update.callback_query is not None:
                     await update.callback_query.message.edit_text("""
-❌ لا توجد API keys!
+ لا توجد API keys!
 
 🔴 يجب ربط API أولاً
 🔗 اضغط على "ربط API" للبدء
 
-⚠️ بدون API keys، البوت يعمل في الوضع التجريبي فقط
+ بدون API keys، البوت يعمل في الوضع التجريبي فقط
                     """, reply_markup=reply_markup)
     # معالجة زر تشغيل/إيقاف البوت
     elif data == "toggle_bot":
@@ -7680,7 +7680,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if success:
                 user_data = user_manager.get_user(user_id)
                 is_active = user_data.get('is_active', False)
-                status_text = "✅ تم تشغيل البوت بنجاح" if is_active else "⏹️ تم إيقاف البوت"
+                status_text = " تم تشغيل البوت بنجاح" if is_active else "⏹️ تم إيقاف البوت"
                 if update.callback_query is not None:
                     await update.callback_query.edit_message_text(status_text)
                 # العودة إلى قائمة الإعدادات
@@ -7688,7 +7688,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await settings_menu(update, context)
             else:
                 if update.callback_query is not None:
-                    await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
+                    await update.callback_query.edit_message_text(" فشل في تبديل حالة البوت")
     elif data == "info":
         info_text = """
 ℹ️ معلومات البوت
@@ -7751,19 +7751,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "quick_auto_setup":
         await quick_auto_setup(update, context)
     elif data == "edit_auto_settings":
-        logger.info(f"🔧 معالجة زر: edit_auto_settings")
+        logger.info(f" معالجة زر: edit_auto_settings")
         await edit_auto_settings(update, context)
     elif data == "edit_auto_tp":
-        logger.info(f"🔧 معالجة زر: edit_auto_tp")
+        logger.info(f" معالجة زر: edit_auto_tp")
         await edit_auto_tp(update, context)
     elif data == "edit_auto_sl":
-        logger.info(f"🔧 معالجة زر: edit_auto_sl")
+        logger.info(f" معالجة زر: edit_auto_sl")
         await edit_auto_sl(update, context)
     elif data == "toggle_auto_trailing":
-        logger.info(f"🔧 معالجة زر: toggle_auto_trailing")
+        logger.info(f" معالجة زر: toggle_auto_trailing")
         await toggle_auto_trailing(update, context)
     elif data == "clear_auto_settings":
-        logger.info(f"🔧 معالجة زر: clear_auto_settings")
+        logger.info(f" معالجة زر: clear_auto_settings")
         await clear_auto_settings(update, context)
     elif data.startswith("auto_tp_targets_"):
         await set_auto_tp_targets_count(update, context)
@@ -7788,7 +7788,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         if success:
             await query.edit_message_text(
-                f"✅ **تم حفظ Stop Loss!**\n\n🛑 النسبة: -{sl_value}%",
+                f" **تم حفظ Stop Loss!**\n\n🛑 النسبة: -{sl_value}%",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]),
                 parse_mode='Markdown'
             )
@@ -7798,7 +7798,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = "waiting_auto_sl_input"
         await query.edit_message_text(
             "🛑 **إدخال Stop Loss مخصص**\n\nأدخل النسبة كرقم (مثال: 2.5):",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_sl")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(" إلغاء", callback_data="edit_auto_sl")]]),
             parse_mode='Markdown'
         )
     elif data == "custom_tp_percent_input":
@@ -7811,14 +7811,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = f"building_auto_tp_target_{current_target}_percent"
         
         await query.edit_message_text(
-            f"🎯 **هدف الربح رقم {current_target} من {total_count}**\n\n"
+            f" **هدف الربح رقم {current_target} من {total_count}**\n\n"
             f"✏️ **إدخال مخصص**\n\n"
             f"أدخل نسبة الربح كرقم:\n\n"
             f"**أمثلة:**\n"
             f"• `2.5` → هدف عند +2.5%\n"
             f"• `7` → هدف عند +7%\n"
             f"• `15.5` → هدف عند +15.5%\n\n"
-            f"📊 **النطاق:** 0.1% إلى 100%",
+            f" **النطاق:** 0.1% إلى 100%",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_tp")]]),
             parse_mode='Markdown'
         )
@@ -7833,15 +7833,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = f"building_auto_tp_target_{current_target}_close"
         
         await query.edit_message_text(
-            f"🎯 **هدف الربح رقم {current_target} من {total_count}**\n\n"
-            f"✅ **نسبة الربح:** +{tp_pct}%\n\n"
+            f" **هدف الربح رقم {current_target} من {total_count}**\n\n"
+            f" **نسبة الربح:** +{tp_pct}%\n\n"
             f"✏️ **إدخال مخصص**\n\n"
             f"أدخل نسبة الإغلاق كرقم:\n\n"
             f"**أمثلة:**\n"
             f"• `40` → إغلاق 40%\n"
             f"• `60` → إغلاق 60%\n"
             f"• `85.5` → إغلاق 85.5%\n\n"
-            f"📊 **النطاق:** 1% إلى 100%",
+            f" **النطاق:** 1% إلى 100%",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_tp")]]),
             parse_mode='Markdown'
         )
@@ -7886,7 +7886,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_trade_amount"
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
+            await update.callback_query.edit_message_text(" أدخل مبلغ التداول الجديد:")
     elif data == "set_market":
         # تنفيذ إعداد نوع السوق
         keyboard = [
@@ -7997,7 +7997,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = f"""
 🔗 روابط استقبال الإشارات
 
-📡 رابطك الشخصي (موصى به):
+ رابطك الشخصي (موصى به):
 `{personal_webhook_url}`
 
 • يستخدم إعداداتك الخاصة
@@ -8006,7 +8006,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-📋 كيفية الاستخدام في TradingView:
+ كيفية الاستخدام في TradingView:
 
 1️⃣ افتح استراتيجيتك في TradingView
 2️⃣ اذهب إلى Settings → Notifications
@@ -8022,12 +8022,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 }}
 ```
 
-💡 الإجراءات المدعومة:
+ الإجراءات المدعومة:
 • `buy` - شراء
 • `sell` - بيع  
 • `close` - إغلاق الصفقة
 
-💡 نصائح:
+ نصائح:
 • استخدم رابطك الشخصي للحصول على تجربة أفضل
 • يمكنك نسخ الرابط بالضغط عليه
 • الرابط يعمل مع TradingView و أي منصة إشارات أخرى
@@ -8063,9 +8063,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if update.callback_query:
             await update.callback_query.message.edit_text(
-                f"✅ الاتجاه: {action.upper()}\n\n"
-                f"📝 الخطوة 3 من 5\n\n"
-                f"💰 أدخل المبلغ (بالدولار):\n"
+                f" الاتجاه: {action.upper()}\n\n"
+                f" الخطوة 3 من 5\n\n"
+                f" أدخل المبلغ (بالدولار):\n"
                 f"مثال: 100"
             )
     elif data == "dev_market_spot" or data == "dev_market_futures":
@@ -8080,8 +8080,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if update.callback_query:
                 await update.callback_query.message.edit_text(
-                    f"✅ نوع السوق: {market_type.upper()}\n\n"
-                    f"📝 الخطوة 5 من 5\n\n"
+                    f" نوع السوق: {market_type.upper()}\n\n"
+                    f" الخطوة 5 من 5\n\n"
                     f"⚡ أدخل الرافعة المالية (1-100):\n"
                     f"مثال: 10"
                 )
@@ -8091,20 +8091,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             signal_data['leverage'] = 1  # لا رافعة في السبوت
             
             confirm_message = f"""
-✅ تم تجهيز الإشارة!
+ تم تجهيز الإشارة!
 
-📊 الملخص:
+ الملخص:
 💎 الرمز: {signal_data['symbol']}
 {'🟢' if signal_data['action'] == 'buy' else '🔴'} الاتجاه: {signal_data['action'].upper()}
-💰 المبلغ: {signal_data['amount']}
+ المبلغ: {signal_data['amount']}
 🏪 السوق: {signal_data['market_type'].upper()}
 
 ❓ هل تريد إرسال هذه الإشارة للمتابعين؟
 """
             
             keyboard = [
-                [InlineKeyboardButton("✅ نعم، إرسال", callback_data="dev_confirm_signal")],
-                [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+                [InlineKeyboardButton(" نعم، إرسال", callback_data="dev_confirm_signal")],
+                [InlineKeyboardButton(" إلغاء", callback_data="developer_panel")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -8124,7 +8124,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not followers:
                 if update.callback_query:
                     await update.callback_query.message.edit_text(
-                        "❌ لا يوجد متابعين لإرسال الإشارة إليهم\n\n"
+                        " لا يوجد متابعين لإرسال الإشارة إليهم\n\n"
                         "يجب أن يكون لديك متابعين نشطين أولاً."
                     )
                 return
@@ -8139,24 +8139,24 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 failed_count = result.get('failed', 0) if isinstance(result, dict) else 0
                 
                 success_message = f"""
-✅ تم إرسال الإشارة بنجاح!
+ تم إرسال الإشارة بنجاح!
 
-📊 التفاصيل:
+ التفاصيل:
 💎 الرمز: {signal_data['symbol']}
-📊 الاتجاه: {signal_data['action'].upper()}
-💰 المبلغ: {signal_data['amount']}
+ الاتجاه: {signal_data['action'].upper()}
+ المبلغ: {signal_data['amount']}
 🏪 السوق: {signal_data['market_type'].upper()}
 """
                 if signal_data['market_type'] == 'futures':
                     success_message += f"⚡ الرافعة: {signal_data['leverage']}x\n"
                 
                 success_message += f"""
-📈 النتائج:
-✅ نجح: {success_count} متابع
-❌ فشل: {failed_count} متابع
-📊 الإجمالي: {len(followers)} متابع
+ النتائج:
+ نجح: {success_count} متابع
+ فشل: {failed_count} متابع
+ الإجمالي: {len(followers)} متابع
 
-💡 تم فتح الصفقات تلقائياً على حسابات المتابعين النشطين!
+ تم فتح الصفقات تلقائياً على حسابات المتابعين النشطين!
 """
                 
                 # حذف البيانات المؤقتة
@@ -8174,7 +8174,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if update.callback_query:
                     await update.callback_query.message.edit_text(
-                        f"❌ حدث خطأ في إرسال الإشارة:\n\n{str(e)}\n\n"
+                        f" حدث خطأ في إرسال الإشارة:\n\n{str(e)}\n\n"
                         "يرجى المحاولة مرة أخرى."
                     )
     elif data.startswith("dev_signal_"):
@@ -8202,32 +8202,32 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if result['success']:
                     message = f"""
-✅ تم إرسال الإشارة بنجاح!
+ تم إرسال الإشارة بنجاح!
 
-📊 التفاصيل:
+ التفاصيل:
 • الرمز: {symbol}
 • الإجراء: {action}
 • السعر: {price}
 • عدد المستلمين: {result['follower_count']}
                     """
-                    await update.callback_query.answer("✅ تم الإرسال!")
+                    await update.callback_query.answer(" تم الإرسال!")
                     await update.callback_query.message.reply_text(message)
                 else:
-                    await update.callback_query.answer(f"❌ {result['message']}")
+                    await update.callback_query.answer(f" {result['message']}")
             except Exception as e:
                 logger.error(f"خطأ في إرسال الإشارة: {e}")
-                await update.callback_query.answer("❌ خطأ في الإرسال")
+                await update.callback_query.answer(" خطأ في الإرسال")
     elif data == "dev_toggle_active":
         if user_id:
             success = developer_manager.toggle_developer_active(user_id)
             if success:
-                await update.callback_query.answer("✅ تم التبديل")
+                await update.callback_query.answer(" تم التبديل")
                 stats = developer_manager.get_developer_statistics(user_id)
                 message = f"""
-⚙️ إعدادات المطور
+ إعدادات المطور
 
 حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
-صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
+صلاحية البث: {' مفعلة' if stats['can_broadcast'] else ' معطلة'}
                 """
                 keyboard = [
                     [InlineKeyboardButton("تبديل الحالة", callback_data="dev_toggle_active")],
@@ -8236,7 +8236,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
             else:
-                await update.callback_query.answer("❌ فشل التبديل")
+                await update.callback_query.answer(" فشل التبديل")
     elif data.startswith("dev_remove_follower_"):
         # معالجة إزالة متابع
         follower_id_str = data.replace("dev_remove_follower_", "")
@@ -8245,13 +8245,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id:
                 success = developer_manager.remove_follower(user_id, follower_id)
                 if success:
-                    await update.callback_query.answer(f"✅ تم إزالة المتابع {follower_id}")
+                    await update.callback_query.answer(f" تم إزالة المتابع {follower_id}")
                     # تحديث قائمة المتابعين
                     await handle_show_followers(update, context)
                 else:
-                    await update.callback_query.answer("❌ فشل في الإزالة")
+                    await update.callback_query.answer(" فشل في الإزالة")
         except ValueError:
-            await update.callback_query.answer("❌ خطأ في ID المتابع")
+            await update.callback_query.answer(" خطأ في ID المتابع")
     elif data == "dev_toggle_auto_broadcast":
         # تبديل حالة التوزيع التلقائي
         if user_id:
@@ -8264,21 +8264,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 stats = developer_manager.get_developer_statistics(user_id)
                 
                 message = f"""
-⚙️ إعدادات المطور
+ إعدادات المطور
 
-🔧 الإعدادات الحالية:
+ الإعدادات الحالية:
 • حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
-• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
-• 📡 التوزيع التلقائي للإشارات: {'✅ مُفعّل' if new_state else '❌ مُعطّل'}
+• صلاحية البث: {' مفعلة' if stats['can_broadcast'] else ' معطلة'}
+•  التوزيع التلقائي للإشارات: {' مُفعّل' if new_state else ' مُعطّل'}
 
-💡 التوزيع التلقائي:
+ التوزيع التلقائي:
 عند التفعيل، أي صفقة تفتحها على حسابك ستُرسل تلقائياً لجميع متابعيك!
                 """
                 
                 keyboard = [
                     [InlineKeyboardButton("تبديل الحالة", callback_data="dev_toggle_active")],
                     [InlineKeyboardButton(
-                        f"{'❌ تعطيل' if new_state else '✅ تفعيل'} التوزيع التلقائي", 
+                        f"{' تعطيل' if new_state else ' تفعيل'} التوزيع التلقائي", 
                         callback_data="dev_toggle_auto_broadcast"
                     )],
                     [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
@@ -8286,9 +8286,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
-                await update.callback_query.answer(f"✅ التوزيع التلقائي: {'مُفعّل' if new_state else 'مُعطّل'}")
+                await update.callback_query.answer(f" التوزيع التلقائي: {'مُفعّل' if new_state else 'مُعطّل'}")
             else:
-                await update.callback_query.answer("❌ فشل في تبديل الحالة")
+                await update.callback_query.answer(" فشل في تبديل الحالة")
     elif data == "dev_refresh_users":
         # تحديث قائمة المستخدمين
         if user_id:
@@ -8299,12 +8299,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message = f"""
 👥 إحصائيات المستخدمين
 
-📊 الأعداد:
+ الأعداد:
 • إجمالي المستخدمين: {len(all_users_data)}
 • المستخدمين النشطين: {len(active_users)}
 • متابعي Nagdat: {len(followers)} 👥
 
-📋 قائمة المستخدمين النشطين:
+ قائمة المستخدمين النشطين:
             """
             
             for i, uid in enumerate(active_users[:15], 1):
@@ -8319,19 +8319,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             keyboard = [
                 [InlineKeyboardButton("👥 عرض المتابعين", callback_data="dev_show_followers")],
-                [InlineKeyboardButton("🔄 تحديث", callback_data="dev_refresh_users")],
+                [InlineKeyboardButton(" تحديث", callback_data="dev_refresh_users")],
                 [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
-            await update.callback_query.answer("✅ تم التحديث")
+            await update.callback_query.answer(" تم التحديث")
     
     else:
         # معالجة أي أزرار أخرى غير محددة
-        logger.warning(f"⚠️ Unsupported button: {data}")
+        logger.warning(f" Unsupported button: {data}")
         if update.callback_query is not None:
-            await update.callback_query.edit_message_text(f"❌ زر غير مدعوم: {data}\n\nيرجى الإبلاغ عن هذا الخطأ")
+            await update.callback_query.edit_message_text(f" زر غير مدعوم: {data}\n\nيرجى الإبلاغ عن هذا الخطأ")
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
@@ -8343,13 +8343,13 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # معالجة أزرار المطور
     if user_id and developer_manager.is_developer(user_id):
-        if text == "📡 إرسال إشارة":
+        if text == " إرسال إشارة":
             await handle_send_signal_developer(update, context)
             return
         elif text == "👥 المتابعين":
             await handle_show_followers(update, context)
             return
-        elif text == "📊 إحصائيات المطور":
+        elif text == " إحصائيات المطور":
             await handle_developer_stats(update, context)
             return
         elif text == "👥 إدارة المستخدمين":
@@ -8361,12 +8361,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message = f"""
 👥 إحصائيات المستخدمين
 
-📊 الأعداد:
+ الأعداد:
 • إجمالي المستخدمين: {len(all_users_data)}
 • المستخدمين النشطين: {len(active_users)}
 • متابعي Nagdat: {len(followers)} 👥
 
-📋 قائمة المستخدمين النشطين:
+ قائمة المستخدمين النشطين:
             """
             
             for i, uid in enumerate(active_users[:15], 1):
@@ -8381,7 +8381,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             keyboard = [
                 [InlineKeyboardButton("👥 عرض المتابعين", callback_data="dev_show_followers")],
-                [InlineKeyboardButton("🔄 تحديث", callback_data="dev_refresh_users")],
+                [InlineKeyboardButton(" تحديث", callback_data="dev_refresh_users")],
                 [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -8393,27 +8393,27 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id:
                 user_input_state[user_id] = "waiting_for_broadcast_message"
             return
-        elif text == "⚙️ إعدادات المطور":
+        elif text == " إعدادات المطور":
             stats = developer_manager.get_developer_statistics(user_id)
             
             # الحصول على حالة التوزيع التلقائي من قاعدة البيانات
             auto_broadcast = db_manager.get_auto_broadcast_status(user_id)
             
             message = f"""
-⚙️ إعدادات المطور
+ إعدادات المطور
 
-🔧 الإعدادات الحالية:
+ الإعدادات الحالية:
 • حالة النظام: {'🟢 نشط' if stats['is_active'] else '🔴 غير نشط'}
-• صلاحية البث: {'✅ مفعلة' if stats['can_broadcast'] else '❌ معطلة'}
-• 📡 التوزيع التلقائي للإشارات: {'✅ مُفعّل' if auto_broadcast else '❌ مُعطّل'}
+• صلاحية البث: {' مفعلة' if stats['can_broadcast'] else ' معطلة'}
+•  التوزيع التلقائي للإشارات: {' مُفعّل' if auto_broadcast else ' مُعطّل'}
 
-💡 التوزيع التلقائي:
+ التوزيع التلقائي:
 عند التفعيل، أي صفقة تفتحها على حسابك ستُرسل تلقائياً لجميع متابعيك!
             """
             keyboard = [
                 [InlineKeyboardButton("تبديل الحالة", callback_data="dev_toggle_active")],
                 [InlineKeyboardButton(
-                    f"{'❌ تعطيل' if auto_broadcast else '✅ تفعيل'} التوزيع التلقائي", 
+                    f"{' تعطيل' if auto_broadcast else ' تفعيل'} التوزيع التلقائي", 
                     callback_data="dev_toggle_auto_broadcast"
                 )],
                 [InlineKeyboardButton("🔙 رجوع", callback_data="developer_panel")]
@@ -8421,12 +8421,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(message, reply_markup=reply_markup)
             return
-        elif text == "🔄 تحديث":
+        elif text == " تحديث":
             await show_developer_panel(update, context)
             return
-        elif text == "👤 الوضع العادي":
+        elif text == " الوضع العادي":
             # إزالة مؤقتاً حالة المطور للاطلاع على واجهة المستخدم العادي
-            await update.message.reply_text("🔄 العودة للوضع العادي...\nاستخدم /start للعودة لوضع المطور")
+            await update.message.reply_text(" العودة للوضع العادي...\nاستخدم /start للعودة لوضع المطور")
             # لا نغير أي شيء، فقط نعرض القائمة العادية
             user_data = user_manager.get_user(user_id)
             if not user_data:
@@ -8434,9 +8434,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # عرض القائمة العادية مع زر مخفي للمطور للعودة لوضع المطور
             keyboard = [
-                [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
-                [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-                [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+                [KeyboardButton(" الإعدادات"), KeyboardButton(" حالة الحساب")],
+                [KeyboardButton(" الصفقات المفتوحة"), KeyboardButton(" تاريخ التداول")],
+                [KeyboardButton(" المحفظة"), KeyboardButton(" إحصائيات")]
             ]
             
             # إضافة زر مخفي للمطور للعودة لوضع المطور (يظهر فقط للمطورين)
@@ -8444,20 +8444,20 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 keyboard.append([KeyboardButton("🔙 الرجوع لحساب المطور")])
             
             reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            await update.message.reply_text("👤 الوضع العادي", reply_markup=reply_markup)
+            await update.message.reply_text(" الوضع العادي", reply_markup=reply_markup)
             return
         elif text == "🔙 الرجوع لحساب المطور":
             # التحقق من أن المستخدم مطور قبل الرجوع لوضع المطور
             if developer_manager.is_developer(user_id):
                 await show_developer_panel(update, context)
             else:
-                await update.message.reply_text("❌ ليس لديك صلاحية للوصول لوضع المطور")
+                await update.message.reply_text(" ليس لديك صلاحية للوصول لوضع المطور")
             return
     
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
-        if text == "⚡ متابعة Nagdat" or text == "⚡ متابع لـ Nagdat ✅":
+        if text == "⚡ متابعة Nagdat" or text == "⚡ متابع لـ Nagdat ":
             # تبديل حالة المتابعة
             is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
             
@@ -8466,7 +8466,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 success = developer_manager.remove_follower(ADMIN_USER_ID, user_id)
                 if success:
                     message = """
-❌ تم إلغاء متابعة Nagdat
+ تم إلغاء متابعة Nagdat
 
 لن تستقبل إشاراته بعد الآن.
 للمتابعة مرة أخرى، اضغط على الزر في القائمة الرئيسية.
@@ -8475,25 +8475,25 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # تحديث القائمة
                     await start(update, context)
                 else:
-                    await update.message.reply_text("❌ فشل في إلغاء المتابعة")
+                    await update.message.reply_text(" فشل في إلغاء المتابعة")
             else:
                 # إضافة متابعة
                 success = developer_manager.add_follower(ADMIN_USER_ID, user_id)
                 if success:
                     message = """
-✅ تم متابعة Nagdat بنجاح!
+ تم متابعة Nagdat بنجاح!
 
 الآن ستستقبل جميع إشارات التداول التي يرسلها Nagdat تلقائياً!
 
-📡 ستصلك الإشارات فور إرسالها
+ ستصلك الإشارات فور إرسالها
 🔔 تأكد من تفعيل الإشعارات
-⚙️ يمكنك إلغاء المتابعة في أي وقت
+ يمكنك إلغاء المتابعة في أي وقت
                     """
                     await update.message.reply_text(message)
                     # تحديث القائمة
                     await start(update, context)
                 else:
-                    await update.message.reply_text("❌ فشل في المتابعة")
+                    await update.message.reply_text(" فشل في المتابعة")
             return
     
     # معالجة إدخال مفاتيح المنصات (Bybit/MEXC)
@@ -8513,21 +8513,21 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if result:
                 await update.message.reply_text(
-                    f"✅ **تم تعيين Take Profit بنجاح!**\n\n"
+                    f" **تم تعيين Take Profit بنجاح!**\n\n"
                     f"💎 الرمز: {symbol}\n"
-                    f"🎯 السعر المستهدف: ${price:,.2f}\n"
+                    f" السعر المستهدف: ${price:,.2f}\n"
                     f"⚡ تم التطبيق على المنصة الحقيقية",
                     parse_mode='Markdown'
                 )
             else:
-                await update.message.reply_text("❌ فشل تعيين Take Profit")
+                await update.message.reply_text(" فشل تعيين Take Profit")
             
             # مسح الحالة
             context.user_data.pop('awaiting_tp_price', None)
             context.user_data.pop('pending_tp_symbol', None)
             return
         except ValueError:
-            await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+            await update.message.reply_text(" يرجى إدخال رقم صحيح")
             return
     
     if context.user_data.get('awaiting_sl_price'):
@@ -8540,21 +8540,21 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if result:
                 await update.message.reply_text(
-                    f"✅ **تم تعيين Stop Loss بنجاح!**\n\n"
+                    f" **تم تعيين Stop Loss بنجاح!**\n\n"
                     f"💎 الرمز: {symbol}\n"
                     f"🛡️ سعر وقف الخسارة: ${price:,.2f}\n"
                     f"⚡ تم التطبيق على المنصة الحقيقية",
                     parse_mode='Markdown'
                 )
             else:
-                await update.message.reply_text("❌ فشل تعيين Stop Loss")
+                await update.message.reply_text(" فشل تعيين Stop Loss")
             
             # مسح الحالة
             context.user_data.pop('awaiting_sl_price', None)
             context.user_data.pop('pending_sl_symbol', None)
             return
         except ValueError:
-            await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+            await update.message.reply_text(" يرجى إدخال رقم صحيح")
             return
     
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
@@ -8582,9 +8582,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                f"✅ الرمز: {symbol}\n\n"
-                f"📝 الخطوة 2 من 5\n\n"
-                f"📊 اختر الاتجاه:",
+                f" الرمز: {symbol}\n\n"
+                f" الخطوة 2 من 5\n\n"
+                f" اختر الاتجاه:",
                 reply_markup=reply_markup
             )
             return
@@ -8594,7 +8594,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 amount = float(text)
                 if amount <= 0:
-                    await update.message.reply_text("❌ المبلغ يجب أن يكون أكبر من صفر")
+                    await update.message.reply_text(" المبلغ يجب أن يكون أكبر من صفر")
                     return
                 
                 context.user_data['dev_signal_data']['amount'] = amount
@@ -8603,20 +8603,20 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_input_state[user_id] = "dev_guided_step4_market"
                 
                 keyboard = [
-                    [InlineKeyboardButton("📈 Spot", callback_data="dev_market_spot")],
-                    [InlineKeyboardButton("🚀 Futures", callback_data="dev_market_futures")]
+                    [InlineKeyboardButton(" Spot", callback_data="dev_market_spot")],
+                    [InlineKeyboardButton(" Futures", callback_data="dev_market_futures")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await update.message.reply_text(
-                    f"✅ المبلغ: {amount}\n\n"
-                    f"📝 الخطوة 4 من 5\n\n"
+                    f" المبلغ: {amount}\n\n"
+                    f" الخطوة 4 من 5\n\n"
                     f"🏪 اختر نوع السوق:",
                     reply_markup=reply_markup
                 )
                 return
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
                 return
         
         # معالجة الإدخال الموجه - الخطوة 5: الرافعة (للفيوتشر فقط)
@@ -8624,7 +8624,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 leverage = int(text)
                 if leverage < 1 or leverage > 100:
-                    await update.message.reply_text("❌ الرافعة يجب أن تكون بين 1 و 100")
+                    await update.message.reply_text(" الرافعة يجب أن تكون بين 1 و 100")
                     return
                 
                 context.user_data['dev_signal_data']['leverage'] = leverage
@@ -8633,12 +8633,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 signal_data = context.user_data['dev_signal_data']
                 
                 confirm_message = f"""
-✅ تم تجهيز الإشارة!
+ تم تجهيز الإشارة!
 
-📊 الملخص:
+ الملخص:
 💎 الرمز: {signal_data['symbol']}
 {'🟢' if signal_data['action'] == 'buy' else '🔴'} الاتجاه: {signal_data['action'].upper()}
-💰 المبلغ: {signal_data['amount']}
+ المبلغ: {signal_data['amount']}
 🏪 السوق: {signal_data['market_type'].upper()}
 ⚡ الرافعة: {leverage}x
 
@@ -8646,8 +8646,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
                 
                 keyboard = [
-                    [InlineKeyboardButton("✅ نعم، إرسال الآن", callback_data="dev_confirm_signal")],
-                    [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+                    [InlineKeyboardButton(" نعم، إرسال الآن", callback_data="dev_confirm_signal")],
+                    [InlineKeyboardButton(" إلغاء", callback_data="developer_panel")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -8655,7 +8655,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(confirm_message, reply_markup=reply_markup)
                 return
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح بين 1 و 100")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح بين 1 و 100")
                 return
         
         # معالجة إرسال الإشعار الجماعي من المطور
@@ -8679,11 +8679,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         logger.error(f"خطأ في إرسال الإشعار للمستخدم {uid}: {e}")
                 
                 del user_input_state[user_id]
-                await update.message.reply_text(f"✅ تم إرسال الإشعار إلى {success_count} مستخدم من أصل {len(all_users)}")
+                await update.message.reply_text(f" تم إرسال الإشعار إلى {success_count} مستخدم من أصل {len(all_users)}")
                 return
             else:
                 del user_input_state[user_id]
-                await update.message.reply_text("❌ ليس لديك صلاحية")
+                await update.message.reply_text(" ليس لديك صلاحية")
                 return
         
         if state == "waiting_for_api_key":
@@ -8697,11 +8697,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("""
 🔗 ربط API - الخطوة 2 من 2
 
-✅ تم حفظ API_KEY بنجاح!
+ تم حفظ API_KEY بنجاح!
 
-📝 الآن أرسل API_SECRET الخاص بك
+ الآن أرسل API_SECRET الخاص بك
 
-⚠️ ملاحظات مهمة:
+ ملاحظات مهمة:
 • سيتم التحقق من صحة المفاتيح تلقائياً
 • المفاتيح ستُشفر وتُحفظ بشكل آمن
 • لن يتمكن أحد من رؤية مفاتيحك
@@ -8716,7 +8716,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # التحقق من صحة API keys قبل الحفظ
                 if update.message is not None:
-                    checking_message = await update.message.reply_text("🔄 جاري التحقق من صحة API keys...")
+                    checking_message = await update.message.reply_text(" جاري التحقق من صحة API keys...")
                 
                 # التحقق من صحة المفاتيح
                 is_valid = await check_api_connection(api_key, api_secret)
@@ -8738,16 +8738,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 pass
                             
                             await update.message.reply_text("""
-✅ تم ربط API بنجاح!
+ تم ربط API بنجاح!
 
-🎉 مبروك! تم التحقق من صحة المفاتيح
+ مبروك! تم التحقق من صحة المفاتيح
 
 🟢 الاتصال: متصل بـ Bybit
 🔗 الخادم: https://api.bybit.com
-📊 الوضع: حساب حقيقي (Live)
+ الوضع: حساب حقيقي (Live)
 🔐 الأمان: المفاتيح مشفرة ومحمية
 
-✨ يمكنك الآن:
+ يمكنك الآن:
 • تنفيذ صفقات حقيقية
 • متابعة حسابك مباشرة
 • استخدام جميع ميزات البوت
@@ -8761,11 +8761,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             except:
                                 pass
                             await update.message.reply_text("""
-❌ فشل في حفظ مفاتيح API!
+ فشل في حفظ مفاتيح API!
 
 🔴 حدث خطأ أثناء حفظ المفاتيح في قاعدة البيانات
 
-💡 الحلول المقترحة:
+ الحلول المقترحة:
 • حاول مرة أخرى بعد قليل
 • تأكد من اتصالك بالإنترنت
 • تواصل مع الدعم إذا استمرت المشكلة
@@ -8780,7 +8780,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         except:
                             pass
                         await update.message.reply_text("""
-❌ فشل التحقق من API keys!
+ فشل التحقق من API keys!
 
 🔴 الأسباب المحتملة:
 • API_KEY أو API_SECRET غير صحيحة
@@ -8789,7 +8789,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • صلاحيات API غير كافية (يجب تفعيل: Read, Write, Trade)
 • قيود IP (تأكد من عدم تفعيل IP Whitelist أو أضف IP الخادم)
 
-💡 الحلول:
+ الحلول:
 1. تحقق من نسخ المفاتيح بشكل صحيح (بدون مسافات)
 2. تأكد من تفعيل الصلاحيات المطلوبة
 3. جرب إنشاء مفاتيح جديدة
@@ -8805,7 +8805,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             del user_input_state[user_id]
             else:
                 if update.message is not None:
-                    await update.message.reply_text("❌ خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
+                    await update.message.reply_text(" خطأ: لم يتم العثور على API_KEY. ابدأ من جديد بـ /start")
                 if user_id in user_input_state:
                     del user_input_state[user_id]
         elif state == "waiting_for_trade_amount":
@@ -8822,14 +8822,14 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث مبلغ التداول إلى: {amount}")
+                        await update.message.reply_text(f" تم تحديث مبلغ التداول إلى: {amount}")
                         await settings_menu(update, context)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
+                        await update.message.reply_text(" يرجى إدخال مبلغ أكبر من صفر")
             except ValueError:
                 if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                    await update.message.reply_text(" يرجى إدخال رقم صحيح")
                     
         elif state == "waiting_for_leverage":
             try:
@@ -8845,14 +8845,14 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث الرافعة المالية إلى: {leverage}x")
+                        await update.message.reply_text(f" تم تحديث الرافعة المالية إلى: {leverage}x")
                         await settings_menu(update, context)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ يرجى إدخال قيمة بين 1 و 100")
+                        await update.message.reply_text(" يرجى إدخال قيمة بين 1 و 100")
             except ValueError:
                 if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                    await update.message.reply_text(" يرجى إدخال رقم صحيح")
                     
         elif state == "waiting_for_demo_balance":
             try:
@@ -8871,14 +8871,14 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث رصيد الحساب التجريبي إلى: {balance}")
+                        await update.message.reply_text(f" تم تحديث رصيد الحساب التجريبي إلى: {balance}")
                         await settings_menu(update, context)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ يرجى إدخال رصيد غير سالب")
+                        await update.message.reply_text(" يرجى إدخال رصيد غير سالب")
             except ValueError:
                 if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                    await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         # معالجة إدخال إعدادات إدارة المخاطر
         elif state == "waiting_max_loss_percent":
@@ -8893,15 +8893,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     del user_input_state[user_id]
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة المئوي إلى: {percent}%")
+                        await update.message.reply_text(f" تم تحديث حد الخسارة المئوي إلى: {percent}%")
                         # إرسال قائمة إدارة المخاطر مباشرة
                         await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ يرجى إدخال نسبة بين 1 و 50")
+                        await update.message.reply_text(" يرجى إدخال نسبة بين 1 و 50")
             except ValueError:
                 if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                    await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         elif state == "waiting_max_loss_amount":
             try:
@@ -8915,15 +8915,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     del user_input_state[user_id]
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة بالمبلغ إلى: {amount} USDT")
+                        await update.message.reply_text(f" تم تحديث حد الخسارة بالمبلغ إلى: {amount} USDT")
                         # إرسال قائمة إدارة المخاطر مباشرة
                         await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
+                        await update.message.reply_text(" يرجى إدخال مبلغ أكبر من صفر")
             except ValueError:
                 if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                    await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         elif state == "waiting_daily_loss_limit":
             try:
@@ -8937,15 +8937,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     del user_input_state[user_id]
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة اليومية إلى: {limit} USDT")
+                        await update.message.reply_text(f" تم تحديث حد الخسارة اليومية إلى: {limit} USDT")
                         # إرسال قائمة إدارة المخاطر مباشرة
                         await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
+                        await update.message.reply_text(" يرجى إدخال مبلغ أكبر من صفر")
             except ValueError:
                 if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                    await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         elif state == "waiting_weekly_loss_limit":
             try:
@@ -8959,15 +8959,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     del user_input_state[user_id]
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث حد الخسارة الأسبوعية إلى: {limit} USDT")
+                        await update.message.reply_text(f" تم تحديث حد الخسارة الأسبوعية إلى: {limit} USDT")
                         # إرسال قائمة إدارة المخاطر مباشرة
                         await send_risk_management_menu(update.message, user_id)
                 else:
                     if update.message is not None:
-                        await update.message.reply_text("❌ يرجى إدخال مبلغ أكبر من صفر")
+                        await update.message.reply_text(" يرجى إدخال مبلغ أكبر من صفر")
             except ValueError:
                 if update.message is not None:
-                    await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                    await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         # معالجة إدخال نسبة الإغلاق الجزئي المخصصة
         elif state.startswith("waiting_partial_percentage_"):
@@ -8989,7 +8989,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         position_info = trading_bot.open_positions.get(position_id)
                     
                     if not position_info:
-                        await update.message.reply_text("❌ الصفقة غير موجودة")
+                        await update.message.reply_text(" الصفقة غير موجودة")
                         return
                     
                     # معالجة الإغلاق
@@ -9021,31 +9021,31 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         account.balance += pnl
                         account.margin_locked -= close_amount
                     
-                    pnl_emoji = "🟢💰" if pnl >= 0 else "🔴💸"
+                    pnl_emoji = "🟢" if pnl >= 0 else "🔴💸"
                     message = f"""
 {pnl_emoji} تم إغلاق {percentage}% من الصفقة
 
-📊 الرمز: {position_info['symbol']}
-🔄 النوع: {side.upper()}
+ الرمز: {position_info['symbol']}
+ النوع: {side.upper()}
 💲 سعر الإغلاق: {current_price:.6f}
-💰 المبلغ المغلق: {close_amount:.2f}
+ المبلغ المغلق: {close_amount:.2f}
 {pnl_emoji} الربح/الخسارة: {pnl:+.2f}
 
-📈 المتبقي: {position_info['amount']:.2f} ({100-percentage}%)
-💰 الرصيد الجديد: {account.balance:.2f}
+ المتبقي: {position_info['amount']:.2f} ({100-percentage}%)
+ الرصيد الجديد: {account.balance:.2f}
                     """
                     
                     keyboard = [[
                         InlineKeyboardButton("🔙 رجوع للإدارة", callback_data=f"manage_{position_id}"),
-                        InlineKeyboardButton("📊 الصفقات المفتوحة", callback_data="show_positions")
+                        InlineKeyboardButton(" الصفقات المفتوحة", callback_data="show_positions")
                     ]]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await update.message.reply_text(message, reply_markup=reply_markup)
                 else:
-                    await update.message.reply_text("❌ النسبة يجب أن تكون بين 1 و 100")
+                    await update.message.reply_text(" النسبة يجب أن تكون بين 1 و 100")
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         # معالجة إدخال Take Profit مخصص
         elif state.startswith("waiting_custom_tp_"):
@@ -9054,23 +9054,23 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parts = text.split()
                 
                 if len(parts) != 2:
-                    await update.message.reply_text("❌ الصيغة غير صحيحة. استخدم: `نسبة_الربح نسبة_الإغلاق`\nمثال: `3 50`")
+                    await update.message.reply_text(" الصيغة غير صحيحة. استخدم: `نسبة_الربح نسبة_الإغلاق`\nمثال: `3 50`")
                     return
                 
                 tp_percentage = float(parts[0])
                 close_percentage = float(parts[1])
                 
                 if tp_percentage <= 0 or tp_percentage > 100:
-                    await update.message.reply_text("❌ نسبة الربح يجب أن تكون بين 0.1 و 100")
+                    await update.message.reply_text(" نسبة الربح يجب أن تكون بين 0.1 و 100")
                     return
                 
                 if close_percentage <= 0 or close_percentage > 100:
-                    await update.message.reply_text("❌ نسبة الإغلاق يجب أن تكون بين 1 و 100")
+                    await update.message.reply_text(" نسبة الإغلاق يجب أن تكون بين 1 و 100")
                     return
                 
                 managed_pos = trade_tools_manager.get_managed_position(position_id)
                 if not managed_pos:
-                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    await update.message.reply_text(" الصفقة غير موجودة")
                     return
                 
                 # حساب سعر الهدف
@@ -9091,16 +9091,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await update.message.reply_text(
-                        f"✅ تم إضافة هدف الربح!\n\n"
-                        f"🎯 السعر: {tp_price:.6f} (+{tp_percentage}%)\n"
-                        f"📊 نسبة الإغلاق: {close_percentage}%",
+                        f" تم إضافة هدف الربح!\n\n"
+                        f" السعر: {tp_price:.6f} (+{tp_percentage}%)\n"
+                        f" نسبة الإغلاق: {close_percentage}%",
                         reply_markup=reply_markup
                     )
                 else:
-                    await update.message.reply_text("❌ فشل في إضافة الهدف")
+                    await update.message.reply_text(" فشل في إضافة الهدف")
                     
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال أرقام صحيحة")
+                await update.message.reply_text(" يرجى إدخال أرقام صحيحة")
         
         # معالجة إدخال Stop Loss مخصص
         elif state.startswith("waiting_custom_sl_"):
@@ -9109,12 +9109,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 sl_percentage = float(text)
                 
                 if sl_percentage <= 0 or sl_percentage > 50:
-                    await update.message.reply_text("❌ نسبة Stop Loss يجب أن تكون بين 0.1 و 50")
+                    await update.message.reply_text(" نسبة Stop Loss يجب أن تكون بين 0.1 و 50")
                     return
                 
                 managed_pos = trade_tools_manager.get_managed_position(position_id)
                 if not managed_pos:
-                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    await update.message.reply_text(" الصفقة غير موجودة")
                     return
                 
                 # حساب سعر SL
@@ -9127,12 +9127,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if managed_pos.stop_loss and managed_pos.stop_loss.is_trailing:
                     keyboard = [[
                         InlineKeyboardButton("نعم، إلغاء Trailing", callback_data=f"confirmSL_{position_id}_{sl_percentage}"),
-                        InlineKeyboardButton("❌ إلغاء", callback_data=f"setSL_menu_{position_id}")
+                        InlineKeyboardButton(" إلغاء", callback_data=f"setSL_menu_{position_id}")
                     ]]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await update.message.reply_text(
-                        "⚠️ **تحذير:** Trailing Stop نشط حالياً\n\n"
+                        " **تحذير:** Trailing Stop نشط حالياً\n\n"
                         "تعيين SL ثابت سيُلغي Trailing Stop. هل تريد المتابعة؟",
                         reply_markup=reply_markup,
                         parse_mode='Markdown'
@@ -9148,16 +9148,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await update.message.reply_text(
-                        f"✅ تم تعيين Stop Loss!\n\n"
+                        f" تم تعيين Stop Loss!\n\n"
                         f"🛑 السعر: {sl_price:.6f} (-{sl_percentage}%)\n"
-                        f"📉 المخاطرة: {sl_percentage}% من رأس المال",
+                        f" المخاطرة: {sl_percentage}% من رأس المال",
                         reply_markup=reply_markup
                     )
                 else:
-                    await update.message.reply_text("❌ فشل في تعيين Stop Loss")
+                    await update.message.reply_text(" فشل في تعيين Stop Loss")
                     
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         # معالجة إدخال مسافة Trailing Stop مخصصة
         elif state.startswith("waiting_custom_trailing_"):
@@ -9166,12 +9166,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 trailing_distance = float(text)
                 
                 if trailing_distance <= 0 or trailing_distance > 20:
-                    await update.message.reply_text("❌ المسافة يجب أن تكون بين 0.1 و 20")
+                    await update.message.reply_text(" المسافة يجب أن تكون بين 0.1 و 20")
                     return
                 
                 managed_pos = trade_tools_manager.get_managed_position(position_id)
                 if not managed_pos:
-                    await update.message.reply_text("❌ الصفقة غير موجودة")
+                    await update.message.reply_text(" الصفقة غير موجودة")
                     return
                 
                 # تعيين trailing stop
@@ -9193,15 +9193,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await update.message.reply_text(
-                    f"✅ تم تفعيل Trailing Stop!\n\n"
+                    f" تم تفعيل Trailing Stop!\n\n"
                     f"⚡ المسافة: {trailing_distance}%\n"
                     f"🔒 السعر الحالي: {managed_pos.stop_loss.price:.6f}\n\n"
-                    f"💡 سيتحرك SL تلقائياً مع تحرك السعر لصالحك",
+                    f" سيتحرك SL تلقائياً مع تحرك السعر لصالحك",
                     reply_markup=reply_markup
                 )
                 
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         # معالجة إدخال أهداف الربح التلقائية
         elif state == "waiting_auto_tp_input":
@@ -9213,25 +9213,25 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for line in lines:
                     parts = line.strip().split()
                     if len(parts) != 2:
-                        await update.message.reply_text("❌ الصيغة غير صحيحة. كل سطر يجب أن يحتوي على: نسبة_الربح نسبة_الإغلاق")
+                        await update.message.reply_text(" الصيغة غير صحيحة. كل سطر يجب أن يحتوي على: نسبة_الربح نسبة_الإغلاق")
                         return
                     
                     tp_pct = float(parts[0])
                     close_pct = float(parts[1])
                     
                     if tp_pct <= 0 or tp_pct > 100:
-                        await update.message.reply_text("❌ نسبة الربح يجب أن تكون بين 0.1 و 100")
+                        await update.message.reply_text(" نسبة الربح يجب أن تكون بين 0.1 و 100")
                         return
                     
                     if close_pct <= 0 or close_pct > 100:
-                        await update.message.reply_text("❌ نسبة الإغلاق يجب أن تكون بين 1 و 100")
+                        await update.message.reply_text(" نسبة الإغلاق يجب أن تكون بين 1 و 100")
                         return
                     
                     tp_percentages.append(tp_pct)
                     tp_close_percentages.append(close_pct)
                 
                 if len(tp_percentages) > 5:
-                    await update.message.reply_text("❌ الحد الأقصى 5 أهداف")
+                    await update.message.reply_text(" الحد الأقصى 5 أهداف")
                     return
                 
                 # حفظ الإعدادات
@@ -9247,7 +9247,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if success:
                     del user_input_state[user_id]
                     
-                    message = "✅ **تم حفظ أهداف الربح!**\n\n🎯 **الأهداف:**\n"
+                    message = " **تم حفظ أهداف الربح!**\n\n **الأهداف:**\n"
                     for i, (tp, close) in enumerate(zip(tp_percentages, tp_close_percentages), 1):
                         message += f"• TP{i}: +{tp}% → إغلاق {close}%\n"
                     
@@ -9256,10 +9256,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
                 else:
-                    await update.message.reply_text("❌ فشل في حفظ الإعدادات")
+                    await update.message.reply_text(" فشل في حفظ الإعدادات")
                     
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال أرقام صحيحة")
+                await update.message.reply_text(" يرجى إدخال أرقام صحيحة")
         
         # معالجة إدخال Stop Loss التلقائي
         elif state == "waiting_auto_sl_input":
@@ -9267,7 +9267,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 sl_percentage = float(text)
                 
                 if sl_percentage <= 0 or sl_percentage > 50:
-                    await update.message.reply_text("❌ نسبة Stop Loss يجب أن تكون بين 0.1 و 50")
+                    await update.message.reply_text(" نسبة Stop Loss يجب أن تكون بين 0.1 و 50")
                     return
                 
                 # حفظ الإعدادات
@@ -9287,16 +9287,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await update.message.reply_text(
-                        f"✅ **تم حفظ Stop Loss!**\n\n"
+                        f" **تم حفظ Stop Loss!**\n\n"
                         f"🛑 النسبة: -{sl_percentage}%",
                         reply_markup=reply_markup,
                         parse_mode='Markdown'
                     )
                 else:
-                    await update.message.reply_text("❌ فشل في حفظ الإعدادات")
+                    await update.message.reply_text(" فشل في حفظ الإعدادات")
                     
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         # معالجة إدخال نسبة TP في بناء الأهداف
         elif state.startswith("building_auto_tp_target_") and state.endswith("_percent"):
@@ -9304,7 +9304,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tp_percent = float(text)
                 
                 if tp_percent <= 0 or tp_percent > 100:
-                    await update.message.reply_text("❌ النسبة يجب أن تكون بين 0.1 و 100")
+                    await update.message.reply_text(" النسبة يجب أن تكون بين 0.1 و 100")
                     return
                 
                 # حفظ وانتقال لإدخال نسبة الإغلاق
@@ -9315,7 +9315,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await process_tp_target_input(update, context, tp_percent)
                 
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         # معالجة إدخال نسبة الإغلاق في بناء الأهداف
         elif state.startswith("building_auto_tp_target_") and state.endswith("_close"):
@@ -9323,57 +9323,57 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 close_percent = float(text)
                 
                 if close_percent <= 0 or close_percent > 100:
-                    await update.message.reply_text("❌ النسبة يجب أن تكون بين 1 و 100")
+                    await update.message.reply_text(" النسبة يجب أن تكون بين 1 و 100")
                     return
                 
                 await finalize_tp_target(update, context, close_percent)
                 
             except ValueError:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
         
         else:
             # إعادة تعيين حالة إدخال المستخدم للحالات غير المتوقعة
             if user_id is not None and user_id in user_input_state:
                 del user_input_state[user_id]
     
-    elif text == "⚙️ الإعدادات":
+    elif text == " الإعدادات":
         await settings_menu(update, context)
-    elif text == "📊 حالة الحساب":
+    elif text == " حالة الحساب":
         await account_status(update, context)
-    elif text == "🔄 الصفقات المفتوحة" or "الصفقات المفتوحة" in text or "🔄" in text:
+    elif text == " الصفقات المفتوحة" or "الصفقات المفتوحة" in text or "" in text:
         await open_positions(update, context)
-    elif text == "📈 تاريخ التداول":
+    elif text == " تاريخ التداول":
         await trade_history(update, context)
-    elif text == "💰 المحفظة":
+    elif text == " المحفظة":
         await wallet_overview(update, context)
-    elif text == "📊 إحصائيات":
+    elif text == " إحصائيات":
         await show_user_statistics(update, context)
     elif text == "▶️ تشغيل البوت":
         trading_bot.is_running = True
         if update.message is not None:
-            await update.message.reply_text("✅ تم تشغيل البوت")
+            await update.message.reply_text(" تم تشغيل البوت")
     elif text == "⏹️ إيقاف البوت":
         trading_bot.is_running = False
         if update.message is not None:
             await update.message.reply_text("⏹️ تم إيقاف البوت")
-    elif text == "📊 إحصائيات الإشارات":
+    elif text == " إحصائيات الإشارات":
         # عرض إحصائيات الإشارات
         message = f"""
-📊 إحصائيات الإشارات:
+ إحصائيات الإشارات:
 
-📈 إشارات مستلمة: {trading_bot.signals_received}
-✅ صفقات مفتوحة: {len(trading_bot.open_positions)}
+ إشارات مستلمة: {trading_bot.signals_received}
+ صفقات مفتوحة: {len(trading_bot.open_positions)}
         """
         if update.message is not None:
             await update.message.reply_text(message)
-    elif text == "🔄 تحديث الأزواج":
+    elif text == " تحديث الأزواج":
         try:
             await trading_bot.update_available_pairs()
             if update.message is not None:
-                await update.message.reply_text("✅ تم تحديث قائمة الأزواج المتاحة")
+                await update.message.reply_text(" تم تحديث قائمة الأزواج المتاحة")
         except Exception as e:
             if update.message is not None:
-                await update.message.reply_text(f"❌ فشل في تحديث الأزواج: {e}")
+                await update.message.reply_text(f" فشل في تحديث الأزواج: {e}")
     elif text == "💳 تعديل الرصيد":
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_demo_balance"
@@ -9386,18 +9386,18 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # هنا يمكننا تنفيذ منطق لتحديث الإعدادات بناءً على السياق
             # مثلاً، إذا كنا ننتظر إدخال مبلغ التداول أو رصيد الحساب
             if update.message is not None:
-                await update.message.reply_text(f"✅ تم استلام الرقم: {number}")
+                await update.message.reply_text(f" تم استلام الرقم: {number}")
         except ValueError:
             if update.message is not None:
-                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                await update.message.reply_text(" يرجى إدخال رقم صحيح")
     else:
         # معالجة أي نصوص أخرى
         # تصحيح المشكلة مع زر الصفقات المفتوحة - إضافة تصحيح إضافي
-        if "الصفقات المفتوحة" in text or "🔄" in text:
+        if "الصفقات المفتوحة" in text or "" in text:
             await open_positions(update, context)
         elif update.message is not None:
             # تصحيح مؤقت لإظهار النص الفعلي لتتبع المشكلة
-            await update.message.reply_text(f"❌ أمر غير مدعوم: '{text}'")
+            await update.message.reply_text(f" أمر غير مدعوم: '{text}'")
 
 # دالة لمعالجة الإشارات الخارجية
 async def process_external_signal(symbol: str, action: str):
@@ -9438,7 +9438,7 @@ async def show_webhook_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**🎯 ما هو Webhook؟**
+** ما هو Webhook؟**
 
 Webhook هو رابط خاص بك يستقبل الإشارات من TradingView أو أي منصة أخرى ويرسلها مباشرة إلى البوت لتنفيذها.
 
@@ -9460,7 +9460,7 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**📋 أمثلة الإشارات:**
+** أمثلة الإشارات:**
 
 **🟢 شراء:**
 ```json
@@ -9501,7 +9501,7 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**✅ ما الذي يحدث؟**
+** ما الذي يحدث؟**
 
 1. **TradingView** يرسل الإشارة للرابط
 2. **البوت** يستقبل الإشارة تلقائياً
@@ -9514,7 +9514,7 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**⚠️ ملاحظات أمان:**
+** ملاحظات أمان:**
 
 🔒 **احتفظ بالرابط سرياً**
 • لا تشاركه مع أحد
@@ -9526,14 +9526,14 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-**💡 نصائح:**
+** نصائح:**
 
-✅ **للاختبار:**
+ **للاختبار:**
 • استخدم الحساب التجريبي أولاً
 • جرب جميع أنواع الإشارات
 • تأكد من استلام الإشعارات
 
-✅ **للإنتاج:**
+ **للإنتاج:**
 • تحقق من إعداداتك (المبلغ، الرافعة)
 • راقب الإشارات في البداية
 • استخدم Stop Loss دائماً
@@ -9545,7 +9545,7 @@ Webhook هو رابط خاص بك يستقبل الإشارات من TradingView
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-✨ **جاهز للبدء؟**
+ **جاهز للبدء؟**
 انسخ رابط Webhook واستخدمه في TradingView!
     """
     
