@@ -542,11 +542,17 @@ class SignalExecutor:
                 logger.error(f" فشل تنفيذ أمر {side} {symbol} على Bybit")
                 if result:
                     logger.error(f" تفاصيل الفشل: {result}")
+                
+                # تحليل مفصل لسبب الفشل
+                error_analysis = SignalExecutor._analyze_order_failure(result, symbol, side, qty)
+                
                 return {
                     'success': False,
-                    'message': f'Failed to place order on Bybit',
+                    'message': f'Failed to place order on Bybit: {error_analysis["message"]}',
                     'error': 'ORDER_FAILED',
-                    'error_details': result if result else 'No response from API'
+                    'error_details': result if result else 'No response from API',
+                    'error_analysis': error_analysis,
+                    'suggested_solutions': error_analysis.get('solutions', [])
                 }
                 
         except Exception as e:
@@ -1133,6 +1139,92 @@ class SignalExecutor:
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
         random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
         return f"{symbol}-{timestamp}-{random_part}"
+    
+    @staticmethod
+    def _analyze_order_failure(result: Dict, symbol: str, side: str, qty: float) -> Dict:
+        """تحليل مفصل لسبب فشل الأمر"""
+        try:
+            if not result:
+                return {
+                    'message': 'لا توجد استجابة من API',
+                    'solutions': [
+                        'تحقق من اتصال الإنترنت',
+                        'تأكد من صحة مفاتيح API',
+                        'جرب مرة أخرى بعد قليل'
+                    ]
+                }
+            
+            # فحص الأخطاء الشائعة
+            error_msg = result.get('error', '')
+            error_type = result.get('error_type', '')
+            
+            if 'INSUFFICIENT_BALANCE' in error_type or 'insufficient' in error_msg.lower():
+                return {
+                    'message': 'الرصيد غير كافي',
+                    'solutions': [
+                        'قم بإيداع المزيد من USDT',
+                        'قلل من مبلغ التداول',
+                        'تحقق من الرصيد المتاح'
+                    ]
+                }
+            
+            if 'INVALID_SYMBOL' in error_type or 'symbol' in error_msg.lower():
+                return {
+                    'message': 'الرمز غير صحيح أو غير مدعوم',
+                    'solutions': [
+                        'تحقق من صحة الرمز',
+                        'تأكد من أن الرمز مدعوم في Bybit',
+                        'استخدم رمز صحيح مثل BTCUSDT'
+                    ]
+                }
+            
+            if 'INVALID_QUANTITY' in error_type or 'quantity' in error_msg.lower():
+                return {
+                    'message': 'الكمية غير صحيحة',
+                    'solutions': [
+                        f'تأكد من أن الكمية أكبر من الحد الأدنى (0.001 لـ BTCUSDT)',
+                        'تحقق من دقة الكمية',
+                        'جرب كمية أكبر'
+                    ]
+                }
+            
+            if 'LEVERAGE' in error_msg.upper():
+                return {
+                    'message': 'مشكلة في الرافعة المالية',
+                    'solutions': [
+                        'تحقق من إعدادات الرافعة المالية',
+                        'تأكد من أن الرافعة مسموحة للرمز',
+                        'جرب رافعة أقل'
+                    ]
+                }
+            
+            if 'PERMISSION' in error_msg.upper() or 'ACCESS' in error_msg.upper():
+                return {
+                    'message': 'مشكلة في الصلاحيات',
+                    'solutions': [
+                        'تحقق من صلاحيات التداول في حسابك',
+                        'تأكد من تفعيل التداول على Futures',
+                        'تحقق من إعدادات الحساب'
+                    ]
+                }
+            
+            # خطأ عام
+            return {
+                'message': f'خطأ غير محدد: {error_msg}',
+                'solutions': [
+                    'تحقق من مفاتيح API',
+                    'تأكد من صحة البيانات',
+                    'جرب مرة أخرى',
+                    'اتصل بالدعم الفني إذا استمرت المشكلة'
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في تحليل فشل الأمر: {e}")
+            return {
+                'message': 'خطأ في تحليل الفشل',
+                'solutions': ['جرب مرة أخرى', 'تحقق من البيانات']
+            }
 
 
 # مثيل عام
