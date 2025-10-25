@@ -31,24 +31,21 @@ except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     print(f" النظام المحسن غير متاح في signal_executor.py: {e}")
 
-# استيراد نظام فحص الرصيد المتقدم
+# استيراد نظام فحص الرصيد الموحد
 try:
-    from advanced_balance_checker import AdvancedBalanceChecker, BalanceInfo, OrderRequirements, MarketType, ExchangeType
-    ADVANCED_BALANCE_CHECKER_AVAILABLE = True
-    print(" نظام فحص الرصيد المتقدم متاح في signal_executor.py")
+    from unified_balance_checker import unified_balance_checker
+    UNIFIED_BALANCE_CHECKER_AVAILABLE = True
+    print(" نظام فحص الرصيد الموحد متاح في signal_executor.py")
 except ImportError as e:
-    ADVANCED_BALANCE_CHECKER_AVAILABLE = False
-    print(f" نظام فحص الرصيد المتقدم غير متاح في signal_executor.py: {e}")
+    UNIFIED_BALANCE_CHECKER_AVAILABLE = False
+    print(f" نظام فحص الرصيد الموحد غير متاح في signal_executor.py: {e}")
 
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
     
     def __init__(self):
         """تهيئة منفذ الإشارات"""
-        if ADVANCED_BALANCE_CHECKER_AVAILABLE:
-            self.balance_checker = AdvancedBalanceChecker()
-        else:
-            self.balance_checker = None
+        pass
     
     @staticmethod
     async def execute_signal(user_id: int, signal_data: Dict, user_data: Dict) -> Dict:
@@ -432,8 +429,8 @@ class SignalExecutor:
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
             min_quantity = 0.001  # الحد الأدنى لـ Bybit
             
-            # فحص الرصيد باستخدام النظام المتقدم
-            balance_check_result = SignalExecutor._check_balance_advanced(
+            # فحص الرصيد باستخدام النظام الموحد البسيط
+            balance_check_result = unified_balance_checker.check_balance_simple(
                 account, trade_amount, price, leverage, market_type, 'bybit', symbol
             )
             
@@ -451,11 +448,8 @@ class SignalExecutor:
                     'suggestions': balance_check_result.get('suggestions', [])
                 }
             
-            # إذا تم تعديل الكمية، نستخدم القيمة الجديدة
-            if balance_check_result.get('adjusted_quantity'):
-                qty = balance_check_result['adjusted_quantity']
-                logger.info(f"تم تعديل الكمية إلى: {qty}")
-            
+            # استخدام الكمية المحسوبة من فحص الرصيد
+            qty = balance_check_result.get('quantity', qty)
             logger.info(f"فحص الرصيد نجح: {balance_check_result.get('message', 'Balance sufficient')}")
             
             # تقريب الكمية حسب دقة الرمز
@@ -611,8 +605,8 @@ class SignalExecutor:
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
             min_quantity = 0.001  # الحد الأدنى لـ MEXC
             
-            # فحص الرصيد باستخدام النظام المتقدم
-            balance_check_result = SignalExecutor._check_balance_advanced(
+            # فحص الرصيد باستخدام النظام الموحد البسيط
+            balance_check_result = unified_balance_checker.check_balance_simple(
                 account, trade_amount, price, 1, 'spot', 'mexc', symbol
             )
             
@@ -630,11 +624,8 @@ class SignalExecutor:
                     'suggestions': balance_check_result.get('suggestions', [])
                 }
             
-            # إذا تم تعديل الكمية، نستخدم القيمة الجديدة
-            if balance_check_result.get('adjusted_quantity'):
-                quantity = balance_check_result['adjusted_quantity']
-                logger.info(f"تم تعديل الكمية إلى: {quantity}")
-            
+            # استخدام الكمية المحسوبة من فحص الرصيد
+            quantity = balance_check_result.get('quantity', quantity)
             logger.info(f"فحص الرصيد نجح: {balance_check_result.get('message', 'Balance sufficient')}")
             
             # تقريب الكمية حسب دقة الرمز
@@ -1139,136 +1130,6 @@ class SignalExecutor:
                 'message': str(e),
                 'error': 'FUTURES_ORDER_ERROR'
             }
-    
-    @staticmethod
-    def _check_balance_advanced(account, trade_amount: float, price: float, 
-                               leverage: int, market_type: str, exchange: str, symbol: str) -> Dict:
-        """فحص الرصيد باستخدام النظام المتقدم"""
-        try:
-            if not ADVANCED_BALANCE_CHECKER_AVAILABLE:
-                # استخدام النظام القديم إذا لم يكن المتقدم متاحاً
-                return SignalExecutor._check_balance_legacy(account, trade_amount, price, leverage, market_type, exchange, symbol)
-            
-            # إنشاء مثيل من فاحص الرصيد المتقدم
-            balance_checker = AdvancedBalanceChecker()
-            
-            # حساب الكمية
-            qty = trade_amount / price
-            
-            # تحديد نوع السوق والمنصة
-            market_type_enum = MarketType.SPOT if market_type == 'spot' else MarketType.FUTURES
-            exchange_type_enum = ExchangeType.BYBIT if exchange == 'bybit' else ExchangeType.MEXC
-            
-            # إنشاء متطلبات الطلب
-            order_req = OrderRequirements(
-                quantity=qty,
-                price=price,
-                leverage=leverage,
-                market_type=market_type_enum,
-                exchange=exchange_type_enum
-            )
-            
-            # الحصول على معلومات الرصيد
-            try:
-                if exchange == 'bybit':
-                    balance_info = account.get_wallet_balance('futures' if market_type == 'futures' else 'spot')
-                    if balance_info and 'coins' in balance_info and 'USDT' in balance_info['coins']:
-                        available = float(balance_info['coins']['USDT']['equity'])
-                        total = float(balance_info['coins']['USDT']['wallet_balance'])
-                        locked = total - available
-                    else:
-                        return {'success': False, 'message': 'Failed to get balance info', 'error': 'BALANCE_FETCH_FAILED'}
-                else:  # MEXC
-                    balance_info = account.get_account_balance()
-                    if balance_info and 'USDT' in balance_info:
-                        available = float(balance_info['USDT']['free'])
-                        total = float(balance_info['USDT']['total'])
-                        locked = total - available
-                    else:
-                        return {'success': False, 'message': 'Failed to get balance info', 'error': 'BALANCE_FETCH_FAILED'}
-                
-                balance = BalanceInfo(available=available, total=total, locked=locked)
-                
-            except Exception as e:
-                logger.error(f"خطأ في جلب معلومات الرصيد: {e}")
-                return {'success': False, 'message': f'Error fetching balance: {str(e)}', 'error': 'BALANCE_ERROR'}
-            
-            # فحص الرصيد باستخدام النظام المتقدم
-            result = balance_checker.check_balance(balance, order_req)
-            
-            if result.success and result.can_execute:
-                if result.adjusted_quantity:
-                    # تم تعديل الكمية
-                    logger.info(f"تم تعديل الكمية من {qty:.8f} إلى {result.adjusted_quantity:.8f}")
-                    return {
-                        'success': True,
-                        'message': result.message,
-                        'adjusted_quantity': result.adjusted_quantity,
-                        'adjusted_order_value': result.adjusted_order_value,
-                        'suggestions': result.suggestions
-                    }
-                else:
-                    # الرصيد كافي للطلب المطلوب
-                    return {
-                        'success': True,
-                        'message': result.message,
-                        'suggestions': result.suggestions
-                    }
-            else:
-                # الرصيد غير كافي
-                return {
-                    'success': False,
-                    'message': result.message,
-                    'error': 'INSUFFICIENT_BALANCE',
-                    'available_balance': result.available_balance,
-                    'required_balance': result.required_balance,
-                    'shortage': result.shortage,
-                    'suggestions': result.suggestions
-                }
-                
-        except Exception as e:
-            logger.error(f"خطأ في فحص الرصيد المتقدم: {e}")
-            return {'success': False, 'message': f'Advanced balance check error: {str(e)}', 'error': 'ADVANCED_CHECK_ERROR'}
-    
-    @staticmethod
-    def _check_balance_legacy(account, trade_amount: float, price: float, 
-                             leverage: int, market_type: str, exchange: str, symbol: str) -> Dict:
-        """فحص الرصيد باستخدام النظام القديم (للتوافق مع الإصدارات السابقة)"""
-        try:
-            # حساب الكمية
-            qty = trade_amount / price
-            
-            # حساب الهامش المطلوب
-            required_margin = (qty * price) / leverage if market_type == 'futures' else (qty * price)
-            
-            # فحص الرصيد المتاح
-            if exchange == 'bybit':
-                balance_info = account.get_wallet_balance('futures' if market_type == 'futures' else 'spot')
-                if balance_info and 'coins' in balance_info and 'USDT' in balance_info['coins']:
-                    available_balance = float(balance_info['coins']['USDT']['equity'])
-                else:
-                    return {'success': False, 'message': 'Failed to get balance info', 'error': 'BALANCE_FETCH_FAILED'}
-            else:  # MEXC
-                balance_info = account.get_account_balance()
-                if balance_info and 'USDT' in balance_info:
-                    available_balance = float(balance_info['USDT']['free'])
-                else:
-                    return {'success': False, 'message': 'Failed to get balance info', 'error': 'BALANCE_FETCH_FAILED'}
-            
-            if available_balance >= required_margin:
-                return {'success': True, 'message': 'Balance sufficient for order'}
-            else:
-                return {
-                    'success': False,
-                    'message': f'Insufficient balance. Available: {available_balance} USDT, Required: {required_margin:.2f} USDT',
-                    'error': 'INSUFFICIENT_BALANCE',
-                    'available_balance': available_balance,
-                    'required_balance': required_margin
-                }
-                
-        except Exception as e:
-            logger.error(f"خطأ في فحص الرصيد القديم: {e}")
-            return {'success': False, 'message': f'Legacy balance check error: {str(e)}', 'error': 'LEGACY_CHECK_ERROR'}
     
     @staticmethod
     def _generate_random_id(symbol: str) -> str:
