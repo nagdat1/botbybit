@@ -62,6 +62,9 @@ class BybitRealAccount:
             url += f"?{params_str}"
         
         try:
+            logger.info(f"Bybit API Request: {method} {url}")
+            logger.info(f"Bybit API Params: {params}")
+            
             if method == 'GET':
                 response = requests.get(url, headers=headers, timeout=10)
             elif method == 'POST':
@@ -69,12 +72,21 @@ class BybitRealAccount:
             else:
                 return None
             
+            logger.info(f"Bybit API Response Status: {response.status_code}")
+            logger.info(f"Bybit API Response Text: {response.text}")
+            
             if response.status_code == 200:
                 result = response.json()
+                logger.info(f"Bybit API Response JSON: {result}")
+                
                 if result.get('retCode') == 0:
+                    logger.info(f"Bybit API Success: {result.get('result')}")
                     return result.get('result')
+                else:
+                    logger.error(f"Bybit API Error - retCode: {result.get('retCode')}, retMsg: {result.get('retMsg')}")
+                    return None
             
-            logger.error(f"Bybit API Error: {response.text}")
+            logger.error(f"Bybit API HTTP Error: {response.status_code} - {response.text}")
             return None
             
         except Exception as e:
@@ -178,6 +190,8 @@ class BybitRealAccount:
                    take_profit: float = None, stop_loss: float = None) -> Optional[Dict]:
         """وضع أمر تداول حقيقي"""
         
+        logger.info(f"Bybit place_order called: {category}, {symbol}, {side}, {order_type}, qty={qty}")
+        
         params = {
             'category': category,
             'symbol': symbol,
@@ -197,11 +211,15 @@ class BybitRealAccount:
         
         # تعيين الرافعة المالية أولاً إذا كانت محددة
         if leverage and category in ['linear', 'inverse']:
-            self.set_leverage(category, symbol, leverage)
+            logger.info(f"Setting leverage to {leverage} for {symbol}")
+            leverage_result = self.set_leverage(category, symbol, leverage)
+            if not leverage_result:
+                logger.error(f"Failed to set leverage for {symbol}")
         
         result = self._make_request('POST', '/v5/order/create', params)
         
         if result:
+            logger.info(f"Bybit order placed successfully: {result}")
             return {
                 'order_id': result.get('orderId'),
                 'order_link_id': result.get('orderLinkId'),
@@ -209,10 +227,19 @@ class BybitRealAccount:
                 'side': side,
                 'type': order_type,
                 'qty': qty,
-                'price': price
+                'price': price,
+                'success': True,
+                'raw_response': result
             }
-        
-        return None
+        else:
+            logger.error(f"Bybit order placement failed for {symbol}")
+            return {
+                'success': False,
+                'error': 'Order placement failed',
+                'symbol': symbol,
+                'side': side,
+                'qty': qty
+            }
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
         """تعيين الرافعة المالية على المنصة"""
@@ -223,8 +250,15 @@ class BybitRealAccount:
             'sellLeverage': str(leverage)
         }
         
+        logger.info(f"Setting leverage for {symbol}: {leverage}x")
         result = self._make_request('POST', '/v5/position/set-leverage', params)
-        return result is not None
+        
+        if result:
+            logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
+            return True
+        else:
+            logger.error(f"Failed to set leverage for {symbol}: {leverage}x")
+            return False
     
     def set_trading_stop(self, category: str, symbol: str, position_idx: int,
                         take_profit: float = None, stop_loss: float = None) -> bool:
