@@ -32,6 +32,8 @@ class BybitRealAccount:
             sign_str.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
+        logger.info(f"Bybit Signature Debug - sign_str: {sign_str}")
+        logger.info(f"Bybit Signature Debug - signature: {signature}")
         return signature
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None) -> Optional[Dict]:
@@ -42,8 +44,16 @@ class BybitRealAccount:
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء query string
+        # بناء query string للطلبات غير الموقعة
         params_str = urlencode(sorted(params.items())) if params else ""
+        logger.info(f"Bybit Params Debug - params: {params}")
+        logger.info(f"Bybit Params Debug - params_str: {params_str}")
+        
+        # للطلبات الموقعة، استخدام JSON string للتوقيع
+        if method == 'POST' and params:
+            import json
+            params_str = json.dumps(params, separators=(',', ':'))
+            logger.info(f"Bybit JSON Debug - params_str: {params_str}")
         
         # توليد التوقيع
         signature = self._generate_signature(timestamp, recv_window, params_str)
@@ -58,8 +68,11 @@ class BybitRealAccount:
         }
         
         url = f"{self.base_url}{endpoint}"
-        if params_str:
+        # إضافة query string فقط للطلبات غير الموقعة
+        if method == 'GET' and params_str:
             url += f"?{params_str}"
+        
+        logger.info(f"Bybit URL Debug - url: {url}")
         
         try:
             logger.info(f"Bybit API Request: {method} {url}")
@@ -68,6 +81,7 @@ class BybitRealAccount:
             if method == 'GET':
                 response = requests.get(url, headers=headers, timeout=10)
             elif method == 'POST':
+                # للطلبات الموقعة، إرسال المعاملات في JSON body
                 response = requests.post(url, headers=headers, json=params, timeout=10)
             else:
                 return None

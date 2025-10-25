@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-اختبار API Key جديد مع صلاحيات كاملة
+اختبار مباشر لوضع الأوامر في Futures Trading
 """
 
 import sys
@@ -19,26 +19,17 @@ from real_account_manager import real_account_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def test_new_api_key():
-    """اختبار API Key جديد"""
+async def test_direct_order_placement():
+    """اختبار مباشر لوضع الأوامر"""
     
-    print("=== اختبار API Key جديد ===")
+    print("=== اختبار مباشر لوضع الأوامر في Futures Trading ===")
     print()
     
-    # اطلب من المستخدم إدخال API Key الجديد
-    print("أدخل API Key الجديد:")
-    api_key = input("API Key: ").strip()
-    
-    print("أدخل API Secret الجديد:")
-    api_secret = input("API Secret: ").strip()
-    
-    if not api_key or not api_secret:
-        print("API Key أو Secret فارغ!")
-        return False
-    
     try:
-        # إنشاء حساب حقيقي جديد
+        # إنشاء حساب حقيقي
         user_id = 999999
+        api_key = "dqBHnPaItfmEZSB020"
+        api_secret = "PjAN7fUfeLn4ouTpIzWwBJe4TKQVOr02lIdc"
         
         print(f"إنشاء حساب حقيقي للمستخدم {user_id}")
         real_account_manager.initialize_account(user_id, 'bybit', api_key, api_secret)
@@ -81,7 +72,8 @@ async def test_new_api_key():
         if leverage_result:
             print("تم وضع الرافعة المالية بنجاح!")
         else:
-            print("فشل في وضع الرافعة المالية")
+            print("فشل في وضع الرافعة المالية - هذا قد يكون السبب!")
+            print("تحقق من صلاحيات Position Management في API Key")
             return False
         
         print()
@@ -116,6 +108,7 @@ async def test_new_api_key():
             print("فشل في وضع الأمر")
             if result:
                 print(f"الخطأ: {result.get('error', 'Unknown error')}")
+                print(f"تفاصيل الخطأ: {result.get('error_details', 'No details')}")
             return False
             
     except Exception as e:
@@ -123,9 +116,9 @@ async def test_new_api_key():
         return False
 
 if __name__ == "__main__":
-    success = asyncio.run(test_new_api_key())
+    success = asyncio.run(test_direct_order_placement())
     if success:
-        print("الاختبار نجح! البوت يعمل الآن مع Futures")
+        print("الاختبار نجح!")
     else:
         print("الاختبار فشل")
         sys.exit(1)

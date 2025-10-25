@@ -79,7 +79,7 @@ class SignalExecutor:
             
             account_type = user_data.get('account_type', 'demo')
             exchange = user_data.get('exchange', 'bybit')
-            market_type = user_data.get('market_type', 'spot')
+            market_type = user_data.get('market_type', 'futures')
             
             logger.info(f" تنفيذ إشارة للمستخدم {user_id}: {signal_data.get('action')} {signal_data.get('symbol')}")
             logger.info(f" نوع الحساب: {account_type}, المنصة: {exchange}, السوق: {market_type}")
