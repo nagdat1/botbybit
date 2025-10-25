@@ -1174,7 +1174,7 @@ class SignalExecutor:
                     balance_info = account.get_wallet_balance('futures' if market_type == 'futures' else 'spot')
                     if balance_info and 'coins' in balance_info and 'USDT' in balance_info['coins']:
                         available = float(balance_info['coins']['USDT']['equity'])
-                        total = float(balance_info['coins']['USDT']['walletBalance'])
+                        total = float(balance_info['coins']['USDT']['wallet_balance'])
                         locked = total - available
                     else:
                         return {'success': False, 'message': 'Failed to get balance info', 'error': 'BALANCE_FETCH_FAILED'}
