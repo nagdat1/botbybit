@@ -9340,7 +9340,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_menu(update, context)
     elif text == " حالة الحساب":
         await account_status(update, context)
-    elif text == " الصفقات المفتوحة" or "الصفقات المفتوحة" in text or "" in text:
+    elif text == " الصفقات المفتوحة":
         await open_positions(update, context)
     elif text == " تاريخ التداول":
         await trade_history(update, context)
@@ -9392,11 +9392,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(" يرجى إدخال رقم صحيح")
     else:
         # معالجة أي نصوص أخرى
-        # تصحيح المشكلة مع زر الصفقات المفتوحة - إضافة تصحيح إضافي
-        if "الصفقات المفتوحة" in text or "" in text:
-            await open_positions(update, context)
-        elif update.message is not None:
-            # تصحيح مؤقت لإظهار النص الفعلي لتتبع المشكلة
+        if update.message is not None:
             await update.message.reply_text(f" أمر غير مدعوم: '{text}'")
 
 # دالة لمعالجة الإشارات الخارجية
