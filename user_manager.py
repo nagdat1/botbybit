@@ -145,6 +145,17 @@ class UserManager:
     
     def get_user(self, user_id: int) -> Optional[Dict]:
         """الحصول على بيانات المستخدم"""
+        # محاولة إعادة تحميل البيانات من قاعدة البيانات إذا لم تكن موجودة في الذاكرة
+        if user_id not in self.users:
+            try:
+                from database import db_manager
+                user_data = db_manager.get_user(user_id)
+                if user_data:
+                    self.users[user_id] = user_data
+                    logger.info(f"تم إعادة تحميل بيانات المستخدم {user_id} من قاعدة البيانات")
+            except Exception as e:
+                logger.error(f"خطأ في إعادة تحميل بيانات المستخدم {user_id}: {e}")
+        
         return self.users.get(user_id)
     
     def get_user_settings(self, user_id: int) -> Optional[Dict]:

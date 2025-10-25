@@ -97,12 +97,28 @@ class SignalExecutor:
             real_account = real_account_manager.get_account(user_id)
             
             if not real_account:
-                logger.error(f" حساب حقيقي غير مفعّل للمستخدم {user_id}")
-                return {
-                    'success': False,
-                    'message': 'Real account not activated',
-                    'error': 'ACCOUNT_NOT_FOUND'
-                }
+                # محاولة إنشاء الحساب الحقيقي تلقائياً
+                logger.info(f"محاولة إنشاء حساب حقيقي للمستخدم {user_id}")
+                
+                api_key = user_data.get('bybit_api_key')
+                api_secret = user_data.get('bybit_api_secret')
+                exchange = user_data.get('exchange', 'bybit')
+                
+                if api_key and api_secret:
+                    try:
+                        real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+                        real_account = real_account_manager.get_account(user_id)
+                        logger.info(f"تم إنشاء حساب حقيقي للمستخدم {user_id}")
+                    except Exception as e:
+                        logger.error(f"فشل في إنشاء حساب حقيقي للمستخدم {user_id}: {e}")
+                
+                if not real_account:
+                    logger.error(f" حساب حقيقي غير مفعّل للمستخدم {user_id}")
+                    return {
+                        'success': False,
+                        'message': 'Real account not activated - API keys missing or invalid',
+                        'error': 'ACCOUNT_NOT_FOUND'
+                    }
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
             from signal_converter import convert_simple_signal
