@@ -3710,8 +3710,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton(" الإعدادات"), KeyboardButton(" حالة الحساب")],
         [KeyboardButton(" الصفقات المفتوحة"), KeyboardButton(" تاريخ التداول")],
-        [KeyboardButton(" المحفظة"), KeyboardButton(" إحصائيات")],
-        [KeyboardButton("⚙️ إعدادات متقدمة")]
+        [KeyboardButton(" المحفظة"), KeyboardButton(" إحصائيات")]
     ]
     
     # إضافة زر متابعة Nagdat
@@ -8458,35 +8457,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
-        if text == "⚙️ إعدادات متقدمة":
-            # عرض إعدادات بسيطة قابلة للتعديل
-            user_data = user_manager.get_user(user_id)
-            current_amount = user_data.get('trade_amount', 50.0)
-            current_leverage = user_data.get('leverage', 1)
-            
-            message = f"""
-⚙️ **الإعدادات القابلة للتعديل**
-
-💰 **مبلغ التداول الحالي:** {current_amount} USDT
-📈 **الرافعة المالية الحالية:** {current_leverage}x
-
-💡 **لتعديل أي إعداد:**
-• اضغط على الزر المطلوب أدناه
-• أدخل القيمة الجديدة
-• سيتم حفظها تلقائياً
-
-⚠️ **ملاحظة:** هذه الإعدادات تؤثر على جميع الإشارات المستقبلية
-            """
-            
-            keyboard = [
-                [InlineKeyboardButton("💰 تعديل مبلغ التداول", callback_data="set_amount")],
-                [InlineKeyboardButton("📈 تعديل الرافعة المالية", callback_data="set_leverage")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
-            return
-        elif text == "⚡ متابعة Nagdat" or text == "⚡ متابع لـ Nagdat ":
+        if text == "⚡ متابعة Nagdat" or text == "⚡ متابع لـ Nagdat ":
             # تبديل حالة المتابعة
             is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
             
