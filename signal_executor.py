@@ -1201,6 +1201,17 @@ class SignalExecutor:
                         'error_details': f'Failed result: {result}'
                     }
             
+            # التحقق النهائي من النجاح قبل الإرجاع
+            if not result or not isinstance(result, dict) or not result.get('order_id'):
+                logger.error(f"❌ فشل تنفيذ الصفقة - لا يوجد order_id")
+                logger.error(f"   النتيجة: {result}")
+                return {
+                    'success': False,
+                    'message': f'Order placement failed - no valid order_id',
+                    'is_real': True,
+                    'error_details': result if result else 'Empty result'
+                }
+            
             # حفظ الصفقة في قاعدة البيانات
             if result and has_signal_id:
                 position_data = {
