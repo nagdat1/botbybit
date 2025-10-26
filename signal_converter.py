@@ -243,12 +243,21 @@ class SignalConverter:
             if signal.get('market_type') == 'futures':
                 if 'leverage' in user_settings:
                     signal['leverage'] = user_settings['leverage']
-                    logger.info(f"⚡ الرافعة المالية: {signal['leverage']}x")
+                    logger.info(f"⚡ الرافعة المالية من الإعدادات: {signal['leverage']}x")
                 else:
                     signal['leverage'] = 10  # القيمة الافتراضية
                     logger.warning(f"⚠️ استخدام الرافعة الافتراضية: {signal['leverage']}x")
             else:
-                signal['leverage'] = 1  # بدون رافعة للـ Spot
+                # للـ Spot: استخدام الرافعة من الإعدادات (قد تكون 1 أو من المستخدم)
+                if 'leverage' in user_settings and user_settings.get('market_type') == 'spot':
+                    signal['leverage'] = user_settings['leverage']
+                    logger.info(f"⚡ الرافعة للـ Spot من الإعدادات: {signal['leverage']}x")
+                else:
+                    signal['leverage'] = 1  # بدون رافعة للـ Spot
+                    logger.info(f"⚡ الرافعة الافتراضية للـ Spot: {signal['leverage']}x")
+            
+            logger.info(f"🔍 جميع إعدادات user_settings: {user_settings}")
+            logger.info(f"🔍 الرافعة النهائية في signal: {signal.get('leverage')}")
             
             # إضافة المنصة
             if 'exchange' in user_settings:

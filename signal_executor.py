@@ -518,9 +518,34 @@ class SignalExecutor:
                     account, signal_data, side, qty, leverage, take_profit, stop_loss, market_type, user_id
                 )
             
-            if result:
+            # التحقق الفعلي من نجاح الصفقة
+            if result and isinstance(result, dict) and result.get('order_id'):
+                order_id_real = result.get('order_id')
                 logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
                 logger.info(f"📋 تفاصيل الأمر: {result}")
+                logger.info(f"🆔 Order ID الحقيقي: {order_id_real}")
+                
+                # التحقق الفعلي من وجود الصفقة على Bybit
+                found_position = None
+                try:
+                    # جلب الصفقات المفتوحة من Bybit
+                    positions = account.get_open_positions('linear')
+                    logger.info(f"🔍 جلب الصفقات المفتوحة من Bybit...")
+                    
+                    # البحث عن الصفقة الجديدة
+                    for pos in positions:
+                        if pos.get('symbol') == symbol and pos.get('side') == side:
+                            found_position = pos
+                            logger.info(f"✅ تم العثور على الصفقة على Bybit: {pos}")
+                            break
+                    
+                    if found_position:
+                        logger.info(f"✅ تأكيد حقيقي: الصفقة موجودة على Bybit")
+                    else:
+                        logger.warning(f"⚠️ تحذير: الصفقة قد لا تكون موجودة على Bybit بعد")
+                        
+                except Exception as e:
+                    logger.error(f"❌ خطأ في التحقق من الصفقة على Bybit: {e}")
                 
                 # حفظ الصفقة في قاعدة البيانات إذا كان هناك ID
                 if has_signal_id and signal_id:
@@ -558,19 +583,22 @@ class SignalExecutor:
                 return {
                     'success': True,
                     'message': f'Order placed: {side} {symbol}',
-                    'order_id': result.get('order_id'),
+                    'order_id': order_id_real,
                     'symbol': symbol,
                     'side': side,
                     'qty': qty,
                     'is_real': True,
-                    'signal_id': signal_id if has_signal_id else None
+                    'signal_id': signal_id if has_signal_id else None,
+                    'verified_on_bybit': found_position is not None
                 }
             else:
                 logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على Bybit")
+                logger.error(f"❌ النتيجة: {result}")
                 return {
                     'success': False,
-                    'message': f'Failed to place order on Bybit',
-                    'error': 'ORDER_FAILED'
+                    'message': f'Failed to place order on Bybit - no valid order_id',
+                    'error': 'ORDER_FAILED',
+                    'result_details': result
                 }
                 
         except Exception as e:
@@ -1073,7 +1101,10 @@ class SignalExecutor:
                     stop_loss=stop_loss
                 )
             
-            # معالجة محسنة للأخطاء
+            # معالجة محسنة للأخطاء - تحقق فعلي من النجاح
+            logger.info(f"🔍 فحص نتيجة place_order: {result}")
+            logger.info(f"🔍 نوع النتيجة: {type(result)}")
+            
             if result is None:
                 logger.error(f"⚠️ فشل وضع الأمر - استجابة فارغة")
                 return {
@@ -1083,18 +1114,29 @@ class SignalExecutor:
                     'error_details': 'Empty response from Bybit API'
                 }
             
-            if isinstance(result, dict) and 'error' in result:
-                logger.error(f"⚠️ خطأ في API: {result['error']}")
+            # التحقق من وجود order_id في النتيجة (مؤشر حقيقي على النجاح)
+            if isinstance(result, dict):
+                order_id = result.get('order_id')
+                if not order_id:
+                    logger.error(f"❌ لم يتم إرجاع order_id - احتمال فشل الصفقة")
+                    logger.error(f"   النتيجة الكاملة: {result}")
+                    return {
+                        'success': False,
+                        'message': f'Order placement failed - no order_id returned',
+                        'is_real': True,
+                        'error_details': f'No order_id in result: {result}'
+                    }
+                else:
+                    logger.info(f"✅ تم إنشاء order_id بنجاح: {order_id}")
+                    logger.info(f"📋 تفاصيل الأمر الكاملة: {result}")
+            else:
+                logger.error(f"❌ النتيجة ليست dictionary: {result}")
                 return {
                     'success': False,
-                    'message': f'API Error: {result["error"]}',
+                    'message': f'Invalid response format from Bybit API',
                     'is_real': True,
-                    'error_details': result
+                    'error_details': f'Unexpected response type: {type(result)}'
                 }
-            
-            # إذا وصلنا هنا، فالأمر نجح
-            logger.info(f"✅ تم تنفيذ أمر {side} {symbol} على Bybit بنجاح")
-            logger.info(f"📋 تفاصيل الأمر: {result}")
             
             # حفظ الصفقة في قاعدة البيانات
             if result and has_signal_id:
