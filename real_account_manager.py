@@ -67,7 +67,14 @@ class BybitRealAccount:
             elif method == 'POST':
                 # للطلبات POST: استخدام JSON body
                 import json
-                params_str = json.dumps(params) if params else ""
+                # ترتيب المعاملات أبجدياً لضمان توافق التوقيع
+                params_sorted = {}
+                if params:
+                    params_sorted = {k: params[k] for k in sorted(params.keys())}
+                    # استخدام json.dumps بدون مسافات
+                    params_str = json.dumps(params_sorted, separators=(',', ':'), sort_keys=True)
+                else:
+                    params_str = ""
                 signature = self._generate_signature(timestamp, recv_window, params_str)
                 
                 headers = {
@@ -81,9 +88,14 @@ class BybitRealAccount:
                 
                 url = f"{self.base_url}{endpoint}"
                 logger.info(f"📤 POST إلى {endpoint}")
-                logger.debug(f"المعاملات: {params}")
+                logger.info(f"📋 المعاملات المرتبة: {params_str}")
+                logger.debug(f"المعاملات الأصلية: {params}")
                 
-                response = requests.post(url, headers=headers, json=params, timeout=10)
+                # إرسال المعاملات كنص JSON لضمان التطابق التام مع التوقيع
+                if params_str:
+                    response = requests.post(url, headers=headers, data=params_str, timeout=10)
+                else:
+                    response = requests.post(url, headers=headers, timeout=10)
             else:
                 logger.error(f"❌ نوع طلب غير مدعوم: {method}")
                 return None
@@ -238,17 +250,23 @@ class BybitRealAccount:
         result = self._make_request('POST', '/v5/order/create', params)
         
         if result:
-            return {
-                'order_id': result.get('orderId'),
-                'order_link_id': result.get('orderLinkId'),
-                'symbol': symbol,
-                'side': side,
-                'type': order_type,
-                'qty': qty,
-                'price': price
-            }
+            logger.info(f"🔍 نتيجة place_order من Bybit: {result}")
+            order_id = result.get('orderId')
+            if order_id:
+                return {
+                    'order_id': order_id,
+                    'order_link_id': result.get('orderLinkId'),
+                    'symbol': symbol,
+                    'side': side,
+                    'type': order_type,
+                    'qty': qty,
+                    'price': price
+                }
+            else:
+                logger.error(f"❌ لا يوجد orderId في نتيجة Bybit: {result}")
+                return {'error': 'No orderId in result', 'details': result}
         
-        return None
+        return {'error': 'Empty result from Bybit'}
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
         """تعيين الرافعة المالية على المنصة"""
