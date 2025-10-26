@@ -178,7 +178,8 @@ class SignalConverter:
         try:
             converted = {
                 'symbol': symbol,
-                'signal_type': signal_type
+                'signal_type': signal_type,
+                'market_type': None  # سيتم تعيينه من إعدادات المستخدم
             }
             
             # إشارة شراء (BUY)
@@ -239,25 +240,7 @@ class SignalConverter:
                 signal['amount'] = 100.0  # القيمة الافتراضية
                 logger.warning(f"⚠️ استخدام مبلغ التداول الافتراضي: {signal['amount']}")
             
-            # إضافة الرافعة المالية (للفيوتشر فقط)
-            if signal.get('market_type') == 'futures':
-                if 'leverage' in user_settings:
-                    signal['leverage'] = user_settings['leverage']
-                    logger.info(f"⚡ الرافعة المالية من الإعدادات: {signal['leverage']}x")
-                else:
-                    signal['leverage'] = 10  # القيمة الافتراضية
-                    logger.warning(f"⚠️ استخدام الرافعة الافتراضية: {signal['leverage']}x")
-            else:
-                # للـ Spot: استخدام الرافعة من الإعدادات (قد تكون 1 أو من المستخدم)
-                if 'leverage' in user_settings and user_settings.get('market_type') == 'spot':
-                    signal['leverage'] = user_settings['leverage']
-                    logger.info(f"⚡ الرافعة للـ Spot من الإعدادات: {signal['leverage']}x")
-                else:
-                    signal['leverage'] = 1  # بدون رافعة للـ Spot
-                    logger.info(f"⚡ الرافعة الافتراضية للـ Spot: {signal['leverage']}x")
-            
             logger.info(f"🔍 جميع إعدادات user_settings: {user_settings}")
-            logger.info(f"🔍 الرافعة النهائية في signal: {signal.get('leverage')}")
             
             # إضافة المنصة
             if 'exchange' in user_settings:
@@ -271,20 +254,27 @@ class SignalConverter:
             else:
                 signal['account_type'] = 'demo'  # الافتراضي
             
-            # تحديث نوع السوق إذا كان المستخدم لديه تفضيل خاص
-            # ملاحظة: الإشارة تحدد النوع، لكن قد يريد المستخدم تجاوز ذلك
+            # تحديد نوع السوق من إعدادات المستخدم (الآن يجب أن يكون محدداً)
             if 'market_type' in user_settings:
-                user_market = user_settings['market_type']
-                signal_market = signal.get('market_type')
-                
-                # تحذير إذا كان هناك عدم توافق
-                if user_market != signal_market:
-                    logger.warning(
-                        f"⚠️ عدم توافق نوع السوق: "
-                        f"الإشارة={signal_market}, المستخدم={user_market}"
-                    )
-                    # الأولوية للإشارة
-                    logger.info(f"✅ استخدام نوع السوق من الإشارة: {signal_market}")
+                signal['market_type'] = user_settings['market_type']
+                logger.info(f"✅ استخدام نوع السوق من إعدادات المستخدم: {signal['market_type']}")
+            else:
+                signal['market_type'] = 'spot'  # افتراضي
+                logger.warning(f"⚠️ لم يتم تحديد نوع السوق - استخدام الافتراضي: spot")
+            
+            # إعادة حساب الرافعة بعد تحديد نوع السوق
+            if signal.get('market_type') == 'futures':
+                if 'leverage' in user_settings:
+                    signal['leverage'] = user_settings['leverage']
+                    logger.info(f"⚡ تحديث الرافعة للـ Futures: {signal['leverage']}x")
+                else:
+                    signal['leverage'] = 10
+                    logger.warning(f"⚠️ استخدام الرافعة الافتراضية للـ Futures: {signal['leverage']}x")
+            else:
+                signal['leverage'] = 1
+                logger.info(f"⚡ الرافعة للـ Spot: {signal['leverage']}x")
+            
+            logger.info(f"✅ الإشارة النهائية بعد تطبيق الإعدادات: {signal}")
             
             return signal
             

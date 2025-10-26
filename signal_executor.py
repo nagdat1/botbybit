@@ -181,13 +181,17 @@ class SignalExecutor:
                         'error': 'PRICE_FETCH_ERROR'
                     }
             
-            # معلومات التداول
+            # معلومات التداول من إعدادات المستخدم
             trade_amount = user_data.get('trade_amount', 100.0)
             leverage = user_data.get('leverage', 10)
             
-            logger.info(f"💰 مبلغ التداول: {trade_amount}, الرافعة: {leverage}")
-            logger.info(f"🔍 فحص الإعدادات: user_data = {user_data}")
-            logger.info(f"🔍 الرافعة المستخدمة: {leverage}x (من إعدادات المستخدم: {user_data.get('leverage', 'غير محدد')})")
+            logger.info(f"=" * 80)
+            logger.info(f"🔍 تحليل الإعدادات المستلمة:")
+            logger.info(f"   trade_amount: {trade_amount} USDT")
+            logger.info(f"   leverage: {leverage}x")
+            logger.info(f"   market_type: {user_data.get('market_type')}")
+            logger.info(f"   user_data كامل: {user_data}")
+            logger.info(f"=" * 80)
             
             # تنفيذ الإشارة حسب المنصة
             if exchange == 'bybit':
@@ -402,13 +406,26 @@ class SignalExecutor:
                 }
             
             # حساب الكمية مع ضمان عدم وجود قيم صغيرة جداً
+            logger.info(f"=" * 80)
+            logger.info(f"🧮 حساب الكمية:")
+            logger.info(f"   market_type: {market_type}")
+            logger.info(f"   trade_amount: {trade_amount} USDT")
+            logger.info(f"   leverage: {leverage}x")
+            logger.info(f"   price: {price}")
+            
             if market_type == 'futures':
                 qty = (trade_amount * leverage) / price
                 notional_value = trade_amount * leverage
+                logger.info(f"   ✅ Futures: qty = ({trade_amount} × {leverage}) / {price} = {qty}")
+                logger.info(f"   ✅ notional_value = {trade_amount} × {leverage} = {notional_value}")
             else:
                 # للسبوت بدون رافعة
                 qty = trade_amount / price
                 notional_value = trade_amount
+                logger.info(f"   ✅ Spot: qty = {trade_amount} / {price} = {qty}")
+                logger.info(f"   ✅ notional_value = {trade_amount}")
+            
+            logger.info(f"=" * 80)
             
             # 🔍 فحص رواية للرافعة المالية والمبلغ (كود ذكي للتحقق)
             # حساب الحد الأدنى المسموح به للفيوتشرز
@@ -479,6 +496,11 @@ class SignalExecutor:
                 rounded_qty = round(qty, 8)
             
             # إذا تم التعديل، نحسب المبلغ الفعلي بعد التقريب
+            logger.info(f"=" * 80)
+            logger.info(f"🧠 تقريب ذكي عالمي:")
+            logger.info(f"   الكمية الأصلية: {qty:.8f}")
+            logger.info(f"   الكمية بعد التقريب: {rounded_qty:.8f}")
+            
             if abs(rounded_qty - qty) > 0.00000001:
                 # حساب المبلغ الفعلي بعد التقريب
                 if market_type == 'futures':
@@ -486,12 +508,17 @@ class SignalExecutor:
                 else:
                     effective_amount = rounded_qty * price
                 
-                logger.info(f"🧠 تقريب ذكي عالمي: الكمية {qty:.8f} → {rounded_qty:.8f}")
-                logger.info(f"🧠 المبلغ الفعلي: ${trade_amount} → ${effective_amount:.2f} ({(effective_amount/trade_amount)*100:.1f}%)")
+                logger.info(f"   ✅ تم التقريب")
+                logger.info(f"   📊 المبلغ الأصلي: ${trade_amount}")
+                logger.info(f"   📊 المبلغ بعد التقريب: ${effective_amount:.2f}")
+                logger.info(f"   📊 نسبة التقريب: {(effective_amount/trade_amount)*100:.1f}%")
                 qty = rounded_qty
             else:
                 # لا حاجة لتعديل - الكمية بالفعل مقربة بشكل صحيح
+                logger.info(f"   ⚠️ لا حاجة للتقريب - الكمية بالفعل صحيحة")
                 qty = rounded_qty
+            
+            logger.info(f"=" * 80)
             
             logger.info(f"🧠 تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
             logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
@@ -1028,6 +1055,40 @@ class SignalExecutor:
             }
     
     @staticmethod
+    def _calculate_adjusted_quantity(qty: float, price: float, trade_amount: float, leverage: int) -> float:
+        """
+        حساب كمية معدلة عند فشل الصفقة بالتقريب الذكي
+        
+        Args:
+            qty: الكمية الأصلية
+            price: السعر الحالي
+            trade_amount: المبلغ الأصلي
+            leverage: الرافعة المالية
+            
+        Returns:
+            الكمية المعدلة
+        """
+        # تقريب الكمية بناءً على حجمها
+        if qty < 0.001:
+            # أرقام صغيرة جداً: تقريب لـ 5 منازل عشرية
+            adjusted = round(qty, 5)
+        elif qty < 0.01:
+            # أرقام صغيرة: تقريب لـ 4 منازل عشرية
+            adjusted = round(qty, 4)
+        elif qty < 0.1:
+            # أرقام متوسطة: تقريب لـ 3 منازل عشرية
+            adjusted = round(qty, 3)
+        elif qty < 1:
+            # أرقام كبيرة نسبياً: تقريب لـ 2 منزل عشري
+            adjusted = round(qty, 2)
+        else:
+            # أرقام كبيرة جداً: تقريب لـ 1 منزل عشري
+            adjusted = round(qty, 1)
+        
+        logger.info(f"🧮 التقريب التلقائي: {qty:.8f} → {adjusted:.8f}")
+        return adjusted
+    
+    @staticmethod
     async def _handle_futures_order(account, signal_data: Dict, side: str, qty: float,
                                    leverage: int, take_profit: float, stop_loss: float,
                                    market_type: str, user_id: int) -> Dict:
@@ -1089,7 +1150,13 @@ class SignalExecutor:
                         stop_loss=stop_loss
                     )
             else:
-                # صفقة جديدة
+                # صفقة جديدة - مع آلية التقريب التلقائي
+                logger.info(f"=" * 80)
+                logger.info(f"🚀 المحاولة الأولى - الكمية الأصلية:")
+                logger.info(f"   qty: {qty}")
+                logger.info(f"=" * 80)
+                
+                # المحاولة الأولى بالكمية الأصلية
                 result = account.place_order(
                     category='linear',
                     symbol=symbol,
@@ -1100,43 +1167,61 @@ class SignalExecutor:
                     take_profit=take_profit,
                     stop_loss=stop_loss
                 )
-            
-            # معالجة محسنة للأخطاء - تحقق فعلي من النجاح
-            logger.info(f"🔍 فحص نتيجة place_order: {result}")
-            logger.info(f"🔍 نوع النتيجة: {type(result)}")
-            
-            if result is None:
-                logger.error(f"⚠️ فشل وضع الأمر - استجابة فارغة")
-                return {
-                    'success': False,
-                    'message': f'Order placement failed - empty response',
-                    'is_real': True,
-                    'error_details': 'Empty response from Bybit API'
-                }
-            
-            # التحقق من وجود order_id في النتيجة (مؤشر حقيقي على النجاح)
-            if isinstance(result, dict):
-                order_id = result.get('order_id')
-                if not order_id:
-                    logger.error(f"❌ لم يتم إرجاع order_id - احتمال فشل الصفقة")
-                    logger.error(f"   النتيجة الكاملة: {result}")
+                
+                logger.info(f"🔍 نتيجة المحاولة الأولى: {result}")
+                
+                # التحقق من الفشل
+                if result is None or not isinstance(result, dict) or not result.get('order_id'):
+                    logger.warning(f"⚠️ فشلت المحاولة الأولى - جاري المحاولة بالتقريب التلقائي...")
+                    
+                    # الحصول على السعر والمبلغ من signal_data
+                    price = signal_data.get('price', 0)
+                    trade_amount = signal_data.get('amount', 0)
+                    
+                    # محاولة ثانية مع تقريب الكمية
+                    adjusted_qty = SignalExecutor._calculate_adjusted_quantity(qty, price, trade_amount, leverage)
+                    
+                    logger.info(f"=" * 80)
+                    logger.info(f"🔄 المحاولة الثانية - الكمية المعدلة:")
+                    logger.info(f"   qty_original: {qty}")
+                    logger.info(f"   qty_adjusted: {adjusted_qty}")
+                    logger.info(f"=" * 80)
+                    
+                    result = account.place_order(
+                        category='linear',
+                        symbol=symbol,
+                        side=side,
+                        order_type='Market',
+                        qty=round(adjusted_qty, 4),
+                        leverage=leverage,
+                        take_profit=take_profit,
+                        stop_loss=stop_loss
+                    )
+                    
+                    logger.info(f"🔍 نتيجة المحاولة الثانية: {result}")
+                    
+                    # إذا نجحت المحاولة الثانية، ارسل رسالة للمستخدم
+                    if result and isinstance(result, dict) and result.get('order_id'):
+                        effective_amount = (adjusted_qty * price) / leverage
+                        logger.info(f"✅ نجحت المحاولة الثانية بالتقريب التلقائي")
+                        logger.info(f"📢 رسالة للمستخدم: تم تنفيذ الصفقة بالتقريب التلقائي")
+                        logger.info(f"   المبلغ الأصلي: ${trade_amount}")
+                        logger.info(f"   المبلغ الفعلي: ${effective_amount:.2f}")
+                        logger.info(f"   الكمية المعدلة: {adjusted_qty}")
+                
+                # التحقق من وجود order_id
+                if result and isinstance(result, dict) and result.get('order_id'):
+                    logger.info(f"✅ تم إنشاء order_id بنجاح: {result.get('order_id')}")
+                    logger.info(f"📋 تفاصيل الأمر الكاملة: {result}")
+                else:
+                    logger.error(f"❌ فشلت جميع المحاولات")
+                    logger.error(f"   النتيجة: {result}")
                     return {
                         'success': False,
-                        'message': f'Order placement failed - no order_id returned',
+                        'message': f'Order placement failed after auto-adjustment',
                         'is_real': True,
-                        'error_details': f'No order_id in result: {result}'
+                        'error_details': f'Failed result: {result}'
                     }
-                else:
-                    logger.info(f"✅ تم إنشاء order_id بنجاح: {order_id}")
-                    logger.info(f"📋 تفاصيل الأمر الكاملة: {result}")
-            else:
-                logger.error(f"❌ النتيجة ليست dictionary: {result}")
-                return {
-                    'success': False,
-                    'message': f'Invalid response format from Bybit API',
-                    'is_real': True,
-                    'error_details': f'Unexpected response type: {type(result)}'
-                }
             
             # حفظ الصفقة في قاعدة البيانات
             if result and has_signal_id:
