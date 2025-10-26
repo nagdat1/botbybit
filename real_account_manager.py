@@ -206,12 +206,16 @@ class BybitRealAccount:
                    reduce_only: bool = False) -> Optional[Dict]:
         """وضع أمر تداول حقيقي"""
         
+        # إرسال الكمية كما هي بدون تقريب - المنصة ستقوم بالتقريب
+        # فقط نضمن أن الكمية رقم صحيح
+        qty_str = str(float(qty))
+        
         params = {
             'category': category,
             'symbol': symbol,
             'side': side.capitalize(),
             'orderType': order_type.capitalize(),
-            'qty': str(qty)
+            'qty': qty_str
         }
         
         if price and order_type.lower() == 'limit':
