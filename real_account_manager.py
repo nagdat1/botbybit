@@ -202,7 +202,8 @@ class BybitRealAccount:
     
     def place_order(self, category: str, symbol: str, side: str, order_type: str,
                    qty: float, price: float = None, leverage: int = None,
-                   take_profit: float = None, stop_loss: float = None) -> Optional[Dict]:
+                   take_profit: float = None, stop_loss: float = None,
+                   reduce_only: bool = False) -> Optional[Dict]:
         """وضع أمر تداول حقيقي"""
         
         params = {
@@ -215,6 +216,10 @@ class BybitRealAccount:
         
         if price and order_type.lower() == 'limit':
             params['price'] = str(price)
+        
+        # reduce_only للأوامر Futures فقط
+        if reduce_only and category in ['linear', 'inverse']:
+            params['reduceOnly'] = True
         
         if take_profit:
             params['takeProfit'] = str(take_profit)
@@ -271,25 +276,47 @@ class BybitRealAccount:
         result = self._make_request('POST', '/v5/position/trading-stop', params)
         return result is not None
     
-    def close_position(self, category: str, symbol: str, side: str) -> Optional[Dict]:
+    def close_position(self, category: str, symbol: str, side: str = None, reduce_only: bool = False) -> Optional[Dict]:
         """إغلاق صفقة مفتوحة"""
-        # الحصول على حجم الصفقة أولاً
-        positions = self.get_open_positions(category)
-        position = next((p for p in positions if p['symbol'] == symbol), None)
-        
-        if not position:
-            return None
-        
-        # عكس الجهة للإغلاق
-        close_side = 'Sell' if side.lower() == 'buy' else 'Buy'
-        
-        return self.place_order(
-            category=category,
-            symbol=symbol,
-            side=close_side,
-            order_type='Market',
-            qty=position['size']
-        )
+        # للـ Spot، نحتاج فقط لإرسال أمر بيع/شراء عكسي
+        if category == 'spot':
+            # الحصول على معلومات الصفقة
+            positions = self.get_open_positions(category)
+            position = next((p for p in positions if p['symbol'] == symbol), None)
+            
+            if not position:
+                return None
+            
+            # عكس الجهة للإغلاق
+            close_side = 'Sell' if position['side'].lower() == 'buy' else 'Buy'
+            
+            return self.place_order(
+                category=category,
+                symbol=symbol,
+                side=close_side,
+                order_type='Market',
+                qty=position['size'],
+                reduce_only=False  # Spot لا يدعم reduce_only
+            )
+        else:
+            # للـ Futures/Linear
+            positions = self.get_open_positions(category)
+            position = next((p for p in positions if p['symbol'] == symbol), None)
+            
+            if not position:
+                return None
+            
+            # عكس الجهة للإغلاق
+            close_side = side if side else ('Sell' if position['side'].lower() == 'buy' else 'Buy')
+            
+            return self.place_order(
+                category=category,
+                symbol=symbol,
+                side=close_side,
+                order_type='Market',
+                qty=position['size'],
+                reduce_only=True
+            )
     
     def get_order_history(self, category: str = 'linear', limit: int = 50) -> List[Dict]:
         """الحصول على سجل الأوامر"""

@@ -15,8 +15,9 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kW
 ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
 
 # إعدادات Bybit API
-BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "osH14PNXCGzrxQLT0T")
-BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "kpP2LHqNOc8Z2P1QjKB5Iw874x7Q2QXGfBHX")
+# للمستخدمين: أضف API Keys الخاصة بك في ملف .env
+BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "")
+BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "")
 BYBIT_BASE_URL = "https://api.bybit.com"
 
 # إعدادات MEXC API

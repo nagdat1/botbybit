@@ -1322,6 +1322,85 @@ class BybitAPI:
             logger.error(f"خطأ في إغلاق الصفقة: {e}")
             return {"retCode": -1, "retMsg": str(e)}
     
+    def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
+        """تعيين الرافعة المالية"""
+        try:
+            endpoint = "/v5/position/set-leverage"
+            api_category = "linear" if category == "futures" else category
+            
+            params = {
+                "category": api_category,
+                "symbol": symbol,
+                "buyLeverage": str(leverage),
+                "sellLeverage": str(leverage)
+            }
+            
+            # للطلبات POST الخاصة بالفيوتشر، نستخدم query string بدلاً من JSON
+            url = f"{self.base_url}{endpoint}"
+            timestamp = str(int(time.time() * 1000))
+            
+            # بناء query string
+            sorted_params = sorted(params.items())
+            param_str = urlencode(sorted_params)
+            
+            # إنشاء التوقيع
+            sign_string = timestamp + self.api_key + "5000" + param_str
+            signature = hmac.new(
+                self.api_secret.encode('utf-8'),
+                sign_string.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            # Headers
+            headers = {
+                "X-BAPI-API-KEY": self.api_key,
+                "X-BAPI-SIGN": signature,
+                "X-BAPI-SIGN-TYPE": "2",
+                "X-BAPI-TIMESTAMP": timestamp,
+                "X-BAPI-RECV-WINDOW": "5000",
+                "Content-Type": "application/json"
+            }
+            
+            # إرسال POST مع query string
+            url_with_params = f"{url}?{param_str}"
+            response = requests.post(url_with_params, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            if result.get("retCode") == 0:
+                logger.info(f"✅ تم تعيين الرافعة إلى {leverage}x لـ {symbol}")
+                return True
+            else:
+                logger.error(f"❌ فشل في تعيين الرافعة: {result.get('retMsg')}")
+                return False
+            
+        except Exception as e:
+            logger.error(f"خطأ في تعيين الرافعة: {e}")
+            return False
+    
+    def get_order_history(self, category: str = "linear", limit: int = 50) -> List[dict]:
+        """الحصول على سجل الأوامر"""
+        try:
+            endpoint = "/v5/order/history"
+            api_category = "linear" if category == "futures" else category
+            params = {"category": api_category, "limit": limit}
+            
+            response = self._make_request("GET", endpoint, params)
+            
+            if response.get("retCode") == 0:
+                result = response.get("result", {})
+                orders = result.get("list", [])
+                logger.info(f"تم جلب {len(orders)} أمر من السجل")
+                return orders
+            
+            logger.warning(f"فشل جلب سجل الأوامر: {response.get('retMsg')}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"خطأ في جلب سجل الأوامر: {e}")
+            return []
+    
     def get_account_balance(self, account_type: str = "UNIFIED") -> dict:
         """الحصول على رصيد الحساب"""
         try:
