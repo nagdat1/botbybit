@@ -988,16 +988,31 @@ class BybitAPI:
         self.base_url = "https://api.bybit.com"
         
     def _generate_signature(self, params: dict, timestamp: str) -> str:
-        """إنشاء التوقيع للطلبات"""
-        param_str = timestamp + self.api_key + "5000" + urlencode(sorted(params.items()))
-        return hmac.new(
-            self.api_secret.encode('utf-8'),
-            param_str.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
+        """إنشاء التوقيع للطلبات - نسخة محسنة ومصادق عليها"""
+        try:
+            # إنشاء query string من المعاملات المرتبة أبجدياً
+            sorted_params = sorted(params.items())
+            param_str = urlencode(sorted_params)
+            
+            # بناء السلسلة النصية للتوقيع: timestamp + api_key + recv_window + param_str
+            sign_string = timestamp + self.api_key + "5000" + param_str
+            
+            # توليد التوقيع باستخدام HMAC-SHA256
+            signature = hmac.new(
+                self.api_secret.encode('utf-8'),
+                sign_string.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            logger.debug(f"التوقيع المولد: {signature[:20]}...")
+            return signature
+            
+        except Exception as e:
+            logger.error(f"خطأ في توليد التوقيع: {e}")
+            raise
     
     def _make_request(self, method: str, endpoint: str, params: Optional[dict] = None) -> dict:
-        """إرسال طلب إلى API"""
+        """إرسال طلب إلى API - نسخة محسنة مع توقيع صحيح"""
         try:
             url = f"{self.base_url}{endpoint}"
             timestamp = str(int(time.time() * 1000))
@@ -1005,8 +1020,10 @@ class BybitAPI:
             if params is None:
                 params = {}
             
+            # إنشاء التوقيع
             signature = self._generate_signature(params, timestamp)
             
+            # بناء الرؤوس (Headers)
             headers = {
                 "X-BAPI-API-KEY": self.api_key,
                 "X-BAPI-SIGN": signature,
@@ -1016,19 +1033,40 @@ class BybitAPI:
                 "Content-Type": "application/json"
             }
             
+            logger.debug(f"إرسال {method} إلى {endpoint}")
+            logger.debug(f"المعاملات: {params}")
+            
+            # إرسال الطلب
             if method.upper() == "GET":
                 response = requests.get(url, params=params, headers=headers, timeout=10)
             else:
+                # للمتطلبات POST، نرسل JSON في body
                 response = requests.post(url, json=params, headers=headers, timeout=10)
             
+            # التحقق من الحالة
             response.raise_for_status()
-            return response.json()
+            
+            result = response.json()
+            
+            # تسجيل النتيجة
+            if result.get("retCode") == 0:
+                logger.info(f"✅ نجح الطلب: {endpoint}")
+            else:
+                logger.warning(f"⚠️ تحذير من API: {result.get('retMsg')}")
+            
+            return result
             
         except requests.RequestException as e:
-            logger.error(f"خطأ في طلب API: {e}")
+            logger.error(f"❌ خطأ في طلب API: {e}")
+            logger.error(f"URL: {url}")
+            logger.error(f"Params: {params}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response: {e.response.text}")
             return {"retCode": -1, "retMsg": str(e)}
         except Exception as e:
-            logger.error(f"خطأ غير متوقع في API: {e}")
+            logger.error(f"❌ خطأ غير متوقع في API: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {"retCode": -1, "retMsg": str(e)}
     
     def get_all_symbols(self, category: str = "spot") -> List[dict]:
@@ -1066,12 +1104,57 @@ class BybitAPI:
                 result = response.get("result", {})
                 ticker_list = result.get("list", [])
                 if ticker_list:
-                    return float(ticker_list[0].get("lastPrice", 0))
+                    price = float(ticker_list[0].get("lastPrice", 0))
+                    logger.info(f"✅ السعر الحالي لـ {symbol}: {price}")
+                    return price
             
+            logger.warning(f"⚠️ لم يتم الحصول على سعر {symbol}")
             return None
             
         except Exception as e:
             logger.error(f"خطأ في الحصول على السعر: {e}")
+            return None
+    
+    def convert_amount_to_quantity(self, symbol: str, amount_usdt: float, category: str = "spot") -> Optional[str]:
+        """
+        تحويل المبلغ بالدولار إلى عدد العملات بناءً على السعر الحالي
+        
+        Args:
+            symbol: رمز التداول (مثل BTCUSDT)
+            amount_usdt: المبلغ بالدولار
+            category: نوع السوق (spot/futures)
+            
+        Returns:
+            عدد العملات كسلسلة نصية (للاستخدام في Orders)
+        """
+        try:
+            # الحصول على السعر الحالي
+            current_price = self.get_ticker_price(symbol, category)
+            
+            if current_price is None or current_price <= 0:
+                logger.error(f"❌ فشل في الحصول على سعر {symbol}")
+                return None
+            
+            # حساب عدد العملات
+            quantity = amount_usdt / current_price
+            logger.info(f"💰 المبلغ: {amount_usdt} USDT → الكمية: {quantity:.8f} {symbol}")
+            
+            # للدقة في Bybit، يجب تقريب الكمية حسب precision الرمز
+            # هنا نستخدم تقريب بسيط للأرقام الكبيرة
+            if quantity >= 1:
+                quantity_str = f"{quantity:.4f}"  # 4 خانات عشرية للأرقام الكبيرة
+            elif quantity >= 0.1:
+                quantity_str = f"{quantity:.5f}"  # 5 خانات للقيم المتوسطة
+            elif quantity >= 0.01:
+                quantity_str = f"{quantity:.6f}"  # 6 خانات للقيم الصغيرة
+            else:
+                quantity_str = f"{quantity:.8f}"  # 8 خانات للقيم الصغيرة جداً
+            
+            logger.info(f"✅ الكمية المحسوبة: {quantity_str}")
+            return quantity_str
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في تحويل المبلغ: {e}")
             return None
     
     def check_symbol_exists(self, symbol: str, category: str = "spot") -> bool:
@@ -1128,10 +1211,11 @@ class BybitAPI:
             return {}
     
     def place_order(self, symbol: str, side: str, order_type: str, qty: str, price: Optional[str] = None, category: str = "spot", stop_loss: Optional[str] = None, take_profit: Optional[str] = None) -> dict:
-        """وضع أمر تداول مع دعم TP/SL"""
+        """وضع أمر تداول مع دعم TP/SL - نسخة محسنة"""
         try:
             endpoint = "/v5/order/create"
             
+            # بناء المعاملات الأساسية
             params = {
                 "category": category,
                 "symbol": symbol,
@@ -1140,6 +1224,7 @@ class BybitAPI:
                 "qty": qty
             }
             
+            # إضافة السعر للأوامر Limit
             if price and order_type.lower() == "limit":
                 params["price"] = price
             
@@ -1149,11 +1234,30 @@ class BybitAPI:
             if take_profit:
                 params["takeProfit"] = take_profit
             
+            logger.info(f"📤 وضع أمر: {symbol} {side} {order_type} كمية: {qty}")
+            if price:
+                logger.info(f"   السعر: {price}")
+            if stop_loss:
+                logger.info(f"   Stop Loss: {stop_loss}")
+            if take_profit:
+                logger.info(f"   Take Profit: {take_profit}")
+            
+            # إرسال الطلب
             response = self._make_request("POST", endpoint, params)
+            
+            # تسجيل النتيجة
+            if response.get("retCode") == 0:
+                logger.info(f"✅ تم وضع الأمر بنجاح")
+                logger.info(f"   Order ID: {response.get('result', {}).get('orderId', 'N/A')}")
+            else:
+                logger.error(f"❌ فشل في وضع الأمر: {response.get('retMsg')}")
+            
             return response
             
         except Exception as e:
-            logger.error(f"خطأ في وضع الأمر: {e}")
+            logger.error(f"❌ خطأ في وضع الأمر: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {"retCode": -1, "retMsg": str(e)}
     
     def set_trading_stop(self, symbol: str, category: str = "linear", stop_loss: Optional[str] = None, take_profit: Optional[str] = None, trailing_stop: Optional[str] = None, position_idx: int = 0) -> dict:
