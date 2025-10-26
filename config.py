@@ -15,7 +15,6 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kW
 ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
 
 # إعدادات Bybit API
-# للمستخدمين: أضف API Keys الخاصة بك في ملف .env
 BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "")
 BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "")
 BYBIT_BASE_URL = "https://api.bybit.com"
@@ -52,7 +51,7 @@ DEFAULT_SETTINGS = {
     'account_type': 'demo',          # demo أو real
     'market_type': 'spot',           # spot أو futures
     'exchange': 'bybit',             # bybit أو mexc
-    'trade_amount': 100.0,           # مبلغ التداول الافتراضي
+    'trade_amount': 20.0,            # مبلغ التداول الافتراضي (الحد الأدنى 20 USDT للتأكد)
     'leverage': 10,                  # الرافعة المالية للفيوتشر (Bybit فقط)
     'profit_plan': 'trailing',       # trailing أو multi_tp
     'trailing_stop_percent': 0.5,    # نسبة التوقف المتحرك

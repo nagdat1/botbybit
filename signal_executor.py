@@ -387,7 +387,7 @@ class SignalExecutor:
                 }
             
             # حساب الكمية بناءً على مبلغ التداول ونوع السوق
-            # حساب الكمية - كود خفي للتحويل الذكي
+            # حساب الكمية - كود خفي للتحويل الذكي مع فحص الرافعة المالية
             price = float(signal_data.get('price', 1))
             
             # التحقق من أن السعر صحيح
@@ -402,9 +402,44 @@ class SignalExecutor:
             # حساب الكمية مع ضمان عدم وجود قيم صغيرة جداً
             if market_type == 'futures':
                 qty = (trade_amount * leverage) / price
+                notional_value = trade_amount * leverage
             else:
                 # للسبوت بدون رافعة
                 qty = trade_amount / price
+                notional_value = trade_amount
+            
+            # 🔍 فحص رواية للرافعة المالية والمبلغ (كود ذكي للتحقق)
+            # حساب الحد الأدنى المسموح به للفيوتشرز
+            min_notional_for_leverage = 10.0  # الحد الأدنى من USDT
+            
+            if market_type == 'futures':
+                # التحقق من أن الرافعة مناسبة للمبلغ
+                if notional_value < min_notional_for_leverage:
+                    logger.error(f"❌ الرافعة المالية لا تناسب المبلغ!")
+                    logger.error(f"   المبلغ مع الرافعة ({leverage}x): {notional_value} USDT")
+                    logger.error(f"   الحد الأدنى المطلوب: {min_notional_for_leverage} USDT")
+                    return {
+                        'success': False,
+                        'message': f'الرافعة المالية لا تناسب المبلغ. الحد الأدنى: {min_notional_for_leverage} USDT',
+                        'is_real': True,
+                        'minimum_required': min_notional_for_leverage,
+                        'current_value': notional_value
+                    }
+                else:
+                    logger.info(f"✅ الرافعة المالية مناسبة: {notional_value} USDT (الحد الأدنى: {min_notional_for_leverage} USDT)")
+            
+            # التحقق من الحد الأدنى للقيمة
+            if notional_value < min_notional_for_leverage:
+                logger.error(f"❌ المبلغ أقل من المسموح")
+                logger.error(f"   القيمة الحالية: {notional_value} USDT")
+                logger.error(f"   الحد الأدنى المطلوب: {min_notional_for_leverage} USDT")
+                return {
+                    'success': False,
+                    'message': f'المبلغ أقل من المسموح. الحد الأدنى: {min_notional_for_leverage} USDT',
+                    'is_real': True,
+                    'minimum_required': min_notional_for_leverage,
+                    'current_value': notional_value
+                }
             
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
             min_quantity = 0.0001  # الحد الأدنى المقبول
