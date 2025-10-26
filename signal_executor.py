@@ -264,10 +264,15 @@ class SignalExecutor:
             action = signal_data.get('action', '').lower()
             symbol = signal_data.get('symbol', '')
             
+            # 🔧 إصلاح: تعريف has_signal_id و signal_id في بداية الدالة
+            has_signal_id = signal_data.get('has_signal_id', False)
+            signal_id = signal_data.get('signal_id', '')
+            
             # تحديد الفئة
             category = 'linear' if market_type == 'futures' else 'spot'
             
             logger.info(f"📡 Bybit {category.upper()}: {action} {symbol}")
+            logger.info(f"🆔 Signal ID: {signal_id} (has_signal_id: {has_signal_id})")
             
             # تحديد جهة الأمر
             if action in ['buy', 'long']:
@@ -276,8 +281,6 @@ class SignalExecutor:
                 side = 'Sell'
             elif action == 'close':
                 # إغلاق الصفقة المفتوحة بالكامل
-                has_signal_id = signal_data.get('has_signal_id', False)
-                signal_id = signal_data.get('signal_id', '')
                 if has_signal_id and signal_id:
                     # إغلاق الصفقات المرتبطة بالـ ID
                     return await SignalExecutor._close_signal_positions(
@@ -315,11 +318,9 @@ class SignalExecutor:
                     return {
                         'success': False,
                         'message': f'Invalid percentage: {percentage}%. Must be between 1 and 100',
-                        'error': 'INVALID_PERCENTAGE'
-                    }
+                    'error': 'INVALID_PERCENTAGE'
+                }
                 
-                has_signal_id = signal_data.get('has_signal_id', False)
-                signal_id = signal_data.get('signal_id', '')
                 if has_signal_id and signal_id:
                     # إغلاق جزئي للصفقات المرتبطة بالـ ID
                     return await SignalExecutor._partial_close_signal_positions(

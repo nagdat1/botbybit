@@ -35,50 +35,77 @@ class BybitRealAccount:
         return signature
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None) -> Optional[Dict]:
-        """إرسال طلب إلى Bybit API"""
+        """إرسال طلب إلى Bybit API - محسّن مع توقيع صحيح"""
         if params is None:
             params = {}
         
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء query string
-        params_str = urlencode(sorted(params.items())) if params else ""
-        
-        # توليد التوقيع
-        signature = self._generate_signature(timestamp, recv_window, params_str)
-        
-        # Headers
-        headers = {
-            'X-BAPI-API-KEY': self.api_key,
-            'X-BAPI-SIGN': signature,
-            'X-BAPI-TIMESTAMP': timestamp,
-            'X-BAPI-RECV-WINDOW': recv_window,
-            'Content-Type': 'application/json'
-        }
-        
-        url = f"{self.base_url}{endpoint}"
-        if params_str:
-            url += f"?{params_str}"
-        
         try:
+            # بناء التوقيع بطريقة مختلفة حسب نوع الطلب
             if method == 'GET':
+                # للطلبات GET: استخدام query string
+                params_str = urlencode(sorted(params.items())) if params else ""
+                signature = self._generate_signature(timestamp, recv_window, params_str)
+                
+                headers = {
+                    'X-BAPI-API-KEY': self.api_key,
+                    'X-BAPI-SIGN': signature,
+                    'X-BAPI-TIMESTAMP': timestamp,
+                    'X-BAPI-RECV-WINDOW': recv_window,
+                    'X-BAPI-SIGN-TYPE': '2',
+                    'Content-Type': 'application/json'
+                }
+                
+                url = f"{self.base_url}{endpoint}"
+                if params_str:
+                    url += f"?{params_str}"
+                
                 response = requests.get(url, headers=headers, timeout=10)
+                
             elif method == 'POST':
+                # للطلبات POST: استخدام JSON body
+                import json
+                params_str = json.dumps(params) if params else ""
+                signature = self._generate_signature(timestamp, recv_window, params_str)
+                
+                headers = {
+                    'X-BAPI-API-KEY': self.api_key,
+                    'X-BAPI-SIGN': signature,
+                    'X-BAPI-TIMESTAMP': timestamp,
+                    'X-BAPI-RECV-WINDOW': recv_window,
+                    'X-BAPI-SIGN-TYPE': '2',
+                    'Content-Type': 'application/json'
+                }
+                
+                url = f"{self.base_url}{endpoint}"
+                logger.info(f"📤 POST إلى {endpoint}")
+                logger.debug(f"المعاملات: {params}")
+                
                 response = requests.post(url, headers=headers, json=params, timeout=10)
             else:
+                logger.error(f"❌ نوع طلب غير مدعوم: {method}")
                 return None
             
+            # معالجة الاستجابة
             if response.status_code == 200:
                 result = response.json()
                 if result.get('retCode') == 0:
+                    logger.info(f"✅ نجح الطلب: {endpoint}")
                     return result.get('result')
-            
-            logger.error(f"Bybit API Error: {response.text}")
-            return None
+                else:
+                    logger.error(f"❌ خطأ من Bybit API: {result.get('retMsg')}")
+                    logger.error(f"   retCode: {result.get('retCode')}")
+                    return None
+            else:
+                logger.error(f"❌ Bybit API Error (HTTP {response.status_code}): {response.text}")
+                return None
             
         except Exception as e:
-            logger.error(f"خطأ في طلب Bybit: {e}")
+            logger.error(f"❌ خطأ في طلب Bybit: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     def get_wallet_balance(self, market_type: str = 'unified') -> Optional[Dict]:
