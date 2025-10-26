@@ -23,27 +23,27 @@ from config import PORT
 try:
     from signal_system_integration import signal_system_integration, process_signal_integrated
     NEW_SYSTEM_AVAILABLE = signal_system_integration.is_available()
-    print(f" نظام الإشارات الجديد متاح: {NEW_SYSTEM_AVAILABLE}")
+    print(f"✅ نظام الإشارات الجديد متاح: {NEW_SYSTEM_AVAILABLE}")
     if NEW_SYSTEM_AVAILABLE:
         integration_status = signal_system_integration.get_integration_status()
-        print(f" الأنظمة المتاحة: {integration_status['available_systems']}/{integration_status['total_systems']}")
+        print(f"📊 الأنظمة المتاحة: {integration_status['available_systems']}/{integration_status['total_systems']}")
 except ImportError as e:
     NEW_SYSTEM_AVAILABLE = False
-    print(f" نظام الإشارات الجديد غير متاح: {e}")
+    print(f"⚠️ نظام الإشارات الجديد غير متاح: {e}")
 
 try:
     from integrated_trading_system import IntegratedTradingSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print(" النظام المحسن الكامل متاح")
+    print("✅ النظام المحسن الكامل متاح")
 except ImportError as e:
     try:
         from simple_enhanced_system import SimpleEnhancedSystem
         ENHANCED_SYSTEM_AVAILABLE = True
-        print(" النظام المحسن المبسط متاح")
+        print("✅ النظام المحسن المبسط متاح")
     except ImportError as e2:
         ENHANCED_SYSTEM_AVAILABLE = False
-        print(f" النظام المحسن غير متاح: {e2}")
-        print(" سيتم استخدام النظام العادي")
+        print(f"⚠️ النظام المحسن غير متاح: {e2}")
+        print("📝 سيتم استخدام النظام العادي")
 
 # إنشاء تطبيق Flask
 app = Flask(__name__)
@@ -110,7 +110,7 @@ def webhook():
         print(f"🔔 [WEBHOOK القديم] استقبال إشارة: {data}")
         
         if not data:
-            print(" [WEBHOOK القديم] لا توجد بيانات")
+            print("⚠️ [WEBHOOK القديم] لا توجد بيانات")
             return jsonify({"status": "error", "message": "No data received"}), 400
         
         # معالجة الإشارة في thread منفصل
@@ -122,11 +122,11 @@ def webhook():
         
         threading.Thread(target=process_signal_async, daemon=True).start()
         
-        print(f" [WEBHOOK القديم] تمت معالجة الإشارة بنجاح")
+        print(f"✅ [WEBHOOK القديم] تمت معالجة الإشارة بنجاح")
         return jsonify({"status": "success", "message": "Signal processed"}), 200
         
     except Exception as e:
-        print(f" [WEBHOOK القديم] خطأ: {e}")
+        print(f"❌ [WEBHOOK القديم] خطأ: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/personal/<int:user_id>/webhook', methods=['POST'])
@@ -135,16 +135,16 @@ def personal_webhook(user_id):
     try:
         print(f"\n{'='*60}")
         print(f"🔔 [WEBHOOK شخصي] استقبال طلب جديد")
-        print(f" المستخدم: {user_id}")
+        print(f"👤 المستخدم: {user_id}")
         print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         data = request.get_json()
-        print(f" البيانات المستلمة: {data}")
-        print(f" نوع البيانات: {type(data)}")
+        print(f"📊 البيانات المستلمة: {data}")
+        print(f"📋 نوع البيانات: {type(data)}")
         print(f"{'='*60}\n")
         
         if not data:
-            print(f" [WEBHOOK شخصي] لا توجد بيانات للمستخدم {user_id}")
+            print(f"⚠️ [WEBHOOK شخصي] لا توجد بيانات للمستخدم {user_id}")
             return jsonify({"status": "error", "message": "No data received"}), 400
         
         # التحقق من وجود user_manager
@@ -153,11 +153,11 @@ def personal_webhook(user_id):
         
         # التأكد من تهيئة user_manager
         if user_manager is None:
-            print(f" [WEBHOOK شخصي] user_manager غير مهيأ")
+            print(f"❌ [WEBHOOK شخصي] user_manager غير مهيأ")
             return jsonify({"status": "error", "message": "User manager not initialized"}), 500
         
         if not user_manager:
-            print(f" [WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
+            print(f"❌ [WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
             return jsonify({"status": "error", "message": "User manager not initialized"}), 500
         
         # التحقق من وجود المستخدم في الذاكرة
@@ -165,28 +165,28 @@ def personal_webhook(user_id):
         
         # إذا لم يكن موجودًا في الذاكرة، تحقق من قاعدة البيانات مباشرة
         if not user_data:
-            print(f" [WEBHOOK شخصي] المستخدم {user_id} غير موجود في الذاكرة، جاري التحقق من قاعدة البيانات...")
+            print(f"⚠️ [WEBHOOK شخصي] المستخدم {user_id} غير موجود في الذاكرة، جاري التحقق من قاعدة البيانات...")
             user_data = db_manager.get_user(user_id)
             
             if not user_data:
-                print(f" [WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
+                print(f"❌ [WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
                 return jsonify({"status": "error", "message": f"User {user_id} not found. Please start the bot first with /start"}), 404
             
             # إعادة تحميل المستخدم في الذاكرة
-            print(f" [WEBHOOK شخصي] تم العثور على المستخدم {user_id} في قاعدة البيانات، جاري التحميل...")
+            print(f"✅ [WEBHOOK شخصي] تم العثور على المستخدم {user_id} في قاعدة البيانات، جاري التحميل...")
             user_manager.reload_user_data(user_id)
             # إنشاء الحسابات للمستخدم (استخدام البيانات المُعاد تحميلها)
             user_data = user_manager.get_user(user_id)  # الحصول على البيانات المُحدثة
             user_manager._create_user_accounts(user_id, user_data)
-            print(f" [WEBHOOK شخصي] تم تحميل المستخدم {user_id} بنجاح")
+            print(f"✅ [WEBHOOK شخصي] تم تحميل المستخدم {user_id} بنجاح")
         
         # التحقق من تفعيل المستخدم
         if not user_data.get('is_active', False):
-            print(f" [WEBHOOK شخصي] المستخدم {user_id} غير نشط")
+            print(f"⚠️ [WEBHOOK شخصي] المستخدم {user_id} غير نشط")
             return jsonify({"status": "error", "message": f"User {user_id} is not active"}), 403
         
-        print(f" [WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
-        print(f" [WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
+        print(f"✅ [WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
+        print(f"📋 [WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
         
         # استيراد trading_bot
         from bybit_trading_bot import trading_bot
@@ -217,23 +217,23 @@ def personal_webhook(user_id):
                 trading_bot.user_settings['trade_amount'] = user_settings_copy['trade_amount']
                 trading_bot.user_settings['leverage'] = user_settings_copy['leverage']
                 
-                print(f" [WEBHOOK شخصي - Thread] تم تطبيق إعدادات المستخدم {user_settings_copy['user_id']}")
+                print(f"✅ [WEBHOOK شخصي - Thread] تم تطبيق إعدادات المستخدم {user_settings_copy['user_id']}")
                 
                 # معالجة الإشارة باستخدام النظام الجديد أو المحسن أو العادي
                 if NEW_SYSTEM_AVAILABLE:
-                    print(" معالجة الإشارة باستخدام النظام الجديد...")
+                    print("🎯 معالجة الإشارة باستخدام النظام الجديد...")
                     result = loop.run_until_complete(process_signal_integrated(data, user_settings_copy['user_id']))
-                    print(f" [WEBHOOK جديد - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
+                    print(f"✅ [WEBHOOK جديد - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
                 elif ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
-                    print(" معالجة الإشارة باستخدام النظام المحسن...")
+                    print("🚀 معالجة الإشارة باستخدام النظام المحسن...")
                     result = enhanced_system.process_signal(user_settings_copy['user_id'], data)
-                    print(f" [WEBHOOK محسن - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
+                    print(f"✅ [WEBHOOK محسن - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
                 else:
-                    print(" معالجة الإشارة باستخدام النظام العادي...")
+                    print("📝 معالجة الإشارة باستخدام النظام العادي...")
                     loop.run_until_complete(trading_bot.process_signal(data))
-                    print(f" [WEBHOOK عادي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
+                    print(f"✅ [WEBHOOK عادي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
             except Exception as e:
-                print(f" [WEBHOOK شخصي - Thread] خطأ في معالجة الإشارة: {e}")
+                print(f"❌ [WEBHOOK شخصي - Thread] خطأ في معالجة الإشارة: {e}")
                 import traceback
                 traceback.print_exc()
             finally:
@@ -241,11 +241,11 @@ def personal_webhook(user_id):
                 trading_bot.user_settings.update(original_settings)
                 trading_bot.user_id = original_user_id
                 loop.close()
-                print(f" [WEBHOOK شخصي - Thread] تم استعادة الإعدادات الأصلية")
+                print(f"✅ [WEBHOOK شخصي - Thread] تم استعادة الإعدادات الأصلية")
         
         threading.Thread(target=process_signal_async, daemon=True).start()
         
-        print(f" [WEBHOOK شخصي] تم بدء معالجة إشارة المستخدم {user_id}")
+        print(f"✅ [WEBHOOK شخصي] تم بدء معالجة إشارة المستخدم {user_id}")
         
         return jsonify({
             "status": "success", 
@@ -257,7 +257,7 @@ def personal_webhook(user_id):
         }), 200
         
     except Exception as e:
-        print(f" [WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
+        print(f"❌ [WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -274,19 +274,19 @@ def start_bot():
             # تهيئة النظام المحسن إذا كان متاحاً
             if ENHANCED_SYSTEM_AVAILABLE:
                 try:
-                    print(" تهيئة النظام المحسن الكامل...")
+                    print("🚀 تهيئة النظام المحسن الكامل...")
                     enhanced_system = IntegratedTradingSystem()
-                    print(" تم تهيئة النظام المحسن الكامل بنجاح")
+                    print("✅ تم تهيئة النظام المحسن الكامل بنجاح")
                 except Exception as e:
                     try:
-                        print(" تهيئة النظام المحسن المبسط...")
+                        print("🚀 تهيئة النظام المحسن المبسط...")
                         enhanced_system = SimpleEnhancedSystem()
-                        print(" تم تهيئة النظام المحسن المبسط بنجاح")
+                        print("✅ تم تهيئة النظام المحسن المبسط بنجاح")
                     except Exception as e2:
-                        print(f" فشل في تهيئة النظام المحسن: {e2}")
+                        print(f"⚠️ فشل في تهيئة النظام المحسن: {e2}")
                         enhanced_system = None
             else:
-                print(" استخدام النظام العادي")
+                print("📝 استخدام النظام العادي")
             
             # إعداد Telegram bot
             from telegram.ext import Application
@@ -309,9 +309,9 @@ def start_bot():
             try:
                 from exchange_commands import register_exchange_handlers
                 register_exchange_handlers(application)
-                print(" تم تسجيل معالجات أوامر المنصات")
+                print("✅ تم تسجيل معالجات أوامر المنصات")
             except Exception as e:
-                print(f" خطأ في تسجيل معالجات المنصات: {e}")
+                print(f"⚠️ خطأ في تسجيل معالجات المنصات: {e}")
             
             # تحديث الأزواج عند البدء
             try:
@@ -354,7 +354,7 @@ def start_bot():
     # تشغيل البوت في thread منفصل
     bot_thread = threading.Thread(target=run_bot, daemon=True)
     bot_thread.start()
-    print(" تم بدء تشغيل البوت في thread منفصل")
+    print("✅ تم بدء تشغيل البوت في thread منفصل")
 
 def start_web_server():
     """بدء تشغيل السيرفر الويب - لن يتم استخدامه في app.py"""
@@ -406,8 +406,8 @@ if __name__ == "__main__":
     # عرض معلومات النظام
     print("\n" + "="*60)
     if NEW_SYSTEM_AVAILABLE:
-        print(" النظام الجديد متاح!")
-        print(" الميزات المتقدمة:")
+        print("🎯 النظام الجديد متاح!")
+        print("✨ الميزات المتقدمة:")
         print("   • إدارة إشارات متقدمة مع ID")
         print("   • ربط الإشارات بنفس ID (اختياري)")
         print("   • دعم الحسابات التجريبية والحقيقية")
@@ -418,16 +418,16 @@ if __name__ == "__main__":
         integration_status = signal_system_integration.get_integration_status()
         print(f"   • الأنظمة المتاحة: {integration_status['available_systems']}/{integration_status['total_systems']}")
     elif ENHANCED_SYSTEM_AVAILABLE:
-        print(" النظام المحسن متاح!")
-        print(" الميزات المتقدمة:")
+        print("🚀 النظام المحسن متاح!")
+        print("✨ الميزات المتقدمة:")
         print("   • إدارة مخاطر متقدمة")
         print("   • معالجة إشارات ذكية")
         print("   • تنفيذ صفقات محسن")
         print("   • إدارة محفظة متقدمة")
         print("   • تحسين تلقائي")
     else:
-        print(" النظام العادي يعمل")
-        print(" الأنظمة المحسنة غير متاحة")
+        print("📝 النظام العادي يعمل")
+        print("⚠️ الأنظمة المحسنة غير متاحة")
     print("="*60 + "\n")
     
     # تشغيل تطبيق Flask الرئيسي

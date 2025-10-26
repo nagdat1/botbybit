@@ -46,14 +46,7 @@ class DatabaseManager:
                         last_reset_date TEXT,
                         last_reset_week TEXT,
                         last_loss_update TEXT,
-                        risk_management TEXT DEFAULT '{"enabled": true, "max_loss_percent": 10.0, "max_loss_amount": 1000.0, "stop_trading_on_loss": true, "daily_loss_limit": 500.0, "weekly_loss_limit": 2000.0}',
-                        account_type TEXT DEFAULT 'demo',
-                        exchange TEXT DEFAULT 'bybit',
-                        market_type TEXT DEFAULT 'spot',
-                        bybit_api_key TEXT,
-                        bybit_api_secret TEXT,
-                        mexc_api_key TEXT,
-                        mexc_api_secret TEXT
+                        risk_management TEXT DEFAULT '{"enabled": true, "max_loss_percent": 10.0, "max_loss_amount": 1000.0, "stop_trading_on_loss": true, "daily_loss_limit": 500.0, "weekly_loss_limit": 2000.0}'
                     )
                 """)
                 
@@ -438,7 +431,7 @@ class DatabaseManager:
                 values = []
                 
                 for key, value in data.items():
-                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'account_type', 'market_type', 'bybit_api_key', 'bybit_api_secret', 'mexc_api_key', 'mexc_api_secret']:
+                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'bybit_api_key', 'bybit_api_secret', 'mexc_api_key', 'mexc_api_secret']:
                         if key == 'risk_management':
                             # تحويل risk_management إلى JSON string
                             set_clauses.append(f"{key} = ?")
@@ -835,7 +828,7 @@ class DatabaseManager:
                 """, (new_status, developer_id))
                 
                 conn.commit()
-                logger.info(f" تم تبديل التوزيع التلقائي للمطور {developer_id} إلى: {new_status}")
+                logger.info(f"✅ تم تبديل التوزيع التلقائي للمطور {developer_id} إلى: {new_status}")
                 return cursor.rowcount > 0
                 
         except Exception as e:

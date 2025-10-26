@@ -21,7 +21,7 @@ class IntegratedSignalSystem:
         self.systems = {}
         self._load_systems()
         
-        self.logger.info(" تم تهيئة نظام الإشارات المتكامل")
+        self.logger.info("🎯 تم تهيئة نظام الإشارات المتكامل")
     
     def _load_systems(self):
         """تحميل جميع الأنظمة المتاحة"""
@@ -30,28 +30,28 @@ class IntegratedSignalSystem:
             try:
                 from complete_signal_integration import complete_signal_integration
                 self.systems['new_system'] = complete_signal_integration
-                self.logger.info(" تم تحميل النظام الجديد")
+                self.logger.info("✅ تم تحميل النظام الجديد")
             except ImportError as e:
-                self.logger.warning(f" فشل تحميل النظام الجديد: {e}")
+                self.logger.warning(f"⚠️ فشل تحميل النظام الجديد: {e}")
             
             # 2. النظام المحسن الموجود
             try:
                 from integrated_trading_system import IntegratedTradingSystem
                 self.systems['enhanced_system'] = IntegratedTradingSystem()
-                self.logger.info(" تم تحميل النظام المحسن")
+                self.logger.info("✅ تم تحميل النظام المحسن")
             except ImportError as e:
-                self.logger.warning(f" فشل تحميل النظام المحسن: {e}")
+                self.logger.warning(f"⚠️ فشل تحميل النظام المحسن: {e}")
             
             # 3. النظام المحسن المبسط
             try:
                 from simple_enhanced_system import SimpleEnhancedSystem
                 self.systems['simple_enhanced'] = SimpleEnhancedSystem()
-                self.logger.info(" تم تحميل النظام المحسن المبسط")
+                self.logger.info("✅ تم تحميل النظام المحسن المبسط")
             except ImportError as e:
-                self.logger.warning(f" فشل تحميل النظام المحسن المبسط: {e}")
+                self.logger.warning(f"⚠️ فشل تحميل النظام المحسن المبسط: {e}")
             
         except Exception as e:
-            self.logger.error(f" خطأ في تحميل الأنظمة: {e}")
+            self.logger.error(f"❌ خطأ في تحميل الأنظمة: {e}")
     
     def process_signal(self, user_id: int, signal_data: Dict[str, Any]) -> Dict[str, Any]:
         """معالجة الإشارة باستخدام أفضل نظام متاح"""
@@ -75,7 +75,7 @@ class IntegratedSignalSystem:
             
             # معالجة الإشارة
             system_name = best_system.__class__.__name__
-            self.logger.info(f" معالجة الإشارة باستخدام {system_name}")
+            self.logger.info(f"🎯 معالجة الإشارة باستخدام {system_name}")
             
             # معالجة الإشارة حسب نوع النظام
             if hasattr(best_system, 'process_signal'):
@@ -103,7 +103,7 @@ class IntegratedSignalSystem:
                 }
             
         except Exception as e:
-            self.logger.error(f" خطأ في معالجة الإشارة: {e}")
+            self.logger.error(f"❌ خطأ في معالجة الإشارة: {e}")
             return {
                 'status': 'error',
                 'message': f'خطأ في معالجة الإشارة: {str(e)}',
@@ -186,19 +186,19 @@ if __name__ == "__main__":
     
     # حالة الأنظمة
     status = get_system_status()
-    print(f"\n حالة الأنظمة:")
+    print(f"\n📊 حالة الأنظمة:")
     print(f"   إجمالي الأنظمة المتاحة: {status['total_available']}")
     
     # قائمة الأنظمة
-    print(f"\n الأنظمة المتاحة:")
+    print(f"\n🔧 الأنظمة المتاحة:")
     for system_name, is_available in status.items():
         if system_name != 'total_available' and system_name != 'timestamp':
-            status_icon = "" if is_available else ""
+            status_icon = "✅" if is_available else "❌"
             print(f"   {status_icon} {system_name}")
     
     # معلومات التكامل
     info = get_integration_info()
-    print(f"\n معلومات التكامل:")
+    print(f"\n🎯 معلومات التكامل:")
     print(f"   الحالة: {info['status']}")
     print(f"   أفضل نظام: {info.get('best_system', 'غير متاح')}")
     
@@ -215,4 +215,4 @@ if __name__ == "__main__":
         print(f"   النظام المستخدم: {result.get('system_used', 'غير محدد')}")
         print(f"   الرسالة: {result.get('message', 'غير محدد')}")
     else:
-        print("\n لا توجد أنظمة متاحة للاختبار")
+        print("\n⚠️ لا توجد أنظمة متاحة للاختبار")

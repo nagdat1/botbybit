@@ -20,19 +20,19 @@ logger = logging.getLogger(__name__)
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print(" النظام المحسن متاح في signal_converter.py")
+    print("✅ النظام المحسن متاح في signal_converter.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
-    print(f" النظام المحسن غير متاح في signal_converter.py: {e}")
+    print(f"⚠️ النظام المحسن غير متاح في signal_converter.py: {e}")
 
 # استيراد مدير معرفات الإشارات
 try:
     from signal_id_manager import process_signal_id, get_signal_id_manager
     SIGNAL_ID_MANAGER_AVAILABLE = True
-    print(" مدير معرفات الإشارات متاح في signal_converter.py")
+    print("✅ مدير معرفات الإشارات متاح في signal_converter.py")
 except ImportError as e:
     SIGNAL_ID_MANAGER_AVAILABLE = False
-    print(f" مدير معرفات الإشارات غير متاح في signal_converter.py: {e}")
+    print(f"⚠️ مدير معرفات الإشارات غير متاح في signal_converter.py: {e}")
 
 class SignalConverter:
     """محول الإشارات من التنسيق البسيط إلى التنسيق الداخلي"""
@@ -65,33 +65,33 @@ class SignalConverter:
             if SIGNAL_ID_MANAGER_AVAILABLE:
                 try:
                     signal_data = process_signal_id(signal_data)
-                    logger.info(f" تم معالجة ID الإشارة: {signal_data.get('id')} -> رقم الصفقة: {signal_data.get('position_id')}")
+                    logger.info(f"🆔 تم معالجة ID الإشارة: {signal_data.get('id')} -> رقم الصفقة: {signal_data.get('position_id')}")
                 except Exception as e:
-                    logger.warning(f" خطأ في معالجة ID الإشارة: {e}")
+                    logger.warning(f"⚠️ خطأ في معالجة ID الإشارة: {e}")
             
             # استخدام النظام المحسن إذا كان متاحاً
             if ENHANCED_SYSTEM_AVAILABLE:
                 try:
                     enhanced_system = SimpleEnhancedSystem()
-                    logger.info(" تحويل الإشارة باستخدام النظام المحسن في signal_converter...")
+                    logger.info("🚀 تحويل الإشارة باستخدام النظام المحسن في signal_converter...")
                     enhanced_result = enhanced_system.process_signal(0, signal_data)
-                    logger.info(f" نتيجة النظام المحسن في signal_converter: {enhanced_result}")
+                    logger.info(f"✅ نتيجة النظام المحسن في signal_converter: {enhanced_result}")
                     
                     # إذا نجح النظام المحسن، نستخدم النتيجة ولكن نتابع التحويل العادي
                     if enhanced_result.get('status') == 'success':
-                        logger.info(" تم استخدام نتيجة النظام المحسن في signal_converter، نتابع التحويل العادي")
+                        logger.info("✅ تم استخدام نتيجة النظام المحسن في signal_converter، نتابع التحويل العادي")
                         # نستخدم النتيجة المحسنة ولكن نتابع التحويل العادي
                         signal_data['enhanced_analysis'] = enhanced_result.get('analysis', {})
                         signal_data['enhanced_risk_assessment'] = enhanced_result.get('risk_assessment', {})
                         signal_data['enhanced_execution_plan'] = enhanced_result.get('execution_plan', {})
                     else:
-                        logger.warning(" فشل النظام المحسن في signal_converter، نعود للنظام العادي")
+                        logger.warning("⚠️ فشل النظام المحسن في signal_converter، نعود للنظام العادي")
                 except Exception as e:
-                    logger.warning(f" خطأ في النظام المحسن في signal_converter: {e}")
+                    logger.warning(f"⚠️ خطأ في النظام المحسن في signal_converter: {e}")
             
             # التحقق من صحة البيانات الأساسية
             if not signal_data:
-                logger.error(" بيانات الإشارة فارغة")
+                logger.error("❌ بيانات الإشارة فارغة")
                 return None
             
             signal_type = signal_data.get('signal', '').lower().strip()
@@ -100,26 +100,26 @@ class SignalConverter:
             
             # التحقق من وجود الحقول الأساسية
             if not signal_type:
-                logger.error(" نوع الإشارة (signal) مفقود")
+                logger.error("❌ نوع الإشارة (signal) مفقود")
                 return None
                 
             if not symbol:
-                logger.error(" رمز العملة (symbol) مفقود")
+                logger.error("❌ رمز العملة (symbol) مفقود")
                 return None
             
             # التحقق من صحة نوع الإشارة
             if signal_type not in SignalConverter.ALL_SIGNALS:
-                logger.error(f" نوع إشارة غير مدعوم: {signal_type}")
-                logger.info(f" الأنواع المدعومة: {', '.join(SignalConverter.ALL_SIGNALS)}")
+                logger.error(f"❌ نوع إشارة غير مدعوم: {signal_type}")
+                logger.info(f"📋 الأنواع المدعومة: {', '.join(SignalConverter.ALL_SIGNALS)}")
                 return None
             
-            logger.info(f" تحويل الإشارة: {signal_type.upper()} {symbol}")
+            logger.info(f"🔄 تحويل الإشارة: {signal_type.upper()} {symbol}")
             
             # تحديد نوع السوق والإجراء بناءً على نوع الإشارة
             converted_signal = SignalConverter._determine_signal_type(signal_type, symbol, signal_id, signal_data)
             
             if not converted_signal:
-                logger.error(f" فشل تحديد نوع الإشارة: {signal_type}")
+                logger.error(f"❌ فشل تحديد نوع الإشارة: {signal_type}")
                 return None
             
             # إضافة إعدادات المستخدم إذا كانت موجودة
@@ -139,24 +139,24 @@ class SignalConverter:
             if 'generated_id' in signal_data:
                 converted_signal['generated_id'] = signal_data['generated_id']
                 if signal_data['generated_id']:
-                    logger.info(f" تم توليد ID عشوائي للإشارة: {signal_id}")
+                    logger.info(f"🆔 تم توليد ID عشوائي للإشارة: {signal_id}")
                 else:
-                    logger.info(f" تم استخدام ID محدد للإشارة: {signal_id}")
+                    logger.info(f"🆔 تم استخدام ID محدد للإشارة: {signal_id}")
             
             # إضافة معلومات إضافية للـ ID
             if signal_id:
                 converted_signal['has_signal_id'] = True
-                logger.info(f" الإشارة مرتبطة بالـ ID: {signal_id}")
+                logger.info(f"🆔 الإشارة مرتبطة بالـ ID: {signal_id}")
             else:
                 converted_signal['has_signal_id'] = False
-                logger.warning(f" الإشارة بدون ID - سيتم التعامل معها بالطريقة التقليدية")
+                logger.warning(f"⚠️ الإشارة بدون ID - سيتم التعامل معها بالطريقة التقليدية")
             
-            logger.info(f" تم تحويل الإشارة بنجاح: {converted_signal}")
+            logger.info(f"✅ تم تحويل الإشارة بنجاح: {converted_signal}")
             
             return converted_signal
             
         except Exception as e:
-            logger.error(f" خطأ في تحويل الإشارة: {e}")
+            logger.error(f"❌ خطأ في تحويل الإشارة: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -209,13 +209,13 @@ class SignalConverter:
                     logger.info(f"🟡 إشارة إغلاق جزئي: {symbol} (50% افتراضي)")
             
             else:
-                logger.error(f" نوع إشارة غير معروف: {signal_type}")
+                logger.error(f"❌ نوع إشارة غير معروف: {signal_type}")
                 return None
             
             return converted
             
         except Exception as e:
-            logger.error(f" خطأ في تحديد نوع الإشارة: {e}")
+            logger.error(f"❌ خطأ في تحديد نوع الإشارة: {e}")
             return None
     
     @staticmethod
@@ -234,10 +234,10 @@ class SignalConverter:
             # إضافة مبلغ التداول
             if 'trade_amount' in user_settings:
                 signal['amount'] = user_settings['trade_amount']
-                logger.info(f" مبلغ التداول: {signal['amount']}")
+                logger.info(f"💰 مبلغ التداول: {signal['amount']}")
             else:
                 signal['amount'] = 100.0  # القيمة الافتراضية
-                logger.warning(f" استخدام مبلغ التداول الافتراضي: {signal['amount']}")
+                logger.warning(f"⚠️ استخدام مبلغ التداول الافتراضي: {signal['amount']}")
             
             # إضافة الرافعة المالية (للفيوتشر فقط)
             if signal.get('market_type') == 'futures':
@@ -246,7 +246,7 @@ class SignalConverter:
                     logger.info(f"⚡ الرافعة المالية: {signal['leverage']}x")
                 else:
                     signal['leverage'] = 10  # القيمة الافتراضية
-                    logger.warning(f" استخدام الرافعة الافتراضية: {signal['leverage']}x")
+                    logger.warning(f"⚠️ استخدام الرافعة الافتراضية: {signal['leverage']}x")
             else:
                 signal['leverage'] = 1  # بدون رافعة للـ Spot
             
@@ -271,16 +271,16 @@ class SignalConverter:
                 # تحذير إذا كان هناك عدم توافق
                 if user_market != signal_market:
                     logger.warning(
-                        f" عدم توافق نوع السوق: "
+                        f"⚠️ عدم توافق نوع السوق: "
                         f"الإشارة={signal_market}, المستخدم={user_market}"
                     )
                     # الأولوية للإشارة
-                    logger.info(f" استخدام نوع السوق من الإشارة: {signal_market}")
+                    logger.info(f"✅ استخدام نوع السوق من الإشارة: {signal_market}")
             
             return signal
             
         except Exception as e:
-            logger.error(f" خطأ في تطبيق إعدادات المستخدم: {e}")
+            logger.error(f"❌ خطأ في تطبيق إعدادات المستخدم: {e}")
             return signal
     
     @staticmethod
@@ -396,17 +396,17 @@ if __name__ == "__main__":
     
     for test_signal in test_signals:
         print("\n" + "-" * 80)
-        print(f" الإشارة الأصلية: {test_signal}")
+        print(f"📥 الإشارة الأصلية: {test_signal}")
         
         # التحقق من صحة الإشارة
         is_valid, message = validate_simple_signal(test_signal)
-        print(f" صحة الإشارة: {is_valid} - {message}")
+        print(f"✅ صحة الإشارة: {is_valid} - {message}")
         
         if is_valid:
             # تحويل الإشارة
             converted = convert_simple_signal(test_signal, test_user_settings)
             if converted:
-                print(f" الإشارة المحولة:")
+                print(f"📤 الإشارة المحولة:")
                 for key, value in converted.items():
                     if key != 'original_signal':
                         print(f"   {key}: {value}")

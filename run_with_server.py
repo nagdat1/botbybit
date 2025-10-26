@@ -39,7 +39,7 @@ def send_railway_url_notification(webhook_url):
                 
                 await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
             except Exception as e:
-                print(f" خطأ في إرسال إشعار Railway: {e}")
+                print(f"❌ خطأ في إرسال إشعار Railway: {e}")
         
         # تشغيل في thread منفصل
         def run_async():
@@ -51,7 +51,7 @@ def send_railway_url_notification(webhook_url):
         threading.Thread(target=run_async, daemon=True).start()
         
     except Exception as e:
-        print(f" خطأ في إعداد إشعار Railway: {e}")
+        print(f"❌ خطأ في إعداد إشعار Railway: {e}")
 
 def main():
     """الدالة الرئيسية لتشغيل البوت والسيرفر"""
@@ -61,7 +61,7 @@ def main():
         from web_server import WebServer
         from config import WEBHOOK_URL
         
-        print(" بدء تشغيل بوت التداول مع السيرفر...")
+        print("🚀 بدء تشغيل بوت التداول مع السيرفر...")
         print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"🔗 المنفذ: {PORT}")
         
@@ -85,7 +85,7 @@ def main():
         )
         server_thread.start()
         
-        print(" تم تشغيل السيرفر بنجاح")
+        print("✅ تم تشغيل السيرفر بنجاح")
         
         # إعداد وإرسال إشعار برابط Webhook من Railway
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
@@ -126,7 +126,7 @@ def main():
     except KeyboardInterrupt:
         print("\n⏹️ تم إيقاف البوت والسيرفر بواسطة المستخدم")
     except Exception as e:
-        print(f" خطأ في تشغيل البوت: {e}")
+        print(f"❌ خطأ في تشغيل البوت: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

@@ -26,15 +26,12 @@ class BybitRealAccount:
         
     def _generate_signature(self, timestamp: str, recv_window: str, params_str: str) -> str:
         """توليد التوقيع لـ Bybit V5"""
-        # بناء string التوقيع حسب توثيق Bybit V5
         sign_str = timestamp + self.api_key + recv_window + params_str
         signature = hmac.new(
             self.api_secret.encode('utf-8'),
             sign_str.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
-        logger.info(f"Bybit Signature Debug - sign_str: {sign_str}")
-        logger.info(f"Bybit Signature Debug - signature: {signature}")
         return signature
     
     def _make_request(self, method: str, endpoint: str, params: Dict = None) -> Optional[Dict]:
@@ -45,16 +42,8 @@ class BybitRealAccount:
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء query string للطلبات GET
-        if method == 'GET':
-            params_str = urlencode(sorted(params.items())) if params else ""
-        else:
-            # للطلبات POST، استخدام JSON string للتوقيع (مع مسافات)
-            import json
-            params_str = json.dumps(params, separators=(', ', ': ')) if params else ""
-        
-        logger.info(f"Bybit Params Debug - params: {params}")
-        logger.info(f"Bybit Params Debug - params_str: {params_str}")
+        # بناء query string
+        params_str = urlencode(sorted(params.items())) if params else ""
         
         # توليد التوقيع
         signature = self._generate_signature(timestamp, recv_window, params_str)
@@ -69,50 +58,24 @@ class BybitRealAccount:
         }
         
         url = f"{self.base_url}{endpoint}"
-        # إضافة query string فقط للطلبات GET
-        if method == 'GET' and params_str:
-            url += f"?{urlencode(sorted(params.items()))}"
-        
-        logger.info(f"Bybit URL Debug - url: {url}")
+        if params_str:
+            url += f"?{params_str}"
         
         try:
-            logger.info(f"Bybit API Request: {method} {url}")
-            logger.info(f"Bybit API Params: {params}")
-            
             if method == 'GET':
                 response = requests.get(url, headers=headers, timeout=10)
             elif method == 'POST':
-                # للطلبات الموقعة، إرسال المعاملات في JSON body
                 response = requests.post(url, headers=headers, json=params, timeout=10)
             else:
                 return None
             
-            logger.info(f"Bybit API Response Status: {response.status_code}")
-            logger.info(f"Bybit API Response Text: {response.text}")
-            
             if response.status_code == 200:
                 result = response.json()
-                logger.info(f"Bybit API Response JSON: {result}")
-                
                 if result.get('retCode') == 0:
-                    logger.info(f"Bybit API Success: {result.get('result')}")
                     return result.get('result')
-                else:
-                    logger.error(f"Bybit API Error - retCode: {result.get('retCode')}, retMsg: {result.get('retMsg')}")
-                    # إرجاع تفاصيل الخطأ للمساعدة في التشخيص
-                    return {
-                        'error': True,
-                        'retCode': result.get('retCode'),
-                        'retMsg': result.get('retMsg'),
-                        'raw_response': result
-                    }
             
-            logger.error(f"Bybit API HTTP Error: {response.status_code} - {response.text}")
-            return {
-                'error': True,
-                'http_status': response.status_code,
-                'response_text': response.text
-            }
+            logger.error(f"Bybit API Error: {response.text}")
+            return None
             
         except Exception as e:
             logger.error(f"خطأ في طلب Bybit: {e}")
@@ -133,11 +96,10 @@ class BybitRealAccount:
                 return default
         
         # تحديد نوع الحساب حسب نوع السوق
-        # ملاحظة: Bybit V5 يدعم فقط UNIFIED للحسابات الموحدة
         if market_type == 'spot':
-            account_type = 'UNIFIED'  # استخدام UNIFIED للسبوت أيضاً
+            account_type = 'SPOT'
         elif market_type == 'futures':
-            account_type = 'UNIFIED'  # استخدام UNIFIED للفيوتشر أيضاً
+            account_type = 'CONTRACT'
         else:
             account_type = 'UNIFIED'
         
@@ -216,8 +178,6 @@ class BybitRealAccount:
                    take_profit: float = None, stop_loss: float = None) -> Optional[Dict]:
         """وضع أمر تداول حقيقي"""
         
-        logger.info(f"Bybit place_order called: {category}, {symbol}, {side}, {order_type}, qty={qty}")
-        
         params = {
             'category': category,
             'symbol': symbol,
@@ -237,31 +197,11 @@ class BybitRealAccount:
         
         # تعيين الرافعة المالية أولاً إذا كانت محددة
         if leverage and category in ['linear', 'inverse']:
-            logger.info(f"Setting leverage to {leverage} for {symbol}")
-            leverage_result = self.set_leverage(category, symbol, leverage)
-            if not leverage_result:
-                logger.error(f"Failed to set leverage for {symbol}")
-                # لا نوقف العملية، نتابع مع الرافعة الافتراضية
-                logger.warning(f"Continuing with default leverage for {symbol}")
+            self.set_leverage(category, symbol, leverage)
         
         result = self._make_request('POST', '/v5/order/create', params)
         
         if result:
-            # فحص إذا كان هناك خطأ في الاستجابة
-            if isinstance(result, dict) and result.get('error'):
-                logger.error(f"Bybit order placement failed for {symbol}: {result.get('retMsg', 'Unknown error')}")
-                return {
-                    'success': False,
-                    'error': result.get('retMsg', 'Unknown error'),
-                    'error_code': result.get('retCode'),
-                    'symbol': symbol,
-                    'side': side,
-                    'qty': qty,
-                    'error_type': 'API_ERROR',
-                    'raw_response': result
-                }
-            
-            logger.info(f"Bybit order placed successfully: {result}")
             return {
                 'order_id': result.get('orderId'),
                 'order_link_id': result.get('orderLinkId'),
@@ -269,20 +209,10 @@ class BybitRealAccount:
                 'side': side,
                 'type': order_type,
                 'qty': qty,
-                'price': price,
-                'success': True,
-                'raw_response': result
+                'price': price
             }
-        else:
-            logger.error(f"Bybit order placement failed for {symbol} - No response")
-            return {
-                'success': False,
-                'error': 'Order placement failed - No response from API',
-                'symbol': symbol,
-                'side': side,
-                'qty': qty,
-                'error_type': 'NO_RESPONSE'
-            }
+        
+        return None
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
         """تعيين الرافعة المالية على المنصة"""
@@ -293,20 +223,8 @@ class BybitRealAccount:
             'sellLeverage': str(leverage)
         }
         
-        logger.info(f"Setting leverage for {symbol}: {leverage}x")
         result = self._make_request('POST', '/v5/position/set-leverage', params)
-        
-        if result is not None:
-            # فحص إذا كان هناك خطأ في الاستجابة
-            if isinstance(result, dict) and result.get('error'):
-                logger.error(f"Failed to set leverage for {symbol}: {result.get('retMsg', 'Unknown error')}")
-                return False
-            
-            logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
-            return True
-        else:
-            logger.error(f"Failed to set leverage for {symbol}: {leverage}x - No response")
-            return False
+        return result is not None
     
     def set_trading_stop(self, category: str, symbol: str, position_idx: int,
                         take_profit: float = None, stop_loss: float = None) -> bool:
@@ -451,19 +369,19 @@ class MEXCRealAccount:
                    order_type: str = 'MARKET', price: float = None) -> Optional[Dict]:
         """وضع أمر تداول حقيقي - محسن للمعالجة الصحيحة"""
         try:
-            logger.info(f" MEXCRealAccount - وضع أمر: {side} {quantity} {symbol}")
+            logger.info(f"🔄 MEXCRealAccount - وضع أمر: {side} {quantity} {symbol}")
             
             result = self.bot.place_spot_order(symbol, side, quantity, order_type, price)
             
             if result:
-                logger.info(f" MEXCRealAccount - تم وضع الأمر بنجاح: {result}")
+                logger.info(f"✅ MEXCRealAccount - تم وضع الأمر بنجاح: {result}")
             else:
-                logger.error(f" MEXCRealAccount - فشل وضع الأمر: {symbol} {side} {quantity}")
+                logger.error(f"❌ MEXCRealAccount - فشل وضع الأمر: {symbol} {side} {quantity}")
             
             return result
             
         except Exception as e:
-            logger.error(f" MEXCRealAccount - خطأ في وضع الأمر: {e}")
+            logger.error(f"❌ MEXCRealAccount - خطأ في وضع الأمر: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -475,16 +393,16 @@ class MEXCRealAccount:
     def get_ticker(self, category: str, symbol: str) -> Optional[Dict]:
         """الحصول على معلومات السعر - محسن لـ MEXC"""
         try:
-            logger.info(f" MEXCRealAccount - جلب السعر لـ {symbol}")
+            logger.info(f"🔍 MEXCRealAccount - جلب السعر لـ {symbol}")
             price = self.bot.get_ticker_price(symbol)
             if price:
-                logger.info(f" MEXCRealAccount - السعر: {price}")
+                logger.info(f"✅ MEXCRealAccount - السعر: {price}")
                 return {'lastPrice': str(price)}
             else:
-                logger.error(f" MEXCRealAccount - فشل جلب السعر لـ {symbol}")
+                logger.error(f"❌ MEXCRealAccount - فشل جلب السعر لـ {symbol}")
                 return None
         except Exception as e:
-            logger.error(f" MEXCRealAccount - خطأ في جلب السعر: {e}")
+            logger.error(f"❌ MEXCRealAccount - خطأ في جلب السعر: {e}")
             return None
 
 

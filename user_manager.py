@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 try:
     from simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("النظام المحسن متاح في user_manager.py")
+    print("✅ النظام المحسن متاح في user_manager.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
-    print(f" النظام المحسن غير متاح في user_manager.py: {e}")
+    print(f"⚠️ النظام المحسن غير متاح في user_manager.py: {e}")
 
 class UserManager:
     """مدير المستخدمين المتعددين مع العزل الكامل"""
@@ -39,9 +39,9 @@ class UserManager:
         if ENHANCED_SYSTEM_AVAILABLE:
             try:
                 self.enhanced_system = SimpleEnhancedSystem()
-                print("تم تهيئة النظام المحسن في UserManager")
+                print("✅ تم تهيئة النظام المحسن في UserManager")
             except Exception as e:
-                print(f" فشل في تهيئة النظام المحسن في UserManager: {e}")
+                print(f"⚠️ فشل في تهيئة النظام المحسن في UserManager: {e}")
                 self.enhanced_system = None
         else:
             self.enhanced_system = None
@@ -145,17 +145,6 @@ class UserManager:
     
     def get_user(self, user_id: int) -> Optional[Dict]:
         """الحصول على بيانات المستخدم"""
-        # محاولة إعادة تحميل البيانات من قاعدة البيانات إذا لم تكن موجودة في الذاكرة
-        if user_id not in self.users:
-            try:
-                from database import db_manager
-                user_data = db_manager.get_user(user_id)
-                if user_data:
-                    self.users[user_id] = user_data
-                    logger.info(f"تم إعادة تحميل بيانات المستخدم {user_id} من قاعدة البيانات")
-            except Exception as e:
-                logger.error(f"خطأ في إعادة تحميل بيانات المستخدم {user_id}: {e}")
-        
         return self.users.get(user_id)
     
     def get_user_settings(self, user_id: int) -> Optional[Dict]:

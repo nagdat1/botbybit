@@ -53,11 +53,9 @@ class MEXCTradingBot:
         Returns:
             التوقيع
         """
-        # إزالة signature إذا كان موجوداً
-        filtered_params = {k: v for k, v in params.items() if k != 'signature'}
-        
-        # إنشاء query string بدون ترتيب
-        query_string = urlencode(filtered_params)
+        # ترتيب المعاملات أبجدياً
+        sorted_params = sorted(params.items())
+        query_string = urlencode(sorted_params)
         
         # إنشاء التوقيع باستخدام HMAC-SHA256
         signature = hmac.new(
@@ -322,39 +320,44 @@ class MEXCTradingBot:
         """
         try:
             # استخدام baseSizePrecision من MEXC
-            base_size_precision = symbol_info.get('baseSizePrecision', '0.01')
-            base_asset_precision = symbol_info.get('baseAssetPrecision', 3)
+            base_size_precision = symbol_info.get('baseSizePrecision', '1')
+            base_asset_precision = symbol_info.get('baseAssetPrecision', 5)
             
-            logger.info(f"تنسيق الكمية لـ {symbol_info.get('symbol', 'UNKNOWN')}:")
+            logger.info(f" تنسيق الكمية لـ {symbol_info.get('symbol', 'UNKNOWN')}:")
             logger.info(f"   baseSizePrecision: {base_size_precision}")
             logger.info(f"   baseAssetPrecision: {base_asset_precision}")
             
-            # تحويل baseSizePrecision إلى رقم
-            try:
-                min_step = float(base_size_precision)
-            except:
-                min_step = 0.01
-            
-            # التأكد من أن الكمية أكبر من الحد الأدنى
-            if quantity < min_step:
-                quantity = min_step
-            
-            # تنسيق الكمية حسب الدقة المطلوبة
-            if min_step >= 1:
-                # إذا كان الحد الأدنى أكبر من 1، نستخدم أرقام صحيحة
-                formatted_quantity = str(int(quantity))
+            # تحويل الكمية حسب القواعد
+            if base_size_precision == '1':
+                # الكمية يجب أن تكون رقم صحيح
+                # لكن إذا كانت الكمية أقل من 1، نستخدم baseAssetPrecision
+                if quantity < 1:
+                    formatted_quantity = f"{quantity:.{base_asset_precision}f}".rstrip('0').rstrip('.')
+                else:
+                    formatted_quantity = f"{int(quantity)}"
             else:
-                # حساب عدد الأرقام العشرية المطلوبة
-                decimal_places = len(str(min_step).split('.')[-1]) if '.' in str(min_step) else 0
-                formatted_quantity = f"{quantity:.{decimal_places}f}".rstrip('0').rstrip('.')
+                # الكمية يمكن أن تكون عشرية
+                try:
+                    precision = int(base_size_precision) if base_size_precision.isdigit() else 8
+                except:
+                    precision = 8
+                
+                # التأكد من أن الكمية لا تقل عن الحد الأدنى
+                min_quantity = float(base_size_precision) if base_size_precision.replace('.', '').isdigit() else 0.00000001
+                if quantity < min_quantity:
+                    quantity = min_quantity
+                
+                formatted_quantity = f"{quantity:.{precision}f}".rstrip('0').rstrip('.')
             
-            logger.info(f"   الكمية المنسقة: {formatted_quantity}")
+            logger.info(f" الكمية الأصلية: {quantity}")
+            logger.info(f" الكمية المنسقة: {formatted_quantity}")
+            
             return formatted_quantity
             
         except Exception as e:
             logger.error(f"خطأ في تنسيق الكمية: {e}")
             # استخدام تنسيق افتراضي آمن
-            return f"{max(quantity, 0.01):.2f}"
+            return f"{max(quantity, 0.00000001):.8f}".rstrip('0').rstrip('.')
     
     def place_spot_order(self, symbol: str, side: str, quantity: float, order_type: str = 'MARKET', 
                         price: Optional[float] = None) -> Optional[Dict]:
@@ -397,14 +400,14 @@ class MEXCTradingBot:
                 'quantity': formatted_quantity
             }
             
-            # إضافة السعر لأوامر LIMIT و LIMIT_MAKER
-            if order_type.upper() in ['LIMIT', 'LIMIT_MAKER']:
+            # إضافة السعر لأوامر LIMIT
+            if order_type.upper() == 'LIMIT':
                 if price is None:
-                    logger.error(f"السعر مطلوب لأوامر {order_type}")
+                    logger.error(" السعر مطلوب لأوامر LIMIT")
                     return None
                 params['price'] = f"{price:.8f}".rstrip('0').rstrip('.')
                 params['timeInForce'] = 'GTC'  # Good Till Cancel
-                logger.info(f"السعر المحدد: {params['price']}")
+                logger.info(f" السعر المحدد: {params['price']}")
             
             # إرسال الأمر مع التوقيع
             logger.info(f" إرسال الأمر إلى MEXC: {params}")
@@ -416,7 +419,7 @@ class MEXCTradingBot:
             
             if result:
                 logger.info(f" تم وضع أمر {side} لـ {symbol} بنجاح")
-                logger.info(f" تفاصيل الأمر: {result}")
+                logger.info(f"📋 تفاصيل الأمر: {result}")
                 
                 # إرجاع معلومات منسقة ومفيدة
                 order_info = {
@@ -433,7 +436,7 @@ class MEXCTradingBot:
                     'cummulative_quote_qty': result.get('cummulativeQuoteQty')
                 }
                 
-                logger.info(f" معلومات الأمر النهائية: {order_info}")
+                logger.info(f"🎯 معلومات الأمر النهائية: {order_info}")
                 return order_info
             else:
                 logger.error(f" فشل وضع الأمر - لم يتم إرجاع نتيجة صحيحة")
@@ -625,10 +628,10 @@ class MEXCTradingBot:
                         logger.info(" اختبار التوقيع ناجح")
                         return True
                     else:
-                        logger.warning(" فشل اختبار التوقيع")
+                        logger.warning("⚠️ فشل اختبار التوقيع")
                         return False
                 else:
-                    logger.warning(" فشلت المصادقة على MEXC API")
+                    logger.warning("⚠️ فشلت المصادقة على MEXC API")
                     return False
             
             logger.error(" فشل الاتصال العام بـ MEXC API")
@@ -677,8 +680,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print("🧪 اختبار MEXC Trading Bot")
     print("=" * 60)
-    print("\n تحذير: MEXC تدعم التداول الفوري (Spot) فقط عبر API")
-    print(" لا يوجد دعم لتداول الفيوتشر في MEXC API\n")
+    print("\n⚠️ تحذير: MEXC تدعم التداول الفوري (Spot) فقط عبر API")
+    print("⚠️ لا يوجد دعم لتداول الفيوتشر في MEXC API\n")
     
     # يجب تعيين API Key و Secret من متغيرات البيئة أو ملف الإعدادات
     import os

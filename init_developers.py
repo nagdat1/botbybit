@@ -48,15 +48,15 @@ def init_developers():
                         'is_active': dev['is_active'],
                         'can_broadcast': dev['can_broadcast']
                     })
-                    logger.info(f" تم إنشاء المطور {dev['developer_name']} بنجاح")
+                    logger.info(f"✅ تم إنشاء المطور {dev['developer_name']} بنجاح")
                 else:
-                    logger.error(f" فشل في إنشاء المطور {dev['developer_name']}")
+                    logger.error(f"❌ فشل في إنشاء المطور {dev['developer_name']}")
         
-        logger.info(" تم الانتهاء من تهيئة المطورين")
+        logger.info("✅ تم الانتهاء من تهيئة المطورين")
         return True
         
     except Exception as e:
-        logger.error(f" خطأ في تهيئة المطورين: {e}")
+        logger.error(f"❌ خطأ في تهيئة المطورين: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -68,11 +68,11 @@ if __name__ == "__main__":
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    print(" بدء تهيئة المطورين...")
+    print("🚀 بدء تهيئة المطورين...")
     success = init_developers()
     
     if success:
-        print(" تم تهيئة المطورين بنجاح")
+        print("✅ تم تهيئة المطورين بنجاح")
     else:
-        print(" فشل في تهيئة المطورين")
+        print("❌ فشل في تهيئة المطورين")
 
