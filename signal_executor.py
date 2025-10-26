@@ -520,9 +520,14 @@ class SignalExecutor:
             
             logger.info(f"=" * 80)
             
+            # تتبع إذا تم التقريب لإرسال رسالة للمستخدم
+            original_qty = (trade_amount * leverage) / price if market_type == 'futures' else trade_amount / price
+            qty_was_adjusted = abs(rounded_qty - original_qty) > 0.00000001
+            
             logger.info(f"🧠 تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
             logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
             logger.info(f"📤 المخرجات (طريقة المنصة): qty = {qty} {symbol.split('USDT')[0]}")
+            logger.info(f"📊 تم تعديل الكمية: {qty_was_adjusted}")
             
             # استخراج TP/SL إذا كانت موجودة
             take_profit = signal_data.get('take_profit')
@@ -542,7 +547,8 @@ class SignalExecutor:
             else:
                 # منطق الفيوتشر: تجميع حسب ID
                 result = await SignalExecutor._handle_futures_order(
-                    account, signal_data, side, qty, leverage, take_profit, stop_loss, market_type, user_id
+                    account, signal_data, side, qty, leverage, take_profit, stop_loss, market_type, user_id, 
+                    qty_was_adjusted, trade_amount, price
                 )
             
             # التحقق الفعلي من نجاح الصفقة
@@ -1091,7 +1097,8 @@ class SignalExecutor:
     @staticmethod
     async def _handle_futures_order(account, signal_data: Dict, side: str, qty: float,
                                    leverage: int, take_profit: float, stop_loss: float,
-                                   market_type: str, user_id: int) -> Dict:
+                                   market_type: str, user_id: int, qty_was_adjusted: bool = False,
+                                   trade_amount: float = 0, price: float = 0) -> Dict:
         """معالجة أمر الفيوتشر مع تجميع حسب ID"""
         try:
             symbol = signal_data.get('symbol', '')
@@ -1150,13 +1157,14 @@ class SignalExecutor:
                         stop_loss=stop_loss
                     )
             else:
-                # صفقة جديدة - مع آلية التقريب التلقائي
+                # صفقة جديدة - تنفيذ مباشر بالكمية المعدلة
                 logger.info(f"=" * 80)
-                logger.info(f"🚀 المحاولة الأولى - الكمية الأصلية:")
+                logger.info(f"🚀 تنفيذ الصفقة:")
                 logger.info(f"   qty: {qty}")
+                logger.info(f"   leverage: {leverage}x")
                 logger.info(f"=" * 80)
                 
-                # المحاولة الأولى بالكمية الأصلية
+                # تنفيذ الصفقة مرة واحدة بالكمية المعدلة
                 result = account.place_order(
                     category='linear',
                     symbol=symbol,
@@ -1168,57 +1176,27 @@ class SignalExecutor:
                     stop_loss=stop_loss
                 )
                 
-                logger.info(f"🔍 نتيجة المحاولة الأولى: {result}")
+                logger.info(f"🔍 نتيجة تنفيذ الصفقة: {result}")
                 
-                # التحقق من الفشل
-                if result is None or not isinstance(result, dict) or not result.get('order_id'):
-                    logger.warning(f"⚠️ فشلت المحاولة الأولى - جاري المحاولة بالتقريب التلقائي...")
-                    
-                    # الحصول على السعر والمبلغ من signal_data
-                    price = signal_data.get('price', 0)
-                    trade_amount = signal_data.get('amount', 0)
-                    
-                    # محاولة ثانية مع تقريب الكمية
-                    adjusted_qty = SignalExecutor._calculate_adjusted_quantity(qty, price, trade_amount, leverage)
-                    
-                    logger.info(f"=" * 80)
-                    logger.info(f"🔄 المحاولة الثانية - الكمية المعدلة:")
-                    logger.info(f"   qty_original: {qty}")
-                    logger.info(f"   qty_adjusted: {adjusted_qty}")
-                    logger.info(f"=" * 80)
-                    
-                    result = account.place_order(
-                        category='linear',
-                        symbol=symbol,
-                        side=side,
-                        order_type='Market',
-                        qty=round(adjusted_qty, 4),
-                        leverage=leverage,
-                        take_profit=take_profit,
-                        stop_loss=stop_loss
-                    )
-                    
-                    logger.info(f"🔍 نتيجة المحاولة الثانية: {result}")
-                    
-                    # إذا نجحت المحاولة الثانية، ارسل رسالة للمستخدم
-                    if result and isinstance(result, dict) and result.get('order_id'):
-                        effective_amount = (adjusted_qty * price) / leverage
-                        logger.info(f"✅ نجحت المحاولة الثانية بالتقريب التلقائي")
-                        logger.info(f"📢 رسالة للمستخدم: تم تنفيذ الصفقة بالتقريب التلقائي")
-                        logger.info(f"   المبلغ الأصلي: ${trade_amount}")
-                        logger.info(f"   المبلغ الفعلي: ${effective_amount:.2f}")
-                        logger.info(f"   الكمية المعدلة: {adjusted_qty}")
+                # إذا تم تعديل الكمية، أضف رسالة للمستخدم
+                if qty_was_adjusted and result and isinstance(result, dict) and result.get('order_id'):
+                    effective_amount = (qty * price) / leverage
+                    logger.info(f"📢 تم تنفيذ الصفقة بالتقريب التلقائي")
+                    logger.info(f"   المبلغ الأصلي: ${trade_amount}")
+                    logger.info(f"   المبلغ الفعلي: ${effective_amount:.2f}")
+                    # سيتم إضافة هذه الرسالة في النتيجة
+                    result['adjustment_message'] = f'تم تنفيذ الصفقة بالتقريب التلقائي: ${trade_amount} → ${effective_amount:.2f}'
                 
                 # التحقق من وجود order_id
                 if result and isinstance(result, dict) and result.get('order_id'):
                     logger.info(f"✅ تم إنشاء order_id بنجاح: {result.get('order_id')}")
                     logger.info(f"📋 تفاصيل الأمر الكاملة: {result}")
                 else:
-                    logger.error(f"❌ فشلت جميع المحاولات")
+                    logger.error(f"❌ فشل تنفيذ الصفقة")
                     logger.error(f"   النتيجة: {result}")
                     return {
                         'success': False,
-                        'message': f'Order placement failed after auto-adjustment',
+                        'message': f'Order placement failed',
                         'is_real': True,
                         'error_details': f'Failed result: {result}'
                     }
