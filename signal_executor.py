@@ -186,6 +186,8 @@ class SignalExecutor:
             leverage = user_data.get('leverage', 10)
             
             logger.info(f"💰 مبلغ التداول: {trade_amount}, الرافعة: {leverage}")
+            logger.info(f"🔍 فحص الإعدادات: user_data = {user_data}")
+            logger.info(f"🔍 الرافعة المستخدمة: {leverage}x (من إعدادات المستخدم: {user_data.get('leverage', 'غير محدد')})")
             
             # تنفيذ الإشارة حسب المنصة
             if exchange == 'bybit':
