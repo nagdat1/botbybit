@@ -425,13 +425,22 @@ class SignalExecutor:
                     qty = float(signal_data['qty'])
                     logger.info(f"استخدام qty مباشرة من الإشارة: {qty}")
                 else:
-                    # حساب qty بناءً على الحد الأدنى الفعلي لـ Bybit (حوالي $500-1000)
-                    min_order_value = 500.0  # الحد الأدنى الفعلي المقدر
+                    # حساب qty بناءً على الحد الأدنى الفعلي لـ Bybit
+                    # BTCUSDT له حد أدنى أعلى بكثير من العملات الأخرى
+                    if symbol == 'BTCUSDT':
+                        min_order_value = 5000.0  # الحد الأدنى الفعلي لـ BTCUSDT
+                    else:
+                        min_order_value = 2000.0  # الحد الأدنى الفعلي للعملات الأخرى
+                    
                     qty = min_order_value / price
                     logger.info(f"حساب qty بناءً على الحد الأدنى الفعلي: ${min_order_value} / ${price} = {qty:.6f}")
             
             # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
-            min_quantity = 0.1  # الحد الأدنى الفعلي لـ Bybit (حوالي $100-200)
+            # BTCUSDT له حد أدنى أعلى بكثير من العملات الأخرى
+            if symbol == 'BTCUSDT':
+                min_quantity = 0.05  # الحد الأدنى الفعلي لـ BTCUSDT (حوالي $5000)
+            else:
+                min_quantity = 0.2  # الحد الأدنى الفعلي للعملات الأخرى (حوالي $2000)
             
             # فحص إذا كانت الكمية المحسوبة أقل من الحد الأدنى
             if qty < min_quantity:
