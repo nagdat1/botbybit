@@ -1,402 +1,136 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-تطبيق Flask الرئيسي لبوت التداول على Railway
+ملف تشغيل بوت التداول مع السيرفر المحلي والواجهة الويب
 """
 
-import os
 import sys
+import os
 import threading
 import asyncio
-import time
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request
 
 # إضافة المسار الحالي إلى مسارات Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# استيراد الوحدات المطلوبة
-from bybit_trading_bot import trading_bot
-from web_server import WebServer
-from config import PORT
+# Get PORT from environment variable (Railway will set this)
+PORT = int(os.environ.get('PORT', 5000))
 
-# استيراد النظام المحسن والنظام الجديد
-try:
-    from signal_system_integration import signal_system_integration, process_signal_integrated
-    NEW_SYSTEM_AVAILABLE = signal_system_integration.is_available()
-except ImportError as e:
-    NEW_SYSTEM_AVAILABLE = False
-
-try:
-    from integrated_trading_system import IntegratedTradingSystem
-    ENHANCED_SYSTEM_AVAILABLE = True
-except ImportError as e:
+def send_railway_url_notification(webhook_url):
+    """إرسال إشعار برابط Railway عبر تلجرام"""
     try:
-        from systems.simple_enhanced_system import SimpleEnhancedSystem
-        ENHANCED_SYSTEM_AVAILABLE = True
-    except ImportError as e2:
-        ENHANCED_SYSTEM_AVAILABLE = False
-
-# إنشاء تطبيق Flask
-app = Flask(__name__)
-
-# إعدادات التطبيق
-app.config['SECRET_KEY'] = 'trading_bot_secret_key_2024'
-
-# متغيرات عامة
-web_server = None
-bot_thread = None
-enhanced_system = None
-
-@app.route('/')
-def index():
-    """الصفحة الرئيسية"""
-    system_status = "new" if NEW_SYSTEM_AVAILABLE else ("enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal")
-    
-    features = {}
-    if NEW_SYSTEM_AVAILABLE:
-        features = {
-            "advanced_signal_management": True,
-            "id_based_signal_linking": True,
-            "account_type_support": True,
-            "market_type_support": True,
-            "demo_real_accounts": True,
-            "spot_futures_support": True,
-            "enhanced_account_manager": True,
-            "complete_integration": True
-        }
-    elif ENHANCED_SYSTEM_AVAILABLE:
-        features = {
-            "advanced_risk_management": True,
-            "smart_signal_processing": True,
-            "optimized_trade_execution": True,
-            "portfolio_management": True,
-            "automatic_optimization": True
-        }
-    
-    return jsonify({
-        "status": "running",
-        "message": f"بوت التداول على Bybit يعمل بنجاح - النظام: {system_status}",
-        "timestamp": datetime.now().isoformat(),
-        "version": "3.0.0" if NEW_SYSTEM_AVAILABLE else ("2.0.0" if ENHANCED_SYSTEM_AVAILABLE else "1.0.0"),
-        "system_type": system_status,
-        "new_system_available": NEW_SYSTEM_AVAILABLE,
-        "enhanced_features": ENHANCED_SYSTEM_AVAILABLE or NEW_SYSTEM_AVAILABLE,
-        "features": features
-    })
-
-@app.route('/health')
-def health_check():
-    """فحص صحة التطبيق"""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat()
-    })
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """استقبال إشارات TradingView (الرابط القديم - يستخدم الإعدادات الافتراضية)"""
-    try:
-        data = request.get_json()
+        from config import TELEGRAM_TOKEN, ADMIN_USER_ID
+        from telegram.ext import Application
+        import asyncio
         
-        print(f"[WEBHOOK] Received signal: {data}")
-        
-        if not data:
-            print("[WEBHOOK] No data provided")
-            return jsonify({"status": "error", "message": "No data received"}), 400
-        
-        # معالجة الإشارة في thread منفصل
-        def process_signal_async():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(trading_bot.process_signal(data))
-            loop.close()
-        
-        threading.Thread(target=process_signal_async, daemon=True).start()
-        
-        print(f"[WEBHOOK] Signal processed successfully")
-        return jsonify({"status": "success", "message": "Signal processed"}), 200
-        
-    except Exception as e:
-        print(f"[WEBHOOK] Error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/personal/<int:user_id>/webhook', methods=['POST'])
-def personal_webhook(user_id):
-    """استقبال إشارات TradingView الشخصية لكل مستخدم"""
-    try:
-        print(f"\n{'='*60}")
-        print(f"🔔 [WEBHOOK شخصي] استقبال طلب جديد")
-        print(f"👤 المستخدم: {user_id}")
-        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        data = request.get_json()
-        print(f"📊 البيانات المستلمة: {data}")
-        print(f"📋 نوع البيانات: {type(data)}")
-        print(f"{'='*60}\n")
-        
-        if not data:
-            print(f"⚠️ [WEBHOOK شخصي] لا توجد بيانات للمستخدم {user_id}")
-            return jsonify({"status": "error", "message": "No data received"}), 400
-        
-        # التحقق من وجود user_manager
-        from users.user_manager import user_manager
-        from users.database import db_manager
-        
-        # التأكد من تهيئة user_manager
-        if user_manager is None:
-            print(f"❌ [WEBHOOK شخصي] user_manager غير مهيأ")
-            return jsonify({"status": "error", "message": "User manager not initialized"}), 500
-        
-        if not user_manager:
-            print(f"❌ [WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
-            return jsonify({"status": "error", "message": "User manager not initialized"}), 500
-        
-        # التحقق من وجود المستخدم في الذاكرة
-        user_data = user_manager.get_user(user_id)
-        
-        # إذا لم يكن موجودًا في الذاكرة، تحقق من قاعدة البيانات مباشرة
-        if not user_data:
-            print(f"⚠️ [WEBHOOK شخصي] المستخدم {user_id} غير موجود في الذاكرة، جاري التحقق من قاعدة البيانات...")
-            user_data = db_manager.get_user(user_id)
-            
-            if not user_data:
-                print(f"❌ [WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
-                return jsonify({"status": "error", "message": f"User {user_id} not found. Please start the bot first with /start"}), 404
-            
-            # إعادة تحميل المستخدم في الذاكرة
-            print(f"✅ [WEBHOOK شخصي] تم العثور على المستخدم {user_id} في قاعدة البيانات، جاري التحميل...")
-            user_manager.reload_user_data(user_id)
-            # إنشاء الحسابات للمستخدم (استخدام البيانات المُعاد تحميلها)
-            user_data = user_manager.get_user(user_id)  # الحصول على البيانات المُحدثة
-            user_manager._create_user_accounts(user_id, user_data)
-            print(f"✅ [WEBHOOK شخصي] تم تحميل المستخدم {user_id} بنجاح")
-        
-        # التحقق من تفعيل المستخدم
-        if not user_data.get('is_active', False):
-            print(f"⚠️ [WEBHOOK شخصي] المستخدم {user_id} غير نشط")
-            return jsonify({"status": "error", "message": f"User {user_id} is not active"}), 403
-        
-        print(f"✅ [WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
-        print(f"📋 [WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
-        
-        # استيراد trading_bot
-        from bybit_trading_bot import trading_bot
-        
-        # نسخ بيانات المستخدم للاستخدام في الـ thread
-        user_settings_copy = {
-            'user_id': user_id,
-            'market_type': user_data.get('market_type', 'spot'),
-            'account_type': user_data.get('account_type', 'demo'),
-            'trade_amount': user_data.get('trade_amount', 100.0),
-            'leverage': user_data.get('leverage', 10)
-        }
-        
-        # معالجة الإشارة في thread منفصل مع إعدادات المستخدم
-        def process_signal_async():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # حفظ الإعدادات الأصلية داخل الـ thread
-            original_settings = trading_bot.user_settings.copy()
-            original_user_id = trading_bot.user_id
-            
+        async def send_message():
             try:
-                # تطبيق إعدادات المستخدم المحدد
-                trading_bot.user_id = user_settings_copy['user_id']
-                trading_bot.user_settings['market_type'] = user_settings_copy['market_type']
-                trading_bot.user_settings['account_type'] = user_settings_copy['account_type']
-                trading_bot.user_settings['trade_amount'] = user_settings_copy['trade_amount']
-                trading_bot.user_settings['leverage'] = user_settings_copy['leverage']
+                application = Application.builder().token(TELEGRAM_TOKEN).build()
                 
-                print(f"✅ [WEBHOOK شخصي - Thread] تم تطبيق إعدادات المستخدم {user_settings_copy['user_id']}")
-                
-                # معالجة الإشارة باستخدام النظام الجديد أو المحسن أو العادي
-                if NEW_SYSTEM_AVAILABLE:
-                    print("🎯 معالجة الإشارة باستخدام النظام الجديد...")
-                    result = loop.run_until_complete(process_signal_integrated(data, user_settings_copy['user_id']))
-                    print(f"✅ [WEBHOOK جديد - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
-                elif ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
-                    print("🚀 معالجة الإشارة باستخدام النظام المحسن...")
-                    result = enhanced_system.process_signal(user_settings_copy['user_id'], data)
-                    print(f"✅ [WEBHOOK محسن - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}: {result}")
+                # تحديد نوع البيئة
+                if "railway" in webhook_url.lower() or "railway.app" in webhook_url:
+                    environment = "🚂 Railway Cloud"
+                elif "render" in webhook_url.lower():
+                    environment = "☁️ Render Cloud"
                 else:
-                    print("📝 معالجة الإشارة باستخدام النظام العادي...")
-                    loop.run_until_complete(trading_bot.process_signal(data))
-                    print(f"✅ [WEBHOOK عادي - Thread] تمت معالجة الإشارة للمستخدم {user_settings_copy['user_id']}")
+                    environment = "💻 Local Development"
+                
+                message = f"مرحبا ايها القائد\n⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                
+                await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
             except Exception as e:
-                print(f"❌ [WEBHOOK شخصي - Thread] خطأ في معالجة الإشارة: {e}")
-                import traceback
-                traceback.print_exc()
-            finally:
-                # استعادة الإعدادات الأصلية
-                trading_bot.user_settings.update(original_settings)
-                trading_bot.user_id = original_user_id
-                loop.close()
-                print(f"✅ [WEBHOOK شخصي - Thread] تم استعادة الإعدادات الأصلية")
+                print(f"❌ خطأ في إرسال إشعار Railway: {e}")
         
-        threading.Thread(target=process_signal_async, daemon=True).start()
-        
-        print(f"✅ [WEBHOOK شخصي] تم بدء معالجة إشارة المستخدم {user_id}")
-        
-        return jsonify({
-            "status": "success", 
-            "message": f"Signal processing started for user {user_id}",
-            "user_id": user_id,
-            "system_type": "new" if NEW_SYSTEM_AVAILABLE else ("enhanced" if ENHANCED_SYSTEM_AVAILABLE and enhanced_system else "normal"),
-            "new_system_available": NEW_SYSTEM_AVAILABLE,
-            "enhanced_features": ENHANCED_SYSTEM_AVAILABLE or NEW_SYSTEM_AVAILABLE
-        }), 200
-        
-    except Exception as e:
-        print(f"❌ [WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# تم حذف دالة process_user_signal القديمة - الآن نستخدم trading_bot.process_signal مباشرة
-
-def start_bot():
-    """بدء تشغيل البوت"""
-    global bot_thread, enhanced_system
-    
-    def run_bot():
-        """تشغيل البوت في thread منفصل"""
-        try:
-            # تهيئة النظام المحسن إذا كان متاحاً
-            if ENHANCED_SYSTEM_AVAILABLE:
-                try:
-                    print("🚀 تهيئة النظام المحسن الكامل...")
-                    enhanced_system = IntegratedTradingSystem()
-                    print("✅ تم تهيئة النظام المحسن الكامل بنجاح")
-                except Exception as e:
-                    try:
-                        print("🚀 تهيئة النظام المحسن المبسط...")
-                        enhanced_system = SimpleEnhancedSystem()
-                        print("✅ تم تهيئة النظام المحسن المبسط بنجاح")
-                    except Exception as e2:
-                        print(f"⚠️ فشل في تهيئة النظام المحسن: {e2}")
-                        enhanced_system = None
-            else:
-                print("📝 استخدام النظام العادي")
-            
-            # إعداد Telegram bot
-            from telegram.ext import Application
-            from bybit_trading_bot import (
-                start, settings_menu, account_status, open_positions,
-                trade_history, wallet_overview, handle_callback, 
-                handle_text_input, error_handler, TELEGRAM_TOKEN
-            )
-            
-            application = Application.builder().token(TELEGRAM_TOKEN).build()
-            
-            # إضافة المعالجات
-            from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters
-            application.add_handler(CommandHandler("start", start))
-            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
-            application.add_handler(CallbackQueryHandler(handle_callback))
-            application.add_error_handler(error_handler)
-            
-            # إضافة معالجات أوامر المنصات (Bybit)
-            try:
-                from exchange_commands import register_exchange_handlers
-                register_exchange_handlers(application)
-                print("✅ تم تسجيل معالجات أوامر المنصات")
-            except Exception as e:
-                print(f"⚠️ خطأ في تسجيل معالجات المنصات: {e}")
-            
-            print("بدء تشغيل البوت...")
-            
-            # إنشاء event loop جديد وتعيينه
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # تشغيل البوت
-            application.run_polling(allowed_updates=['message', 'callback_query'], drop_pending_updates=False)
-            
-        except Exception as e:
-            print(f"خطأ في تهيئة البوت: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    # تشغيل البوت في thread منفصل
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-    print("✅ تم بدء تشغيل البوت في thread منفصل")
-
-def start_web_server():
-    """بدء تشغيل السيرفر الويب - لن يتم استخدامه في app.py"""
-    pass
-
-if __name__ == "__main__":
-    # إرسال رسالة الترحيب
-    def send_startup_notification():
-        """إرسال رسالة الترحيب عبر تلجرام"""
-        try:
-            from config import TELEGRAM_TOKEN, ADMIN_USER_ID
-            from telegram.ext import Application
-            import os
-            
-            async def send_message():
-                try:
-                    application = Application.builder().token(TELEGRAM_TOKEN).build()
-                    
-                    railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
-                    if railway_url:
-                        if not railway_url.startswith('http'):
-                            railway_url = f"https://{railway_url}"
-                        webhook_url = railway_url
-                        environment = "🚂 Railway Cloud"
-                    else:
-                        webhook_url = f"http://localhost:{PORT}"
-                        environment = "💻 Local Development"
-                    
-                    message = f"مرحبا ايها القائد\n⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                    
-                    await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message, parse_mode='Markdown')
-                except Exception as e:
-                    pass
-            
+        # تشغيل في thread منفصل
+        def run_async():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(send_message())
             loop.close()
-            
-        except Exception as e:
-            pass
-    
-    # بدء البوت
-    start_bot()
-    
-    # إرسال رسالة الترحيب
-    threading.Thread(target=send_startup_notification, daemon=True).start()
-    
-    # عرض معلومات النظام
-    print("\n" + "="*60)
-    if NEW_SYSTEM_AVAILABLE:
-        print("🎯 النظام الجديد متاح!")
-        print("✨ الميزات المتقدمة:")
-        print("   • إدارة إشارات متقدمة مع ID")
-        print("   • ربط الإشارات بنفس ID (اختياري)")
-        print("   • دعم الحسابات التجريبية والحقيقية")
-        print("   • دعم أسواق Spot و Futures")
-        print("   • إدارة حسابات محسنة")
-        print("   • معالجة إشارات متكاملة")
-        print("   • تتبع الصفقات والإحصائيات")
-        integration_status = signal_system_integration.get_integration_status()
-        print(f"   • الأنظمة المتاحة: {integration_status['available_systems']}/{integration_status['total_systems']}")
-    elif ENHANCED_SYSTEM_AVAILABLE:
-        print("🚀 النظام المحسن متاح!")
-        print("✨ الميزات المتقدمة:")
-        print("   • إدارة مخاطر متقدمة")
-        print("   • معالجة إشارات ذكية")
-        print("   • تنفيذ صفقات محسن")
-        print("   • إدارة محفظة متقدمة")
-        print("   • تحسين تلقائي")
-    else:
-        print("📝 النظام العادي يعمل")
-        print("⚠️ الأنظمة المحسنة غير متاحة")
-    print("="*60 + "\n")
-    
-    # تشغيل تطبيق Flask الرئيسي
-    app.run(host='0.0.0.0', port=PORT, debug=False)
+        
+        threading.Thread(target=run_async, daemon=True).start()
+        
+    except Exception as e:
+        print(f"❌ خطأ في إعداد إشعار Railway: {e}")
+
+def main():
+    """الدالة الرئيسية لتشغيل البوت والسيرفر"""
+    try:
+        # استيراد الوحدات المطلوبة
+        from bybit_trading_bot import trading_bot, main as bot_main
+        from web_server import WebServer
+        from config import WEBHOOK_URL
+        
+        print("🚀 بدء تشغيل بوت التداول مع السيرفر...")
+        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"🔗 المنفذ: {PORT}")
+        
+        # طباعة معلومات البيئة
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        if railway_url:
+            print(f"🚂 Railway URL: {railway_url}")
+        else:
+            print("💻 تشغيل محلي - لم يتم العثور على Railway URL")
+        
+        # إنشاء السيرفر وربطه بالبوت
+        web_server = WebServer(trading_bot)
+        trading_bot.web_server = web_server
+        
+        print("🌐 إعداد السيرفر المحلي...")
+        
+        print("✅ تم إعداد السيرفر")
+        
+        # إعداد وإرسال إشعار برابط Webhook من Railway
+        railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        if railway_url:
+            # Ensure the URL has the correct protocol
+            if not railway_url.startswith('http'):
+                railway_url = f"https://{railway_url}"
+            webhook_url = f"{railway_url}/webhook"
+            print("=" * 60)
+            print("🌐 رابط Webhook للاستقبال من Railway:")
+            print(f"   {webhook_url}")
+            print("=" * 60)
+            # إرسال إشعار عبر تلجرام مع رابط Railway
+            send_railway_url_notification(webhook_url)
+        else:
+            # استخدام الرابط من الإعدادات
+            webhook_url = WEBHOOK_URL
+            print("=" * 60)
+            print("🌐 رابط Webhook:")
+            print(f"   {webhook_url}")
+            print("=" * 60)
+            # إرسال إشعار محلي
+            send_railway_url_notification(webhook_url)
+        
+        print("🤖 بدء تشغيل بوت التلجرام...")
+        
+        # تشغيل البوت في thread منفصل
+        def run_bot():
+            """تشغيل البوت في thread منفصل"""
+            try:
+                # تشغيل البوت الرئيسي
+                bot_main()
+            except Exception as e:
+                print(f"❌ خطأ في تشغيل البوت: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        bot_thread = threading.Thread(target=run_bot, daemon=True)
+        bot_thread.start()
+        print("✅ تم بدء تشغيل البوت في thread منفصل")
+        
+        # تشغيل السيرفر في الـ main thread
+        print("🌐 بدء تشغيل السيرفر...")
+        web_server.run(debug=False, port=PORT)
+        
+    except KeyboardInterrupt:
+        print("\n⏹️ تم إيقاف البوت والسيرفر بواسطة المستخدم")
+    except Exception as e:
+        print(f"❌ خطأ في تشغيل البوت: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
