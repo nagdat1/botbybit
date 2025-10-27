@@ -39,7 +39,7 @@ except ImportError as e:
 
 # استيراد مدير معرفات الإشارات
 try:
-    from signal_id_manager import get_position_id_from_signal, get_signal_id_manager
+    from signals.signal_id_manager import get_position_id_from_signal, get_signal_id_manager
     SIGNAL_ID_MANAGER_AVAILABLE = True
     print("✅ مدير معرفات الإشارات متاح في bybit_trading_bot.py")
 except ImportError as e:
@@ -3034,7 +3034,7 @@ class TradingBot:
                         # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                         if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
                             try:
-                                from signal_id_manager import get_signal_id_manager
+                                from signals.signal_id_manager import get_signal_id_manager
                                 manager = get_signal_id_manager()
                                 signal_id = self.current_signal_data.get('signal_id')
                                 if signal_id:
@@ -3236,7 +3236,7 @@ class TradingBot:
                     # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                     if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):
                         try:
-                            from signal_id_manager import get_signal_id_manager
+                            from signals.signal_id_manager import get_signal_id_manager
                             manager = get_signal_id_manager()
                             signal_id = self.current_signal_data.get('signal_id')
                             if signal_id:
@@ -5902,7 +5902,7 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
             signal_id_display = ""
             if SIGNAL_ID_MANAGER_AVAILABLE:
                 try:
-                    from signal_id_manager import get_signal_id_manager
+                    from signals.signal_id_manager import get_signal_id_manager
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:
@@ -5924,7 +5924,7 @@ async def send_spot_positions_message(update: Update, spot_positions: dict):
             signal_id_display = ""
             if SIGNAL_ID_MANAGER_AVAILABLE:
                 try:
-                    from signal_id_manager import get_signal_id_manager
+                    from signals.signal_id_manager import get_signal_id_manager
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:
@@ -6036,7 +6036,7 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
             signal_id_display = ""
             if SIGNAL_ID_MANAGER_AVAILABLE:
                 try:
-                    from signal_id_manager import get_signal_id_manager
+                    from signals.signal_id_manager import get_signal_id_manager
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:
@@ -6062,7 +6062,7 @@ async def send_futures_positions_message(update: Update, futures_positions: dict
             signal_id_display = ""
             if SIGNAL_ID_MANAGER_AVAILABLE:
                 try:
-                    from signal_id_manager import get_signal_id_manager
+                    from signals.signal_id_manager import get_signal_id_manager
                     manager = get_signal_id_manager()
                     signal_id = manager.get_signal_id_from_position(position_id)
                     if signal_id:

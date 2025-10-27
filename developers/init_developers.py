@@ -7,7 +7,7 @@
 
 import logging
 from database import db_manager
-from developer_config import get_all_developers
+from developers.developer_config import get_all_developers
 
 logger = logging.getLogger(__name__)
 

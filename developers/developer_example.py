@@ -9,7 +9,7 @@ import asyncio
 import logging
 from .developer_manager import developer_manager
 from user_manager import user_manager
-from developer_config import DEVELOPER_PERMISSIONS, DEVELOPER_MESSAGES
+from developers.developer_config import DEVELOPER_PERMISSIONS, DEVELOPER_MESSAGES
 
 # إعداد التسجيل
 logging.basicConfig(

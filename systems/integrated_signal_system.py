@@ -36,10 +36,10 @@ class IntegratedSignalSystem:
             
             # 2. النظام المحسن الموجود
             try:
-                # from systems.integrated_trading_system import IntegratedTradingSystem  # محذوف
-                self.systems['enhanced_system'] = IntegratedTradingSystem()
+                from systems.simple_enhanced_system import SimpleEnhancedSystem
+                self.systems['enhanced_system'] = SimpleEnhancedSystem()
                 self.logger.info("✅ تم تحميل النظام المحسن")
-            except ImportError as e:
+            except Exception as e:
                 self.logger.warning(f"⚠️ فشل تحميل النظام المحسن: {e}")
             
             # 3. النظام المحسن المبسط
