@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import asyncio
+import time
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request
 
@@ -304,48 +305,9 @@ def start_bot():
             except Exception as e:
                 print(f"⚠️ خطأ في تسجيل معالجات المنصات: {e}")
             
-            # تحديث الأزواج عند البدء
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(trading_bot.update_available_pairs())
-                loop.close()
-            except Exception as e:
-                print(f"خطأ في تحديث الأزواج: {e}")
-            
-            # بدء التحديث الدوري للأسعار
-            def start_price_updates():
-                """بدء التحديث الدوري للأسعار"""
-                import time
-                def update_prices():
-                    while True:
-                        try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            loop.run_until_complete(trading_bot.update_open_positions_prices())
-                            loop.close()
-                            time.sleep(30)  # انتظار 30 ثانية
-                        except Exception as e:
-                            print(f"خطأ في التحديث الدوري: {e}")
-                            import traceback
-                            traceback.print_exc()
-                            time.sleep(60)  # انتظار دقيقة في حالة الخطأ
-                
-                threading.Thread(target=update_prices, daemon=True).start()
-            
-            # بدء التحديث الدوري
-            start_price_updates()
-            
-            # تشغيل البوت
+            # تشغيل البوت مباشرة بدون thread إضافي
             print("بدء تشغيل البوت...")
-            try:
-                application.run_polling(allowed_updates=['message', 'callback_query'], drop_pending_updates=False)
-            except KeyboardInterrupt:
-                print("تم إيقاف البوت بواسطة المستخدم")
-            except Exception as e:
-                print(f"خطأ في تشغيل البوت: {e}")
-                import traceback
-                traceback.print_exc()
+            application.run_polling(allowed_updates=['message', 'callback_query'], drop_pending_updates=False)
             
         except Exception as e:
             print(f"خطأ في تهيئة البوت: {e}")
