@@ -793,14 +793,39 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             
             # حفظ مباشرة في قاعدة البيانات مع التفعيل التلقائي
             try:
+                # التأكد من وجود المستخدم في قاعدة البيانات
+                existing_user = db_manager.get_user(user_id)
+                if not existing_user:
+                    logger.info(f"إنشاء مستخدم جديد: {user_id}")
+                    db_manager.create_user(user_id)
+                
                 # ✅ خطوة 1: حفظ في قاعدة البيانات وتفعيل المنصة
-                db_manager.update_user_settings(user_id, {
+                # حفظ المفاتيح والإعدادات الأساسية
+                save_result = db_manager.update_user_data(user_id, {
                     'bybit_api_key': api_key,
                     'bybit_api_secret': api_secret,
                     'exchange': 'bybit',
-                    'account_type': 'real',  # 🔴 حساب حقيقي
-                    'is_active': True        # 🔴 مفعّل بالكامل
+                    'is_active': True
                 })
+                
+                if not save_result:
+                    logger.error(f"❌ فشل في حفظ بيانات المستخدم {user_id}")
+                    await update.message.reply_text(
+                        "❌ **فشل في حفظ البيانات**\n\n"
+                        "حدث خطأ في قاعدة البيانات\n"
+                        "يرجى المحاولة مرة أخرى",
+                        parse_mode='Markdown'
+                    )
+                    return False
+                
+                # حفظ إعدادات التداول
+                settings_result = db_manager.update_user_settings(user_id, {
+                    'account_type': 'real'
+                })
+                
+                if not settings_result:
+                    logger.warning(f"⚠️ فشل في حفظ إعدادات التداول للمستخدم {user_id}")
+                
                 logger.info(f"✅ تم حفظ وتفعيل مفاتيح API للمستخدم {user_id}")
                 
                 # ✅ خطوة 2: تحديث بيانات المستخدم في الذاكرة
@@ -920,14 +945,38 @@ async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str,
         from api.bybit_api import real_account_manager
         
         try:
-            # حفظ في قاعدة البيانات
-            db_manager.update_user_settings(user_id, {
+            # التأكد من وجود المستخدم في قاعدة البيانات
+            existing_user = db_manager.get_user(user_id)
+            if not existing_user:
+                logger.info(f"إنشاء مستخدم جديد: {user_id}")
+                db_manager.create_user(user_id)
+            
+            # حفظ في قاعدة البيانات - استخدام update_user_data للمفاتيح
+            save_result = db_manager.update_user_data(user_id, {
                 'bitget_api_key': api_key,
                 'bitget_api_secret': api_secret,
                 'exchange': 'bitget',
-                'account_type': 'real',
                 'is_active': True
             })
+            
+            if not save_result:
+                logger.error(f"❌ فشل في حفظ بيانات المستخدم {user_id}")
+                await update.message.reply_text(
+                    "❌ **فشل في حفظ البيانات**\n\n"
+                    "حدث خطأ في قاعدة البيانات\n"
+                    "يرجى المحاولة مرة أخرى",
+                    parse_mode='Markdown'
+                )
+                return False
+            
+            # حفظ إعدادات التداول
+            settings_result = db_manager.update_user_settings(user_id, {
+                'account_type': 'real'
+            })
+            
+            if not settings_result:
+                logger.warning(f"⚠️ فشل في حفظ إعدادات التداول للمستخدم {user_id}")
+            
             logger.info(f"✅ تم حفظ وتفعيل مفاتيح Bitget للمستخدم {user_id}")
             
             # تحديث الذاكرة
@@ -962,9 +1011,18 @@ async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str,
             
         except Exception as e:
             logger.error(f"❌ فشل حفظ مفاتيح Bitget: {e}", exc_info=True)
+            
+            # تحديد نوع الخطأ
+            if "update_user_data" in str(e) or "database" in str(e).lower():
+                error_msg = "❌ **فشل في حفظ البيانات**\n\nحدث خطأ في قاعدة البيانات"
+            elif "connection" in str(e).lower() or "api" in str(e).lower():
+                error_msg = "❌ **فشل الاتصال!**\n\nتحقق من:\n• صحة المفاتيح\n• الصلاحيات المطلوبة\n• تفعيل API في حسابك"
+            else:
+                error_msg = f"❌ **حدث خطأ غير متوقع**\n\n`{str(e)}`"
+            
             await update.message.reply_text(
-                f"❌ **فشل في حفظ البيانات**\n\n"
-                f"حدث خطأ أثناء حفظ المفاتيح"
+                f"{error_msg}\n\nيرجى المحاولة مرة أخرى",
+                parse_mode='Markdown'
             )
             return False
             
@@ -1056,14 +1114,48 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"✅ تم تحديث بيانات المستخدم {user_id} في الذاكرة")
         
         # ✅ خطوة 3: حفظ في قاعدة البيانات مع جميع الإعدادات
-        db_manager.update_user_settings(user_id, {
-            'exchange': exchange,
+        # التأكد من وجود المستخدم في قاعدة البيانات
+        existing_user = db_manager.get_user(user_id)
+        if not existing_user:
+            logger.info(f"إنشاء مستخدم جديد: {user_id}")
+            db_manager.create_user(user_id)
+        
+        # حفظ المفاتيح والإعدادات الأساسية
+        if exchange == 'bybit':
+            save_result = db_manager.update_user_data(user_id, {
+                'bybit_api_key': api_key,
+                'bybit_api_secret': api_secret,
+                'exchange': exchange,
+                'is_active': True
+            })
+        elif exchange == 'bitget':
+            save_result = db_manager.update_user_data(user_id, {
+                'bitget_api_key': api_key,
+                'bitget_api_secret': api_secret,
+                'exchange': exchange,
+                'is_active': True
+            })
+        else:
+            save_result = False
+        
+        if not save_result:
+            logger.error(f"❌ فشل في حفظ بيانات المستخدم {user_id}")
+            await query.edit_message_text(
+                "❌ **فشل في حفظ البيانات**\n\n"
+                "حدث خطأ في قاعدة البيانات\n"
+                "يرجى المحاولة مرة أخرى",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # حفظ إعدادات التداول
+        settings_result = db_manager.update_user_settings(user_id, {
             'account_type': 'real',
-            'market_type': user_data.get('market_type', 'spot'),
-            'is_active': True,
-            'bybit_api_key': api_key,
-            'bybit_api_secret': api_secret
+            'market_type': user_data.get('market_type', 'spot')
         })
+        
+        if not settings_result:
+            logger.warning(f"⚠️ فشل في حفظ إعدادات التداول للمستخدم {user_id}")
         logger.info(f"✅ تم حفظ الإعدادات في قاعدة البيانات")
         
         # ✅ خطوة 4: تسجيل في النظام الجديد (إن وجد)
