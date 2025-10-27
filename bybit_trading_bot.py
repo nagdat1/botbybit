@@ -45,7 +45,6 @@ except ImportError as e:
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from users.database import db_manager
 from systems.enhanced_portfolio_manager import portfolio_factory
-from users.user_manager import user_manager
 
 # استيراد نظام المطورين
 from developers.developer_manager import developer_manager

@@ -26,10 +26,8 @@ except ImportError:
 try:
     from systems.simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("✅ النظام المحسن متاح في signal_executor.py")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
-    print(f"⚠️ النظام المحسن غير متاح في signal_executor.py: {e}")
 
 # استيراد مدير معرفات الإشارات
 try:
@@ -37,10 +35,8 @@ try:
     get_position_id_from_signal = signal_id_manager.get_position_id_from_signal
     get_signal_id_manager = signal_id_manager.get_signal_id_manager
     SIGNAL_ID_MANAGER_AVAILABLE = True
-    print("✅ مدير معرفات الإشارات متاح في signal_executor.py")
 except ImportError as e:
     SIGNAL_ID_MANAGER_AVAILABLE = False
-    print(f"⚠️ مدير معرفات الإشارات غير متاح في signal_executor.py: {e}")
 
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
