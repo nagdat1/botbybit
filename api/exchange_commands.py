@@ -318,12 +318,25 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await start_bybit_setup(update, context)
         return
     
+    # تهيئة المتغيرات الافتراضية
+    message = ""
+    keyboard = []
+    reply_markup = None
+    
     # المستخدم لديه API مربوط - عرض خيارات إدارة الحساب
-    else:
+    if has_bybit_keys:
+        # رسالة مختلفة حسب حالة التفعيل
+        if is_active:
+            action_text = "🟢 **منصة Bybit نشطة ومفعّلة!**\n\nتم تفعيل الحساب الحقيقي وتعمل المنصة بكامل قدراتها 🔥\n\nيمكنك الآن:\n• تنفيذ صفقات حقيقية\n• استقبال إشارات التداول\n• إدارة المحفظة والرصيد"
+        else:
+            action_text = "🔐 **API مربوط بنجاح!**\n\nيجب الآن تفعيل المنصة للبدء في التداول الحقيقي.\n\n💡 **اضغط على الزر أدناه للتفعيل:**"
+        
         message = f"""
 🏦 **إعداد منصة Bybit**
 
 📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
+
+{action_text}
 
 📋 **المميزات:**
 • التداول الفوري (Spot)
@@ -332,27 +345,37 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 • حساب تجريبي متاح
 
 🔗 **للانضمام إلى Bybit:**
-[اضغط هنا للتسجيل عبر رابط الإحالة](https://www.bybit.com/invite?ref=OLAZ2M)
-
-🔐 **API مرتبط بنجاح!**
-يمكنك الآن:
-• تحديث مفاتيح API
-• تفعيل التداول الحقيقي
-• اختبار الاتصال
+[اضغط هنا للتسجيل](https://www.bybit.com/invite?ref=OLAZ2M)
 """
-        keyboard = [
-            [InlineKeyboardButton(
-                "🔑 تحديث Bybit API Keys",
-                callback_data="exchange_setup_bybit"
-            )]
-        ]
+        # بناء لوحة المفاتيح بحسب الحالة
+        keyboard = []
         
-        # إضافة الأزرار الأخرى
-        if has_bybit_keys:
+        # إذا كانت المنصة مفعّلة، نعرض زر للإدارة فقط
+        if is_active:
             keyboard.extend([
                 [InlineKeyboardButton(
-                    "✅ استخدام Bybit",
+                    "📊 إدارة الحساب الحقيقي",
                     callback_data="exchange_activate_bybit"
+                )],
+                [InlineKeyboardButton(
+                    "🔑 تحديث API Keys",
+                    callback_data="exchange_setup_bybit"
+                )],
+                [InlineKeyboardButton(
+                    "📊 اختبار الاتصال",
+                    callback_data="exchange_test_bybit"
+                )]
+            ])
+        else:
+            # إذا لم يتم التفعيل، نعرض زر واضح للتفعيل
+            keyboard.extend([
+                [InlineKeyboardButton(
+                    "🎯 تفعيل Bybit الآن (حساب حقيقي)",
+                    callback_data="exchange_activate_bybit"
+                )],
+                [InlineKeyboardButton(
+                    "🔑 تحديث API Keys",
+                    callback_data="exchange_setup_bybit"
                 )],
                 [InlineKeyboardButton(
                     "📊 اختبار الاتصال بـ Bybit",
@@ -360,7 +383,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )]
             ])
         
-        keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="select_exchange")])
+        keyboard.append([InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")])
         reply_markup = InlineKeyboardMarkup(keyboard)
     
     # إرسال الرسالة مع معالجة الأخطاء
@@ -661,11 +684,20 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 except Exception as e:
                     logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}", exc_info=True)
                 
-                # إرسال رسالة نجاح مع معلومات الحساب
+                # إرسال رسالة نجاح مع معلومات الحساب وجذب للمتابعة
+                keyboard = [[InlineKeyboardButton(
+                    "🎯 تفعيل المنصة الآن",
+                    callback_data="exchange_select_bybit"
+                )]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
                 await update.message.reply_text(
-                    f"✅ **تم الاتصال بـ Bybit بنجاح!**\n\n"
+                    f"✅ **تم ربط API بنجاح!**\n\n"
                     f"🔐 API مرتبط ويعمل\n"
-                    f"📊 نوع الحساب: حقيقي{balance_info}",
+                    f"📊 نوع الحساب: حقيقي{balance_info}\n\n"
+                    f"💡 **الخطوة التالية:**\n"
+                    f"اضغط على الزر أدناه لتفعيل المنصة واستخدام الحساب الحقيقي 🚀",
+                    reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
                 
