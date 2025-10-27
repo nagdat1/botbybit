@@ -426,9 +426,17 @@ class DatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
+                # التحقق من وجود المستخدم أولاً
+                cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+                if not cursor.fetchone():
+                    logger.error(f"❌ المستخدم {user_id} غير موجود في قاعدة البيانات")
+                    return False
+                
                 # بناء استعلام التحديث
                 set_clauses = []
                 values = []
+                
+                logger.debug(f"🔍 update_user_data: معالجة {len(data)} حقل للمستخدم {user_id}")
                 
                 for key, value in data.items():
                     if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'bybit_api_key', 'bybit_api_secret', 'bitget_api_key', 'bitget_api_secret']:
@@ -439,21 +447,31 @@ class DatabaseManager:
                         else:
                             set_clauses.append(f"{key} = ?")
                             values.append(value)
+                        logger.debug(f"  - {key} = {value if key not in ['bybit_api_secret', 'bitget_api_secret'] else '***'}")
+                    else:
+                        logger.warning(f"⚠️ تجاهل حقل غير مدعوم: {key}")
                 
                 if not set_clauses:
+                    logger.info(f"✅ لا توجد حقول للتحديث للمستخدم {user_id}")
                     return True  # لا يوجد شيء للتحديث
                 
                 query = f"UPDATE users SET {', '.join(set_clauses)} WHERE user_id = ?"
                 values.append(user_id)
                 
+                logger.debug(f"📝 SQL Query: {query}")
+                logger.debug(f"📝 Values count: {len(values)}")
+                
                 cursor.execute(query, values)
+                rows_affected = cursor.rowcount
                 conn.commit()
                 
-                logger.info(f"تم تحديث بيانات المستخدم {user_id}")
+                logger.info(f"✅ تم تحديث بيانات المستخدم {user_id} ({rows_affected} صف متأثر)")
                 return True
                 
         except Exception as e:
-            logger.error(f"خطأ في تحديث بيانات المستخدم {user_id}: {e}")
+            logger.error(f"❌ خطأ في تحديث بيانات المستخدم {user_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     # إدارة الصفقات

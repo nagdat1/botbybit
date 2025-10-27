@@ -447,7 +447,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
             [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
         ]
     
-    # الحالة 3: غير مربوط - عرض الخيارات الأساسية
+    # الحالة 3: غير مربوط - عرض خيار الربط فقط
     else:
         message = f"""
 🏦 **إعداد منصة {platform_name}**
@@ -456,10 +456,12 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 💡 **مرحباً بك في إعداد {platform_name}!**
 
+⚠️ **يجب عليك ربط API Keys أولاً**
+
 🎯 **الخطوات:**
-1️⃣ **ربط API Keys** - لربط حسابك
-2️⃣ **اختيار المنصة** - لتفعيلها كمنصة رئيسية
-3️⃣ **اختبار الاتصال** - للتأكد من عمل كل شيء
+1️⃣ **ربط API Keys** - اضغط على الزر أدناه
+2️⃣ **أدخل المفاتيح** - سنرشدك خطوة بخطوة
+3️⃣ **اختيار المنصة** - بعد الربط الناجح
 
 📋 **المميزات:**
 • التداول الفوري (Spot)
@@ -475,8 +477,6 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 """
         keyboard = [
             [InlineKeyboardButton("🔗 ربط API Keys", callback_data=setup_callback)],
-            [InlineKeyboardButton("✅ اختيار هذه المنصة", callback_data=activate_callback)],
-            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data=test_callback)],
             [InlineKeyboardButton("🔙 رجوع للقائمة", callback_data="select_exchange")]
         ]
     
@@ -741,11 +741,22 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             # بناء URL بشكل صحيح
             url = f"{base_url}{endpoint}?{params_str}"
             
+            # تسجيل تفاصيل الطلب للتشخيص
+            logger.info(f"🔍 اختبار اتصال Bybit للمستخدم {user_id}")
+            logger.info(f"URL: {url}")
+            logger.info(f"Timestamp: {timestamp}")
+            logger.debug(f"API Key (first 8 chars): {str(api_key)[:8]}...")
+            logger.debug(f"Signature: {signature[:16]}...")
+            
             response = requests.get(
                 url,
                 headers=headers,
                 timeout=10
             )
+            
+            # تسجيل الاستجابة
+            logger.info(f"📥 استجابة Bybit: Status {response.status_code}")
+            logger.debug(f"Response body: {response.text[:200]}")
             
             if response.status_code != 200:
                 await update.message.reply_text(
@@ -761,10 +772,15 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             result = response.json()
             
             if result.get('retCode') != 0:
+                error_code = result.get('retCode')
+                error_msg = result.get('retMsg', 'خطأ غير معروف')
+                logger.error(f"❌ Bybit API Error: Code {error_code}, Message: {error_msg}")
+                
                 await update.message.reply_text(
                     f"❌ **خطأ من Bybit**\n\n"
-                    f"{result.get('retMsg', 'خطأ غير معروف')}\n\n"
-                    f"تحقق من صحة المفاتيح"
+                    f"الكود: {error_code}\n"
+                    f"الرسالة: {error_msg}\n\n"
+                    f"تحقق من صحة المفاتيح والصلاحيات"
                 )
                 return False
             
@@ -794,21 +810,39 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             try:
                 # التأكد من وجود المستخدم في قاعدة البيانات
                 existing_user = db_manager.get_user(user_id)
+                logger.info(f"🔍 فحص المستخدم {user_id}: {'موجود' if existing_user else 'غير موجود'}")
+                
                 if not existing_user:
-                    logger.info(f"إنشاء مستخدم جديد: {user_id}")
-                    db_manager.create_user(user_id)
+                    logger.info(f"➕ إنشاء مستخدم جديد: {user_id}")
+                    create_result = db_manager.create_user(user_id)
+                    if not create_result:
+                        logger.error(f"❌ فشل إنشاء المستخدم {user_id}")
+                        await update.message.reply_text(
+                            "❌ **فشل في إنشاء حساب المستخدم**\n\n"
+                            "حدث خطأ في قاعدة البيانات\n"
+                            "يرجى الاتصال بالدعم الفني",
+                            parse_mode='Markdown'
+                        )
+                        return False
+                    logger.info(f"✅ تم إنشاء المستخدم {user_id} بنجاح")
                 
                 # ✅ خطوة 1: حفظ في قاعدة البيانات وتفعيل المنصة
                 # حفظ المفاتيح والإعدادات الأساسية
-                save_result = db_manager.update_user_data(user_id, {
+                logger.info(f"💾 محاولة حفظ مفاتيح Bybit للمستخدم {user_id}")
+                
+                data_to_save = {
                     'bybit_api_key': api_key,
                     'bybit_api_secret': api_secret,
                     'exchange': 'bybit',
                     'is_active': True
-                })
+                }
+                logger.debug(f"البيانات للحفظ: exchange={data_to_save['exchange']}, is_active={data_to_save['is_active']}")
+                
+                save_result = db_manager.update_user_data(user_id, data_to_save)
                 
                 if not save_result:
                     logger.error(f"❌ فشل في حفظ بيانات المستخدم {user_id}")
+                    logger.error(f"تفاصيل: update_user_data returned False")
                     await update.message.reply_text(
                         "❌ **فشل في حفظ البيانات**\n\n"
                         "حدث خطأ في قاعدة البيانات\n"
@@ -817,13 +851,18 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                     )
                     return False
                 
+                logger.info(f"✅ نجح حفظ مفاتيح API في قاعدة البيانات")
+                
                 # حفظ إعدادات التداول
+                logger.info(f"💾 محاولة حفظ إعدادات التداول للمستخدم {user_id}")
                 settings_result = db_manager.update_user_settings(user_id, {
                     'account_type': 'real'
                 })
                 
                 if not settings_result:
                     logger.warning(f"⚠️ فشل في حفظ إعدادات التداول للمستخدم {user_id}")
+                else:
+                    logger.info(f"✅ نجح حفظ إعدادات التداول")
                 
                 logger.info(f"✅ تم حفظ وتفعيل مفاتيح API للمستخدم {user_id}")
                 
@@ -1067,10 +1106,23 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if not has_keys or not api_secret:
+        logger.warning(f"⚠️ محاولة تفعيل {exchange} بدون مفاتيح API للمستخدم {user_id}")
+        
+        # رسالة واضحة مع زر للعودة والربط
+        keyboard = [
+            [InlineKeyboardButton("🔗 ربط API Keys الآن", callback_data=f"exchange_setup_{exchange}")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange}")]
+        ]
+        
         await query.edit_message_text(
-            f"⚠️ **لم يتم ربط {exchange.upper()} API**\n\n"
-            f"يجب ربط API أولاً قبل التفعيل\n\n"
-            f"اضغط على \"🔗 ربط API\" أولاً",
+            f"⚠️ **يجب ربط API أولاً!**\n\n"
+            f"❌ لا يمكن اختيار منصة {exchange.upper()} بدون ربط المفاتيح\n\n"
+            f"📝 **الخطوات المطلوبة:**\n"
+            f"1️⃣ اضغط على \"🔗 ربط API Keys\"\n"
+            f"2️⃣ أدخل مفاتيح API الخاصة بك\n"
+            f"3️⃣ بعد الربط الناجح، عُد لاختيار المنصة\n\n"
+            f"💡 **نصيحة:** تأكد من حصولك على API Key و Secret من موقع {exchange.upper()}",
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
         return
