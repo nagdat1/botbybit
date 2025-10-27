@@ -305,7 +305,12 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """بدء عملية ربط Bybit API - الخطوة 1: API Key"""
+    # التحقق من وجود callback_query
     query = update.callback_query
+    if not query:
+        logger.error("❌ لا يوجد callback_query في start_bybit_setup")
+        return
+    
     await query.answer()
     
     keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="exchange_select_bybit")]]
@@ -332,11 +337,25 @@ abc123xyz456def789
 📝 أرسل API Key الآن
 """
     
-    await query.edit_message_text(
-        message,
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
+    try:
+        await query.edit_message_text(
+            message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown',
+            disable_web_page_preview=True
+        )
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض رسالة start_bybit_setup: {e}")
+        try:
+            await query.message.reply_text(
+                message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown',
+                disable_web_page_preview=True
+            )
+        except Exception as e2:
+            logger.error(f"❌ فشل في إرسال الرسالة البديلة: {e2}")
+            return
     
     # حفظ حالة انتظار API Key لـ Bybit
     context.user_data['awaiting_exchange_keys'] = 'bybit_step1'
@@ -580,7 +599,12 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
 
 async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تفعيل المنصة المختارة - تهيئة الحساب الحقيقي"""
+    # التحقق من وجود callback_query
     query = update.callback_query
+    if not query:
+        logger.error("❌ لا يوجد callback_query في activate_exchange")
+        return
+    
     await query.answer("جاري التحقق...")
     
     user_id = update.effective_user.id
@@ -710,7 +734,12 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """اختبار الاتصال بالمنصة"""
+    # التحقق من وجود callback_query
     query = update.callback_query
+    if not query:
+        logger.error("❌ لا يوجد callback_query في test_exchange_connection")
+        return
+    
     await query.answer("جاري الاختبار...")
     
     user_id = update.effective_user.id
