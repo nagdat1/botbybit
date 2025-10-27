@@ -708,10 +708,9 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء params dictionary
+        # بناء params dictionary (بدون timestamp!)
         params = {
-            'accountType': 'UNIFIED',
-            'timestamp': timestamp
+            'accountType': 'UNIFIED'
         }
         
         # بناء query string باستخدام urlencode مع الترميز الصحيح
