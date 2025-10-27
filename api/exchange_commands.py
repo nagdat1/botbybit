@@ -561,31 +561,42 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
         
-        # بناء query string
-        params_str = f"accountType=UNIFIED&timestamp={timestamp}"
+        # بناء params dictionary
+        params = {
+            'accountType': 'UNIFIED',
+            'timestamp': timestamp
+        }
+        
+        # بناء query string باستخدام urlencode مع الترميز الصحيح
+        params_str = urlencode(sorted(params.items()))
         
         # بناء الـ signature string حسب توثيق Bybit V5
         # صيغة: timestamp + api_key + recv_window + params
-        sign_str = timestamp + api_key + recv_window + params_str
+        sign_str = timestamp + str(api_key) + recv_window + params_str
         
-        signature = hmac.new(
-            api_secret.encode('utf-8'),
-            sign_str.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
+        # تأكد من أن جميع القيم نصية (string) قبل التشفير
+        # استخدم explicit string conversion لمنع أي مشاكل في الترميز
+        secret_bytes = str(api_secret).encode('utf-8')
+        sign_bytes = sign_str.encode('utf-8')
+        
+        signature = hmac.new(secret_bytes, sign_bytes, hashlib.sha256).hexdigest()
         
         # إرسال الطلب
         headers = {
-            'X-BAPI-API-KEY': api_key,
+            'X-BAPI-API-KEY': str(api_key),
             'X-BAPI-SIGN': signature,
             'X-BAPI-TIMESTAMP': timestamp,
             'X-BAPI-RECV-WINDOW': recv_window,
+            'X-BAPI-SIGN-TYPE': '2',
             'Content-Type': 'application/json'
         }
         
         try:
+            # بناء URL بشكل صحيح
+            url = f"{base_url}{endpoint}?{params_str}"
+            
             response = requests.get(
-                f"{base_url}{endpoint}?{params_str}",
+                url,
                 headers=headers,
                 timeout=10
             )
@@ -671,19 +682,29 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 return False
             
         except requests.exceptions.RequestException as e:
+            error_msg = str(e).encode('utf-8', errors='ignore').decode('utf-8')
             await update.message.reply_text(
                 f"❌ **خطأ في الاتصال**\n\n"
                 f"تحقق من الاتصال بالإنترنت\n"
-                f"الخطأ: {str(e)}"
+                f"الخطأ: {error_msg}"
             )
             return False
     
+    except UnicodeEncodeError as e:
+        logger.error(f"خطأ في ترميز النص: {e}")
+        await update.message.reply_text(
+            "❌ **خطأ في المعالجة**\n\n"
+            "حدث خطأ في معالجة البيانات.\n"
+            "يرجى التحقق من صحة المفاتيح والمحاولة مرة أخرى."
+        )
+        return False
     except Exception as e:
         logger.error(f"خطأ في اختبار/حفظ مفاتيح Bybit: {e}")
         import traceback
         traceback.print_exc()
+        error_msg = str(e).encode('utf-8', errors='ignore').decode('utf-8')
         await update.message.reply_text(
-            f"❌ **خطأ:**\n{str(e)}"
+            f"❌ **خطأ:**\n{error_msg}"
         )
         return False
 
