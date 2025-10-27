@@ -305,8 +305,13 @@ def start_bot():
             except Exception as e:
                 print(f"⚠️ خطأ في تسجيل معالجات المنصات: {e}")
             
-            # تشغيل البوت مباشرة بدون thread إضافي
             print("بدء تشغيل البوت...")
+            
+            # إنشاء event loop جديد وتعيينه
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # تشغيل البوت
             application.run_polling(allowed_updates=['message', 'callback_query'], drop_pending_updates=False)
             
         except Exception as e:
