@@ -902,10 +902,25 @@ def register_exchange_handlers(application):
     """تسجيل معالجات أوامر المنصات"""
     from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters
     
-    # أمر اختيار المنصة
-    application.add_handler(CommandHandler("exchange", cmd_select_exchange))
-    application.add_handler(CommandHandler("منصة", cmd_select_exchange))
-    application.add_handler(CommandHandler("cancel", cancel_setup))
+    try:
+        # أمر اختيار المنصة
+        application.add_handler(CommandHandler("exchange", cmd_select_exchange))
+        logger.info("✅ تم تسجيل أمر exchange")
+    except Exception as e:
+        logger.warning(f"⚠️ فشل تسجيل أمر exchange: {e}")
+    
+    # تسجيل الأمر العربي فقط إذا كان مدعوماً
+    try:
+        application.add_handler(CommandHandler("منصة", cmd_select_exchange))
+        logger.info("✅ تم تسجيل أمر منصة")
+    except Exception as e:
+        logger.debug(f"⚠️ لم يتم تسجيل أمر منصة (قد لا يكون مدعوماً): {e}")
+    
+    try:
+        application.add_handler(CommandHandler("cancel", cancel_setup))
+        logger.info("✅ تم تسجيل أمر cancel")
+    except Exception as e:
+        logger.warning(f"⚠️ فشل تسجيل أمر cancel: {e}")
     
     # معالجات الأزرار - تم نقلها إلى bybit_trading_bot.py
     # معالج إدخال المفاتيح - سيتم التعامل معه عبر context.user_data

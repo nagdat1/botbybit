@@ -316,6 +316,7 @@ def start_bot():
             # بدء التحديث الدوري للأسعار
             def start_price_updates():
                 """بدء التحديث الدوري للأسعار"""
+                import time
                 def update_prices():
                     while True:
                         try:
@@ -323,10 +324,12 @@ def start_bot():
                             asyncio.set_event_loop(loop)
                             loop.run_until_complete(trading_bot.update_open_positions_prices())
                             loop.close()
-                            threading.Event().wait(30)  # انتظار 30 ثانية
+                            time.sleep(30)  # انتظار 30 ثانية
                         except Exception as e:
                             print(f"خطأ في التحديث الدوري: {e}")
-                            threading.Event().wait(60)  # انتظار دقيقة في حالة الخطأ
+                            import traceback
+                            traceback.print_exc()
+                            time.sleep(60)  # انتظار دقيقة في حالة الخطأ
                 
                 threading.Thread(target=update_prices, daemon=True).start()
             
@@ -335,10 +338,17 @@ def start_bot():
             
             # تشغيل البوت
             print("بدء تشغيل البوت...")
-            application.run_polling(allowed_updates=['message', 'callback_query'])
+            try:
+                application.run_polling(allowed_updates=['message', 'callback_query'], drop_pending_updates=False)
+            except KeyboardInterrupt:
+                print("تم إيقاف البوت بواسطة المستخدم")
+            except Exception as e:
+                print(f"خطأ في تشغيل البوت: {e}")
+                import traceback
+                traceback.print_exc()
             
         except Exception as e:
-            print(f"خطأ في تشغيل البوت: {e}")
+            print(f"خطأ في تهيئة البوت: {e}")
             import traceback
             traceback.print_exc()
     
