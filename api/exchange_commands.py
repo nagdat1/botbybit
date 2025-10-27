@@ -274,33 +274,19 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         is_active = False
         
         logger.info(f"✅ تم معالجة المستخدم {user_id} (حساب {'جديد' if user_data else 'فارغ'})")
-        message = f"""
-✅ **تم إنشاء حسابك بنجاح!**
-
-🏦 **مرحباً بك في بوت التداول**
-
-📋 **الآن يمكنك:**
-• اختيار منصة التداول
-• ضبط إعدادات التداول
-• ربط API الخاص بك
-• البدء في التداول
-
-🔹 **Bybit**
-   • التداول الفوري (Spot)
-   • تداول الفيوتشر (Futures)
-   • الرافعة المالية (حتى 100x)
-
-🔗 **للانضمام إلى Bybit:**
-[اضغط هنا للتسجيل عبر رابط الإحالة](https://www.bybit.com/invite?ref=OLAZ2M)
-
-اضغط على Bybit للبدء!
-"""
         
-        keyboard = [
-            [InlineKeyboardButton("⚪ Bybit", callback_data="exchange_select_bybit")]
-        ]
-        keyboard.append([InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        # مباشرة إلى عملية ربط API بدلاً من عرض الخيارات
+        logger.info(f"🔄 تحويل المستخدم الجديد مباشرة إلى عملية ربط API")
+        await start_bybit_setup(update, context)
+        return
+    
+    # إذا كان المستخدم موجوداً لكن لم يربط API، نوجهه مباشرة لعملية الربط
+    if not has_bybit_keys:
+        logger.info(f"🔄 المستخدم {user_id} ليس لديه API مربوط، تحويله لعملية الربط")
+        await start_bybit_setup(update, context)
+        return
+    
+    # المستخدم لديه API مربوط - عرض خيارات إدارة الحساب
     else:
         message = f"""
 🏦 **إعداد منصة Bybit**
@@ -316,22 +302,20 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 🔗 **للانضمام إلى Bybit:**
 [اضغط هنا للتسجيل عبر رابط الإحالة](https://www.bybit.com/invite?ref=OLAZ2M)
 
-🔐 **لربط API:**
-1. اذهب إلى [Bybit API Management](https://www.bybit.com/app/user/api-management)
-2. أنشئ API Key جديد
-3. فعّل الصلاحيات المطلوبة
-4. اضغط "🔑 ربط/تحديث Bybit API Keys"
-
-{f"✅ **API مربوط بنجاح!**" if has_bybit_keys else "⚠️ **يجب ربط API أولاً**"}
+🔐 **API مرتبط بنجاح!**
+يمكنك الآن:
+• تحديث مفاتيح API
+• تفعيل التداول الحقيقي
+• اختبار الاتصال
 """
         keyboard = [
             [InlineKeyboardButton(
-                "🔑 ربط/تحديث Bybit API Keys",
+                "🔑 تحديث Bybit API Keys",
                 callback_data="exchange_setup_bybit"
             )]
         ]
         
-        # إضافة الأزرار الأخرى فقط إذا تم ربط API
+        # إضافة الأزرار الأخرى
         if has_bybit_keys:
             keyboard.extend([
                 [InlineKeyboardButton(
