@@ -3817,12 +3817,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # التحقق من وجود المستخدم في قاعدة البيانات
+    # التحقق من أن user_manager متوفر
+    if user_manager is None:
+        logger.error("❌ user_manager غير متوفر!")
+        await update.message.reply_text(
+            "❌ خطأ: البوت لم يتم تهيئته بشكل صحيح. يرجى المحاولة لاحقاً."
+        )
+        return
+    
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
         # مستخدم جديد - إنشاء حساب
-        user_manager.create_user(user_id)
-        user_data = user_manager.get_user(user_id)
+        try:
+            user_manager.create_user(user_id)
+            user_data = user_manager.get_user(user_id)
+        except Exception as e:
+            logger.error(f"خطأ في إنشاء المستخدم {user_id}: {e}")
+            await update.message.reply_text(
+                "❌ حدث خطأ في إنشاء حسابك. يرجى المحاولة مرة أخرى."
+            )
+            return
     else:
         # مستخدم موجود - إعادة تحميل الحساب الحقيقي إذا كان مفعّلاً
         account_type = user_data.get('account_type', 'demo')
@@ -3893,11 +3908,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     
     # إضافة زر متابعة Nagdat
-    is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
-    if is_following:
-        keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
-    else:
-        keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
+    try:
+        is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
+        if is_following:
+            keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
+        else:
+            keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
+    except Exception as e:
+        logger.error(f"خطأ في التحقق من المتابعة: {e}")
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
