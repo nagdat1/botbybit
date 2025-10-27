@@ -35,8 +35,10 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
         bybit_linked = False
         
         if user_data:
-            bybit_key = user_data.get('bybit_api_key', BYBIT_API_KEY)
-            bybit_linked = bybit_key and bybit_key != BYBIT_API_KEY
+            bybit_key = user_data.get('bybit_api_key', '')
+            # التحقق من أن API Key موجود وليس فارغاً وليس القيمة الافتراضية
+            default_key = BYBIT_API_KEY if (BYBIT_API_KEY and len(BYBIT_API_KEY) > 0) else ''
+            bybit_linked = bybit_key and len(bybit_key) > 10 and bybit_key != default_key
         
     except Exception as e:
         logger.error(f"❌ خطأ في جلب بيانات المستخدم: {e}")
@@ -136,9 +138,20 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # جلب بيانات المستخدم
         try:
+            logger.info(f"🔄 محاولة استيراد user_manager للمستخدم {user_id}")
             from users.user_manager import user_manager
+            logger.info(f"✅ تم استيراد user_manager بنجاح")
+            
+            logger.info(f"🔄 محاولة جلب بيانات المستخدم {user_id}")
             user_data = user_manager.get_user(user_id)
-            logger.info(f"✅ تم جلب بيانات المستخدم: {user_id}")
+            logger.info(f"✅ تم جلب بيانات المستخدم: {user_id}, البيانات: {bool(user_data)}")
+            
+            # تسجيل محتوى user_data للأ debugging
+            if user_data:
+                logger.info(f"📊 محتوى user_data: exchange={user_data.get('exchange')}, account_type={user_data.get('account_type')}")
+        except ImportError as e:
+            logger.error(f"❌ خطأ في استيراد user_manager: {e}", exc_info=True)
+            user_data = {}
         except Exception as e:
             logger.error(f"❌ خطأ في جلب بيانات المستخدم من user_manager: {e}", exc_info=True)
             user_data = {}
@@ -151,8 +164,9 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # التحقق من وجود API Keys
         if user_data:
             bybit_key = user_data.get('bybit_api_key', '')
-            default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
-            has_bybit_keys = bybit_key and bybit_key != default_key and len(bybit_key) > 10
+            # التحقق من أن API Key موجود وليس فارغاً وليس القيمة الافتراضية
+            default_key = BYBIT_API_KEY if (BYBIT_API_KEY and len(str(BYBIT_API_KEY)) > 0) else ''
+            has_bybit_keys = bybit_key and len(bybit_key) > 10 and bybit_key != default_key
         
         # التحقق من التفعيل
         current_exchange = user_data.get('exchange', '') if user_data else ''
@@ -621,8 +635,8 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     api_key = user_data.get('bybit_api_key', '')
     api_secret = user_data.get('bybit_api_secret', '')
     # التحقق من أن المفاتيح موجودة وليست القيم الافتراضية
-    default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
-    has_keys = api_key and api_secret and api_key != default_key and len(api_key) > 10
+    default_key = BYBIT_API_KEY if (BYBIT_API_KEY and len(str(BYBIT_API_KEY)) > 0) else ''
+    has_keys = api_key and api_secret and len(api_key) > 10 and api_key != default_key
     
     # فقط Bybit مدعوم
     if exchange != 'bybit':
