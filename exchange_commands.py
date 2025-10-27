@@ -17,6 +17,10 @@ SELECTING_EXCHANGE, ENTERING_BYBIT_KEYS = range(2)
 
 async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """أمر اختيار المنصة - القائمة الرئيسية"""
+    # الإجابة على callback_query إذا كان من زر
+    if update.callback_query:
+        await update.callback_query.answer()
+    
     user_id = update.effective_user.id
     
     from users.user_manager import user_manager
@@ -98,6 +102,8 @@ async def handle_exchange_selection(update: Update, context: ContextTypes.DEFAUL
 async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض خيارات إعداد Bybit مع معلومات الحساب"""
     query = update.callback_query
+    await query.answer()
+    
     user_id = update.effective_user.id
     
     from users.user_manager import user_manager
