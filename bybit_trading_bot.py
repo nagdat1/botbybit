@@ -7586,8 +7586,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await cmd_select_exchange(update, context)
             return
         except Exception as e:
-            logger.error(f"❌ خطأ في select_exchange: {e}")
-            await query.answer("❌ حدث خطأ")
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "select_exchange")
             return
     
     # معالجة أزرار اختيار المنصات
@@ -7598,8 +7598,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_bybit_options(update, context)
             return
         except Exception as e:
-            logger.error(f"❌ خطأ في exchange_select_bybit: {e}")
-            await query.answer("❌ حدث خطأ")
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_select_bybit")
             return
     
     if data == "exchange_setup_bybit":
@@ -7609,8 +7609,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start_bybit_setup(update, context)
             return
         except Exception as e:
-            logger.error(f"❌ خطأ في exchange_setup_bybit: {e}")
-            await query.answer("❌ حدث خطأ")
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_setup_bybit")
             return
     
     if data == "exchange_activate_bybit":
@@ -7620,8 +7620,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await activate_exchange(update, context)
             return
         except Exception as e:
-            logger.error(f"❌ خطأ في exchange_activate_bybit: {e}")
-            await query.answer("❌ حدث خطأ")
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_activate_bybit")
             return
     
     if data == "exchange_test_bybit":
@@ -7631,8 +7631,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await test_exchange_connection(update, context)
             return
         except Exception as e:
-            logger.error(f"❌ خطأ في exchange_test_bybit: {e}")
-            await query.answer("❌ حدث خطأ")
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_test_bybit")
             return
     
     if data == "exchange_menu":
@@ -7642,8 +7642,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await cmd_select_exchange(update, context)
             return
         except Exception as e:
-            logger.error(f"❌ خطأ في exchange_menu: {e}")
-            await query.answer("❌ حدث خطأ")
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_menu")
             return
     
     
@@ -8447,9 +8447,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     else:
         # معالجة أي أزرار أخرى غير محددة
-        logger.warning(f"⚠️ Unsupported button: {data}")
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text(f"❌ زر غير مدعوم: {data}\n\nيرجى الإبلاغ عن هذا الخطأ")
+        try:
+            from error_handlers.callback_error_handler import UnknownCommandHandler
+            await UnknownCommandHandler.handle_unknown_callback(update, context, data)
+        except Exception as e:
+            logger.error(f"❌ خطأ في معالجة الأمر غير المدعوم: {e}")
+            try:
+                await query.answer("⚠️ أمر غير مدعوم")
+            except:
+                pass
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
