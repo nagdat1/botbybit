@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-أوامر إدارة المنصات (Bybit و MEXC)
-واجهة منظمة لربط API الخاص بكل منصة
+أوامر إدارة المنصات (Bybit)
+واجهة منظمة لربط API الخاصة بمنصة Bybit
 """
 
 import logging
@@ -13,7 +13,7 @@ from config import *
 logger = logging.getLogger(__name__)
 
 # حالات المحادثة
-SELECTING_EXCHANGE, ENTERING_BYBIT_KEYS, ENTERING_MEXC_KEYS = range(3)
+SELECTING_EXCHANGE, ENTERING_BYBIT_KEYS = range(2)
 
 async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """أمر اختيار المنصة - القائمة الرئيسية"""
@@ -27,18 +27,13 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     # التحقق من وجود API Keys مربوطة
     bybit_linked = False
-    mexc_linked = False
     
     if user_data:
         bybit_key = user_data.get('bybit_api_key', BYBIT_API_KEY)
         bybit_linked = bybit_key and bybit_key != BYBIT_API_KEY
-        
-        mexc_key = user_data.get('mexc_api_key', '')
-        mexc_linked = mexc_key and mexc_key != ''
     
     # بناء الأزرار مع الحالة الصحيحة
     bybit_icon = "✅" if (current_exchange == 'bybit' and bybit_linked) else ("🔗" if bybit_linked else "⚪")
-    mexc_icon = "✅" if (current_exchange == 'mexc' and mexc_linked) else ("🔗" if mexc_linked else "⚪")
     
     keyboard = [
         [
@@ -47,19 +42,13 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
                 callback_data="exchange_select_bybit"
             )
         ],
-        [
-            InlineKeyboardButton(
-                f"{mexc_icon} MEXC (Spot فقط)", 
-                callback_data="exchange_select_mexc"
-            )
-        ],
         [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # تحديد حالة المنصة
-    if current_exchange and (bybit_linked or mexc_linked):
-        status_text = f"**{current_exchange.upper()}** {'✅ (مفعّلة)' if (current_exchange == 'bybit' and bybit_linked) or (current_exchange == 'mexc' and mexc_linked) else ''}"
+    if current_exchange and bybit_linked:
+        status_text = f"**{current_exchange.upper()}** ✅ (مفعّلة)"
     else:
         status_text = "**لم يتم اختيار منصة**"
     
@@ -68,8 +57,6 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 المنصة الحالية: {status_text}
 
-اختر المنصة التي تريد استخدامها:
-
 **الرموز:**
 ⚪ = غير مربوط
 🔗 = مربوط (غير مفعّل)
@@ -77,15 +64,11 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 🔹 **Bybit**
    • يدعم Spot و Futures
-   • رافعة مالية متاحة
+   • رافعة مالية متاحة (حتى 100x)
    • حساب تجريبي متاح
+   • دعم كامل للتداول الآلي
 
-🔹 **MEXC**
-   • يدعم Spot فقط
-   • لا يوجد دعم للفيوتشر
-   • عدد كبير من العملات
-
-اضغط على المنصة للاختيار وإعداد API
+اضغط على Bybit للاختيار وإعداد API
 """
     
     if update.callback_query:
@@ -111,10 +94,6 @@ async def handle_exchange_selection(update: Update, context: ContextTypes.DEFAUL
     if query.data == "exchange_select_bybit":
         # عرض خيارات Bybit
         await show_bybit_options(update, context)
-    
-    elif query.data == "exchange_select_mexc":
-        # عرض خيارات MEXC
-        await show_mexc_options(update, context)
 
 async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض خيارات إعداد Bybit مع معلومات الحساب"""
@@ -211,105 +190,6 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         disable_web_page_preview=True
     )
 
-async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض خيارات إعداد MEXC مع معلومات الحساب"""
-    query = update.callback_query
-    user_id = update.effective_user.id
-    
-    from users.user_manager import user_manager
-    user_data = user_manager.get_user(user_id)
-    
-    # التحقق من وجود API Keys
-    has_mexc_keys = False
-    if user_data:
-        mexc_key = user_data.get('mexc_api_key', '')
-        has_mexc_keys = mexc_key and mexc_key != "" and len(mexc_key) > 10
-    
-    # التحقق من التفعيل
-    current_exchange = user_data.get('exchange', '') if user_data else ''
-    account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
-    is_active = current_exchange == 'mexc' and account_type == 'real'
-    
-    keyboard = [
-        [InlineKeyboardButton(
-            "🔑 ربط/تحديث MEXC API Keys",
-            callback_data="exchange_setup_mexc"
-        )]
-    ]
-    
-    # إضافة الأزرار الأخرى فقط إذا تم ربط API
-    if has_mexc_keys:
-        keyboard.extend([
-            [InlineKeyboardButton(
-                "✅ استخدام MEXC",
-                callback_data="exchange_activate_mexc"
-            )],
-            [InlineKeyboardButton(
-                "📊 اختبار الاتصال بـ MEXC",
-                callback_data="exchange_test_mexc"
-            )]
-        ])
-    
-    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    # تحديد حالة API
-    if is_active and has_mexc_keys:
-        status_icon = "🟢"
-        status_text = "مرتبط ومفعّل"
-    elif has_mexc_keys:
-        status_icon = "🔗"
-        status_text = "مرتبط (غير مفعّل)"
-    else:
-        status_icon = "🔴"
-        status_text = "غير مرتبط"
-    
-    # جلب معلومات الرصيد إذا كان مفعّل
-    balance_text = ""
-    if is_active and has_mexc_keys:
-        from api.bybit_api import real_account_manager
-        real_account = real_account_manager.get_account(user_id)
-        if real_account:
-            try:
-                balance = real_account.get_wallet_balance()
-                if balance:
-                    total_equity = balance.get('total_equity', 0)
-                    balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
-            except Exception as e:
-                logger.error(f"خطأ في جلب الرصيد: {e}")
-    
-    message = f"""
-🏦 **إعداد منصة MEXC**
-
-📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
-
-📋 **المميزات:**
-• التداول الفوري (Spot) فقط
-• عدد كبير من العملات
-• رسوم تداول منخفضة
-
-⚠️ **ملاحظة هامة:**
-MEXC تدعم التداول الفوري فقط - لا يوجد دعم للفيوتشر عبر API
-
-🔐 **لربط API:**
-1. اذهب إلى [MEXC API Management](https://www.mexc.com/user/openapi)
-2. أنشئ API Key جديد
-3. فعّل صلاحية Spot Trading فقط
-4. اضغط "🔑 ربط/تحديث MEXC API Keys"
-
-🔗 **للانضمام إلى MEXC:**
-[انضم عبر رابط الإحالة](https://www.mexc.com/ar-AE/auth/signup?inviteCode=3RwDp)
-
-{f"✅ **API مربوط بنجاح!**" if has_mexc_keys else "⚠️ **يجب ربط API أولاً**"}
-"""
-    
-    await query.edit_message_text(
-        message,
-        reply_markup=reply_markup,
-        parse_mode='Markdown',
-        disable_web_page_preview=True
-    )
-
 async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """بدء عملية ربط Bybit API - الخطوة 1: API Key"""
     query = update.callback_query
@@ -346,44 +226,6 @@ abc123xyz456def789
     # حفظ حالة انتظار API Key لـ Bybit
     context.user_data['awaiting_exchange_keys'] = 'bybit_step1'
 
-async def start_mexc_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """بدء عملية ربط MEXC API - الخطوة 1: API Key"""
-    query = update.callback_query
-    await query.answer()
-    
-    keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="exchange_select_mexc")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    message = """
-🔑 **ربط MEXC API - الخطوة 1 من 2**
-
-📝 أرسل **API Key** الخاص بك
-
-**مثال:**
-```
-mx0vglBqh6abc123xyz456
-```
-
-💡 **للحصول على API Key:**
-1. اذهب إلى MEXC.com
-2. Account → API Management
-3. Create New API Key
-4. انسخ API Key
-
-⚠️ **ملاحظة:** MEXC تدعم Spot فقط
-
-📝 أرسل API Key الآن
-"""
-    
-    await query.edit_message_text(
-        message,
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
-    
-    # حفظ حالة انتظار API Key لـ MEXC
-    context.user_data['awaiting_exchange_keys'] = 'mexc_step1'
-
 async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة إدخال مفاتيح API - خطوة بخطوة"""
     user_id = update.effective_user.id
@@ -395,8 +237,8 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         return
     
     # الخطوة 1: استقبال API Key
-    if state in ['bybit_step1', 'mexc_step1']:
-        exchange = 'bybit' if 'bybit' in state else 'mexc'
+    if state in ['bybit_step1']:
+        exchange = 'bybit'
         
         if not text:
             await update.message.reply_text("❌ API Key فارغ! أرسله مرة أخرى")
@@ -404,9 +246,9 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         
         # حفظ API Key
         context.user_data['temp_api_key'] = text
-        context.user_data['awaiting_exchange_keys'] = f'{exchange}_step2'
+        context.user_data['awaiting_exchange_keys'] = 'bybit_step2'
         
-        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=f"exchange_select_{exchange}")]]
+        keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="exchange_select_bybit")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
@@ -419,8 +261,8 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         return
     
     # الخطوة 2: استقبال API Secret
-    elif state in ['bybit_step2', 'mexc_step2']:
-        exchange = 'bybit' if 'bybit' in state else 'mexc'
+    elif state in ['bybit_step2']:
+        exchange = 'bybit'
         
         if not text:
             await update.message.reply_text("❌ API Secret فارغ! أرسله مرة أخرى")
@@ -443,10 +285,8 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         # اختبار المفاتيح
         await update.message.reply_text("🔄 جاري اختبار الاتصال...")
         
-        if exchange == 'bybit':
-            success = await test_and_save_bybit_keys(user_id, api_key, api_secret, update)
-        else:  # mexc
-            success = await test_and_save_mexc_keys(user_id, api_key, api_secret, update)
+        # دعم Bybit فقط
+        success = await test_and_save_bybit_keys(user_id, api_key, api_secret, update)
         
         # مسح البيانات المؤقتة
         context.user_data.pop('awaiting_exchange_keys', None)
@@ -623,89 +463,6 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
         )
         return False
 
-async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
-    """اختبار وحفظ مفاتيح MEXC"""
-    try:
-        from mexc_trading_bot import create_mexc_bot
-        
-        # اختبار الاتصال
-        test_bot = create_mexc_bot(api_key, api_secret)
-        if not test_bot.test_connection():
-            await update.message.reply_text(
-                "❌ **فشل الاتصال بـ MEXC**\n\n"
-                "تحقق من:\n"
-                "• صحة المفاتيح\n"
-                "• تفعيل API Key في حسابك\n"
-                "• صلاحيات Spot Trading"
-            )
-            return False
-        
-        from users.user_manager import user_manager
-        
-        # جلب معلومات الرصيد
-        balance = test_bot.get_account_balance()
-        balance_info = ""
-        
-        if balance and 'balances' in balance:
-            balance_info = "\n\n💰 **الرصيد المتاح:**\n"
-            found_balance = False
-            count = 0
-            for asset, info in balance['balances'].items():
-                if info['total'] > 0 and count < 5:
-                    balance_info += f"• {asset}: {info['total']:.4f}\n"
-                    found_balance = True
-                    count += 1
-            
-            if not found_balance:
-                balance_info += "• لا يوجد رصيد حالياً\n"
-        
-        # حفظ المفاتيح وتهيئة الحساب الحقيقي
-        from users.user_manager import user_manager
-        from api.bybit_api import real_account_manager
-        
-        user_data = user_manager.get_user(user_id)
-        if user_data:
-            user_data['mexc_api_key'] = api_key
-            user_data['mexc_api_secret'] = api_secret
-            user_data['exchange'] = 'mexc'
-            user_data['market_type'] = 'spot'  # MEXC تدعم Spot فقط
-            user_data['account_type'] = 'real'  # حساب حقيقي
-            
-            # تهيئة الحساب الحقيقي فوراً
-            try:
-                real_account_manager.initialize_account(user_id, 'mexc', api_key, api_secret)
-                logger.info(f"✅ تم تهيئة حساب MEXC الحقيقي للمستخدم {user_id}")
-            except Exception as e:
-                logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}")
-            
-            # حفظ في قاعدة البيانات
-            from users.database import db_manager
-            db_manager.update_user_settings(user_id, {
-                'mexc_api_key': api_key,
-                'mexc_api_secret': api_secret,
-                'exchange': 'mexc',
-                'market_type': 'spot',
-                'account_type': 'real'
-            })
-            
-            # إرسال رسالة نجاح مع معلومات الحساب
-            await update.message.reply_text(
-                f"✅ **تم الاتصال بـ MEXC بنجاح!**\n\n"
-                f"🔐 API مرتبط ويعمل\n"
-                f"📊 نوع الحساب: حقيقي (Spot فقط){balance_info}",
-                parse_mode='Markdown'
-            )
-            
-            logger.info(f"تم حفظ مفاتيح MEXC الحقيقية للمستخدم {user_id}")
-            return True
-        
-        return False
-    
-    except Exception as e:
-        logger.error(f"خطأ في اختبار/حفظ مفاتيح MEXC: {e}")
-        await update.message.reply_text(f"❌ خطأ: {str(e)}")
-        return False
-
 async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تفعيل المنصة المختارة - تهيئة الحساب الحقيقي"""
     query = update.callback_query
@@ -721,17 +478,21 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ خطأ: المستخدم غير موجود")
         return
     
-    # التحقق من وجود المفاتيح
-    if exchange == 'bybit':
-        api_key = user_data.get('bybit_api_key', '')
-        api_secret = user_data.get('bybit_api_secret', '')
-        # التحقق من أن المفاتيح موجودة وليست القيم الافتراضية
-        default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
-        has_keys = api_key and api_secret and api_key != default_key and len(api_key) > 10
-    else:  # mexc
-        api_key = user_data.get('mexc_api_key', '')
-        api_secret = user_data.get('mexc_api_secret', '')
-        has_keys = api_key and api_secret and len(api_key) > 10
+    # التحقق من وجود المفاتيح (Bybit فقط)
+    api_key = user_data.get('bybit_api_key', '')
+    api_secret = user_data.get('bybit_api_secret', '')
+    # التحقق من أن المفاتيح موجودة وليست القيم الافتراضية
+    default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
+    has_keys = api_key and api_secret and api_key != default_key and len(api_key) > 10
+    
+    # فقط Bybit مدعوم
+    if exchange != 'bybit':
+        await query.edit_message_text(
+            f"⚠️ **{exchange.upper()} غير مدعوم**\n\n"
+            f"🔧 البوت يدعم Bybit فقط حالياً",
+            parse_mode='Markdown'
+        )
+        return
     
     if not has_keys or not api_secret:
         await query.edit_message_text(
@@ -762,7 +523,7 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # تهيئة الحساب الحقيقي
-    from real_account_manager import real_account_manager
+    from api.bybit_api import real_account_manager
     try:
         logger.info(f"🔄 بدء تهيئة حساب {exchange} للمستخدم {user_id}")
         real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
@@ -771,9 +532,6 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # تفعيل المنصة
         user_data['exchange'] = exchange
         user_data['account_type'] = 'real'  # حساب حقيقي
-        
-        if exchange == 'mexc':
-            user_data['market_type'] = 'spot'  # MEXC تدعم Spot فقط
         
         from users.database import db_manager
         db_manager.update_user_settings(user_id, {
@@ -851,34 +609,14 @@ async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT
         return
     
     try:
-        if exchange == 'bybit':
-            # اختبار Bybit (يمكن تحسينه لاحقاً)
+        # دعم Bybit فقط
+        if exchange != 'bybit':
+            result = "⚠️ **هذه المنصة غير مدعومة حالياً**\n\n"
+            result += "🔧 البوت يدعم Bybit فقط"
+        else:
             result = "✅ الاتصال بـ Bybit ناجح!"
-        else:  # mexc
-            from mexc_trading_bot import create_mexc_bot
-            api_key = user_data.get('mexc_api_key', MEXC_API_KEY)
-            api_secret = user_data.get('mexc_api_secret', MEXC_API_SECRET)
-            
-            bot = create_mexc_bot(api_key, api_secret)
-            if bot.test_connection():
-                # الحصول على معلومات الحساب
-                balance = bot.get_account_balance()
-                result = f"✅ **الاتصال بـ MEXC ناجح!**\n\n"
-                result += f"📊 **معلومات الحساب:**\n"
-                result += f"• يمكن التداول: {'نعم' if balance.get('can_trade') else 'لا'}\n"
-                
-                # عرض بعض الأرصدة
-                if balance and 'balances' in balance:
-                    count = 0
-                    result += f"\n💰 **الأرصدة:**\n"
-                    for asset, info in balance['balances'].items():
-                        if info['total'] > 0 and count < 5:
-                            result += f"• {asset}: {info['total']:.8f}\n"
-                            count += 1
-            else:
-                result = "❌ فشل الاتصال بـ MEXC"
         
-        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data=f"exchange_select_{exchange}")]]
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="exchange_select_bybit")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(

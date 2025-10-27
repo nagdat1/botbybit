@@ -7590,7 +7590,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_bybit_options(update, context)
         return
     
-    
     if data == "exchange_setup_bybit":
         from exchange_commands import start_bybit_setup
         await start_bybit_setup(update, context)
