@@ -808,24 +808,6 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             
             # حفظ مباشرة في قاعدة البيانات مع التفعيل التلقائي
             try:
-                # التأكد من وجود المستخدم في قاعدة البيانات
-                existing_user = db_manager.get_user(user_id)
-                logger.info(f"🔍 فحص المستخدم {user_id}: {'موجود' if existing_user else 'غير موجود'}")
-                
-                if not existing_user:
-                    logger.info(f"➕ إنشاء مستخدم جديد: {user_id}")
-                    create_result = db_manager.create_user(user_id)
-                    if not create_result:
-                        logger.error(f"❌ فشل إنشاء المستخدم {user_id}")
-                        await update.message.reply_text(
-                            "❌ **فشل في إنشاء حساب المستخدم**\n\n"
-                            "حدث خطأ في قاعدة البيانات\n"
-                            "يرجى الاتصال بالدعم الفني",
-                            parse_mode='Markdown'
-                        )
-                        return False
-                    logger.info(f"✅ تم إنشاء المستخدم {user_id} بنجاح")
-                
                 # ✅ خطوة 1: حفظ في قاعدة البيانات وتفعيل المنصة
                 # حفظ المفاتيح والإعدادات الأساسية
                 logger.info(f"💾 محاولة حفظ مفاتيح Bybit للمستخدم {user_id}")
@@ -838,6 +820,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 }
                 logger.debug(f"البيانات للحفظ: exchange={data_to_save['exchange']}, is_active={data_to_save['is_active']}")
                 
+                # update_user_data will now auto-create the user if they don't exist
                 save_result = db_manager.update_user_data(user_id, data_to_save)
                 
                 if not save_result:
@@ -855,6 +838,14 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 
                 # حفظ إعدادات التداول
                 logger.info(f"💾 محاولة حفظ إعدادات التداول للمستخدم {user_id}")
+                
+                # التأكد من وجود المستخدم في قاعدة البيانات أولاً
+                existing_user = db_manager.get_user(user_id)
+                logger.info(f"🔍 فحص المستخدم {user_id} بعد الحفظ: {'موجود' if existing_user else 'غير موجود'}")
+                
+                if not existing_user:
+                    logger.warning(f"⚠️ المستخدم {user_id} غير موجود بعد الحفظ - سيتم الاعتماد على update_user_data")
+                
                 settings_result = db_manager.update_user_settings(user_id, {
                     'account_type': 'real'
                 })

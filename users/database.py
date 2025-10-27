@@ -429,8 +429,12 @@ class DatabaseManager:
                 # التحقق من وجود المستخدم أولاً
                 cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
                 if not cursor.fetchone():
-                    logger.error(f"❌ المستخدم {user_id} غير موجود في قاعدة البيانات")
-                    return False
+                    logger.error(f"❌ المستخدم {user_id} غير موجود في قاعدة البيانات - سيتم إنشاؤه")
+                    # إنشاء المستخدم الجديد
+                    cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
+                    # إنشاء إعدادات افتراضية
+                    cursor.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (user_id,))
+                    conn.commit()
                 
                 # بناء استعلام التحديث
                 set_clauses = []
@@ -439,11 +443,15 @@ class DatabaseManager:
                 logger.debug(f"🔍 update_user_data: معالجة {len(data)} حقل للمستخدم {user_id}")
                 
                 for key, value in data.items():
-                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'bybit_api_key', 'bybit_api_secret', 'bitget_api_key', 'bitget_api_secret']:
+                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'bybit_api_key', 'bybit_api_secret', 'bitget_api_key', 'bitget_api_secret', 'balance', 'partial_percents', 'tps_percents', 'notifications', 'preferred_symbols']:
                         if key == 'risk_management':
                             # تحويل risk_management إلى JSON string
                             set_clauses.append(f"{key} = ?")
                             values.append(json.dumps(value))
+                        elif key in ['partial_percents', 'tps_percents', 'preferred_symbols']:
+                            # تحويل القوائم إلى JSON
+                            set_clauses.append(f"{key} = ?")
+                            values.append(json.dumps(value) if isinstance(value, (list, dict)) else value)
                         else:
                             set_clauses.append(f"{key} = ?")
                             values.append(value)
@@ -454,6 +462,9 @@ class DatabaseManager:
                 if not set_clauses:
                     logger.info(f"✅ لا توجد حقول للتحديث للمستخدم {user_id}")
                     return True  # لا يوجد شيء للتحديث
+                
+                # إضافة updated_at تلقائياً
+                set_clauses.append("updated_at = CURRENT_TIMESTAMP")
                 
                 query = f"UPDATE users SET {', '.join(set_clauses)} WHERE user_id = ?"
                 values.append(user_id)
