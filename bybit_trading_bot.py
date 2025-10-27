@@ -3351,8 +3351,8 @@ user_manager.load_all_users()
 # تهيئة نظام المطورين
 try:
     # تشغيل init_developers
-    init_developers.init_developers()
-    logger.info("✅ تم تهيئة نظام المطورين بنجاح")
+    developers.init_developers.init_developers()
+    logger.info("Developers system initialized successfully")
     
     # إعادة تحميل المطورين
     developer_manager.load_all_developers()

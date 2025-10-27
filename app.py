@@ -23,27 +23,18 @@ from config import PORT
 try:
     from signal_system_integration import signal_system_integration, process_signal_integrated
     NEW_SYSTEM_AVAILABLE = signal_system_integration.is_available()
-    print(f"✅ نظام الإشارات الجديد متاح: {NEW_SYSTEM_AVAILABLE}")
-    if NEW_SYSTEM_AVAILABLE:
-        integration_status = signal_system_integration.get_integration_status()
-        print(f"📊 الأنظمة المتاحة: {integration_status['available_systems']}/{integration_status['total_systems']}")
 except ImportError as e:
     NEW_SYSTEM_AVAILABLE = False
-    print(f"⚠️ نظام الإشارات الجديد غير متاح: {e}")
 
 try:
     from integrated_trading_system import IntegratedTradingSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("✅ النظام المحسن الكامل متاح")
 except ImportError as e:
     try:
         from systems.simple_enhanced_system import SimpleEnhancedSystem
         ENHANCED_SYSTEM_AVAILABLE = True
-        print("✅ النظام المحسن المبسط متاح")
     except ImportError as e2:
         ENHANCED_SYSTEM_AVAILABLE = False
-        print(f"⚠️ النظام المحسن غير متاح: {e2}")
-        print("📝 سيتم استخدام النظام العادي")
 
 # إنشاء تطبيق Flask
 app = Flask(__name__)
@@ -107,10 +98,10 @@ def webhook():
     try:
         data = request.get_json()
         
-        print(f"🔔 [WEBHOOK القديم] استقبال إشارة: {data}")
+        print(f"[WEBHOOK] Received signal: {data}")
         
         if not data:
-            print("⚠️ [WEBHOOK القديم] لا توجد بيانات")
+            print("[WEBHOOK] No data provided")
             return jsonify({"status": "error", "message": "No data received"}), 400
         
         # معالجة الإشارة في thread منفصل
@@ -122,11 +113,11 @@ def webhook():
         
         threading.Thread(target=process_signal_async, daemon=True).start()
         
-        print(f"✅ [WEBHOOK القديم] تمت معالجة الإشارة بنجاح")
+        print(f"[WEBHOOK] Signal processed successfully")
         return jsonify({"status": "success", "message": "Signal processed"}), 200
         
     except Exception as e:
-        print(f"❌ [WEBHOOK القديم] خطأ: {e}")
+        print(f"[WEBHOOK] Error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/personal/<int:user_id>/webhook', methods=['POST'])
