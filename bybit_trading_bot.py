@@ -47,9 +47,9 @@ except ImportError as e:
     print(f"⚠️ مدير معرفات الإشارات غير متاح في bybit_trading_bot.py: {e}")
 
 # استيراد إدارة المستخدمين وقاعدة البيانات
-from database import db_manager
+from users.database import db_manager
 from systems.enhanced_portfolio_manager import portfolio_factory
-from user_manager import user_manager
+from users.user_manager import user_manager
 
 # استيراد نظام المطورين
 from developers.developer_manager import developer_manager
@@ -2053,7 +2053,7 @@ class TradingBot:
             all_positions.update(self.open_positions)
             
             # إضافة صفقات جميع المستخدمين من user_manager
-            from user_manager import user_manager
+            from users.user_manager import user_manager
             for user_id, user_positions in user_manager.user_positions.items():
                 all_positions.update(user_positions)
             
@@ -2204,7 +2204,7 @@ class TradingBot:
                     if not follower_data:
                         logger.warning(f"⚠️ المتابع {follower_id} غير موجود في user_manager")
                         # محاولة التحميل من قاعدة البيانات
-                        from database import db_manager
+                        from users.database import db_manager
                         follower_data = db_manager.get_user(follower_id)
                         if follower_data:
                             logger.info(f"✅ تم تحميل المتابع {follower_id} من قاعدة البيانات")
@@ -2737,7 +2737,7 @@ class TradingBot:
             # تحديد الحساب والصفقات بناءً على نوع المستخدم
             if self.user_id:
                 # استخدام حساب المستخدم من user_manager
-                from user_manager import user_manager
+                from users.user_manager import user_manager
                 account = user_manager.get_user_account(self.user_id, user_market_type)
                 if not account:
                     logger.error(f"لم يتم العثور على حساب للمستخدم {self.user_id}")
@@ -3347,9 +3347,8 @@ trading_bot = TradingBot()
 trade_tools_manager = TradeToolsManager()
 
 # تهيئة مدير المستخدمين مع الفئات اللازمة
-import user_manager as um_module
-um_module.user_manager = um_module.UserManager(TradingAccount, BybitAPI)
-user_manager = um_module.user_manager
+from users.user_manager import UserManager
+user_manager = UserManager(TradingAccount, BybitAPI)
 
 # تحميل المستخدمين من قاعدة البيانات
 user_manager.load_all_users()

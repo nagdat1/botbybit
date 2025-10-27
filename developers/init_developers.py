@@ -6,7 +6,7 @@
 """
 
 import logging
-from database import db_manager
+from users.database import db_manager
 from developers.developer_config import get_all_developers
 
 logger = logging.getLogger(__name__)

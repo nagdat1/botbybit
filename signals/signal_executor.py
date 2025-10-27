@@ -988,7 +988,7 @@ class SignalExecutor:
                 logger.info(f"تم إنشاء ID عشوائي للفيوتشر: {signal_id}")
             
             # البحث عن صفقة موجودة بنفس ID
-            from database import db_manager
+            from users.database import db_manager
             existing_position = db_manager.get_position_by_signal_id(signal_id, user_id, symbol)
             
             if existing_position:

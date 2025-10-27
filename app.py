@@ -148,8 +148,8 @@ def personal_webhook(user_id):
             return jsonify({"status": "error", "message": "No data received"}), 400
         
         # التحقق من وجود user_manager
-        from user_manager import user_manager
-        from database import db_manager
+        from users.user_manager import user_manager
+        from users.database import db_manager
         
         # التأكد من تهيئة user_manager
         if user_manager is None:

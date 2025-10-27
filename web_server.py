@@ -178,8 +178,8 @@ class WebServer:
                     return jsonify({"status": "error", "message": "No data received"}), 400
                 
                 # التحقق من وجود user_manager
-                from user_manager import user_manager
-                from database import db_manager
+                from users.user_manager import user_manager
+                from users.database import db_manager
                 
                 if not user_manager:
                     print(f"❌ [WEB SERVER - WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")

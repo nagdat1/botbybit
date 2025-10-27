@@ -19,7 +19,7 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
     """أمر اختيار المنصة - القائمة الرئيسية"""
     user_id = update.effective_user.id
     
-    from user_manager import user_manager
+    from users.user_manager import user_manager
     user_data = user_manager.get_user(user_id)
     
     # تحديد المنصة الحالية والتحقق من الربط
@@ -121,7 +121,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     user_id = update.effective_user.id
     
-    from user_manager import user_manager
+    from users.user_manager import user_manager
     user_data = user_manager.get_user(user_id)
     
     # التحقق من وجود API Keys
@@ -216,7 +216,7 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
     
-    from user_manager import user_manager
+    from users.user_manager import user_manager
     user_data = user_manager.get_user(user_id)
     
     # التحقق من وجود API Keys
@@ -567,8 +567,8 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                         balance_info += "• لا يوجد رصيد حالياً\n"
             
             # حفظ المفاتيح وتهيئة الحساب الحقيقي
-            from user_manager import user_manager
-            from database import db_manager
+            from users.user_manager import user_manager
+            from users.database import db_manager
             from api.bybit_api import real_account_manager
             
             user_data = user_manager.get_user(user_id)
@@ -640,7 +640,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
             )
             return False
         
-        from user_manager import user_manager
+        from users.user_manager import user_manager
         
         # جلب معلومات الرصيد
         balance = test_bot.get_account_balance()
@@ -660,7 +660,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
                 balance_info += "• لا يوجد رصيد حالياً\n"
         
         # حفظ المفاتيح وتهيئة الحساب الحقيقي
-        from user_manager import user_manager
+        from users.user_manager import user_manager
         from api.bybit_api import real_account_manager
         
         user_data = user_manager.get_user(user_id)
@@ -679,7 +679,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
                 logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}")
             
             # حفظ في قاعدة البيانات
-            from database import db_manager
+            from users.database import db_manager
             db_manager.update_user_settings(user_id, {
                 'mexc_api_key': api_key,
                 'mexc_api_secret': api_secret,
@@ -714,7 +714,7 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     exchange = query.data.replace('exchange_activate_', '')
     
-    from user_manager import user_manager
+    from users.user_manager import user_manager
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
@@ -775,7 +775,7 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if exchange == 'mexc':
             user_data['market_type'] = 'spot'  # MEXC تدعم Spot فقط
         
-        from database import db_manager
+        from users.database import db_manager
         db_manager.update_user_settings(user_id, {
             'exchange': exchange,
             'account_type': 'real',
@@ -843,7 +843,7 @@ async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT
     user_id = update.effective_user.id
     exchange = query.data.replace('exchange_test_', '')
     
-    from user_manager import user_manager
+    from users.user_manager import user_manager
     user_data = user_manager.get_user(user_id)
     
     if not user_data:

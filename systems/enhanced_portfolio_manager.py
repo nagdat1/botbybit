@@ -8,8 +8,8 @@ import logging
 import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from database import db_manager
-from user_manager import user_manager
+from users.database import db_manager
+from users.user_manager import user_manager
 from api.bybit_api import real_account_manager
 
 logger = logging.getLogger(__name__)

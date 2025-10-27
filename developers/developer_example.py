@@ -8,7 +8,7 @@
 import asyncio
 import logging
 from .developer_manager import developer_manager
-from user_manager import user_manager
+from users.user_manager import user_manager
 from developers.developer_config import DEVELOPER_PERMISSIONS, DEVELOPER_MESSAGES
 
 # إعداد التسجيل

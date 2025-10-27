@@ -9,7 +9,7 @@ import json
 import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from database import db_manager
+from .database import db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 try:
     from systems.simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
-    print("✅ النظام المحسن متاح في user_manager.py")
+    logger.info("System is available")
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
-    print(f"⚠️ النظام المحسن غير متاح في user_manager.py: {e}")
+    logger.warning(f"System is not available: {e}")
 
 class UserManager:
     """مدير المستخدمين المتعددين مع العزل الكامل"""
@@ -39,9 +39,9 @@ class UserManager:
         if ENHANCED_SYSTEM_AVAILABLE:
             try:
                 self.enhanced_system = SimpleEnhancedSystem()
-                print("✅ تم تهيئة النظام المحسن في UserManager")
+                logger.info("Enhanced system initialized in UserManager")
             except Exception as e:
-                print(f"⚠️ فشل في تهيئة النظام المحسن في UserManager: {e}")
+                logger.warning(f"Failed to initialize enhanced system: {e}")
                 self.enhanced_system = None
         else:
             self.enhanced_system = None
