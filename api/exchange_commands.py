@@ -204,22 +204,54 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         status_icon = "🔴"
         status_text = "غير مرتبط"
     
-    # جلب معلومات الرصيد إذا كان مفعّل
+    # جلب معلومات الرصيد الحقيقي من Bybit
     balance_text = ""
+    market_type_current = user_data.get('market_type', 'spot') if user_data else 'spot'
+    
     try:
         if is_active and has_bybit_keys:
             from api.bybit_api import real_account_manager
             real_account = real_account_manager.get_account(user_id)
             if real_account:
                 try:
-                    balance = real_account.get_wallet_balance()
+                    # جلب الرصيد من Bybit حسب نوع السوق الحالي
+                    balance = real_account.get_wallet_balance(market_type_current)
                     if balance:
                         total_equity = balance.get('total_equity', 0)
-                        balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
+                        available_balance = balance.get('available_balance', 0)
+                        
+                        # بناء رسالة الرصيد
+                        balance_text = f"""
+💰 **الرصيد الإجمالي:** ${total_equity:,.2f}
+💳 **الرصيد المتاح:** ${available_balance:,.2f}
+📊 **نوع السوق:** {market_type_current.upper()}
+🏦 **المنصة:** Bybit (حقيقي)"""
+                        
+                        # إضافة معلومات العملات الأخرى إن وجدت
+                        coins = balance.get('coins', {})
+                        if coins:
+                            balance_text += "\n\n💎 **العملات المتوفرة:**\n"
+                            # عرض أول 3 عملات
+                            displayed_coins = 0
+                            for coin_name, coin_info in coins.items():
+                                if displayed_coins < 3 and coin_info.get('equity', 0) > 0:
+                                    equity = coin_info.get('equity', 0)
+                                    balance_text += f"• {coin_name}: {equity:.4f}\n"
+                                    displayed_coins += 1
+                        
+                        logger.info(f"✅ تم جلب الرصيد من Bybit: ${total_equity:,.2f}")
                 except Exception as e:
-                    logger.error(f"خطأ في جلب الرصيد: {e}")
+                    logger.error(f"❌ خطأ في جلب الرصيد: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    balance_text = "\n⚠️ **لا يمكن الوصول إلى الرصيد حالياً**"
+        elif has_bybit_keys:
+            # الحساب مربوط لكن غير مفعّل
+            balance_text = "\n⚠️ **الحساب مربوط لكن غير مفعّل**\nقم بالضغط على '✅ استخدام Bybit' لتفعيل الحساب الحقيقي"
     except Exception as e:
         logger.error(f"❌ خطأ في جلب معلومات الحساب: {e}")
+        import traceback
+        traceback.print_exc()
         balance_text = ""
     
     # التحقق من user_id قبل المتابعة

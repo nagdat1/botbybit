@@ -5517,11 +5517,28 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         is_linked = False
     
-    # تحديد حالة API
+    # تحديد حالة API مع معلومات الحساب الحقيقي
     if account_type == 'real' and is_linked:
-        api_status = f"🟢 مرتبط ({exchange.upper()})"
+        # التحقق من الاتصال الفعلي بالمنصة
+        try:
+            from api.bybit_api import real_account_manager
+            real_account = real_account_manager.get_account(user_id)
+            if real_account:
+                # اختبار الاتصال بالحصول على الرصيد
+                try:
+                    test_balance = real_account.get_wallet_balance(market_type)
+                    if test_balance:
+                        api_status = f"🟢 متصل فعلياً ب{exchange.upper()} ✅"
+                    else:
+                        api_status = f"🔗 مربوط ({exchange.upper()}) - خطأ في الاتصال"
+                except:
+                    api_status = f"🔗 مربوط ({exchange.upper()}) - خطأ في الاتصال"
+            else:
+                api_status = f"🔗 مربوط ({exchange.upper()}) - غير مهيأ"
+        except:
+            api_status = f"🟢 مرتبط ({exchange.upper()})"
     elif is_linked:
-        api_status = f"🔗 مرتبط ({exchange.upper()}) - غير مفعّل"
+        api_status = f"🔗 مربوط ({exchange.upper()}) - غير مفعّل"
     else:
         api_status = "🔴 غير مرتبط"
     
@@ -5529,15 +5546,23 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     leverage = user_data.get('leverage', 10)
     
     # بناء نص الإعدادات بشكل ديناميكي
+    # معلومات الحساب الإضافية
+    exchange_info = ""
+    if account_type == 'real' and exchange:
+        exchange_info = f"🏦 المنصة: {exchange.upper()}"
+    elif account_type == 'demo':
+        exchange_info = "🏦 المنصة: تجريبي داخلي"
+    
     settings_text = f"""
 ⚙️ إعدادات البوت الحالية:
 
 📊 حالة البوت: {bot_status}
 🔗 حالة API: {api_status}
+{exchange_info}
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
-👤 نوع الحساب: {'حقيقي' if account_type == 'real' else 'تجريبي داخلي'}"""
+👤 نوع الحساب: {'حقيقي 🔴' if account_type == 'real' else 'تجريبي داخلي 🟢'}"""
     
     # إضافة معلومات الرافعة المالية فقط للفيوتشر
     if market_type == 'futures':
@@ -5596,29 +5621,64 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💰 مبلغ التداول: {trading_bot.user_settings['trade_amount']} USDT
         """
         
-        # حالة الاتصال
+        # حالة الاتصال والرصيد الحقيقي
         if account_type == 'real':
+            exchange = user_data.get('exchange', 'bybit')
+            
             status_message += "\n🔗 **حالة الاتصال:**\n"
             
-            # التحقق من المنصات المرتبطة
+            # التحقق من المنصات المرتبطة و الحصول على البيانات
             bybit_connected = user_data.get('bybit_api_connected', False)
             
-            if bybit_connected:
-                status_message += "🏦 Bybit: 🟢 متصل ✅\n"
-            else:
-                status_message += "🏦 Bybit: 🔴 غير متصل ❌\n"
+            # محاولة جلب الرصيد الحقيقي من Bybit
+            try:
+                from api.bybit_api import real_account_manager
+                real_account = real_account_manager.get_account(user_id)
+                
+                if real_account:
+                    # جلب الرصيد الحقيقي
+                    balance = real_account.get_wallet_balance(market_type)
+                    
+                    if balance:
+                        total_equity = balance.get('total_equity', 0)
+                        available_balance = balance.get('available_balance', 0)
+                        
+                        status_message += f"🏦 {exchange.upper()}: 🟢 متصل فعلياً ✅\n\n"
+                        status_message += f"""
+💰 **الرصيد الحقيقي:**
+💰 الإجمالي: ${total_equity:,.2f}
+💳 المتاح: ${available_balance:,.2f}
+📊 نوع السوق: {market_type.upper()}
+🔒 البيئة: Production (حقيقي)
+                        """
+                        
+                        # إضافة صفقات مفتوحة إذا كانت هناك
+                        try:
+                            positions = real_account.get_open_positions('linear' if market_type == 'futures' else 'spot')
+                            if positions:
+                                status_message += f"\n📊 الصفقات المفتوحة: {len(positions)} صفقة"
+                        except:
+                            pass
+                    else:
+                        status_message += f"🏦 {exchange.upper()}: 🟡 مربوط لكن لا يمكن الوصول للبيانات\n"
+                else:
+                    status_message += f"🏦 {exchange.upper()}: 🔴 غير مهيأ\n"
+            except Exception as e:
+                logger.error(f"خطأ في جلب بيانات الحساب الحقيقي: {e}")
+                status_message += f"🏦 {exchange.upper()}: 🔴 خطأ في الاتصال\n"
             
             # معلومات API
-            if bybit_connected:
+            api_key = user_data.get('bybit_api_key', '')
+            if api_key:
                 status_message += f"""
 📡 **معلومات API:**
-🔑 API Keys: {'🟢 مفعلة' if user_data.get('api_connected', False) else '🔴 معطلة'}
+🔑 API Keys: 🟢 مفعلة
 🔒 الصلاحيات: Trading Enabled
 🌐 البيئة: Production
-⏰ آخر تحديث: {user_data.get('last_api_check', 'لم يتم التحقق')}
+⏰ آخر تحديث: {user_data.get('last_api_check', 'الآن')}
                 """
             else:
-                status_message += "\n⚠️ **لا توجد منصات مرتبطة**\n"
+                status_message += "\n⚠️ **لا توجد مفاتيح API مرتبطة**\n"
                 status_message += "اذهب إلى الإعدادات لربط حسابك الحقيقي\n"
         else:
             status_message += f"""
