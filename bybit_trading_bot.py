@@ -7843,7 +7843,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data.startswith("close_"):
+        return
+    
+    if data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
     if data == "refresh_positions" or data == "show_positions":

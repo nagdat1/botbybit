@@ -81,6 +81,9 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
    • حساب تجريبي متاح
    • دعم كامل للتداول الآلي
 
+🔗 **للانضمام إلى Bybit:**
+[اضغط هنا للتسجيل](https://www.bybit.com/invite?ref=OLAZ2M)
+
 اضغط على Bybit للاختيار وإعداد API
 """
     
@@ -171,22 +174,52 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # رسالة خاصة إذا لم يتم العثور على بيانات المستخدم
     if not user_data or user_data == {}:
+        # إنشاء حساب تلقائياً للمستخدم
+        logger.info(f"🆕 إنشاء حساب جديد للمستخدم {user_id}")
+        from users.user_manager import user_manager
+        from users.database import db_manager
+        
+        # إنشاء المستخدم في قاعدة البيانات
+        db_manager.create_user(user_id)
+        
+        # تحديث user_data
+        user_data = user_manager.get_user(user_id)
+        
+        # إعادة تعيين المتغيرات
+        if not user_data:
+            user_data = {}
+        
+        # الآن جرب مرة أخرى
+        has_bybit_keys = False
+        current_exchange = ''
+        account_type = 'demo'
+        is_active = False
+        
+        logger.info(f"✅ تم إنشاء حساب جديد للمستخدم {user_id}")
         message = f"""
-⚠️ **إشعار مهم**
+✅ **تم إنشاء حسابك بنجاح!**
 
-❌ لا يمكن العثور على بيانات حسابك
+🏦 **مرحباً بك في بوت التداول**
 
-💡 **الحل:**
-1. اضغط على /start لإنشاء حساب جديد
-2. ثم اذهب للإعدادات
-3. ثم اضغط على "اختيار المنصة"
+📋 **الآن يمكنك:**
+• اختيار منصة التداول
+• ضبط إعدادات التداول
+• ربط API الخاص بك
+• البدء في التداول
 
-🔧 **إذا استمرت المشكلة:**
-• أعد تشغيل البوت
-• تواصل مع الدعم
+🔹 **Bybit**
+   • التداول الفوري (Spot)
+   • تداول الفيوتشر (Futures)
+   • الرافعة المالية (حتى 100x)
+
+🔗 **للانضمام إلى Bybit:**
+[اضغط هنا للتسجيل عبر رابط الإحالة](https://www.bybit.com/invite?ref=OLAZ2M)
+
+اضغط على Bybit للبدء!
 """
+        
         keyboard = [
-            [InlineKeyboardButton("🏠 إنشاء حساب جديد (/start)", callback_data="start_from_exchange")]
+            [InlineKeyboardButton("⚪ Bybit", callback_data="exchange_select_bybit")]
         ]
         keyboard.append([InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")])
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -201,6 +234,9 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 • تداول الفيوتشر (Futures)
 • الرافعة المالية (حتى 100x)
 • حساب تجريبي متاح
+
+🔗 **للانضمام إلى Bybit:**
+[اضغط هنا للتسجيل عبر رابط الإحالة](https://www.bybit.com/invite?ref=OLAZ2M)
 
 🔐 **لربط API:**
 1. اذهب إلى [Bybit API Management](https://www.bybit.com/app/user/api-management)
@@ -259,10 +295,12 @@ abc123xyz456def789
 ```
 
 💡 **للحصول على API Key:**
-1. اذهب إلى Bybit.com
+1. اذهب إلى [Bybit.com](https://www.bybit.com/invite?ref=OLAZ2M)
 2. Account → API Management
 3. Create New Key
 4. انسخ API Key
+
+🔗 **ليس لديك حساب؟** [سجل الآن](https://www.bybit.com/invite?ref=OLAZ2M)
 
 📝 أرسل API Key الآن
 """
