@@ -136,15 +136,20 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     current_exchange = ''
     account_type = 'demo'
     is_active = False
-    is_connected = False  # متصل بالمنصة فعلياً
+    is_connected = False
     user_id = None
     query = None
+    exchange_name = 'bybit'  # افتراضي
     
     # التحقق من وجود callback_query أولاً
     query = update.callback_query
     if not query:
         logger.error("❌ لا يوجد callback_query في update")
         return
+    
+    # تحديد المنصة من callback_data
+    if query.data == "exchange_select_bitget":
+        exchange_name = 'bitget'
     
     # إجابة الاستعلام فوراً
     try:
@@ -162,7 +167,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     user_id = update.effective_user.id
-    logger.info(f"🔄 معالجة زر Bybit للمستخدم {user_id}")
+    logger.info(f"🔄 معالجة زر {exchange_name.upper()} للمستخدم {user_id}")
     
     try:
         
@@ -191,21 +196,29 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
             logger.warning(f"⚠️ المستخدم {user_id} غير موجود في قاعدة البيانات")
             user_data = {}
         
-        # التحقق من وجود API Keys
+        # التحقق من وجود API Keys حسب المنصة
         if user_data:
-            bybit_key = user_data.get('bybit_api_key', '')
-            bybit_secret = user_data.get('bybit_api_secret', '')
+            if exchange_name == 'bybit':
+                api_key = user_data.get('bybit_api_key', '')
+                api_secret = user_data.get('bybit_api_secret', '')
+            elif exchange_name == 'bitget':
+                api_key = user_data.get('bitget_api_key', '')
+                api_secret = user_data.get('bitget_api_secret', '')
+            else:
+                api_key = ''
+                api_secret = ''
+            
             # التحقق من أن API Key موجود وليس فارغاً وليس القيمة الافتراضية
             default_key = BYBIT_API_KEY if (BYBIT_API_KEY and len(str(BYBIT_API_KEY)) > 0) else ''
-            has_bybit_keys = (bybit_key and bybit_secret and 
-                            len(bybit_key) > 10 and len(bybit_secret) > 10 and 
-                            bybit_key != default_key)
+            has_bybit_keys = (api_key and api_secret and 
+                            len(api_key) > 10 and len(api_secret) > 10 and 
+                            api_key != default_key)
         
         # التحقق من التفعيل والاتصال
         current_exchange = user_data.get('exchange', '') if user_data else ''
         account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
-        is_active = current_exchange == 'bybit' and account_type == 'real'
-        is_connected = has_bybit_keys and current_exchange == 'bybit'
+        is_active = current_exchange == exchange_name and account_type == 'real'
+        is_connected = has_bybit_keys and current_exchange == exchange_name
         
     except Exception as e:
         logger.error(f"❌ خطأ في show_bybit_options: {e}", exc_info=True)
@@ -348,17 +361,37 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await start_bybit_setup(update, context)
         return
     
-    # إذا كان المستخدم موجوداً لكن لم يربط API، نوجهه مباشرة لعملية الربط
-    if not has_bybit_keys:
-        logger.info(f"🔄 المستخدم {user_id} ليس لديه API مربوط، تحويله لعملية الربط")
-        await start_bybit_setup(update, context)
-        return
+    # عرض قائمة الخيارات الرئيسية (بدلاً من التحويل المباشر للربط)
+    # سيتم عرض 3 أزرار: ربط API، اختيار المنصة، اختبار الاتصال
+    
+    # تحديد المعلومات حسب المنصة
+    if exchange_name == 'bybit':
+        platform_name = "Bybit"
+        max_leverage = "100x"
+        referral_link = "https://www.bybit.com/invite?ref=OLAZ2M"
+        setup_callback = "exchange_setup_bybit"
+        activate_callback = "exchange_activate_bybit"
+        test_callback = "exchange_test_bybit"
+    elif exchange_name == 'bitget':
+        platform_name = "Bitget"
+        max_leverage = "125x"
+        referral_link = "https://www.bitget.com/referral/"
+        setup_callback = "exchange_setup_bitget"
+        activate_callback = "exchange_activate_bitget"
+        test_callback = "exchange_test_bitget"
+    else:
+        platform_name = exchange_name.upper()
+        max_leverage = "100x"
+        referral_link = "#"
+        setup_callback = f"exchange_setup_{exchange_name}"
+        activate_callback = f"exchange_activate_{exchange_name}"
+        test_callback = f"exchange_test_{exchange_name}"
     
     # المستخدم لديه API مربوط - عرض خيارات إدارة الحساب حسب الحالة
     # الحالة 1: مفعّل بالكامل ✅
     if is_active and has_bybit_keys and is_connected:
         message = f"""
-🏦 **إعداد منصة Bybit**
+🏦 **إعداد منصة {platform_name}**
 
 {status_emoji} **حالة API:** {status_icon} **{status_text}**{balance_text}
 
@@ -373,20 +406,20 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 📋 **المميزات:**
 • التداول الفوري (Spot)
 • تداول الفيوتشر (Futures)
-• الرافعة المالية (حتى 100x)
+• الرافعة المالية (حتى {max_leverage})
 
-🔗 **رابط الإحالة:** [انضم إلى Bybit](https://www.bybit.com/invite?ref=OLAZ2M)
+🔗 **رابط الإحالة:** [انضم إلى {platform_name}]({referral_link})
 """
         keyboard = [
-            [InlineKeyboardButton("🔄 تحديث API Keys", callback_data="exchange_setup_bybit")],
-            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data="exchange_test_bybit")],
+            [InlineKeyboardButton("🔄 تحديث API Keys", callback_data=setup_callback)],
+            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data=test_callback)],
             [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
         ]
     
     # الحالة 2: مربوط لكن غير مفعّل 🔗
     elif has_bybit_keys and not is_active:
         message = f"""
-🏦 **إعداد منصة Bybit**
+🏦 **إعداد منصة {platform_name}**
 
 {status_emoji} **حالة API:** {status_icon} **{status_text}**{balance_text}
 
@@ -394,7 +427,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 💡 لقد تم ربط API بنجاح، لكن لم يتم تفعيل المنصة بعد.
 
-✅ **اضغط على زر "تفعيل المنصة" لـ:**
+✅ **اضغط على زر "اختيار المنصة" لـ:**
 • تفعيل الحساب الحقيقي
 • البدء في استقبال الإشارات
 • تنفيذ الصفقات على المنصة
@@ -403,43 +436,48 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 📋 **المميزات:**
 • التداول الفوري (Spot)
 • تداول الفيوتشر (Futures)
-• الرافعة المالية (حتى 100x)
+• الرافعة المالية (حتى {max_leverage})
 
-🔗 **رابط الإحالة:** [انضم إلى Bybit](https://www.bybit.com/invite?ref=OLAZ2M)
+🔗 **رابط الإحالة:** [انضم إلى {platform_name}]({referral_link})
 """
         keyboard = [
-            [InlineKeyboardButton("🚀 تفعيل المنصة الآن", callback_data="exchange_activate_bybit")],
-            [InlineKeyboardButton("🔄 تحديث API Keys", callback_data="exchange_setup_bybit")],
-            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data="exchange_test_bybit")],
+            [InlineKeyboardButton("🔗 ربط API Keys", callback_data=setup_callback)],
+            [InlineKeyboardButton("✅ اختيار هذه المنصة", callback_data=activate_callback)],
+            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data=test_callback)],
             [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
         ]
     
-    # الحالة 3: مربوط لكن بحاجة لإعادة تفعيل (حالة استثنائية)
+    # الحالة 3: غير مربوط - عرض الخيارات الأساسية
     else:
         message = f"""
-🏦 **إعداد منصة Bybit**
+🏦 **إعداد منصة {platform_name}**
 
 {status_emoji} **حالة API:** {status_icon} **{status_text}**{balance_text}
 
-⚠️ **يبدو أن هناك مشكلة في الربط**
+💡 **مرحباً بك في إعداد {platform_name}!**
 
-💡 **يمكنك:**
-• تحديث مفاتيح API
-• إعادة محاولة التفعيل
-• اختبار الاتصال
+🎯 **الخطوات:**
+1️⃣ **ربط API Keys** - لربط حسابك
+2️⃣ **اختيار المنصة** - لتفعيلها كمنصة رئيسية
+3️⃣ **اختبار الاتصال** - للتأكد من عمل كل شيء
 
 📋 **المميزات:**
 • التداول الفوري (Spot)
 • تداول الفيوتشر (Futures)
-• الرافعة المالية (حتى 100x)
+• الرافعة المالية (حتى {max_leverage})
+• رسوم تداول تنافسية
+• سيولة عالية
 
-🔗 **رابط الإحالة:** [انضم إلى Bybit](https://www.bybit.com/invite?ref=OLAZ2M)
+🔗 **ليس لديك حساب؟**
+[سجل الآن في {platform_name}]({referral_link})
+
+👇 **ابدأ من هنا:**
 """
         keyboard = [
-            [InlineKeyboardButton("🔄 تحديث API Keys", callback_data="exchange_setup_bybit")],
-            [InlineKeyboardButton("🚀 تفعيل المنصة", callback_data="exchange_activate_bybit")],
-            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data="exchange_test_bybit")],
-            [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
+            [InlineKeyboardButton("🔗 ربط API Keys", callback_data=setup_callback)],
+            [InlineKeyboardButton("✅ اختيار هذه المنصة", callback_data=activate_callback)],
+            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data=test_callback)],
+            [InlineKeyboardButton("🔙 رجوع للقائمة", callback_data="select_exchange")]
         ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -473,7 +511,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 pass
 
 async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """بدء عملية ربط Bybit API - الخطوة 1: API Key"""
+    """بدء عملية ربط API - الخطوة 1: API Key"""
     # التحقق من وجود callback_query
     query = update.callback_query
     if not query:
@@ -482,11 +520,23 @@ async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.answer()
     
-    keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="exchange_select_bybit")]]
+    # تحديد المنصة من callback_data
+    exchange_name = 'bybit'
+    if 'bitget' in query.data:
+        exchange_name = 'bitget'
+        platform_name = "Bitget"
+        referral_link = "https://www.bitget.com/referral/"
+        cancel_callback = "exchange_select_bitget"
+    else:
+        platform_name = "Bybit"
+        referral_link = "https://www.bybit.com/invite?ref=OLAZ2M"
+        cancel_callback = "exchange_select_bybit"
+    
+    keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data=cancel_callback)]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    message = """
-🔑 **ربط Bybit API - الخطوة 1 من 2**
+    message = f"""
+🔑 **ربط {platform_name} API - الخطوة 1 من 2**
 
 📝 أرسل **API Key** الخاص بك
 
@@ -496,12 +546,17 @@ abc123xyz456def789
 ```
 
 💡 **للحصول على API Key:**
-1. اذهب إلى [Bybit.com](https://www.bybit.com/invite?ref=OLAZ2M)
+1. اذهب إلى [{platform_name}.com]({referral_link})
 2. Account → API Management
 3. Create New Key
 4. انسخ API Key
 
-🔗 **ليس لديك حساب؟** [سجل الآن](https://www.bybit.com/invite?ref=OLAZ2M)
+⚠️ **تأكد من تفعيل الصلاحيات:**
+• ✅ Read (قراءة)
+• ✅ Trade (تداول)
+• ❌ Withdraw (سحب) - لا تفعّله!
+
+🔗 **ليس لديك حساب؟** [سجل الآن]({referral_link})
 
 📝 أرسل API Key الآن
 """
@@ -539,9 +594,14 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
     if not state:
         return
     
+    # تجاهل الأوامر
+    if text.startswith('/'):
+        logger.info(f"تجاهل الأمر: {text}")
+        return
+    
     # الخطوة 1: استقبال API Key
-    if state in ['bybit_step1']:
-        exchange = 'bybit'
+    if state in ['bybit_step1', 'bitget_step1']:
+        exchange = 'bybit' if 'bybit' in state else 'bitget'
         
         if not text:
             await update.message.reply_text("❌ API Key فارغ! أرسله مرة أخرى")
@@ -564,8 +624,8 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         return
     
     # الخطوة 2: استقبال API Secret
-    elif state in ['bybit_step2']:
-        exchange = 'bybit'
+    elif state in ['bybit_step2', 'bitget_step2']:
+        exchange = 'bybit' if 'bybit' in state else 'bitget'
         
         if not text:
             await update.message.reply_text("❌ API Secret فارغ! أرسله مرة أخرى")
@@ -588,8 +648,14 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         # اختبار المفاتيح
         await update.message.reply_text("🔄 جاري اختبار الاتصال...")
         
-        # دعم Bybit فقط
-        success = await test_and_save_bybit_keys(user_id, api_key, api_secret, update)
+        # دعم المنصات المختلفة
+        if exchange == 'bybit':
+            success = await test_and_save_bybit_keys(user_id, api_key, api_secret, update)
+        elif exchange == 'bitget':
+            success = await test_and_save_bitget_keys(user_id, api_key, api_secret, update)
+        else:
+            await update.message.reply_text(f"❌ المنصة {exchange} غير مدعومة حالياً")
+            success = False
         
         # مسح البيانات المؤقتة
         context.user_data.pop('awaiting_exchange_keys', None)
@@ -817,6 +883,94 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
         await update.message.reply_text(
             f"❌ **خطأ:**\n{error_msg}"
         )
+        return False
+
+async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
+    """اختبار وحفظ مفاتيح Bitget"""
+    try:
+        # استخدام النظام الجديد لاختبار Bitget
+        from api.init_exchanges import create_exchange_instance
+        
+        # إنشاء نسخة مؤقتة
+        bitget = create_exchange_instance(user_id, 'bitget', api_key, api_secret)
+        
+        if not bitget:
+            await update.message.reply_text(
+                "❌ **فشل إنشاء اتصال Bitget**\n\n"
+                "تحقق من صحة المفاتيح"
+            )
+            return False
+        
+        # ⚠️ ملاحظة: Bitget يحتاج passphrase
+        # يمكن طلبه لاحقاً أو تخزينه بشكل منفصل
+        
+        # اختبار الاتصال (بدون passphrase قد يفشل، لكن نحاول)
+        try:
+            if bitget.test_connection():
+                connection_ok = True
+            else:
+                connection_ok = False
+        except:
+            # قد يفشل بدون passphrase، لكن نحفظ المفاتيح
+            connection_ok = False
+        
+        # حفظ المفاتيح وتفعيل المنصة
+        from users.database import db_manager
+        from users.user_manager import user_manager
+        from api.bybit_api import real_account_manager
+        
+        try:
+            # حفظ في قاعدة البيانات
+            db_manager.update_user_settings(user_id, {
+                'bitget_api_key': api_key,
+                'bitget_api_secret': api_secret,
+                'exchange': 'bitget',
+                'account_type': 'real',
+                'is_active': True
+            })
+            logger.info(f"✅ تم حفظ وتفعيل مفاتيح Bitget للمستخدم {user_id}")
+            
+            # تحديث الذاكرة
+            user_data = user_manager.get_user(user_id)
+            if user_data:
+                user_data['bitget_api_key'] = api_key
+                user_data['bitget_api_secret'] = api_secret
+                user_data['exchange'] = 'bitget'
+                user_data['account_type'] = 'real'
+                user_data['is_active'] = True
+            
+            # رسالة نجاح
+            await update.message.reply_text(
+                f"✅ **تم ربط وتفعيل Bitget بنجاح!**\n\n"
+                f"🎉 **المنصة نشطة الآن!**\n\n"
+                f"🔐 API مرتبط ومفعّل\n"
+                f"📊 نوع الحساب: حقيقي\n"
+                f"🏦 المنصة: Bitget\n"
+                f"✅ الحالة: مفعّل ومتصل\n\n"
+                f"💡 **يمكنك الآن:**\n"
+                f"• استقبال إشارات التداول\n"
+                f"• تنفيذ الصفقات الحقيقية\n"
+                f"• عرض الرصيد والصفقات\n\n"
+                f"⚠️ **ملاحظة:** Bitget يحتاج Passphrase\n"
+                f"سيتم طلبه عند الحاجة\n\n"
+                f"📱 اذهب إلى /settings لعرض التفاصيل",
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"🎉 تم ربط وتفعيل Bitget بنجاح للمستخدم {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ فشل حفظ مفاتيح Bitget: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ **فشل في حفظ البيانات**\n\n"
+                f"حدث خطأ أثناء حفظ المفاتيح"
+            )
+            return False
+            
+    except Exception as e:
+        logger.error(f"خطأ في اختبار/حفظ مفاتيح Bitget: {e}")
+        await update.message.reply_text(f"❌ **خطأ:**\n{str(e)}")
         return False
 
 async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):

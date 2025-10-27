@@ -7662,6 +7662,55 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_callback_error(update, context, e, "exchange_select_bybit")
             return
     
+    # معالجة أزرار Bitget
+    if data == "exchange_select_bitget":
+        logger.info("🔄 معالجة زر exchange_select_bitget")
+        try:
+            # استخدام نفس دالة Bybit (نفس الواجهة)
+            from api.exchange_commands import show_bybit_options
+            await show_bybit_options(update, context)
+            return
+        except Exception as e:
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_select_bitget")
+            return
+    
+    if data == "exchange_setup_bitget":
+        logger.info("🔄 معالجة زر exchange_setup_bitget")
+        try:
+            # استخدام نفس دالة Bybit
+            from api.exchange_commands import start_bybit_setup
+            await start_bybit_setup(update, context)
+            # تعديل الحالة لتكون bitget
+            context.user_data['awaiting_exchange_keys'] = 'bitget_step1'
+            return
+        except Exception as e:
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_setup_bitget")
+            return
+    
+    if data == "exchange_activate_bitget":
+        logger.info("🔄 معالجة زر exchange_activate_bitget")
+        try:
+            from api.exchange_commands import activate_exchange
+            await activate_exchange(update, context)
+            return
+        except Exception as e:
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_activate_bitget")
+            return
+    
+    if data == "exchange_test_bitget":
+        logger.info("🔄 معالجة زر exchange_test_bitget")
+        try:
+            from api.exchange_commands import test_exchange_connection
+            await test_exchange_connection(update, context)
+            return
+        except Exception as e:
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "exchange_test_bitget")
+            return
+    
     if data == "exchange_setup_bybit":
         logger.info("🔄 معالجة زر exchange_setup_bybit")
         try:
