@@ -101,15 +101,10 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 async def handle_exchange_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة اختيار المنصة"""
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = update.effective_user.id
-    
-    if query.data == "exchange_select_bybit":
-        # عرض خيارات Bybit
-        await show_bybit_options(update, context)
+    """معالجة اختيار المنصة (غير مستخدمة حالياً)"""
+    # ملاحظة: هذه الدالة غير مستخدمة حالياً
+    # معالجة أزرار اختيار المنصات تتم مباشرة في bybit_trading_bot.py
+    pass
 
 async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض خيارات إعداد Bybit مع معلومات الحساب"""
@@ -118,6 +113,9 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not query:
         logger.error("❌ لا يوجد callback_query في update")
         return
+    
+    # إجابة الاستعلام فوراً
+    await query.answer()
     
     # التحقق من وجود effective_user
     if not update.effective_user:
@@ -174,14 +172,14 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if is_active and has_bybit_keys:
             from api.bybit_api import real_account_manager
             real_account = real_account_manager.get_account(user_id)
-        if real_account:
-            try:
-                balance = real_account.get_wallet_balance()
-                if balance:
-                    total_equity = balance.get('total_equity', 0)
-                    balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
-            except Exception as e:
-                logger.error(f"خطأ في جلب الرصيد: {e}")
+            if real_account:
+                try:
+                    balance = real_account.get_wallet_balance()
+                    if balance:
+                        total_equity = balance.get('total_equity', 0)
+                        balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
+                except Exception as e:
+                    logger.error(f"خطأ في جلب الرصيد: {e}")
     except Exception as e:
         logger.error(f"❌ خطأ في جلب معلومات الحساب: {e}")
         balance_text = ""
