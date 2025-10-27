@@ -17,20 +17,33 @@ SELECTING_EXCHANGE, ENTERING_BYBIT_KEYS = range(2)
 
 async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """أمر اختيار المنصة - القائمة الرئيسية"""
-    user_id = update.effective_user.id
-    
-    from users.user_manager import user_manager
-    user_data = user_manager.get_user(user_id)
-    
-    # تحديد المنصة الحالية والتحقق من الربط
-    current_exchange = user_data.get('exchange', '') if user_data else ''
-    
-    # التحقق من وجود API Keys مربوطة
-    bybit_linked = False
-    
-    if user_data:
-        bybit_key = user_data.get('bybit_api_key', BYBIT_API_KEY)
-        bybit_linked = bybit_key and bybit_key != BYBIT_API_KEY
+    try:
+        user_id = update.effective_user.id
+        
+        from users.user_manager import user_manager
+        user_data = user_manager.get_user(user_id)
+        
+        # التحقق من أن user_data موجود
+        if not user_data:
+            logger.warning(f"⚠️ المستخدم {user_id} غير موجود في قاعدة البيانات")
+            user_data = {}
+        
+        # تحديد المنصة الحالية والتحقق من الربط
+        current_exchange = user_data.get('exchange', '') if user_data else ''
+        
+        # التحقق من وجود API Keys مربوطة
+        bybit_linked = False
+        
+        if user_data:
+            bybit_key = user_data.get('bybit_api_key', BYBIT_API_KEY)
+            bybit_linked = bybit_key and bybit_key != BYBIT_API_KEY
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في جلب بيانات المستخدم: {e}")
+        # استخدام قيم افتراضية
+        user_data = {}
+        current_exchange = ''
+        bybit_linked = False
     
     # بناء الأزرار مع الحالة الصحيحة
     bybit_icon = "✅" if (current_exchange == 'bybit' and bybit_linked) else ("🔗" if bybit_linked else "⚪")
@@ -99,45 +112,37 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """عرض خيارات إعداد Bybit مع معلومات الحساب"""
     query = update.callback_query
     
-    user_id = update.effective_user.id
-    
-    from users.user_manager import user_manager
-    user_data = user_manager.get_user(user_id)
-    
-    # التحقق من وجود API Keys
-    has_bybit_keys = False
-    if user_data:
-        bybit_key = user_data.get('bybit_api_key', '')
-        default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
-        has_bybit_keys = bybit_key and bybit_key != default_key and len(bybit_key) > 10
-    
-    # التحقق من التفعيل
-    current_exchange = user_data.get('exchange', '') if user_data else ''
-    account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
-    is_active = current_exchange == 'bybit' and account_type == 'real'
-    
-    keyboard = [
-        [InlineKeyboardButton(
-            "🔑 ربط/تحديث Bybit API Keys",
-            callback_data="exchange_setup_bybit"
-        )]
-    ]
-    
-    # إضافة الأزرار الأخرى فقط إذا تم ربط API
-    if has_bybit_keys:
-        keyboard.extend([
-            [InlineKeyboardButton(
-                "✅ استخدام Bybit",
-                callback_data="exchange_activate_bybit"
-            )],
-            [InlineKeyboardButton(
-                "📊 اختبار الاتصال بـ Bybit",
-                callback_data="exchange_test_bybit"
-            )]
-        ])
-    
-    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="select_exchange")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    try:
+        user_id = update.effective_user.id
+        
+        from users.user_manager import user_manager
+        user_data = user_manager.get_user(user_id)
+        
+        # التحقق من أن user_data موجود
+        if not user_data:
+            logger.warning(f"⚠️ المستخدم {user_id} غير موجود في قاعدة البيانات")
+            user_data = {}
+        
+        # التحقق من وجود API Keys
+        has_bybit_keys = False
+        if user_data:
+            bybit_key = user_data.get('bybit_api_key', '')
+            default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
+            has_bybit_keys = bybit_key and bybit_key != default_key and len(bybit_key) > 10
+        
+        # التحقق من التفعيل
+        current_exchange = user_data.get('exchange', '') if user_data else ''
+        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+        is_active = current_exchange == 'bybit' and account_type == 'real'
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في جلب بيانات المستخدم: {e}")
+        # استخدام قيم افتراضية
+        user_data = {}
+        has_bybit_keys = False
+        current_exchange = ''
+        account_type = 'demo'
+        is_active = False
     
     # تحديد حالة API
     if is_active and has_bybit_keys:
@@ -164,7 +169,29 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
             except Exception as e:
                 logger.error(f"خطأ في جلب الرصيد: {e}")
     
-    message = f"""
+    # رسالة خاصة إذا لم يتم العثور على بيانات المستخدم
+    if not user_data or user_data == {}:
+        message = f"""
+⚠️ **إشعار مهم**
+
+❌ لا يمكن العثور على بيانات حسابك
+
+💡 **الحل:**
+1. اضغط على /start لإنشاء حساب جديد
+2. ثم اذهب للإعدادات
+3. ثم اضغط على "اختيار المنصة"
+
+🔧 **إذا استمرت المشكلة:**
+• أعد تشغيل البوت
+• تواصل مع الدعم
+"""
+        keyboard = [
+            [InlineKeyboardButton("🏠 إنشاء حساب جديد (/start)", callback_data="start_from_exchange")]
+        ]
+        keyboard.append([InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+    else:
+        message = f"""
 🏦 **إعداد منصة Bybit**
 
 📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
@@ -183,6 +210,28 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 {f"✅ **API مربوط بنجاح!**" if has_bybit_keys else "⚠️ **يجب ربط API أولاً**"}
 """
+        keyboard = [
+            [InlineKeyboardButton(
+                "🔑 ربط/تحديث Bybit API Keys",
+                callback_data="exchange_setup_bybit"
+            )]
+        ]
+        
+        # إضافة الأزرار الأخرى فقط إذا تم ربط API
+        if has_bybit_keys:
+            keyboard.extend([
+                [InlineKeyboardButton(
+                    "✅ استخدام Bybit",
+                    callback_data="exchange_activate_bybit"
+                )],
+                [InlineKeyboardButton(
+                    "📊 اختبار الاتصال بـ Bybit",
+                    callback_data="exchange_test_bybit"
+                )]
+            ])
+        
+        keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="select_exchange")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(
         message,
@@ -294,7 +343,7 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data.pop('temp_api_key', None)
         
         if success:
-            keyboard = [[InlineKeyboardButton("✅ العودة للإعدادات", callback_data=f"exchange_select_{exchange}")]]
+            keyboard = [[InlineKeyboardButton("✅ العودة للإعدادات", callback_data="settings")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(

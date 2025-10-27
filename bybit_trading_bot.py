@@ -7646,10 +7646,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_callback_error(update, context, e, "exchange_menu")
             return
     
-    
-    elif data == "main_menu":
+    if data == "main_menu":
         await start(update, context)
         return
+    
+    # معالجة زر إنشاء حساب من قسم المنصات
+    if data == "start_from_exchange":
+        logger.info("🔄 معالجة زر start_from_exchange")
+        try:
+            await start(update, context)
+            return
+        except Exception as e:
+            from error_handlers.callback_error_handler import handle_callback_error
+            await handle_callback_error(update, context, e, "start_from_exchange")
+            return
     
     # معالجة أزرار إدارة الصفقات (TP/SL/Close)
     if data.startswith("set_tp_") or data.startswith("set_sl_") or data.startswith("set_tpsl_"):
@@ -7731,7 +7741,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🔐 المفاتيح ستُحفظ بشكل آمن ومشفر
             """)
-    elif data == "check_api":
+    if data == "check_api":
         # فحص حالة API
         if user_id is not None:
             user_data = user_manager.get_user(user_id)
@@ -7792,7 +7802,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ⚠️ بدون API keys، البوت يعمل في الوضع التجريبي فقط
                     """, reply_markup=reply_markup)
     # معالجة زر تشغيل/إيقاف البوت
-    elif data == "toggle_bot":
+    if data == "toggle_bot":
         if user_id is not None:
             success = user_manager.toggle_user_active(user_id)
             if success:
@@ -7807,7 +7817,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 if update.callback_query is not None:
                     await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
-    elif data == "info":
+    if data == "info":
         info_text = """
 ℹ️ معلومات البوت
 
@@ -7823,12 +7833,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(info_text)
-    elif data == "main_menu":
+    if data == "main_menu":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await start(update, context)
-    elif data == "settings":
+    if data == "settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
@@ -7836,51 +7846,51 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
-    elif data == "refresh_positions" or data == "show_positions":
+    if data == "refresh_positions" or data == "show_positions":
         await open_positions(update, context)
-    elif data == "webhook_help":
+    if data == "webhook_help":
         await show_webhook_help(update, context)
-    elif data == "back_to_main":
+    if data == "back_to_main":
         await start(update, context)
-    elif data == "auto_apply_menu":
+    if data == "auto_apply_menu":
         await auto_apply_settings_menu(update, context)
-    elif data == "risk_management_menu":
+    if data == "risk_management_menu":
         await risk_management_menu(update, context)
-    elif data == "toggle_risk_management":
+    if data == "toggle_risk_management":
         await toggle_risk_management(update, context)
-    elif data == "set_max_loss_percent":
+    if data == "set_max_loss_percent":
         await set_max_loss_percent(update, context)
-    elif data == "set_max_loss_amount":
+    if data == "set_max_loss_amount":
         await set_max_loss_amount(update, context)
-    elif data == "set_daily_loss_limit":
+    if data == "set_daily_loss_limit":
         await set_daily_loss_limit(update, context)
-    elif data == "set_weekly_loss_limit":
+    if data == "set_weekly_loss_limit":
         await set_weekly_loss_limit(update, context)
-    elif data == "toggle_stop_trading":
+    if data == "toggle_stop_trading":
         await toggle_stop_trading_on_loss(update, context)
-    elif data == "show_risk_stats":
+    if data == "show_risk_stats":
         await show_risk_statistics(update, context)
-    elif data == "reset_risk_stats":
+    if data == "reset_risk_stats":
         await reset_risk_statistics(update, context)
-    elif data == "risk_management_guide":
+    if data == "risk_management_guide":
         await risk_management_guide(update, context)
-    elif data == "toggle_auto_apply":
+    if data == "toggle_auto_apply":
         await toggle_auto_apply(update, context)
-    elif data == "quick_auto_setup":
+    if data == "quick_auto_setup":
         await quick_auto_setup(update, context)
-    elif data == "edit_auto_settings":
+    if data == "edit_auto_settings":
         logger.info(f"🔧 معالجة زر: edit_auto_settings")
         await edit_auto_settings(update, context)
-    elif data == "edit_auto_tp":
+    if data == "edit_auto_tp":
         logger.info(f"🔧 معالجة زر: edit_auto_tp")
         await edit_auto_tp(update, context)
-    elif data == "edit_auto_sl":
+    if data == "edit_auto_sl":
         logger.info(f"🔧 معالجة زر: edit_auto_sl")
         await edit_auto_sl(update, context)
-    elif data == "toggle_auto_trailing":
+    if data == "toggle_auto_trailing":
         logger.info(f"🔧 معالجة زر: toggle_auto_trailing")
         await toggle_auto_trailing(update, context)
-    elif data == "clear_auto_settings":
+    if data == "clear_auto_settings":
         logger.info(f"🔧 معالجة زر: clear_auto_settings")
         await clear_auto_settings(update, context)
     elif data.startswith("auto_tp_targets_"):
@@ -7910,7 +7920,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_settings")]]),
                 parse_mode='Markdown'
             )
-    elif data == "custom_sl_input":
+    if data == "custom_sl_input":
         user_id = update.effective_user.id if update.effective_user else None
         if user_id:
             user_input_state[user_id] = "waiting_auto_sl_input"
@@ -7919,7 +7929,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="edit_auto_sl")]]),
             parse_mode='Markdown'
         )
-    elif data == "custom_tp_percent_input":
+    if data == "custom_tp_percent_input":
         user_id = update.effective_user.id if update.effective_user else None
         builder = context.user_data.get('auto_tp_builder', {})
         current_target = builder.get('current_target', 1)
@@ -7940,7 +7950,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_tp")]]),
             parse_mode='Markdown'
         )
-    elif data == "custom_close_percent_input":
+    if data == "custom_close_percent_input":
         user_id = update.effective_user.id if update.effective_user else None
         builder = context.user_data.get('auto_tp_builder', {})
         current_target = builder.get('current_target', 1)
@@ -7999,13 +8009,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await move_sl_to_breakeven(update, context)
     elif data.startswith("trailing_") and not data.startswith("trailing_menu_"):
         await enable_trailing_stop(update, context)
-    elif data == "set_amount":
+    if data == "set_amount":
         # تنفيذ إعداد مبلغ التداول
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_trade_amount"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
-    elif data == "set_market":
+    if data == "set_market":
         # تنفيذ إعداد نوع السوق
         keyboard = [
             [InlineKeyboardButton("-spot", callback_data="market_spot")],
@@ -8015,7 +8025,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("اختر نوع السوق:", reply_markup=reply_markup)
-    elif data == "set_account":
+    if data == "set_account":
         # تنفيذ إعداد نوع الحساب
         keyboard = [
             [InlineKeyboardButton("حقيقي", callback_data="account_real")],
@@ -8025,19 +8035,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("اختر نوع الحساب:", reply_markup=reply_markup)
-    elif data == "set_leverage":
+    if data == "set_leverage":
         # تنفيذ إعداد الرافعة المالية
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_leverage"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("⚡ أدخل قيمة الرافعة المالية الجديدة (1-100):")
-    elif data == "set_demo_balance":
+    if data == "set_demo_balance":
         # تنفيذ إعداد رصيد الحساب التجريبي
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_demo_balance"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
-    elif data == "market_spot":
+    if data == "market_spot":
         trading_bot.user_settings['market_type'] = 'spot'
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
@@ -8050,7 +8060,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data == "market_futures":
+    if data == "market_futures":
         trading_bot.user_settings['market_type'] = 'futures'
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
@@ -8063,7 +8073,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data == "account_real":
+    if data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
@@ -8076,7 +8086,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data == "account_demo":
+    if data == "account_demo":
         trading_bot.user_settings['account_type'] = 'demo'
         # حفظ الإعدادات في قاعدة البيانات
         if user_id is not None:
@@ -8089,12 +8099,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data == "back_to_settings":
+    if data == "back_to_settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
-    elif data == "webhook_url":
+    if data == "webhook_url":
         # عرض رابط الإشارات الشخصي للمستخدم
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
         render_url = os.getenv('RENDER_EXTERNAL_URL')
@@ -8164,13 +8174,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
     # معالجة أزرار المطور
-    elif data == "developer_panel":
+    if data == "developer_panel":
         await show_developer_panel(update, context)
-    elif data == "dev_show_followers":
+    if data == "dev_show_followers":
         await handle_show_followers(update, context)
-    elif data == "dev_stats":
+    if data == "dev_stats":
         await handle_developer_stats(update, context)
-    elif data == "dev_action_buy" or data == "dev_action_sell":
+    if data == "dev_action_buy" or data == "dev_action_sell":
         # الخطوة 2: حفظ الاتجاه
         action = "buy" if data == "dev_action_buy" else "sell"
         context.user_data['dev_signal_data']['action'] = action
@@ -8186,7 +8196,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💰 أدخل المبلغ (بالدولار):\n"
                 f"مثال: 100"
             )
-    elif data == "dev_market_spot" or data == "dev_market_futures":
+    if data == "dev_market_spot" or data == "dev_market_futures":
         # الخطوة 4: حفظ نوع السوق
         market_type = "spot" if data == "dev_market_spot" else "futures"
         context.user_data['dev_signal_data']['market_type'] = market_type
@@ -8231,7 +8241,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if update.callback_query:
                 await update.callback_query.message.edit_text(confirm_message, reply_markup=reply_markup)
-    elif data == "dev_confirm_signal":
+    if data == "dev_confirm_signal":
         # تأكيد إرسال الإشارة
         if 'dev_signal_data' in context.user_data:
             signal_data = context.user_data['dev_signal_data']
@@ -8335,7 +8345,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.error(f"خطأ في إرسال الإشارة: {e}")
                 await update.callback_query.answer("❌ خطأ في الإرسال")
-    elif data == "dev_toggle_active":
+    if data == "dev_toggle_active":
         if user_id:
             success = developer_manager.toggle_developer_active(user_id)
             if success:
@@ -8370,7 +8380,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.answer("❌ فشل في الإزالة")
         except ValueError:
             await update.callback_query.answer("❌ خطأ في ID المتابع")
-    elif data == "dev_toggle_auto_broadcast":
+    if data == "dev_toggle_auto_broadcast":
         # تبديل حالة التوزيع التلقائي
         if user_id:
             # تبديل الحالة في قاعدة البيانات
@@ -8407,7 +8417,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.callback_query.answer(f"✅ التوزيع التلقائي: {'مُفعّل' if new_state else 'مُعطّل'}")
             else:
                 await update.callback_query.answer("❌ فشل في تبديل الحالة")
-    elif data == "dev_refresh_users":
+    if data == "dev_refresh_users":
         # تحديث قائمة المستخدمين
         if user_id:
             all_users_data = db_manager.get_all_developers() + user_manager.get_all_active_users()
@@ -9738,4 +9748,5 @@ def main():
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
+    main()
     main()
