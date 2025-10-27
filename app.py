@@ -262,9 +262,44 @@ def setup_telegram_bot():
     
     return application
 
+def send_telegram_notification(title, message_text):
+    """إرسال إشعار تلجرام"""
+    try:
+        from config import TELEGRAM_TOKEN, ADMIN_USER_ID
+        from telegram.ext import Application
+        
+        def run_send():
+            async def send():
+                try:
+                    application = Application.builder().token(TELEGRAM_TOKEN).build()
+                    await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message_text)
+                except Exception as e:
+                    print(f"❌ خطأ في إرسال الرسالة: {e}")
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(send())
+            loop.close()
+        
+        threading.Thread(target=run_send, daemon=True).start()
+    except Exception as e:
+        print(f"❌ خطأ: {e}")
+
 def run_flask_in_thread():
     """تشغيل Flask في thread منفصل"""
     print("🌐 بدء تشغيل Flask server...")
+    
+    # إرسال رسالة عند بدء Flask Server
+    message = f"""مرحبا ايها القائد
+
+🌐 بدء سيرفر الويب
+🔹 الأداة: Flask Web Server
+🔹 الوظيفة: استقبال webhooks من TradingView
+🔹 المنفذ: {PORT}
+⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+    
+    send_telegram_notification("🌐 بدء سيرفر الويب", message)
+    
     app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == "__main__":
@@ -287,7 +322,19 @@ if __name__ == "__main__":
     flask_thread.start()
     
     # إعطاء Flask وقت لبدء التشغيل
-    time.sleep(2)
+    time.sleep(3)
+    
+    # إرسال رسالة عند بدء Telegram Bot
+    system_type = "Normal" if not ENHANCED_SYSTEM_AVAILABLE else ("Enhanced" if not NEW_SYSTEM_AVAILABLE else "New System")
+    message = f"""مرحبا ايها القائد
+
+🤖 بدء بوت التلجرام
+🔹 الأداة: Telegram Bot
+🔹 الوظيفة: استقبال الأوامر من المستخدمين
+🔹 النظام: {system_type}
+⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+    
+    send_telegram_notification("🤖 بدء بوت التلجرام", message)
     
     # تشغيل البوت في الـ main thread
     print("🤖 بدء تشغيل البوت...")
