@@ -117,24 +117,33 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     account_type = 'demo'
     is_active = False
     user_id = None
+    query = None  # تهيئة query بقيمة None
+    
+    # التحقق من وجود callback_query أولاً (خارج try-except)
+    query = update.callback_query
+    if not query:
+        logger.error("❌ لا يوجد callback_query في update")
+        return
+    
+    # إجابة الاستعلام فوراً
+    try:
+        await query.answer()
+    except Exception as e:
+        logger.warning(f"⚠️ خطأ في query.answer(): {e}")
+    
+    # التحقق من وجود effective_user
+    if not update.effective_user:
+        logger.error("❌ لا يوجد effective_user في update")
+        try:
+            await query.edit_message_text("❌ خطأ: لا يمكن التعرف على المستخدم")
+        except:
+            pass
+        return
+    
+    user_id = update.effective_user.id
+    logger.info(f"🔄 معالجة زر Bybit للمستخدم {user_id}")
     
     try:
-        # التحقق من وجود callback_query
-        query = update.callback_query
-        if not query:
-            logger.error("❌ لا يوجد callback_query في update")
-            return
-        
-        # إجابة الاستعلام فوراً
-        await query.answer()
-        
-        # التحقق من وجود effective_user
-        if not update.effective_user:
-            logger.error("❌ لا يوجد effective_user في update")
-            return
-        
-        user_id = update.effective_user.id
-        logger.info(f"🔄 معالجة زر Bybit للمستخدم {user_id}")
         
         # جلب بيانات المستخدم
         try:
@@ -213,18 +222,46 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"❌ خطأ في جلب معلومات الحساب: {e}")
         balance_text = ""
     
+    # التحقق من user_id قبل المتابعة
+    if user_id is None:
+        logger.error("❌ user_id هو None! لا يمكن المتابعة")
+        try:
+            await query.edit_message_text(
+                "❌ **خطأ في التعرف على المستخدم**\n\n"
+                "🔧 يرجى:\n"
+                "• إعادة تشغيل البوت\n"
+                "• المحاولة مرة أخرى\n"
+                "• التواصل مع الدعم إذا استمرت المشكلة"
+            )
+        except Exception as e:
+            logger.error(f"❌ فشل عرض رسالة الخطأ: {e}")
+        return
+    
     # رسالة خاصة إذا لم يتم العثور على بيانات المستخدم
     if not user_data or user_data == {}:
         # إنشاء حساب تلقائياً للمستخدم
-        logger.info(f"🆕 إنشاء حساب جديد للمستخدم {user_id}")
-        from users.user_manager import user_manager
-        from users.database import db_manager
+        logger.info(f"🆕 محاولة إنشاء حساب جديد للمستخدم {user_id}")
         
-        # إنشاء المستخدم في قاعدة البيانات
-        db_manager.create_user(user_id)
-        
-        # تحديث user_data
-        user_data = user_manager.get_user(user_id)
+        try:
+            from users.user_manager import user_manager
+            from users.database import db_manager
+            
+            # إنشاء المستخدم في قاعدة البيانات
+            logger.info(f"🔄 استدعاء db_manager.create_user({user_id})")
+            db_manager.create_user(user_id)
+            logger.info(f"✅ تم استدعاء create_user بنجاح")
+            
+            # تحديث user_data
+            logger.info(f"🔄 جلب بيانات المستخدم الجديد")
+            user_data = user_manager.get_user(user_id)
+            logger.info(f"✅ تم جلب بيانات المستخدم الجديد: {bool(user_data)}")
+            
+        except ImportError as e:
+            logger.error(f"❌ فشل استيراد user_manager أو db_manager: {e}", exc_info=True)
+            user_data = {}
+        except Exception as e:
+            logger.error(f"❌ فشل إنشاء الحساب الجديد: {e}", exc_info=True)
+            user_data = {}
         
         # إعادة تعيين المتغيرات
         if not user_data:
@@ -236,7 +273,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         account_type = 'demo'
         is_active = False
         
-        logger.info(f"✅ تم إنشاء حساب جديد للمستخدم {user_id}")
+        logger.info(f"✅ تم معالجة المستخدم {user_id} (حساب {'جديد' if user_data else 'فارغ'})")
         message = f"""
 ✅ **تم إنشاء حسابك بنجاح!**
 
@@ -310,12 +347,33 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="select_exchange")])
         reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(
-        message,
-        reply_markup=reply_markup,
-        parse_mode='Markdown',
-        disable_web_page_preview=True
-    )
+    # إرسال الرسالة مع معالجة الأخطاء
+    try:
+        await query.edit_message_text(
+            message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown',
+            disable_web_page_preview=True
+        )
+        logger.info(f"✅ تم عرض خيارات Bybit بنجاح للمستخدم {user_id}")
+    except Exception as e:
+        logger.error(f"❌ خطأ في عرض رسالة Bybit: {e}", exc_info=True)
+        # محاولة إرسال رسالة جديدة بدلاً من تعديل
+        try:
+            await query.message.reply_text(
+                message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown',
+                disable_web_page_preview=True
+            )
+            logger.info(f"✅ تم إرسال رسالة Bybit كرسالة جديدة للمستخدم {user_id}")
+        except Exception as e2:
+            logger.error(f"❌ فشل في إرسال الرسالة أيضاً: {e2}", exc_info=True)
+            # آخر محاولة: إرسال رسالة بسيطة
+            try:
+                await query.answer("❌ حدث خطأ في عرض الخيارات. يرجى المحاولة مرة أخرى.", show_alert=True)
+            except:
+                pass
 
 async def start_bybit_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """بدء عملية ربط Bybit API - الخطوة 1: API Key"""
