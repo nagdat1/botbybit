@@ -7580,35 +7580,71 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # معالجة زر اختيار المنصة
     if data == "select_exchange":
-        from exchange_commands import cmd_select_exchange
-        await cmd_select_exchange(update, context)
-        return
+        logger.info("🔄 معالجة زر select_exchange")
+        try:
+            from api.exchange_commands import cmd_select_exchange
+            await cmd_select_exchange(update, context)
+            return
+        except Exception as e:
+            logger.error(f"❌ خطأ في select_exchange: {e}")
+            await query.answer("❌ حدث خطأ")
+            return
     
     # معالجة أزرار اختيار المنصات
     if data == "exchange_select_bybit":
-        from exchange_commands import show_bybit_options
-        await show_bybit_options(update, context)
-        return
+        logger.info("🔄 معالجة زر exchange_select_bybit")
+        try:
+            from api.exchange_commands import show_bybit_options
+            await show_bybit_options(update, context)
+            return
+        except Exception as e:
+            logger.error(f"❌ خطأ في exchange_select_bybit: {e}")
+            await query.answer("❌ حدث خطأ")
+            return
     
     if data == "exchange_setup_bybit":
-        from exchange_commands import start_bybit_setup
-        await start_bybit_setup(update, context)
-        return
+        logger.info("🔄 معالجة زر exchange_setup_bybit")
+        try:
+            from api.exchange_commands import start_bybit_setup
+            await start_bybit_setup(update, context)
+            return
+        except Exception as e:
+            logger.error(f"❌ خطأ في exchange_setup_bybit: {e}")
+            await query.answer("❌ حدث خطأ")
+            return
     
     if data == "exchange_activate_bybit":
-        from exchange_commands import activate_exchange
-        await activate_exchange(update, context)
-        return
+        logger.info("🔄 معالجة زر exchange_activate_bybit")
+        try:
+            from api.exchange_commands import activate_exchange
+            await activate_exchange(update, context)
+            return
+        except Exception as e:
+            logger.error(f"❌ خطأ في exchange_activate_bybit: {e}")
+            await query.answer("❌ حدث خطأ")
+            return
     
     if data == "exchange_test_bybit":
-        from exchange_commands import test_exchange_connection
-        await test_exchange_connection(update, context)
-        return
+        logger.info("🔄 معالجة زر exchange_test_bybit")
+        try:
+            from api.exchange_commands import test_exchange_connection
+            await test_exchange_connection(update, context)
+            return
+        except Exception as e:
+            logger.error(f"❌ خطأ في exchange_test_bybit: {e}")
+            await query.answer("❌ حدث خطأ")
+            return
     
     if data == "exchange_menu":
-        from exchange_commands import cmd_select_exchange
-        await cmd_select_exchange(update, context)
-        return
+        logger.info("🔄 معالجة زر exchange_menu")
+        try:
+            from api.exchange_commands import cmd_select_exchange
+            await cmd_select_exchange(update, context)
+            return
+        except Exception as e:
+            logger.error(f"❌ خطأ في exchange_menu: {e}")
+            await query.answer("❌ حدث خطأ")
+            return
     
     
     elif data == "main_menu":
@@ -8580,7 +8616,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # معالجة إدخال مفاتيح المنصة (Bybit)
     if context.user_data.get('awaiting_exchange_keys'):
-        from exchange_commands import handle_api_keys_input
+        from api.exchange_commands import handle_api_keys_input
         await handle_api_keys_input(update, context)
         return
     

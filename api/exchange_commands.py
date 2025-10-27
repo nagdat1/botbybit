@@ -141,7 +141,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )]
         ])
     
-    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="exchange_menu")])
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="select_exchange")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # تحديد حالة API

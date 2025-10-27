@@ -254,7 +254,7 @@ def setup_telegram_bot():
     
     # إضافة معالجات أوامر المنصات
     try:
-        from exchange_commands import register_exchange_handlers
+        from api.exchange_commands import register_exchange_handlers
         register_exchange_handlers(application)
         print("✅ تم تسجيل معالجات أوامر المنصات")
     except Exception as e:
