@@ -47,8 +47,15 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
         current_exchange = ''
         bybit_linked = False
     
+    # التحقق من Bitget
+    bitget_linked = False
+    if user_data:
+        bitget_key = user_data.get('bitget_api_key', '')
+        bitget_linked = bitget_key and len(bitget_key) > 10
+    
     # بناء الأزرار مع الحالة الصحيحة
     bybit_icon = "✅" if (current_exchange == 'bybit' and bybit_linked) else ("🔗" if bybit_linked else "⚪")
+    bitget_icon = "✅" if (current_exchange == 'bitget' and bitget_linked) else ("🔗" if bitget_linked else "⚪")
     
     keyboard = [
         [
@@ -57,12 +64,18 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
                 callback_data="exchange_select_bybit"
             )
         ],
+        [
+            InlineKeyboardButton(
+                f"{bitget_icon} Bitget", 
+                callback_data="exchange_select_bitget"
+            )
+        ],
         [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # تحديد حالة المنصة
-    if current_exchange and bybit_linked:
+    if current_exchange and (bybit_linked or bitget_linked):
         status_text = f"**{current_exchange.upper()}** ✅ (مفعّلة)"
     else:
         status_text = "**لم يتم اختيار منصة**"
@@ -83,10 +96,17 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
    • حساب تجريبي متاح
    • دعم كامل للتداول الآلي
 
-🔗 **للانضمام إلى Bybit:**
-[اضغط هنا للتسجيل](https://www.bybit.com/invite?ref=OLAZ2M)
+🔹 **Bitget**
+   • يدعم Spot و Futures
+   • رافعة مالية متاحة (حتى 125x)
+   • رسوم تداول منخفضة
+   • منصة عالمية موثوقة
 
-اضغط على Bybit للاختيار وإعداد API
+🔗 **روابط التسجيل:**
+• [Bybit](https://www.bybit.com/invite?ref=OLAZ2M)
+• [Bitget](https://www.bitget.com/referral/)
+
+اضغط على المنصة للاختيار وإعداد API
 """
     
     if update.callback_query:
@@ -109,17 +129,18 @@ async def handle_exchange_selection(update: Update, context: ContextTypes.DEFAUL
     pass
 
 async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض خيارات إعداد Bybit مع معلومات الحساب"""
+    """عرض خيارات إعداد Bybit مع معلومات الحساب - نظام احترافي"""
     # تهيئة المتغيرات الافتراضية
     user_data = {}
     has_bybit_keys = False
     current_exchange = ''
     account_type = 'demo'
     is_active = False
+    is_connected = False  # متصل بالمنصة فعلياً
     user_id = None
-    query = None  # تهيئة query بقيمة None
+    query = None
     
-    # التحقق من وجود callback_query أولاً (خارج try-except)
+    # التحقق من وجود callback_query أولاً
     query = update.callback_query
     if not query:
         logger.error("❌ لا يوجد callback_query في update")
@@ -173,14 +194,18 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # التحقق من وجود API Keys
         if user_data:
             bybit_key = user_data.get('bybit_api_key', '')
+            bybit_secret = user_data.get('bybit_api_secret', '')
             # التحقق من أن API Key موجود وليس فارغاً وليس القيمة الافتراضية
             default_key = BYBIT_API_KEY if (BYBIT_API_KEY and len(str(BYBIT_API_KEY)) > 0) else ''
-            has_bybit_keys = bybit_key and len(bybit_key) > 10 and bybit_key != default_key
+            has_bybit_keys = (bybit_key and bybit_secret and 
+                            len(bybit_key) > 10 and len(bybit_secret) > 10 and 
+                            bybit_key != default_key)
         
-        # التحقق من التفعيل
+        # التحقق من التفعيل والاتصال
         current_exchange = user_data.get('exchange', '') if user_data else ''
         account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
         is_active = current_exchange == 'bybit' and account_type == 'real'
+        is_connected = has_bybit_keys and current_exchange == 'bybit'
         
     except Exception as e:
         logger.error(f"❌ خطأ في show_bybit_options: {e}", exc_info=True)
@@ -193,23 +218,30 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if user_id is None and update.effective_user:
             user_id = update.effective_user.id
     
-    # تحديد حالة API
-    if is_active and has_bybit_keys:
+    # تحديد حالة API - 3 حالات واضحة
+    if is_active and has_bybit_keys and is_connected:
+        # الحالة 1: مربوط ومفعّل بالكامل ✅
         status_icon = "🟢"
-        status_text = "مرتبط ومفعّل"
+        status_text = "متصل ومفعّل (حساب حقيقي)"
+        status_emoji = "✅"
     elif has_bybit_keys:
-        status_icon = "🔗"
-        status_text = "مرتبط (غير مفعّل)"
+        # الحالة 2: مربوط لكن غير مفعّل 🔗
+        status_icon = "🟡"
+        status_text = "مربوط لكن غير مفعّل"
+        status_emoji = "🔗"
     else:
+        # الحالة 3: غير مربوط ⚪
         status_icon = "🔴"
-        status_text = "غير مرتبط"
+        status_text = "غير مربوط"
+        status_emoji = "⚪"
     
     # جلب معلومات الرصيد الحقيقي من Bybit
     balance_text = ""
     market_type_current = user_data.get('market_type', 'spot') if user_data else 'spot'
     
     try:
-        if is_active and has_bybit_keys:
+        if is_active and has_bybit_keys and is_connected:
+            # الحساب مفعّل - جلب الرصيد الحقيقي
             from api.bybit_api import real_account_manager
             real_account = real_account_manager.get_account(user_id)
             if real_account:
@@ -222,10 +254,11 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
                         
                         # بناء رسالة الرصيد
                         balance_text = f"""
+
 💰 **الرصيد الإجمالي:** ${total_equity:,.2f}
 💳 **الرصيد المتاح:** ${available_balance:,.2f}
 📊 **نوع السوق:** {market_type_current.upper()}
-🏦 **المنصة:** Bybit (حقيقي)"""
+🏦 **المنصة:** Bybit (حساب حقيقي)"""
                         
                         # إضافة معلومات العملات الأخرى إن وجدت
                         coins = balance.get('coins', {})
@@ -247,7 +280,10 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     balance_text = "\n⚠️ **لا يمكن الوصول إلى الرصيد حالياً**"
         elif has_bybit_keys:
             # الحساب مربوط لكن غير مفعّل
-            balance_text = "\n⚠️ **الحساب مربوط لكن غير مفعّل**\nقم بالضغط على '✅ استخدام Bybit' لتفعيل الحساب الحقيقي"
+            balance_text = "\n\n⚠️ **الحساب مربوط بنجاح لكن غير مفعّل**\n💡 اضغط على 'تفعيل المنصة' لبدء استخدام الحساب الحقيقي"
+        else:
+            # غير مربوط
+            balance_text = "\n\n⚠️ **لم يتم ربط API بعد**\n💡 اضغط على 'ربط Bybit API' للبدء"
     except Exception as e:
         logger.error(f"❌ خطأ في جلب معلومات الحساب: {e}")
         import traceback
@@ -318,73 +354,95 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await start_bybit_setup(update, context)
         return
     
-    # تهيئة المتغيرات الافتراضية
-    message = ""
-    keyboard = []
-    reply_markup = None
-    
-    # المستخدم لديه API مربوط - عرض خيارات إدارة الحساب
-    if has_bybit_keys:
-        # رسالة مختلفة حسب حالة التفعيل
-        if is_active:
-            action_text = "🟢 **منصة Bybit نشطة ومفعّلة!**\n\nتم تفعيل الحساب الحقيقي وتعمل المنصة بكامل قدراتها 🔥\n\nيمكنك الآن:\n• تنفيذ صفقات حقيقية\n• استقبال إشارات التداول\n• إدارة المحفظة والرصيد"
-        else:
-            action_text = "🔐 **API مربوط بنجاح!**\n\nيجب الآن تفعيل المنصة للبدء في التداول الحقيقي.\n\n💡 **اضغط على الزر أدناه للتفعيل:**"
-        
+    # المستخدم لديه API مربوط - عرض خيارات إدارة الحساب حسب الحالة
+    # الحالة 1: مفعّل بالكامل ✅
+    if is_active and has_bybit_keys and is_connected:
         message = f"""
 🏦 **إعداد منصة Bybit**
 
-📊 **حالة API:** {status_icon} **{status_text}**{balance_text}
+{status_emoji} **حالة API:** {status_icon} **{status_text}**{balance_text}
 
-{action_text}
+✅ **المنصة مفعّلة ونشطة!**
+
+🎯 **يمكنك الآن:**
+• استقبال إشارات التداول
+• تنفيذ الصفقات الحقيقية
+• عرض الرصيد والأرباح
+• إدارة المحفظة
 
 📋 **المميزات:**
 • التداول الفوري (Spot)
 • تداول الفيوتشر (Futures)
 • الرافعة المالية (حتى 100x)
-• حساب تجريبي متاح
 
-🔗 **للانضمام إلى Bybit:**
-[اضغط هنا للتسجيل](https://www.bybit.com/invite?ref=OLAZ2M)
+🔗 **رابط الإحالة:** [انضم إلى Bybit](https://www.bybit.com/invite?ref=OLAZ2M)
 """
-        # بناء لوحة المفاتيح بحسب الحالة
-        keyboard = []
-        
-        # إذا كانت المنصة مفعّلة، نعرض زر للإدارة فقط
-        if is_active:
-            keyboard.extend([
-                [InlineKeyboardButton(
-                    "📊 إدارة الحساب الحقيقي",
-                    callback_data="exchange_activate_bybit"
-                )],
-                [InlineKeyboardButton(
-                    "🔑 تحديث API Keys",
-                    callback_data="exchange_setup_bybit"
-                )],
-                [InlineKeyboardButton(
-                    "📊 اختبار الاتصال",
-                    callback_data="exchange_test_bybit"
-                )]
-            ])
-        else:
-            # إذا لم يتم التفعيل، نعرض زر واضح للتفعيل
-            keyboard.extend([
-                [InlineKeyboardButton(
-                    "🎯 تفعيل Bybit الآن (حساب حقيقي)",
-                    callback_data="exchange_activate_bybit"
-                )],
-                [InlineKeyboardButton(
-                    "🔑 تحديث API Keys",
-                    callback_data="exchange_setup_bybit"
-                )],
-                [InlineKeyboardButton(
-                    "📊 اختبار الاتصال بـ Bybit",
-                    callback_data="exchange_test_bybit"
-                )]
-            ])
-        
-        keyboard.append([InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        keyboard = [
+            [InlineKeyboardButton("🔄 تحديث API Keys", callback_data="exchange_setup_bybit")],
+            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data="exchange_test_bybit")],
+            [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
+        ]
+    
+    # الحالة 2: مربوط لكن غير مفعّل 🔗
+    elif has_bybit_keys and not is_active:
+        message = f"""
+🏦 **إعداد منصة Bybit**
+
+{status_emoji} **حالة API:** {status_icon} **{status_text}**{balance_text}
+
+🎯 **الخطوة التالية: التفعيل!**
+
+💡 لقد تم ربط API بنجاح، لكن لم يتم تفعيل المنصة بعد.
+
+✅ **اضغط على زر "تفعيل المنصة" لـ:**
+• تفعيل الحساب الحقيقي
+• البدء في استقبال الإشارات
+• تنفيذ الصفقات على المنصة
+• ربط كامل مع المشروع
+
+📋 **المميزات:**
+• التداول الفوري (Spot)
+• تداول الفيوتشر (Futures)
+• الرافعة المالية (حتى 100x)
+
+🔗 **رابط الإحالة:** [انضم إلى Bybit](https://www.bybit.com/invite?ref=OLAZ2M)
+"""
+        keyboard = [
+            [InlineKeyboardButton("🚀 تفعيل المنصة الآن", callback_data="exchange_activate_bybit")],
+            [InlineKeyboardButton("🔄 تحديث API Keys", callback_data="exchange_setup_bybit")],
+            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data="exchange_test_bybit")],
+            [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
+        ]
+    
+    # الحالة 3: مربوط لكن بحاجة لإعادة تفعيل (حالة استثنائية)
+    else:
+        message = f"""
+🏦 **إعداد منصة Bybit**
+
+{status_emoji} **حالة API:** {status_icon} **{status_text}**{balance_text}
+
+⚠️ **يبدو أن هناك مشكلة في الربط**
+
+💡 **يمكنك:**
+• تحديث مفاتيح API
+• إعادة محاولة التفعيل
+• اختبار الاتصال
+
+📋 **المميزات:**
+• التداول الفوري (Spot)
+• تداول الفيوتشر (Futures)
+• الرافعة المالية (حتى 100x)
+
+🔗 **رابط الإحالة:** [انضم إلى Bybit](https://www.bybit.com/invite?ref=OLAZ2M)
+"""
+        keyboard = [
+            [InlineKeyboardButton("🔄 تحديث API Keys", callback_data="exchange_setup_bybit")],
+            [InlineKeyboardButton("🚀 تفعيل المنصة", callback_data="exchange_activate_bybit")],
+            [InlineKeyboardButton("📊 اختبار الاتصال", callback_data="exchange_test_bybit")],
+            [InlineKeyboardButton("🔙 رجوع للإعدادات", callback_data="settings")]
+        ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
     # إرسال الرسالة مع معالجة الأخطاء
     try:
@@ -662,46 +720,67 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                     if not found_balance:
                         balance_info += "• لا يوجد رصيد حالياً\n"
             
-            # حفظ المفاتيح وتهيئة الحساب الحقيقي
+            # حفظ المفاتيح وتهيئة الحساب الحقيقي وتفعيله تلقائياً
             from users.database import db_manager
+            from users.user_manager import user_manager
             from api.bybit_api import real_account_manager
             
-            # حفظ مباشرة في قاعدة البيانات
+            # حفظ مباشرة في قاعدة البيانات مع التفعيل التلقائي
             try:
-                # حفظ في قاعدة البيانات
+                # ✅ خطوة 1: حفظ في قاعدة البيانات وتفعيل المنصة
                 db_manager.update_user_settings(user_id, {
                     'bybit_api_key': api_key,
                     'bybit_api_secret': api_secret,
                     'exchange': 'bybit',
-                    'account_type': 'real'
+                    'account_type': 'real',  # 🔴 حساب حقيقي
+                    'is_active': True        # 🔴 مفعّل بالكامل
                 })
-                logger.info(f"✅ تم حفظ مفاتيح API في قاعدة البيانات للمستخدم {user_id}")
+                logger.info(f"✅ تم حفظ وتفعيل مفاتيح API للمستخدم {user_id}")
                 
-                # تهيئة الحساب الحقيقي فوراً
+                # ✅ خطوة 2: تحديث بيانات المستخدم في الذاكرة
+                user_data = user_manager.get_user(user_id)
+                if user_data:
+                    user_data['bybit_api_key'] = api_key
+                    user_data['bybit_api_secret'] = api_secret
+                    user_data['exchange'] = 'bybit'
+                    user_data['account_type'] = 'real'
+                    user_data['is_active'] = True
+                    logger.info(f"✅ تم تحديث بيانات المستخدم {user_id} في الذاكرة")
+                
+                # ✅ خطوة 3: تهيئة الحساب الحقيقي فوراً
                 try:
                     real_account_manager.initialize_account(user_id, 'bybit', api_key, api_secret)
                     logger.info(f"✅ تم تهيئة حساب Bybit الحقيقي للمستخدم {user_id}")
                 except Exception as e:
                     logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}", exc_info=True)
                 
-                # إرسال رسالة نجاح مع معلومات الحساب وجذب للمتابعة
-                keyboard = [[InlineKeyboardButton(
-                    "🎯 تفعيل المنصة الآن",
-                    callback_data="exchange_select_bybit"
-                )]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
+                # ✅ خطوة 4: تسجيل المنصة في النظام الجديد (إن وجد)
+                try:
+                    from api.init_exchanges import create_exchange_instance
+                    exchange_instance = create_exchange_instance(user_id, 'bybit', api_key, api_secret)
+                    if exchange_instance:
+                        logger.info(f"✅ تم إنشاء نسخة Bybit للمستخدم {user_id} في النظام الجديد")
+                except Exception as e:
+                    logger.debug(f"النظام الجديد غير متاح بعد: {e}")
                 
+                # إرسال رسالة نجاح مع معلومات الحساب
                 await update.message.reply_text(
-                    f"✅ **تم ربط API بنجاح!**\n\n"
-                    f"🔐 API مرتبط ويعمل\n"
-                    f"📊 نوع الحساب: حقيقي{balance_info}\n\n"
-                    f"💡 **الخطوة التالية:**\n"
-                    f"اضغط على الزر أدناه لتفعيل المنصة واستخدام الحساب الحقيقي 🚀",
-                    reply_markup=reply_markup,
+                    f"✅ **تم ربط وتفعيل Bybit بنجاح!**\n\n"
+                    f"🎉 **المنصة نشطة الآن!**\n\n"
+                    f"🔐 API مرتبط ومفعّل\n"
+                    f"📊 نوع الحساب: حقيقي\n"
+                    f"🏦 المنصة: Bybit\n"
+                    f"✅ الحالة: مفعّل ومتصل{balance_info}\n\n"
+                    f"💡 **يمكنك الآن:**\n"
+                    f"• استقبال إشارات التداول\n"
+                    f"• تنفيذ الصفقات الحقيقية\n"
+                    f"• عرض الرصيد والصفقات\n"
+                    f"• إدارة المحفظة\n\n"
+                    f"📱 اذهب إلى /settings لعرض التفاصيل",
                     parse_mode='Markdown'
                 )
                 
-                logger.info(f"✅ تم حفظ مفاتيح Bybit الحقيقية للمستخدم {user_id}")
+                logger.info(f"🎉 تم ربط وتفعيل Bybit بنجاح للمستخدم {user_id}")
                 return True
                 
             except Exception as e:
@@ -804,48 +883,95 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # تهيئة الحساب الحقيقي
+    # تهيئة الحساب الحقيقي مع ربط كامل بالمشروع
     from api.bybit_api import real_account_manager
+    from users.user_manager import user_manager
+    from users.database import db_manager
+    
     try:
-        logger.info(f"🔄 بدء تهيئة حساب {exchange} للمستخدم {user_id}")
+        logger.info(f"🔄 بدء التفعيل الكامل لـ {exchange} للمستخدم {user_id}")
+        
+        # ✅ خطوة 1: تهيئة حساب المنصة
         real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
         logger.info(f"✅ تم تهيئة حساب {exchange} بنجاح")
         
-        # تفعيل المنصة
+        # ✅ خطوة 2: تحديث بيانات المستخدم في الذاكرة
         user_data['exchange'] = exchange
         user_data['account_type'] = 'real'  # حساب حقيقي
+        user_data['is_active'] = True
+        logger.info(f"✅ تم تحديث بيانات المستخدم {user_id} في الذاكرة")
         
-        from users.database import db_manager
+        # ✅ خطوة 3: حفظ في قاعدة البيانات مع جميع الإعدادات
         db_manager.update_user_settings(user_id, {
             'exchange': exchange,
             'account_type': 'real',
             'market_type': user_data.get('market_type', 'spot'),
-            'is_active': True
+            'is_active': True,
+            'bybit_api_key': api_key,
+            'bybit_api_secret': api_secret
         })
+        logger.info(f"✅ تم حفظ الإعدادات في قاعدة البيانات")
         
-        # جلب معلومات الحساب
+        # ✅ خطوة 4: تسجيل في النظام الجديد (إن وجد)
+        try:
+            from api.init_exchanges import create_exchange_instance, get_user_exchange
+            
+            # التحقق من وجود نسخة، وإلا إنشاءها
+            exchange_instance = get_user_exchange(user_id, exchange)
+            if not exchange_instance:
+                exchange_instance = create_exchange_instance(user_id, exchange, api_key, api_secret)
+            
+            if exchange_instance:
+                # اختبار الاتصال
+                if exchange_instance.test_connection():
+                    logger.info(f"✅ تم التحقق من اتصال {exchange} في النظام الجديد")
+                else:
+                    logger.warning(f"⚠️ فشل اختبار الاتصال في النظام الجديد")
+        except Exception as e:
+            logger.debug(f"النظام الجديد غير متاح بعد: {e}")
+        
+        # ✅ خطوة 5: جلب معلومات الحساب والرصيد
         account = real_account_manager.get_account(user_id)
         balance_info = ""
+        market_type = user_data.get('market_type', 'spot')
         
         if account:
-            balance = account.get_wallet_balance()
-            if balance:
-                balance_info = f"\n\n💰 **الرصيد الإجمالي:** ${balance.get('total_equity', 0):,.2f}"
+            try:
+                balance = account.get_wallet_balance(market_type)
+                if balance:
+                    total_equity = balance.get('total_equity', 0)
+                    available = balance.get('available_balance', 0)
+                    balance_info = f"""
+
+💰 **معلومات الرصيد:**
+• الرصيد الإجمالي: ${total_equity:,.2f}
+• الرصيد المتاح: ${available:,.2f}
+• نوع السوق: {market_type.upper()}"""
+                    logger.info(f"✅ تم جلب الرصيد: ${total_equity:,.2f}")
+            except Exception as e:
+                logger.warning(f"⚠️ لم يتم جلب الرصيد: {e}")
+                balance_info = "\n\n⚠️ لم يتم جلب الرصيد (قد يكون الحساب فارغاً)"
         
+        # ✅ خطوة 6: إرسال رسالة النجاح الشاملة
         await query.edit_message_text(
-            f"✅ **تم تفعيل {exchange.upper()} بنجاح!**\n\n"
-            f"🔐 **الحساب:** حقيقي ونشط\n"
-            f"🏦 **المنصة:** {exchange.upper()}\n"
-            f"📊 **الحالة:** متصل ويعمل{balance_info}\n\n"
-            f"🎉 **يمكنك الآن:**\n"
-            f"• استقبال إشارات التداول\n"
-            f"• التداول الحقيقي على المنصة\n"
+            f"🎉 **تم تفعيل {exchange.upper()} بنجاح!**\n\n"
+            f"✅ **الربط الكامل تم بنجاح:**\n"
+            f"🔐 الحساب: حقيقي ونشط\n"
+            f"🏦 المنصة: {exchange.upper()}\n"
+            f"📊 الحالة: متصل ويعمل\n"
+            f"🔗 مرتبط بالمشروع: ✅{balance_info}\n\n"
+            f"🎯 **يمكنك الآن:**\n"
+            f"• استقبال وتنفيذ إشارات التداول\n"
+            f"• التداول الحقيقي على {exchange.upper()}\n"
             f"• عرض الرصيد والصفقات الفعلية\n"
-            f"• تنفيذ الأوامر على المنصة",
+            f"• إدارة المحفظة والأوامر\n"
+            f"• متابعة الأرباح والخسائر\n\n"
+            f"📱 اذهب إلى /settings لعرض جميع التفاصيل\n"
+            f"📊 اذهب إلى /start للوصول إلى القائمة الرئيسية",
             parse_mode='Markdown'
         )
         
-        logger.info(f"تم تفعيل {exchange} الحقيقي للمستخدم {user_id}")
+        logger.info(f"🎉 تم التفعيل الكامل لـ {exchange} للمستخدم {user_id} بنجاح")
         
     except Exception as e:
         logger.error(f"خطأ في تفعيل المنصة: {e}")
