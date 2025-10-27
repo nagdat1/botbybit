@@ -108,26 +108,40 @@ async def handle_exchange_selection(update: Update, context: ContextTypes.DEFAUL
 
 async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض خيارات إعداد Bybit مع معلومات الحساب"""
-    # التحقق من وجود callback_query
-    query = update.callback_query
-    if not query:
-        logger.error("❌ لا يوجد callback_query في update")
-        return
-    
-    # إجابة الاستعلام فوراً
-    await query.answer()
-    
-    # التحقق من وجود effective_user
-    if not update.effective_user:
-        logger.error("❌ لا يوجد effective_user في update")
-        return
-    
-    user_id = update.effective_user.id
+    # تهيئة المتغيرات الافتراضية
+    user_data = {}
+    has_bybit_keys = False
+    current_exchange = ''
+    account_type = 'demo'
+    is_active = False
+    user_id = None
     
     try:
+        # التحقق من وجود callback_query
+        query = update.callback_query
+        if not query:
+            logger.error("❌ لا يوجد callback_query في update")
+            return
         
-        from users.user_manager import user_manager
-        user_data = user_manager.get_user(user_id)
+        # إجابة الاستعلام فوراً
+        await query.answer()
+        
+        # التحقق من وجود effective_user
+        if not update.effective_user:
+            logger.error("❌ لا يوجد effective_user في update")
+            return
+        
+        user_id = update.effective_user.id
+        logger.info(f"🔄 معالجة زر Bybit للمستخدم {user_id}")
+        
+        # جلب بيانات المستخدم
+        try:
+            from users.user_manager import user_manager
+            user_data = user_manager.get_user(user_id)
+            logger.info(f"✅ تم جلب بيانات المستخدم: {user_id}")
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب بيانات المستخدم من user_manager: {e}", exc_info=True)
+            user_data = {}
         
         # التحقق من أن user_data موجود
         if not user_data:
@@ -135,7 +149,6 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
             user_data = {}
         
         # التحقق من وجود API Keys
-        has_bybit_keys = False
         if user_data:
             bybit_key = user_data.get('bybit_api_key', '')
             default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
@@ -147,13 +160,15 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         is_active = current_exchange == 'bybit' and account_type == 'real'
         
     except Exception as e:
-        logger.error(f"❌ خطأ في جلب بيانات المستخدم: {e}", exc_info=True)
-        # استخدام قيم افتراضية
+        logger.error(f"❌ خطأ في show_bybit_options: {e}", exc_info=True)
+        # استخدام القيم الافتراضية
         user_data = {}
         has_bybit_keys = False
         current_exchange = ''
         account_type = 'demo'
         is_active = False
+        if user_id is None and update.effective_user:
+            user_id = update.effective_user.id
     
     # تحديد حالة API
     if is_active and has_bybit_keys:
