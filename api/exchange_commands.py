@@ -597,24 +597,11 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                         balance_info += "• لا يوجد رصيد حالياً\n"
             
             # حفظ المفاتيح وتهيئة الحساب الحقيقي
-            from users.user_manager import user_manager
             from users.database import db_manager
             from api.bybit_api import real_account_manager
             
-            user_data = user_manager.get_user(user_id)
-            if user_data:
-                user_data['bybit_api_key'] = api_key
-                user_data['bybit_api_secret'] = api_secret
-                user_data['exchange'] = 'bybit'
-                user_data['account_type'] = 'real'  # حساب حقيقي
-                
-                # تهيئة الحساب الحقيقي فوراً
-                try:
-                    real_account_manager.initialize_account(user_id, 'bybit', api_key, api_secret)
-                    logger.info(f"✅ تم تهيئة حساب Bybit الحقيقي للمستخدم {user_id}")
-                except Exception as e:
-                    logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}")
-                
+            # حفظ مباشرة في قاعدة البيانات
+            try:
                 # حفظ في قاعدة البيانات
                 db_manager.update_user_settings(user_id, {
                     'bybit_api_key': api_key,
@@ -622,6 +609,14 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                     'exchange': 'bybit',
                     'account_type': 'real'
                 })
+                logger.info(f"✅ تم حفظ مفاتيح API في قاعدة البيانات للمستخدم {user_id}")
+                
+                # تهيئة الحساب الحقيقي فوراً
+                try:
+                    real_account_manager.initialize_account(user_id, 'bybit', api_key, api_secret)
+                    logger.info(f"✅ تم تهيئة حساب Bybit الحقيقي للمستخدم {user_id}")
+                except Exception as e:
+                    logger.error(f"⚠️ خطأ في تهيئة الحساب: {e}", exc_info=True)
                 
                 # إرسال رسالة نجاح مع معلومات الحساب
                 await update.message.reply_text(
@@ -631,10 +626,17 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                     parse_mode='Markdown'
                 )
                 
-                logger.info(f"تم حفظ مفاتيح Bybit الحقيقية للمستخدم {user_id}")
+                logger.info(f"✅ تم حفظ مفاتيح Bybit الحقيقية للمستخدم {user_id}")
                 return True
-            
-            return False
+                
+            except Exception as e:
+                logger.error(f"❌ فشل حفظ مفاتيح API: {e}", exc_info=True)
+                await update.message.reply_text(
+                    f"❌ **فشل في حفظ البيانات**\n\n"
+                    f"حدث خطأ أثناء حفظ المفاتيح\n"
+                    f"يرجى المحاولة مرة أخرى"
+                )
+                return False
             
         except requests.exceptions.RequestException as e:
             await update.message.reply_text(
