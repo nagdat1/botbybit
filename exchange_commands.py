@@ -173,7 +173,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # جلب معلومات الرصيد إذا كان مفعّل
     balance_text = ""
     if is_active and has_bybit_keys:
-        from real_account_manager import real_account_manager
+        from api.bybit_api import real_account_manager
         real_account = real_account_manager.get_account(user_id)
         if real_account:
             try:
@@ -267,7 +267,7 @@ async def show_mexc_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # جلب معلومات الرصيد إذا كان مفعّل
     balance_text = ""
     if is_active and has_mexc_keys:
-        from real_account_manager import real_account_manager
+        from api.bybit_api import real_account_manager
         real_account = real_account_manager.get_account(user_id)
         if real_account:
             try:
@@ -569,7 +569,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             # حفظ المفاتيح وتهيئة الحساب الحقيقي
             from user_manager import user_manager
             from database import db_manager
-            from real_account_manager import real_account_manager
+            from api.bybit_api import real_account_manager
             
             user_data = user_manager.get_user(user_id)
             if user_data:
@@ -661,7 +661,7 @@ async def test_and_save_mexc_keys(user_id: int, api_key: str, api_secret: str, u
         
         # حفظ المفاتيح وتهيئة الحساب الحقيقي
         from user_manager import user_manager
-        from real_account_manager import real_account_manager
+        from api.bybit_api import real_account_manager
         
         user_data = user_manager.get_user(user_id)
         if user_data:

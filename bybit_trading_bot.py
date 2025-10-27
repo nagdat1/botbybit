@@ -30,7 +30,7 @@ from config import *
 
 # استيراد النظام المحسن
 try:
-    from simple_enhanced_system import SimpleEnhancedSystem
+    from systems.simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
     print("✅ النظام المحسن متاح في bybit_trading_bot.py")
 except ImportError as e:
@@ -48,12 +48,12 @@ except ImportError as e:
 
 # استيراد إدارة المستخدمين وقاعدة البيانات
 from database import db_manager
-from enhanced_portfolio_manager import portfolio_factory
+from systems.enhanced_portfolio_manager import portfolio_factory
 from user_manager import user_manager
 
 # استيراد نظام المطورين
-from developer_manager import developer_manager
-import init_developers
+from developers.developer_manager import developer_manager
+import developers.init_developers
 
 # إعداد التسجيل
 logging.basicConfig(
@@ -3830,15 +3830,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         exchange = user_data.get('exchange', '')
         
         if account_type == 'real' and exchange:
-            from real_account_manager import real_account_manager
+            from api.bybit_api import real_account_manager
             
             # التحقق من وجود المفاتيح
             if exchange == 'bybit':
                 api_key = user_data.get('bybit_api_key', '')
                 api_secret = user_data.get('bybit_api_secret', '')
-            elif exchange == 'mexc':
-                api_key = user_data.get('mexc_api_key', '')
-                api_secret = user_data.get('mexc_api_secret', '')
             else:
                 api_key = ''
                 api_secret = ''
@@ -3859,7 +3856,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🚀 **ما يفعله البوت:**
 • تنفيذ إشارات التداول تلقائياً من TradingView
-• دعم منصات متعددة (Bybit & MEXC)
+• دعم منصة Bybit
 • تداول ذكي مع إدارة مخاطر متقدمة
 • إحصائيات مفصلة ومتابعة الصفقات
 
@@ -3955,7 +3952,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 رابط التلجرام: [@nagdatbasheer](https://t.me/nagdatbasheer)
 
 🚀 **عن البوت:**
-هذا بوت تداول ذكي متطور مصمم لتنفيذ إشاراتك التداولية تلقائياً. يعمل مع منصات التداول الكبرى مثل Bybit و MEXC، ويوفر لك تجربة تداول سلسة وآمنة.
+هذا بوت تداول ذكي متطور مصمم لتنفيذ إشاراتك التداولية تلقائياً. يعمل مع منصة Bybit، ويوفر لك تجربة تداول سلسة وآمنة.
 
 ✨ **المميزات الرئيسية:**
 • تنفيذ فوري للإشارات من TradingView
@@ -4795,7 +4792,6 @@ def check_risk_management(user_id: int, trade_result: dict) -> dict:
             # للحساب الحقيقي، نحصل على الرصيد من المنصات المرتبطة
             total_balance = 0
             bybit_connected = user_data.get('bybit_api_connected', False)
-            mexc_connected = user_data.get('mexc_api_connected', False)
             
             if bybit_connected:
                 try:
@@ -4803,15 +4799,6 @@ def check_risk_management(user_id: int, trade_result: dict) -> dict:
                     if bybit_account:
                         bybit_info = bybit_account.get_account_info()
                         total_balance += bybit_info.get('balance', 0)
-                except:
-                    pass
-            
-            if mexc_connected:
-                try:
-                    mexc_account = user_manager.get_user_account(user_id, 'mexc')
-                    if mexc_account:
-                        mexc_info = mexc_account.get_account_info()
-                        total_balance += mexc_info.get('balance', 0)
                 except:
                     pass
         
@@ -5463,7 +5450,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # بناء القائمة الأساسية
     keyboard = [
-        [InlineKeyboardButton("🏦 اختيار المنصة (Bybit/MEXC)", callback_data="select_exchange")],
+        [InlineKeyboardButton("🏦 اختيار المنصة (Bybit)", callback_data="select_exchange")],
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]
@@ -5502,7 +5489,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"🔴 جلب بيانات الحساب الحقيقي من {exchange.upper()} للمستخدم {user_id}")
         
         try:
-            from real_account_manager import real_account_manager
+            from api.bybit_api import real_account_manager
             
             real_account = real_account_manager.get_account(user_id)
             
@@ -5572,10 +5559,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from config import BYBIT_API_KEY
         default_key = BYBIT_API_KEY if BYBIT_API_KEY else ''
         is_linked = api_key and api_key != default_key and len(api_key) > 10
-    elif exchange == 'mexc':
-        api_key = user_data.get('mexc_api_key', '')
-        api_secret = user_data.get('mexc_api_secret', '')
-        is_linked = api_key and api_key != '' and len(api_key) > 10
     else:
         is_linked = False
     
@@ -5664,20 +5647,14 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # التحقق من المنصات المرتبطة
             bybit_connected = user_data.get('bybit_api_connected', False)
-            mexc_connected = user_data.get('mexc_api_connected', False)
             
             if bybit_connected:
                 status_message += "🏦 Bybit: 🟢 متصل ✅\n"
             else:
                 status_message += "🏦 Bybit: 🔴 غير متصل ❌\n"
             
-            if mexc_connected:
-                status_message += "🏦 MEXC: 🟢 متصل ✅\n"
-            else:
-                status_message += "🏦 MEXC: 🔴 غير متصل ❌\n"
-            
             # معلومات API
-            if bybit_connected or mexc_connected:
+            if bybit_connected:
                 status_message += f"""
 📡 **معلومات API:**
 🔑 API Keys: {'🟢 مفعلة' if user_data.get('api_connected', False) else '🔴 معطلة'}
@@ -7220,7 +7197,7 @@ async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # إذا كان حساب حقيقي، جلب التاريخ من المنصة
         if account_type == 'real':
-            from real_account_manager import real_account_manager
+            from api.bybit_api import real_account_manager
             
             real_account = real_account_manager.get_account(user_id)
             
@@ -7428,7 +7405,6 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # التحقق من المنصات المرتبطة
             bybit_connected = user_data.get('bybit_api_connected', False)
-            mexc_connected = user_data.get('mexc_api_connected', False)
             
             total_real_balance = 0
             total_real_available = 0
@@ -7457,29 +7433,7 @@ async def wallet_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.error(f"خطأ في جلب بيانات Bybit: {e}")
                     wallet_message += "\n🏦 **Bybit:** ❌ خطأ في الاتصال\n"
             
-            if mexc_connected:
-                try:
-                    # الحصول على بيانات MEXC
-                    mexc_account = user_manager.get_user_account(user_id, 'mexc')
-                    if mexc_account:
-                        mexc_info = mexc_account.get_account_info()
-                        total_real_balance += mexc_info.get('balance', 0)
-                        total_real_available += mexc_info.get('available_balance', 0)
-                        total_real_pnl += mexc_info.get('unrealized_pnl', 0)
-                        total_real_positions += mexc_info.get('open_positions', 0)
-                        
-                        wallet_message += f"""
-🏦 **MEXC:**
-💳 الرصيد: {mexc_info.get('balance', 0):.2f} USDT
-💳 المتاح: {mexc_info.get('available_balance', 0):.2f} USDT
-📈 PnL: {mexc_info.get('unrealized_pnl', 0):.2f} USDT
-🔄 الصفقات: {mexc_info.get('open_positions', 0)}
-                        """
-                except Exception as e:
-                    logger.error(f"خطأ في جلب بيانات MEXC: {e}")
-                    wallet_message += "\n🏦 **MEXC:** ❌ خطأ في الاتصال\n"
-            
-            if not bybit_connected and not mexc_connected:
+            if not bybit_connected:
                 wallet_message += "\n⚠️ **لا توجد منصات مرتبطة**\n"
                 wallet_message += "اذهب إلى الإعدادات لربط حسابك الحقيقي\n"
             else:
@@ -7681,27 +7635,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_bybit_options(update, context)
         return
     
-    if data == "exchange_select_mexc":
-        from exchange_commands import show_mexc_options
-        await show_mexc_options(update, context)
-        return
     
     if data == "exchange_setup_bybit":
         from exchange_commands import start_bybit_setup
         await start_bybit_setup(update, context)
         return
     
-    if data == "exchange_setup_mexc":
-        from exchange_commands import start_mexc_setup
-        await start_mexc_setup(update, context)
-        return
-    
-    if data == "exchange_activate_bybit" or data == "exchange_activate_mexc":
+    if data == "exchange_activate_bybit":
         from exchange_commands import activate_exchange
         await activate_exchange(update, context)
         return
     
-    if data == "exchange_test_bybit" or data == "exchange_test_mexc":
+    if data == "exchange_test_bybit":
         from exchange_commands import test_exchange_connection
         await test_exchange_connection(update, context)
         return
@@ -8679,7 +8624,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("❌ فشل في المتابعة")
             return
     
-    # معالجة إدخال مفاتيح المنصات (Bybit/MEXC)
+    # معالجة إدخال مفاتيح المنصة (Bybit)
     if context.user_data.get('awaiting_exchange_keys'):
         from exchange_commands import handle_api_keys_input
         await handle_api_keys_input(update, context)

@@ -1,10 +1,9 @@
 [build]
-builder = "dockerfile"
-dockerfilePath = "./Dockerfile"
+builder = "nixpacks"
 
 [deploy]
-startCommand = "python run_with_server.py"
-restartPolicyType = "never"
+startCommand = "python app.py"
+restartPolicyType = "on_failure"
 
 [env]
 PORT = "5000"

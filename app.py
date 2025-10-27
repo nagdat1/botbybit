@@ -37,7 +37,7 @@ try:
     print("✅ النظام المحسن الكامل متاح")
 except ImportError as e:
     try:
-        from simple_enhanced_system import SimpleEnhancedSystem
+        from systems.simple_enhanced_system import SimpleEnhancedSystem
         ENHANCED_SYSTEM_AVAILABLE = True
         print("✅ النظام المحسن المبسط متاح")
     except ImportError as e2:
@@ -305,7 +305,7 @@ def start_bot():
             application.add_handler(CallbackQueryHandler(handle_callback))
             application.add_error_handler(error_handler)
             
-            # إضافة معالجات أوامر المنصات (Bybit & MEXC)
+            # إضافة معالجات أوامر المنصات (Bybit)
             try:
                 from exchange_commands import register_exchange_handlers
                 register_exchange_handlers(application)

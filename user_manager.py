@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # استيراد النظام المحسن
 try:
-    from simple_enhanced_system import SimpleEnhancedSystem
+    from systems.simple_enhanced_system import SimpleEnhancedSystem
     ENHANCED_SYSTEM_AVAILABLE = True
     print("✅ النظام المحسن متاح في user_manager.py")
 except ImportError as e:

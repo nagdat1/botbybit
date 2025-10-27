@@ -19,11 +19,6 @@ BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "")
 BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "")
 BYBIT_BASE_URL = "https://api.bybit.com"
 
-# إعدادات MEXC API
-# ملاحظة: MEXC تدعم التداول الفوري (Spot) فقط عبر API - لا يوجد دعم للفيوتشر
-MEXC_API_KEY = os.getenv('MEXC_API_KEY', "")
-MEXC_API_SECRET = os.getenv('MEXC_API_SECRET', "")
-MEXC_BASE_URL = "https://api.mexc.com"
 
 # إعدادات Webhook
 # Use Railway's provided URL if available, otherwise use ngrok or localhost
@@ -50,7 +45,7 @@ WEBHOOK_PORT = PORT  # Use Railway's PORT
 DEFAULT_SETTINGS = {
     'account_type': 'demo',          # demo أو real
     'market_type': 'spot',           # spot أو futures
-    'exchange': 'bybit',             # bybit أو mexc
+    'exchange': 'bybit',
     'trade_amount': 20.0,            # مبلغ التداول الافتراضي (الحد الأدنى 20 USDT للتأكد)
     'leverage': 10,                  # الرافعة المالية للفيوتشر (Bybit فقط)
     'profit_plan': 'trailing',       # trailing أو multi_tp
