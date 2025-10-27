@@ -2044,15 +2044,9 @@ class TradingBot:
             # جمع جميع الصفقات من المصادر المختلفة
             all_positions = {}
             
-            # إضافة الصفقات من trading_bot.open_positions
+            # إضافة الصفقات من trading_bot.open_positions فقط
+            # لا نستخدم user_manager هنا لأن له نظامه الخاص
             all_positions.update(self.open_positions)
-            
-            # إضافة صفقات جميع المستخدمين من user_manager
-            from users.user_manager import user_manager
-            # التحقق من أن user_manager ليس None وله user_positions
-            if user_manager is not None and hasattr(user_manager, 'user_positions'):
-                for user_id, user_positions in user_manager.user_positions.items():
-                    all_positions.update(user_positions)
             
             if not all_positions:
                 return
@@ -2104,26 +2098,6 @@ class TradingBot:
                             pnl_percent = ((entry_price - current_price) / entry_price) * 100
                         
                         position_info['pnl_percent'] = pnl_percent
-                
-                # تحديث صفقات المستخدمين في user_manager
-                if user_manager is not None and hasattr(user_manager, 'user_positions'):
-                    for user_id, user_positions in user_manager.user_positions.items():
-                        for position_id, position_info in user_positions.items():
-                            symbol = position_info['symbol']
-                            if symbol in current_prices:
-                                position_info['current_price'] = current_prices[symbol]
-                                
-                                # حساب الربح/الخسارة
-                                entry_price = position_info['entry_price']
-                                current_price = current_prices[symbol]
-                                side = position_info['side']
-                                
-                                if side.lower() == "buy":
-                                    pnl_percent = ((current_price - entry_price) / entry_price) * 100
-                                else:
-                                    pnl_percent = ((entry_price - current_price) / entry_price) * 100
-                                
-                                position_info['pnl_percent'] = pnl_percent
                         
         except Exception as e:
             logger.error(f"خطأ في تحديث أسعار الصفقات: {e}")
