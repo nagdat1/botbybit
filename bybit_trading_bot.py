@@ -5432,6 +5432,10 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
     
+    # إضافة زر إعادة تشغيل البوت للمطور/الأدمن فقط
+    if user_id == ADMIN_USER_ID:
+        keyboard.append([InlineKeyboardButton("🔄 إعادة تشغيل البوت", callback_data="restart_bot")])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # الحصول على معلومات حساب المستخدم
@@ -7926,6 +7930,49 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 if update.callback_query is not None:
                     await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
+    
+    if data == "restart_bot":
+        # التحقق من أن المستخدم هو الأدمن
+        if user_id == ADMIN_USER_ID:
+            logger.warning(f"🔄 طلب إعادة تشغيل البوت من المستخدم {user_id}")
+            
+            if update.callback_query is not None:
+                await update.callback_query.answer("جاري إعادة تشغيل البوت...")
+                await update.callback_query.edit_message_text(
+                    "🔄 **جاري إعادة تشغيل البوت...**\n\n"
+                    "⏳ انتظر لحظات...\n"
+                    "✅ سيتم تحديث البوت تلقائياً\n\n"
+                    "💡 **ملاحظة:** قد يستغرق هذا 10-15 ثانية",
+                    parse_mode='Markdown'
+                )
+            
+            # إرسال إشعار للوغ
+            logger.warning("⚠️ بدء إعادة تشغيل البوت...")
+            
+            # إعادة تشغيل البوت
+            import sys
+            import os
+            
+            try:
+                # حفظ جميع البيانات قبل الإعادة
+                logger.info("💾 حفظ البيانات قبل إعادة التشغيل...")
+                
+                # إعادة تشغيل العملية
+                logger.info("🔄 إعادة تشغيل العملية...")
+                python = sys.executable
+                os.execl(python, python, *sys.argv)
+            except Exception as e:
+                logger.error(f"❌ خطأ في إعادة التشغيل: {e}")
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text(
+                        f"❌ **فشل في إعادة التشغيل**\n\n"
+                        f"الخطأ: {str(e)}\n\n"
+                        f"💡 يُرجى إعادة تشغيل البوت يدوياً",
+                        parse_mode='Markdown'
+                    )
+        else:
+            if update.callback_query is not None:
+                await update.callback_query.answer("⚠️ هذه الميزة للمطورين فقط!", show_alert=True)
     if data == "info":
         info_text = """
 ℹ️ معلومات البوت
