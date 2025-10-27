@@ -113,10 +113,20 @@ async def handle_exchange_selection(update: Update, context: ContextTypes.DEFAUL
 
 async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض خيارات إعداد Bybit مع معلومات الحساب"""
+    # التحقق من وجود callback_query
     query = update.callback_query
+    if not query:
+        logger.error("❌ لا يوجد callback_query في update")
+        return
+    
+    # التحقق من وجود effective_user
+    if not update.effective_user:
+        logger.error("❌ لا يوجد effective_user في update")
+        return
+    
+    user_id = update.effective_user.id
     
     try:
-        user_id = update.effective_user.id
         
         from users.user_manager import user_manager
         user_data = user_manager.get_user(user_id)
@@ -139,7 +149,7 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
         is_active = current_exchange == 'bybit' and account_type == 'real'
         
     except Exception as e:
-        logger.error(f"❌ خطأ في جلب بيانات المستخدم: {e}")
+        logger.error(f"❌ خطأ في جلب بيانات المستخدم: {e}", exc_info=True)
         # استخدام قيم افتراضية
         user_data = {}
         has_bybit_keys = False
@@ -160,9 +170,10 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # جلب معلومات الرصيد إذا كان مفعّل
     balance_text = ""
-    if is_active and has_bybit_keys:
-        from api.bybit_api import real_account_manager
-        real_account = real_account_manager.get_account(user_id)
+    try:
+        if is_active and has_bybit_keys:
+            from api.bybit_api import real_account_manager
+            real_account = real_account_manager.get_account(user_id)
         if real_account:
             try:
                 balance = real_account.get_wallet_balance()
@@ -171,6 +182,9 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     balance_text = f"\n💰 **الرصيد:** ${total_equity:,.2f}"
             except Exception as e:
                 logger.error(f"خطأ في جلب الرصيد: {e}")
+    except Exception as e:
+        logger.error(f"❌ خطأ في جلب معلومات الحساب: {e}")
+        balance_text = ""
     
     # رسالة خاصة إذا لم يتم العثور على بيانات المستخدم
     if not user_data or user_data == {}:
