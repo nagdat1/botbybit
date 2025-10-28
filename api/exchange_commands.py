@@ -808,6 +808,39 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
             
             # حفظ مباشرة في قاعدة البيانات مع التفعيل التلقائي
             try:
+                # ✅ خطوة 0: التأكد من وجود المستخدم في قاعدة البيانات
+                logger.info(f"🔍 التحقق من وجود المستخدم {user_id} في قاعدة البيانات")
+                existing_user = db_manager.get_user(user_id)
+                
+                if not existing_user:
+                    logger.info(f"🆕 المستخدم {user_id} غير موجود - سيتم إنشاؤه")
+                    # إنشاء المستخدم أولاً
+                    create_success = db_manager.create_user(user_id)
+                    if not create_success:
+                        logger.error(f"❌ فشل في إنشاء المستخدم {user_id}")
+                        await update.message.reply_text(
+                            "❌ **فشل في إنشاء حساب المستخدم**\n\n"
+                            "حدث خطأ في قاعدة البيانات\n"
+                            "يرجى المحاولة مرة أخرى",
+                            parse_mode='Markdown'
+                        )
+                        return False
+                    
+                    # التحقق من الإنشاء
+                    existing_user = db_manager.get_user(user_id)
+                    if not existing_user:
+                        logger.error(f"❌ فشل في التحقق من إنشاء المستخدم {user_id}")
+                        await update.message.reply_text(
+                            "❌ **فشل في تأكيد إنشاء الحساب**\n\n"
+                            "يرجى المحاولة مرة أخرى",
+                            parse_mode='Markdown'
+                        )
+                        return False
+                    
+                    logger.info(f"✅ تم إنشاء المستخدم {user_id} بنجاح")
+                else:
+                    logger.info(f"✅ المستخدم {user_id} موجود في قاعدة البيانات")
+                
                 # ✅ خطوة 1: حفظ في قاعدة البيانات وتفعيل المنصة
                 # حفظ المفاتيح والإعدادات الأساسية
                 logger.info(f"💾 محاولة حفظ مفاتيح Bybit للمستخدم {user_id}")
@@ -820,7 +853,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 }
                 logger.debug(f"البيانات للحفظ: exchange={data_to_save['exchange']}, is_active={data_to_save['is_active']}")
                 
-                # update_user_data will now auto-create the user if they don't exist
+                # الآن المستخدم موجود بالتأكيد
                 save_result = db_manager.update_user_data(user_id, data_to_save)
                 
                 if not save_result:
@@ -828,7 +861,7 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                     logger.error(f"تفاصيل: update_user_data returned False")
                     await update.message.reply_text(
                         "❌ **فشل في حفظ البيانات**\n\n"
-                        "حدث خطأ في قاعدة البيانات\n"
+                        "حدث خطأ أثناء حفظ المفاتيح\n"
                         "يرجى المحاولة مرة أخرى",
                         parse_mode='Markdown'
                     )
@@ -858,14 +891,32 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 logger.info(f"✅ تم حفظ وتفعيل مفاتيح API للمستخدم {user_id}")
                 
                 # ✅ خطوة 2: تحديث بيانات المستخدم في الذاكرة
-                user_data = user_manager.get_user(user_id)
-                if user_data:
-                    user_data['bybit_api_key'] = api_key
-                    user_data['bybit_api_secret'] = api_secret
-                    user_data['exchange'] = 'bybit'
-                    user_data['account_type'] = 'real'
-                    user_data['is_active'] = True
-                    logger.info(f"✅ تم تحديث بيانات المستخدم {user_id} في الذاكرة")
+                # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+                logger.info(f"🔄 إعادة تحميل بيانات المستخدم {user_id} من قاعدة البيانات")
+                fresh_user_data = db_manager.get_user(user_id)
+                
+                if fresh_user_data:
+                    # تحديث في user_manager
+                    if user_id in user_manager.users:
+                        user_manager.users[user_id] = fresh_user_data
+                        logger.info(f"✅ تم تحديث المستخدم {user_id} في user_manager")
+                    else:
+                        # إضافة المستخدم إلى user_manager
+                        user_manager.users[user_id] = fresh_user_data
+                        # إنشاء حسابات تجريبية للمستخدم
+                        user_manager._create_user_accounts(user_id, fresh_user_data)
+                        logger.info(f"✅ تم إضافة المستخدم {user_id} إلى user_manager")
+                    
+                    # التحقق من التحديث
+                    updated_user = user_manager.get_user(user_id)
+                    if updated_user:
+                        logger.info(f"✅ تأكيد: المستخدم {user_id} محدّث في الذاكرة")
+                        logger.debug(f"   - exchange: {updated_user.get('exchange')}")
+                        logger.debug(f"   - bybit_api_key: {'موجود' if updated_user.get('bybit_api_key') else 'غير موجود'}")
+                    else:
+                        logger.warning(f"⚠️ فشل في التحقق من تحديث المستخدم {user_id}")
+                else:
+                    logger.error(f"❌ فشل في إعادة تحميل بيانات المستخدم {user_id}")
                 
                 # ✅ خطوة 3: تهيئة الحساب الحقيقي فوراً
                 try:
@@ -974,13 +1025,41 @@ async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str,
         from api.bybit_api import real_account_manager
         
         try:
-            # التأكد من وجود المستخدم في قاعدة البيانات
+            # ✅ خطوة 0: التأكد من وجود المستخدم في قاعدة البيانات
+            logger.info(f"🔍 التحقق من وجود المستخدم {user_id} في قاعدة البيانات")
             existing_user = db_manager.get_user(user_id)
-            if not existing_user:
-                logger.info(f"إنشاء مستخدم جديد: {user_id}")
-                db_manager.create_user(user_id)
             
-            # حفظ في قاعدة البيانات - استخدام update_user_data للمفاتيح
+            if not existing_user:
+                logger.info(f"🆕 المستخدم {user_id} غير موجود - سيتم إنشاؤه")
+                # إنشاء المستخدم أولاً
+                create_success = db_manager.create_user(user_id)
+                if not create_success:
+                    logger.error(f"❌ فشل في إنشاء المستخدم {user_id}")
+                    await update.message.reply_text(
+                        "❌ **فشل في إنشاء حساب المستخدم**\n\n"
+                        "حدث خطأ في قاعدة البيانات\n"
+                        "يرجى المحاولة مرة أخرى",
+                        parse_mode='Markdown'
+                    )
+                    return False
+                
+                # التحقق من الإنشاء
+                existing_user = db_manager.get_user(user_id)
+                if not existing_user:
+                    logger.error(f"❌ فشل في التحقق من إنشاء المستخدم {user_id}")
+                    await update.message.reply_text(
+                        "❌ **فشل في تأكيد إنشاء الحساب**\n\n"
+                        "يرجى المحاولة مرة أخرى",
+                        parse_mode='Markdown'
+                    )
+                    return False
+                
+                logger.info(f"✅ تم إنشاء المستخدم {user_id} بنجاح")
+            else:
+                logger.info(f"✅ المستخدم {user_id} موجود في قاعدة البيانات")
+            
+            # ✅ خطوة 1: حفظ في قاعدة البيانات - استخدام update_user_data للمفاتيح
+            logger.info(f"💾 محاولة حفظ مفاتيح Bitget للمستخدم {user_id}")
             save_result = db_manager.update_user_data(user_id, {
                 'bitget_api_key': api_key,
                 'bitget_api_secret': api_secret,
@@ -992,30 +1071,54 @@ async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str,
                 logger.error(f"❌ فشل في حفظ بيانات المستخدم {user_id}")
                 await update.message.reply_text(
                     "❌ **فشل في حفظ البيانات**\n\n"
-                    "حدث خطأ في قاعدة البيانات\n"
+                    "حدث خطأ أثناء حفظ المفاتيح\n"
                     "يرجى المحاولة مرة أخرى",
                     parse_mode='Markdown'
                 )
                 return False
             
-            # حفظ إعدادات التداول
+            logger.info(f"✅ نجح حفظ مفاتيح Bitget في قاعدة البيانات")
+            
+            # ✅ خطوة 2: حفظ إعدادات التداول
+            logger.info(f"💾 محاولة حفظ إعدادات التداول للمستخدم {user_id}")
             settings_result = db_manager.update_user_settings(user_id, {
                 'account_type': 'real'
             })
             
             if not settings_result:
                 logger.warning(f"⚠️ فشل في حفظ إعدادات التداول للمستخدم {user_id}")
+            else:
+                logger.info(f"✅ نجح حفظ إعدادات التداول")
             
             logger.info(f"✅ تم حفظ وتفعيل مفاتيح Bitget للمستخدم {user_id}")
             
-            # تحديث الذاكرة
-            user_data = user_manager.get_user(user_id)
-            if user_data:
-                user_data['bitget_api_key'] = api_key
-                user_data['bitget_api_secret'] = api_secret
-                user_data['exchange'] = 'bitget'
-                user_data['account_type'] = 'real'
-                user_data['is_active'] = True
+            # ✅ خطوة 3: تحديث بيانات المستخدم في الذاكرة
+            # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+            logger.info(f"🔄 إعادة تحميل بيانات المستخدم {user_id} من قاعدة البيانات")
+            fresh_user_data = db_manager.get_user(user_id)
+            
+            if fresh_user_data:
+                # تحديث في user_manager
+                if user_id in user_manager.users:
+                    user_manager.users[user_id] = fresh_user_data
+                    logger.info(f"✅ تم تحديث المستخدم {user_id} في user_manager")
+                else:
+                    # إضافة المستخدم إلى user_manager
+                    user_manager.users[user_id] = fresh_user_data
+                    # إنشاء حسابات تجريبية للمستخدم
+                    user_manager._create_user_accounts(user_id, fresh_user_data)
+                    logger.info(f"✅ تم إضافة المستخدم {user_id} إلى user_manager")
+                
+                # التحقق من التحديث
+                updated_user = user_manager.get_user(user_id)
+                if updated_user:
+                    logger.info(f"✅ تأكيد: المستخدم {user_id} محدّث في الذاكرة")
+                    logger.debug(f"   - exchange: {updated_user.get('exchange')}")
+                    logger.debug(f"   - bitget_api_key: {'موجود' if updated_user.get('bitget_api_key') else 'غير موجود'}")
+                else:
+                    logger.warning(f"⚠️ فشل في التحقق من تحديث المستخدم {user_id}")
+            else:
+                logger.error(f"❌ فشل في إعادة تحميل بيانات المستخدم {user_id}")
             
             # رسالة نجاح
             await update.message.reply_text(

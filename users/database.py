@@ -218,8 +218,10 @@ class DatabaseManager:
                 
                 # التحقق من وجود المستخدم
                 cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-                if cursor.fetchone():
-                    return False  # المستخدم موجود بالفعل
+                existing = cursor.fetchone()
+                if existing:
+                    logger.info(f"المستخدم {user_id} موجود بالفعل")
+                    return True  # نعتبرها نجاحاً لأن المستخدم موجود
                 
                 # إنشاء المستخدم الجديد
                 cursor.execute("""
@@ -234,11 +236,20 @@ class DatabaseManager:
                 """, (user_id,))
                 
                 conn.commit()
-                logger.info(f"تم إنشاء مستخدم جديد: {user_id}")
-                return True
+                
+                # التحقق من الإنشاء
+                cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+                if cursor.fetchone():
+                    logger.info(f"✅ تم إنشاء مستخدم جديد بنجاح: {user_id}")
+                    return True
+                else:
+                    logger.error(f"❌ فشل التحقق من إنشاء المستخدم {user_id}")
+                    return False
                 
         except Exception as e:
             logger.error(f"خطأ في إنشاء المستخدم {user_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     def get_user(self, user_id: int) -> Optional[Dict]:
@@ -429,12 +440,24 @@ class DatabaseManager:
                 # التحقق من وجود المستخدم أولاً
                 cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
                 if not cursor.fetchone():
-                    logger.error(f"❌ المستخدم {user_id} غير موجود في قاعدة البيانات - سيتم إنشاؤه")
+                    logger.warning(f"⚠️ المستخدم {user_id} غير موجود في قاعدة البيانات - سيتم إنشاؤه")
                     # إنشاء المستخدم الجديد
-                    cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
-                    # إنشاء إعدادات افتراضية
-                    cursor.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (user_id,))
-                    conn.commit()
+                    try:
+                        cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
+                        # إنشاء إعدادات افتراضية
+                        cursor.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (user_id,))
+                        conn.commit()
+                        
+                        # التحقق من الإنشاء
+                        cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+                        if not cursor.fetchone():
+                            logger.error(f"❌ فشل في إنشاء المستخدم {user_id} داخل update_user_data")
+                            return False
+                        
+                        logger.info(f"✅ تم إنشاء المستخدم {user_id} داخل update_user_data بنجاح")
+                    except Exception as create_error:
+                        logger.error(f"❌ خطأ في إنشاء المستخدم {user_id}: {create_error}")
+                        return False
                 
                 # بناء استعلام التحديث
                 set_clauses = []
