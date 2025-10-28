@@ -108,8 +108,41 @@ def webhook():
         def process_signal_async():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(trading_bot.process_signal(data))
-            loop.close()
+            
+            try:
+                # استخدام الإعدادات الافتراضية للمستخدم 0 (الإعدادات العامة)
+                from users.user_manager import user_manager
+                from users.database import db_manager
+                
+                # الحصول على إعدادات المستخدم الافتراضي
+                user_data = user_manager.get_user(0) if user_manager else None
+                
+                if not user_data:
+                    # محاولة التحميل من قاعدة البيانات
+                    user_data = db_manager.get_user(0)
+                
+                # التحقق من نوع الحساب
+                if user_data and user_data.get('account_type') == 'real':
+                    # تنفيذ على الحساب الحقيقي باستخدام signal_executor
+                    from signals.signal_executor import signal_executor
+                    result = loop.run_until_complete(
+                        signal_executor.execute_signal(0, data, user_data)
+                    )
+                    print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
+                else:
+                    # معالجة الحساب التجريبي بالطريقة العادية
+                    loop.run_until_complete(trading_bot.process_signal(data))
+            except Exception as e:
+                print(f"❌ [APP - WEBHOOK] خطأ في معالجة الإشارة: {e}")
+                import traceback
+                traceback.print_exc()
+                # معالجة الحساب التجريبي كاحتياطي
+                try:
+                    loop.run_until_complete(trading_bot.process_signal(data))
+                except Exception as fallback_e:
+                    print(f"❌ [APP - WEBHOOK] خطأ في المعالجة الاحتياطية: {fallback_e}")
+            finally:
+                loop.close()
         
         threading.Thread(target=process_signal_async, daemon=True).start()
         

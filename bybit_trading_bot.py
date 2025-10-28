@@ -2330,7 +2330,7 @@ class TradingBot:
                     logger.warning("⚠️ فشل النظام المحسن، نعود للنظام العادي")
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
-            from signal_converter import convert_simple_signal, validate_simple_signal
+            from signals.signal_converter import convert_simple_signal, validate_simple_signal
             
             # التحقق من نوع الإشارة (جديدة أو قديمة)
             if 'signal' in signal_data and 'action' not in signal_data:
@@ -5462,6 +5462,16 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             real_account = real_account_manager.get_account(user_id)
             
+            # إذا لم يكن الحساب مهيأ، نقوم بتهيئته من قاعدة البيانات
+            if not real_account:
+                api_key = user_data.get('bybit_api_key')
+                api_secret = user_data.get('bybit_api_secret')
+                
+                if api_key and api_secret:
+                    logger.info(f"🔄 تهيئة الحساب الحقيقي من قاعدة البيانات للمستخدم {user_id}")
+                    real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+                    real_account = real_account_manager.get_account(user_id)
+            
             if real_account:
                 # تمرير نوع السوق لجلب الرصيد الصحيح (spot أو futures)
                 balance = real_account.get_wallet_balance(market_type)
@@ -5576,7 +5586,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💰 مبلغ التداول: {trade_amount}
 🏪 نوع السوق: {market_type.upper()}
-👤 نوع الحساب: {'حقيقي 🔴' if account_type == 'real' else 'تجريبي داخلي 🟢'}"""
+👤 نوع الحساب: {'🟢 حقيقي' if account_type == 'real' else '🟡 تجريبي داخلي'}"""
     
     # إضافة معلومات الرافعة المالية فقط للفيوتشر
     if market_type == 'futures':
@@ -8299,6 +8309,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+        return
     if data == "account_demo":
         trading_bot.user_settings['account_type'] = 'demo'
         # حفظ الإعدادات في قاعدة البيانات
@@ -8321,6 +8332,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if data == "webhook_url":
         # عرض رابط الإشارات الشخصي للمستخدم
+        import os
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
         render_url = os.getenv('RENDER_EXTERNAL_URL')
         

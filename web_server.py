@@ -116,7 +116,7 @@ class WebServer:
                     return jsonify({"status": "error", "message": "No data received"}), 400
                 
                 # استيراد محول الإشارات
-                from signal_converter import convert_simple_signal, validate_simple_signal
+                from signals.signal_converter import convert_simple_signal, validate_simple_signal
                 
                 # التحقق من نوع الإشارة (جديدة أو قديمة)
                 if 'signal' in data and 'action' not in data:
@@ -147,8 +147,54 @@ class WebServer:
                 def process_signal_async():
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self.trading_bot.process_signal(data))
-                    loop.close()
+                    
+                    try:
+                        # استخدام الإعدادات الافتراضية للمستخدم 0 (الإعدادات العامة)
+                        from users.user_manager import user_manager
+                        from users.database import db_manager
+                        
+                        # الحصول على إعدادات المستخدم الافتراضي
+                        user_data = user_manager.get_user(0) if user_manager else None
+                        
+                        if not user_data:
+                            # محاولة التحميل من قاعدة البيانات
+                            user_data = db_manager.get_user(0)
+                        
+                        # التحقق من نوع الحساب
+                        if user_data and user_data.get('account_type') == 'real':
+                            # تنفيذ على الحساب الحقيقي باستخدام signal_executor
+                            from signals.signal_executor import signal_executor
+                            result = loop.run_until_complete(
+                                signal_executor.execute_signal(0, data, user_data)
+                            )
+                            print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
+                            
+                            # إرسال إشعار بالنتيجة
+                            if result.get('success'):
+                                self.send_telegram_notification(
+                                    f"✅ تم تنفيذ الإشارة على الحساب الحقيقي\n\n"
+                                    f"المنصة: {user_data.get('exchange', 'N/A').upper()}\n"
+                                    f"{result.get('message', '')}",
+                                    data
+                                )
+                            else:
+                                self.send_telegram_notification(
+                                    f"❌ فشل تنفيذ الإشارة\n\n"
+                                    f"{result.get('message', 'خطأ غير معروف')}",
+                                    data
+                                )
+                        else:
+                            # معالجة الحساب التجريبي بالطريقة العادية
+                            loop.run_until_complete(self.trading_bot.process_signal(data))
+                    except Exception as e:
+                        print(f"❌ [WEB SERVER - WEBHOOK القديم] خطأ في معالجة الإشارة: {e}")
+                        # معالجة الحساب التجريبي كاحتياطي
+                        try:
+                            loop.run_until_complete(self.trading_bot.process_signal(data))
+                        except Exception as fallback_e:
+                            print(f"❌ [WEB SERVER - WEBHOOK القديم] خطأ في المعالجة الاحتياطية: {fallback_e}")
+                    finally:
+                        loop.close()
                 
                 threading.Thread(target=process_signal_async, daemon=True).start()
                 
@@ -213,7 +259,7 @@ class WebServer:
                 print(f"📋 [WEB SERVER - WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
                 
                 # استيراد محول الإشارات
-                from signal_converter import convert_simple_signal, validate_simple_signal
+                from signals.signal_converter import convert_simple_signal, validate_simple_signal
                 
                 # التحقق من نوع الإشارة (جديدة أو قديمة)
                 if 'signal' in data and 'action' not in data:
@@ -265,7 +311,7 @@ class WebServer:
                             # التحقق من نوع الحساب
                             if user_data.get('account_type') == 'real':
                                 # تنفيذ على الحساب الحقيقي
-                                from signal_executor import signal_executor
+                                from signals.signal_executor import signal_executor
                                 result = loop.run_until_complete(
                                     signal_executor.execute_signal(user_id, data, user_data)
                                 )
