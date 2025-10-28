@@ -566,6 +566,21 @@ class SignalExecutor:
                 logger.info(f"   ✅ Spot: qty = {trade_amount} / {price} = {qty}")
                 logger.info(f"   ✅ notional_value = {trade_amount}")
             
+            # 🔧 تطبيق التعديل الذكي للكمية مباشرة
+            logger.info(f"🧠 تطبيق التعديل الذكي للكمية...")
+            exchange_name = getattr(account, 'exchange_name', 'bybit') if hasattr(account, 'exchange_name') else 'bybit'
+            original_qty = qty
+            qty = SignalExecutor._calculate_adjusted_quantity(qty, price, trade_amount, leverage, exchange_name)
+            
+            if qty != original_qty:
+                logger.info(f"🔧 تم تعديل الكمية: {original_qty:.8f} → {qty:.8f}")
+                # إعادة حساب القيمة الإجمالية
+                if market_type == 'futures':
+                    notional_value = qty * price / leverage
+                else:
+                    notional_value = qty * price
+                logger.info(f"   القيمة الإجمالية المحدثة: {notional_value:.2f} USDT")
+            
             logger.info(f"=" * 80)
             
             # 🔍 فحص رواية للرافعة المالية والمبلغ (كود ذكي للتحقق)

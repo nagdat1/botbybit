@@ -18,7 +18,8 @@ class QuantityAdjuster:
             'min_qty': 0.001,
             'max_precision': 6,
             'step_size': 0.001,
-            'min_notional': 10.0  # USDT
+            'min_notional': 5.0,  # USDT - تقليل الحد الأدنى
+            'preferred_precision': 3  # التقريب المفضل
         },
         'binance': {
             'min_qty': 0.001,
@@ -65,7 +66,7 @@ class QuantityAdjuster:
             logger.info(f"   السعر: {price}")
             logger.info(f"   قواعد المنصة: {rules}")
             
-            # التحقق من الحد الأدنى للكمية
+            # التحقق من الحد الأدنى للكمية أولاً
             if qty < rules['min_qty']:
                 logger.warning(f"⚠️ الكمية أقل من الحد الأدنى: {qty} < {rules['min_qty']}")
                 qty = rules['min_qty']
@@ -73,11 +74,27 @@ class QuantityAdjuster:
             # تطبيق step_size
             step_size = rules['step_size']
             if step_size > 0:
-                qty = round(qty / step_size) * step_size
+                # تقريب للأعلى إذا كانت الكمية صغيرة جداً
+                if qty < step_size:
+                    qty = step_size
+                else:
+                    # تقريب للأعلى لضمان عدم الوصول للصفر
+                    steps = qty / step_size
+                    if steps < 1:
+                        qty = step_size
+                    else:
+                        qty = round(steps) * step_size
+                        if qty == 0:
+                            qty = step_size
             
-            # تقريب حسب دقة المنصة
+            # تقريب نهائي حسب دقة المنصة
             precision = rules['max_precision']
             qty = round(qty, precision)
+            
+            # التأكد من أن الكمية ليست صفر
+            if qty <= 0:
+                logger.warning(f"⚠️ الكمية أصبحت صفر بعد التقريب، استخدام الحد الأدنى")
+                qty = rules['min_qty']
             
             # التحقق من القيمة الإجمالية (notional value)
             notional_value = qty * price
@@ -137,10 +154,17 @@ class QuantityAdjuster:
                 calculated_qty = (trade_amount * leverage) / price
                 logger.info(f"   الكمية المحسوبة من المبلغ: {calculated_qty}")
                 
-                # استخدام الكمية المحسوبة إذا كانت مختلفة كثيراً عن الأصلية
-                if abs(calculated_qty - qty) / qty > 0.1:  # فرق أكثر من 10%
-                    logger.info(f"   استخدام الكمية المحسوبة بدلاً من الأصلية")
-                    qty = calculated_qty
+                # استخدام الكمية المحسوبة دائماً لضمان الدقة
+                logger.info(f"   استخدام الكمية المحسوبة من المبلغ والرافعة")
+                qty = calculated_qty
+                
+                # التأكد من أن الكمية ليست صغيرة جداً
+                rules = QuantityAdjuster.EXCHANGE_RULES.get(exchange.lower(), 
+                                                          QuantityAdjuster.EXCHANGE_RULES['bybit'])
+                if qty < rules['min_qty']:
+                    logger.warning(f"   الكمية المحسوبة صغيرة جداً: {qty}, زيادة المبلغ أو تقليل الرافعة")
+                    # زيادة الكمية للحد الأدنى
+                    qty = rules['min_qty']
             
             # تطبيق قواعد المنصة
             adjusted_qty, _ = QuantityAdjuster.adjust_quantity_for_exchange(
@@ -150,14 +174,24 @@ class QuantityAdjuster:
             # التحقق من المنطقية
             if adjusted_qty <= 0:
                 logger.error(f"❌ الكمية المعدلة غير صالحة: {adjusted_qty}")
-                return qty
+                # استخدام الحد الأدنى كحل أخير
+                rules = QuantityAdjuster.EXCHANGE_RULES.get(exchange.lower(), 
+                                                          QuantityAdjuster.EXCHANGE_RULES['bybit'])
+                adjusted_qty = rules['min_qty']
+                logger.info(f"🔧 استخدام الحد الأدنى كحل أخير: {adjusted_qty}")
             
             # التحقق من أن التعديل ليس مفرطاً
-            change_ratio = abs(adjusted_qty - qty) / qty if qty > 0 else 0
+            original_qty = qty if qty > 0 else adjusted_qty
+            change_ratio = abs(adjusted_qty - original_qty) / original_qty if original_qty > 0 else 0
             if change_ratio > 0.5:  # تغيير أكثر من 50%
-                logger.warning(f"⚠️ تعديل كبير في الكمية: {qty} → {adjusted_qty} ({change_ratio:.1%})")
+                logger.warning(f"⚠️ تعديل كبير في الكمية: {original_qty} → {adjusted_qty} ({change_ratio:.1%})")
             
-            logger.info(f"✅ النتيجة النهائية: {qty} → {adjusted_qty}")
+            # التحقق النهائي من أن الكمية صالحة
+            if adjusted_qty <= 0:
+                logger.error(f"❌ فشل في الحصول على كمية صالحة")
+                return 0.001  # قيمة افتراضية آمنة
+            
+            logger.info(f"✅ النتيجة النهائية: {original_qty} → {adjusted_qty}")
             return adjusted_qty
             
         except Exception as e:
