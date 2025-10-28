@@ -811,20 +811,21 @@ class SignalExecutor:
                 
                 # معالجة محسنة للأخطاء
                 if result is None:
-                    logger.error(f"⚠️ فشل وضع الأمر Spot - استجابة فارغة")
+                    logger.error(f"⚠️ فشل وضع أمر Spot - استجابة فارغة")
                     return {
                         'success': False,
-                        'message': f'Spot order placement failed - empty response',
+                        'message': f'فشل وضع أمر Spot - استجابة فارغة',
                         'is_real': True,
-                        'error_details': 'Empty response from Bybit Spot API'
+                        'error': 'EMPTY_RESPONSE'
                     }
                 
                 if isinstance(result, dict) and 'error' in result:
                     logger.error(f"⚠️ خطأ في Spot API: {result['error']}")
                     return {
                         'success': False,
-                        'message': f'Spot API Error: {result["error"]}',
+                        'message': f'خطأ في Spot API: {result["error"]}',
                         'is_real': True,
+                        'error': 'API_ERROR',
                         'error_details': result
                     }
                 
@@ -883,20 +884,21 @@ class SignalExecutor:
                 
                 # معالجة محسنة للأخطاء
                 if result is None:
-                    logger.error(f"⚠️ فشل وضع أمر Sell - استجابة فارغة")
+                    logger.error(f"⚠️ فشل وضع أمر البيع - استجابة فارغة")
                     return {
                         'success': False,
-                        'message': f'Sell order placement failed - empty response',
+                        'message': f'فشل وضع أمر البيع - استجابة فارغة',
                         'is_real': True,
-                        'error_details': 'Empty response from Bybit Sell API'
+                        'error': 'EMPTY_RESPONSE'
                     }
                 
                 if isinstance(result, dict) and 'error' in result:
                     logger.error(f"⚠️ خطأ في Sell API: {result['error']}")
                     return {
                         'success': False,
-                        'message': f'Sell API Error: {result["error"]}',
+                        'message': f'خطأ في API البيع: {result["error"]}',
                         'is_real': True,
+                        'error': 'API_ERROR',
                         'error_details': result
                     }
                 

@@ -87,9 +87,8 @@ class BybitRealAccount:
                 }
                 
                 url = f"{self.base_url}{endpoint}"
-                logger.info(f"📤 POST إلى {endpoint}")
-                logger.info(f"📋 المعاملات المرتبة: {params_str}")
-                logger.debug(f"المعاملات الأصلية: {params}")
+                logger.debug(f"📤 POST إلى {endpoint}")
+                logger.debug(f"📋 المعاملات المرتبة: {params_str}")
                 
                 # إرسال المعاملات كنص JSON لضمان التطابق التام مع التوقيع
                 if params_str:
@@ -104,21 +103,28 @@ class BybitRealAccount:
             if response.status_code == 200:
                 result = response.json()
                 if result.get('retCode') == 0:
-                    logger.info(f"✅ نجح الطلب: {endpoint}")
+                    logger.debug(f"✅ نجح الطلب: {endpoint}")
                     return result.get('result')
                 else:
                     logger.error(f"❌ خطأ من Bybit API: {result.get('retMsg')}")
                     logger.error(f"   retCode: {result.get('retCode')}")
-                    return None
+                    # إرجاع الاستجابة الكاملة لمعالجة الأخطاء بشكل أفضل
+                    return {'error': result.get('retMsg'), 'retCode': result.get('retCode')}
             else:
                 logger.error(f"❌ Bybit API Error (HTTP {response.status_code}): {response.text}")
-                return None
+                return {'error': f'HTTP {response.status_code}', 'details': response.text}
             
+        except requests.exceptions.Timeout:
+            logger.error(f"❌ انتهت مهلة الاتصال بـ Bybit")
+            return {'error': 'Connection timeout'}
+        except requests.exceptions.ConnectionError:
+            logger.error(f"❌ فشل الاتصال بـ Bybit")
+            return {'error': 'Connection failed'}
         except Exception as e:
             logger.error(f"❌ خطأ في طلب Bybit: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            return None
+            return {'error': str(e)}
     
     def get_wallet_balance(self, market_type: str = 'unified') -> Optional[Dict]:
         """
@@ -145,6 +151,11 @@ class BybitRealAccount:
         result = self._make_request('GET', '/v5/account/wallet-balance', {
             'accountType': account_type
         })
+        
+        # التحقق من وجود خطأ في الاستجابة
+        if result and isinstance(result, dict) and 'error' in result:
+            logger.error(f"❌ خطأ في الحصول على الرصيد: {result['error']}")
+            return None
         
         if result and 'list' in result:
             account = result['list'][0] if result['list'] else {}
@@ -181,6 +192,11 @@ class BybitRealAccount:
             'category': category,
             'settleCoin': 'USDT'
         })
+        
+        # التحقق من وجود خطأ في الاستجابة
+        if result and isinstance(result, dict) and 'error' in result:
+            logger.error(f"❌ خطأ في الحصول على الصفقات: {result['error']}")
+            return []
         
         # دالة مساعدة لتحويل القيم بأمان
         def safe_float(value, default=0.0):
@@ -248,6 +264,11 @@ class BybitRealAccount:
             self.set_leverage(category, symbol, leverage)
         
         result = self._make_request('POST', '/v5/order/create', params)
+        
+        # التحقق من وجود خطأ في الاستجابة
+        if result and isinstance(result, dict) and 'error' in result:
+            logger.error(f"❌ خطأ في وضع الأمر: {result['error']}")
+            return {'error': result['error'], 'details': result.get('details', '')}
         
         if result:
             logger.info(f"🔍 نتيجة place_order من Bybit: {result}")
