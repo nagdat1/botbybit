@@ -28,6 +28,9 @@ import threading
 # استيراد الإعدادات من ملف منفصل
 from config import *
 
+# استيراد بناة لوحات المفاتيح
+from buttons.keyboard_builders import *
+
 # استيراد النظام المحسن
 try:
     from systems.simple_enhanced_system import SimpleEnhancedSystem
@@ -8011,12 +8014,28 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("close_"):
         position_id = data.replace("close_", "")
         await close_position(position_id, update, context)
-    if data == "refresh_positions" or data == "show_positions":
+    if data == "refresh_positions" or data == "show_positions" or data == "open_positions":
         await open_positions(update, context)
     if data == "webhook_help":
         await show_webhook_help(update, context)
     if data == "back_to_main":
         await start(update, context)
+    if data == "cancel":
+        # إلغاء العملية والعودة للقائمة الرئيسية
+        if user_id and user_id in user_input_state:
+            del user_input_state[user_id]
+        await settings_menu(update, context)
+    if data == "confirm":
+        # تأكيد العملية - سيتم تخصيصها حسب السياق
+        await query.answer("✅ تم التأكيد")
+    if data == "dev_action_sell" or data == "dev_action_buy":
+        # معالجة إجراءات المطور (بيع/شراء)
+        action = "sell" if data == "dev_action_sell" else "buy"
+        await query.answer(f"⚡ إجراء المطور: {action}")
+    if data == "dev_market_futures" or data == "dev_market_spot":
+        # معالجة اختيار السوق للمطور
+        market = "futures" if data == "dev_market_futures" else "spot"
+        await query.answer(f"📊 تم اختيار: {market}")
     if data == "auto_apply_menu":
         await auto_apply_settings_menu(update, context)
     if data == "risk_management_menu":
