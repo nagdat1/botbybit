@@ -100,9 +100,27 @@ class SignalExecutor:
                 # محاولة إعادة التهيئة من بيانات المستخدم
                 logger.info(f"🔍 محاولة تهيئة الحساب الحقيقي للمستخدم {user_id}...")
                 
-                # الحصول على مفاتيح API من بيانات المستخدم
-                api_key = user_data.get('bybit_api_key', '') or user_data.get('api_key', '')
-                api_secret = user_data.get('bybit_api_secret', '') or user_data.get('api_secret', '')
+                # تحديد المنصة المفضلة للمستخدم
+                exchange = user_data.get('exchange', 'bybit').lower()
+                logger.info(f"📊 منصة المستخدم: {exchange}")
+                
+                # جلب المفاتيح حسب المنصة
+                if exchange == 'bybit':
+                    api_key = user_data.get('bybit_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('bybit_api_secret', '') or user_data.get('api_secret', '')
+                elif exchange == 'bitget':
+                    api_key = user_data.get('bitget_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('bitget_api_secret', '') or user_data.get('api_secret', '')
+                elif exchange == 'binance':
+                    api_key = user_data.get('binance_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('binance_api_secret', '') or user_data.get('api_secret', '')
+                elif exchange == 'okx':
+                    api_key = user_data.get('okx_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('okx_api_secret', '') or user_data.get('api_secret', '')
+                else:
+                    # افتراضي: استخدام مفاتيح API العامة
+                    api_key = user_data.get('api_key', '')
+                    api_secret = user_data.get('api_secret', '')
                 
                 logger.info(f"🔑 محاولة استخدام مفاتيح API من قاعدة البيانات...")
                 logger.info(f"   API Key موجود: {bool(api_key and len(api_key) > 10)}")

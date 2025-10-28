@@ -62,9 +62,37 @@ class UserManager:
                 # إنشاء حسابات تجريبية للمستخدم
                 self._create_user_accounts(user_id, user_data)
                 
-                # إنشاء API للمستخدم إذا كان لديه مفاتيح
-                if user_data.get('api_key') and user_data.get('api_secret'):
-                    self._create_user_api(user_id, user_data['api_key'], user_data['api_secret'])
+                # إنشاء API للمستخدم حسب منصته
+                exchange = user_data.get('exchange', 'bybit').lower()
+                
+                if exchange == 'bybit':
+                    api_key = user_data.get('bybit_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('bybit_api_secret', '') or user_data.get('api_secret', '')
+                elif exchange == 'bitget':
+                    api_key = user_data.get('bitget_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('bitget_api_secret', '') or user_data.get('api_secret', '')
+                elif exchange == 'binance':
+                    api_key = user_data.get('binance_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('binance_api_secret', '') or user_data.get('api_secret', '')
+                elif exchange == 'okx':
+                    api_key = user_data.get('okx_api_key', '') or user_data.get('api_key', '')
+                    api_secret = user_data.get('okx_api_secret', '') or user_data.get('api_secret', '')
+                else:
+                    # افتراضي
+                    api_key = user_data.get('api_key', '')
+                    api_secret = user_data.get('api_secret', '')
+                
+                # إنشاء API إذا كانت المفاتيح موجودة
+                if api_key and api_secret and len(api_key) > 10:
+                    self._create_user_api(user_id, api_key, api_secret)
+                    
+                    # تهيئة الحساب الحقيقي أيضاً
+                    try:
+                        from api.bybit_api import real_account_manager
+                        real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+                        logger.info(f"✅ تم تهيئة حساب {exchange} حقيقي للمستخدم {user_id}")
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في تهيئة الحساب الحقيقي للمستخدم {user_id}: {e}")
             
             logger.info(f"تم تحميل {len(self.users)} مستخدم")
             
@@ -106,15 +134,17 @@ class UserManager:
     def _create_user_api(self, user_id: int, api_key: str, api_secret: str):
         """إنشاء API للمستخدم"""
         try:
+            # استخدام BybitAPI كافتراضي
             if not self.BybitAPI:
                 logger.warning(f"BybitAPI class not set, skipping API creation for user {user_id}")
                 return
                 
+            # إنشاء API للمستخدم
             self.user_apis[user_id] = self.BybitAPI(api_key, api_secret)
-            logger.info(f"تم إنشاء API للمستخدم {user_id}")
+            logger.info(f"✅ تم إنشاء API للمستخدم {user_id}")
             
         except Exception as e:
-            logger.error(f"خطأ في إنشاء API للمستخدم {user_id}: {e}")
+            logger.error(f"❌ خطأ في إنشاء API للمستخدم {user_id}: {e}")
     
     def create_user(self, user_id: int, api_key: str = None, api_secret: str = None) -> bool:
         """إنشاء مستخدم جديد"""

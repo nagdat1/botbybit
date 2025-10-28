@@ -2550,8 +2550,60 @@ class TradingBot:
                 else:
                     logger.warning("⚠️ فشل في تحليل الصفقة باستخدام النظام المحسن")
             
-            if not self.bybit_api:
-                await self.send_message_to_admin("❌ API غير متاح للتداول الحقيقي")
+            # محاولة استخدام الحساب الحقيقي للمستخدم بدلاً من API العام
+            user_api = None
+            if self.user_id:
+                from api.bybit_api import real_account_manager
+                user_api = real_account_manager.get_account(self.user_id)
+                
+                if not user_api:
+                    # محاولة التهيئة من قاعدة البيانات
+                    logger.info(f"🔍 محاولة تهيئة حساب المستخدم {self.user_id} من قاعدة البيانات...")
+                    
+                    from users.database import db_manager
+                    user_data = db_manager.get_user(self.user_id)
+                    
+                    if user_data:
+                        # تحديد المنصة المفضلة للمستخدم
+                        exchange = user_data.get('exchange', 'bybit').lower()
+                        logger.info(f"📊 منصة المستخدم: {exchange}")
+                        
+                        # جلب المفاتيح حسب المنصة
+                        if exchange == 'bybit':
+                            api_key = user_data.get('bybit_api_key', '') or user_data.get('api_key', '')
+                            api_secret = user_data.get('bybit_api_secret', '') or user_data.get('api_secret', '')
+                        elif exchange == 'bitget':
+                            api_key = user_data.get('bitget_api_key', '') or user_data.get('api_key', '')
+                            api_secret = user_data.get('bitget_api_secret', '') or user_data.get('api_secret', '')
+                        elif exchange == 'binance':
+                            api_key = user_data.get('binance_api_key', '') or user_data.get('api_key', '')
+                            api_secret = user_data.get('binance_api_secret', '') or user_data.get('api_secret', '')
+                        elif exchange == 'okx':
+                            api_key = user_data.get('okx_api_key', '') or user_data.get('api_key', '')
+                            api_secret = user_data.get('okx_api_secret', '') or user_data.get('api_secret', '')
+                        else:
+                            # افتراضي: استخدام مفاتيح API العامة
+                            api_key = user_data.get('api_key', '')
+                            api_secret = user_data.get('api_secret', '')
+                        
+                        logger.info(f"🔑 وجود المفاتيح: {bool(api_key and len(api_key) > 10)}")
+                        
+                        if api_key and api_secret and len(api_key) > 10:
+                            logger.info(f"✅ وجدت مفاتيح API للمستخدم {self.user_id} على منصة {exchange}")
+                            real_account_manager.initialize_account(self.user_id, exchange, api_key, api_secret)
+                            user_api = real_account_manager.get_account(self.user_id)
+            
+            # استخدام API المستخدم إذا كان متاحاً، وإلا استخدم API العام
+            api_to_use = user_api if user_api else self.bybit_api
+            
+            if not api_to_use:
+                await self.send_message_to_admin(
+                    "❌ API غير متاح للتداول الحقيقي\n\n"
+                    "💡 يرجى إضافة مفاتيح API في الإعدادات:\n"
+                    "1. اضغط على ⚙️ الإعدادات\n"
+                    "2. اختر إعدادات الحساب الحقيقي\n"
+                    "3. أدخل مفاتيح Bybit API الخاصة بك"
+                )
                 logger.error("محاولة تنفيذ صفقة حقيقية بدون API")
                 return
             
@@ -2586,6 +2638,9 @@ class TradingBot:
                         sl_price = price * (1 + sl_percent / 100)
                     logger.info(f"   🛑 SL: {sl_percent}% = {sl_price:.6f}")
             
+            # استخدام API الصحيح
+            api = api_to_use if user_api else self.bybit_api
+            
             if user_market_type == 'futures':
                 # ⚡ صفقة فيوتشر حقيقية
                 margin_amount = self.user_settings['trade_amount']
@@ -2601,7 +2656,7 @@ class TradingBot:
                 first_tp = str(tp_prices[0]) if tp_prices else None
                 first_sl = str(sl_price) if sl_price else None
                 
-                response = self.bybit_api.place_order(
+                response = api.place_order(
                     symbol=symbol,
                     side=side,
                     order_type="Market",
@@ -2655,7 +2710,7 @@ class TradingBot:
                 logger.info(f"🏪 سبوت: المبلغ={amount}, الكمية={qty}")
                 
                 # Spot لا يدعم TP/SL مباشرة، يجب استخدام أوامر محددة
-                response = self.bybit_api.place_order(
+                response = api.place_order(
                     symbol=symbol,
                     side=side,
                     order_type="Market",
@@ -3796,7 +3851,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
             [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
-            [KeyboardButton("🔙 الرجوع لحساب المطور")]
+            [KeyboardButton("🔙 الرجوع لحساب المطور")],
+            [KeyboardButton("🔄 إعادة تشغيل المشروع")]
         ]
         
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -7684,13 +7740,108 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     query = update.callback_query
+    user_id = update.effective_user.id if update.effective_user else None
+    data = query.data
+    
+    # معالجة أزرار إعادة تشغيل المشروع
+    if data in ["confirm_reset_project", "cancel_reset_project"]:
+        await query.answer()
+        
+        if data == "confirm_reset_project":
+            if user_id != ADMIN_USER_ID:
+                await query.edit_message_text("❌ ليس لديك صلاحية لاستخدام هذا الأمر")
+                return
+            
+            try:
+                # حذف كل شيء من قاعدة البيانات
+                from users.database import db_manager
+                import sqlite3
+                import os
+                
+                # حذف جميع الجداول
+                with db_manager.get_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    # حذف جميع الجداول
+                    cursor.execute("DELETE FROM orders")
+                    cursor.execute("DELETE FROM signal_positions")
+                    cursor.execute("DELETE FROM user_settings")
+                    cursor.execute("DELETE FROM developer_followers")
+                    cursor.execute("DELETE FROM developer_signals")
+                    
+                    # حذف جميع المستخدمين (بما في ذلك المطور)
+                    cursor.execute("DELETE FROM users")
+                    cursor.execute("DELETE FROM developers")
+                    
+                    conn.commit()
+                
+                # حذف ملف قاعدة البيانات وإنشاء جديد
+                db_file = db_manager.db_path
+                if os.path.exists(db_file):
+                    os.remove(db_file)
+                    logger.info(f"🗑️ تم حذف ملف قاعدة البيانات: {db_file}")
+                
+                # إعادة تهيئة قاعدة البيانات
+                db_manager.init_database()
+                
+                # إعادة إنشاء المطور الرئيسي
+                db_manager.create_developer(
+                    developer_id=ADMIN_USER_ID,
+                    developer_name="Nagdat",
+                    developer_key="NAGDAT-KEY-2024",
+                    webhook_url=None
+                )
+                
+                # إعادة إنشاء حساب المطور
+                db_manager.create_user(ADMIN_USER_ID)
+                
+                # إعادة تحميل البيانات
+                user_manager.users.clear()
+                user_manager.user_accounts.clear()
+                user_manager.user_apis.clear()
+                user_manager.user_positions.clear()
+                
+                developer_manager.developers.clear()
+                developer_manager.developer_followers.clear()
+                
+                user_manager.load_all_users()
+                developer_manager.load_all_developers()
+                
+                # إعادة تهيئة الحسابات الحقيقية
+                from api.bybit_api import real_account_manager
+                real_account_manager.accounts.clear()
+                
+                await query.edit_message_text(
+                    "✅ تم إعادة تشغيل المشروع بالكامل!\n\n"
+                    "🗑️ تم حذف:\n"
+                    "• جميع المستخدمين\n"
+                    "• جميع الصفقات\n"
+                    "• جميع الإحصائيات\n"
+                    "• ملف قاعدة البيانات\n"
+                    "• جميع الإعدادات\n\n"
+                    "🔄 تم:\n"
+                    "• إنشاء قاعدة بيانات جديدة\n"
+                    "• إعادة تهيئة النظام\n"
+                    "• إنشاء حساب المطور الرئيسي\n\n"
+                    "📱 أرسل /start للبدء من جديد"
+                )
+                
+                logger.warning(f"⚠️ تم إعادة تشغيل المشروع بالكامل من قبل المطور {user_id}")
+                
+            except Exception as e:
+                logger.error(f"❌ خطأ في إعادة تشغيل المشروع: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                await query.edit_message_text(f"❌ فشل إعادة التشغيل: {e}")
+        elif data == "cancel_reset_project":
+            await query.edit_message_text("✅ تم إلغاء العملية")
+        
+        return
+    
     await query.answer()
     
     if query.data is None:
         return
-        
-    user_id = update.effective_user.id if update.effective_user else None
-    data = query.data
     
     logger.info(f"📥 Callback received: {data} from user {user_id}")
     
@@ -8731,6 +8882,48 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
+async def handle_reset_project(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """إعادة تشغيل المشروع - حذف كل شيء وإعادة للحالة الافتراضية"""
+    if update.message is None:
+        return
+    
+    user_id = update.effective_user.id if update.effective_user else None
+    
+    # التحقق من أن المستخدم هو المطور
+    if user_id != ADMIN_USER_ID:
+        await update.message.reply_text("❌ ليس لديك صلاحية لاستخدام هذا الأمر")
+        return
+    
+    # تأكيد قبل التنفيذ
+    confirm_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ نعم، تأكيد", callback_data="confirm_reset_project")],
+        [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_reset_project")]
+    ])
+    
+    await update.message.reply_text(
+        """⚠️ تنبيه خطير - حذف شامل!
+
+🔴 هذا الأمر سيقوم بـ:
+• 🗑️ حذف جميع المستخدمين (بما فيهم المطور المؤقت)
+• 🗑️ حذف جميع الصفقات
+• 🗑️ حذف جميع الإحصائيات
+• 🗑️ حذف ملف قاعدة البيانات بالكامل
+• 🗑️ حذف جميع الإعدادات
+• 🗑️ حذف جميع الحسابات التجريبية
+
+✅ سيتم:
+• إنشاء قاعدة بيانات جديدة من الصفر
+• إعادة تهيئة النظام بالكامل
+• إنشاء حساب المطور الرئيسي فقط
+
+❌ هذا الإجراء لا يمكن التراجع عنه!
+
+⚠️ جميع البيانات سيتم فقدانها نهائياً!
+
+هل أنت متأكد من المتابعة؟""",
+        reply_markup=confirm_keyboard
+    )
+
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
     if update.message is None or update.message.text is None:
@@ -8741,7 +8934,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # معالجة أزرار المطور
     if user_id and developer_manager.is_developer(user_id):
-        if text == "📡 إرسال إشارة":
+        if text == "🔄 إعادة تشغيل المشروع":
+            await handle_reset_project(update, context)
+            return
+        elif text == "📡 إرسال إشارة":
             await handle_send_signal_developer(update, context)
             return
         elif text == "👥 المتابعين":

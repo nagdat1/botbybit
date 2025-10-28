@@ -415,12 +415,37 @@ class RealAccountManager:
     
     def initialize_account(self, user_id: int, exchange: str, api_key: str, api_secret: str):
         """تهيئة حساب حقيقي للمستخدم"""
-        if exchange.lower() == 'bybit':
-            self.accounts[user_id] = BybitRealAccount(api_key, api_secret)
-        else:
-            logger.error(f"Exchange غير مدعوم: {exchange}")
+        exchange_lower = exchange.lower()
         
-        logger.info(f"تم تهيئة حساب {exchange} حقيقي للمستخدم {user_id}")
+        if exchange_lower == 'bybit':
+            self.accounts[user_id] = BybitRealAccount(api_key, api_secret)
+            logger.info(f"✅ تم تهيئة حساب Bybit للمستخدم {user_id}")
+        elif exchange_lower == 'bitget':
+            try:
+                from api.exchanges.bitget_exchange import BitgetExchange
+                self.accounts[user_id] = BitgetExchange('bitget', api_key, api_secret)
+                logger.info(f"✅ تم تهيئة حساب Bitget للمستخدم {user_id}")
+            except Exception as e:
+                logger.error(f"❌ فشل تهيئة Bitget: {e}")
+        elif exchange_lower == 'binance':
+            try:
+                from api.exchanges.binance_exchange import BinanceExchange
+                self.accounts[user_id] = BinanceExchange('binance', api_key, api_secret)
+                logger.info(f"✅ تم تهيئة حساب Binance للمستخدم {user_id}")
+            except Exception as e:
+                logger.error(f"❌ فشل تهيئة Binance: {e}")
+        elif exchange_lower == 'okx':
+            try:
+                from api.exchanges.okx_exchange import OKXExchange
+                self.accounts[user_id] = OKXExchange('okx', api_key, api_secret)
+                logger.info(f"✅ تم تهيئة حساب OKX للمستخدم {user_id}")
+            except Exception as e:
+                logger.error(f"❌ فشل تهيئة OKX: {e}")
+        else:
+            logger.error(f"❌ Exchange غير مدعوم: {exchange}")
+            logger.info(f"💡 المنصات المدعومة: bybit, bitget, binance, okx")
+        
+        logger.info(f"📊 تم تهيئة حساب {exchange} حقيقي للمستخدم {user_id}")
     
     def get_account(self, user_id: int):
         """الحصول على حساب المستخدم"""
