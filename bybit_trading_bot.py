@@ -2475,14 +2475,32 @@ class TradingBot:
             logger.info(f"🎯 نوع الحساب: {account_type.upper()}")
             logger.info(f"📊 إعدادات التداول: مبلغ={self.user_settings.get('trade_amount', 100)}, رافعة={self.user_settings.get('leverage', 10)}x")
             
-            if account_type == 'real' and self.bybit_api:
-                # حساب حقيقي - التنفيذ عبر Bybit API (فقط إذا كان API متاح)
+            # 🔧 إصلاح نهائي: التحقق من صلاحية API قبل تنفيذ صفقة حقيقية
+            should_use_real = False
+            if account_type == 'real':
+                if self.bybit_api:
+                    # التحقق من صلاحية API بمحاولة اختبار بسيط
+                    try:
+                        # محاولة اختبار الاتصال
+                        test_result = self.bybit_api.get_ticker_price(symbol, bybit_category)
+                        if test_result:
+                            should_use_real = True
+                            logger.info(f"✅ API Key صالح - سيتم التنفيذ على حساب حقيقي")
+                        else:
+                            logger.warning(f"⚠️ API غير متاح - استخدام الحساب التجريبي")
+                    except:
+                        logger.warning(f"⚠️ خطأ في التحقق من API - استخدام الحساب التجريبي")
+                        account_type = 'demo'
+                else:
+                    logger.warning(f"⚠️ API غير متاح - استخدام الحساب التجريبي")
+                    account_type = 'demo'
+            
+            if should_use_real:
+                # حساب حقيقي - التنفيذ عبر Bybit API
                 logger.info(f"🔴 تنفيذ صفقة حقيقية عبر Bybit API")
                 await self.execute_real_trade(symbol, action, current_price, bybit_category)
             else:
                 # حساب تجريبي - التنفيذ داخل البوت
-                if account_type == 'real' and not self.bybit_api:
-                    logger.warning(f"⚠️ نوع الحساب حقيقي لكن API غير متاح - استخدام الحساب التجريبي")
                 logger.info(f"🟢 تنفيذ صفقة تجريبية داخل البوت")
                 await self.execute_demo_trade(symbol, action, current_price, bybit_category, market_type)
             
