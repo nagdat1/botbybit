@@ -381,6 +381,8 @@ def run_flask_in_thread():
 if __name__ == "__main__":
     # عرض معلومات النظام
     print("\n" + "="*60)
+    print("🚀 بوت التداول على Bybit")
+    print("="*60)
     if NEW_SYSTEM_AVAILABLE:
         print("🎯 النظام الجديد متاح!")
     elif ENHANCED_SYSTEM_AVAILABLE:
@@ -389,29 +391,45 @@ if __name__ == "__main__":
         print("📝 النظام العادي يعمل")
     print("="*60 + "\n")
     
-    # إعداد وإعداد البوت
+    # إعداد البوت
     bot_application = setup_telegram_bot()
     print("✅ تم إعداد البوت")
     
     # تشغيل Flask في thread منفصل
     flask_thread = threading.Thread(target=run_flask_in_thread, daemon=True)
     flask_thread.start()
+    print(f"🌐 بدء تشغيل Flask على المنفذ {PORT}...")
     
     # إعطاء Flask وقت لبدء التشغيل
     time.sleep(3)
+    print(f"✅ Flask server جاهز على http://localhost:{PORT}")
     
-    # إرسال رسالة عند بدء Telegram Bot
+    # تشغيل Telegram Bot في thread منفصل
+    def run_bot():
+        print("🤖 بدء تشغيل Telegram Bot...")
+        bot_application.run_polling(allowed_updates=['message', 'callback_query'], drop_pending_updates=False)
+    
+    bot_thread = threading.Thread(target=run_bot, daemon=False)
+    bot_thread.start()
+    
+    # إرسال رسالة عند بدء التطبيق
     system_type = "Normal" if not ENHANCED_SYSTEM_AVAILABLE else ("Enhanced" if not NEW_SYSTEM_AVAILABLE else "New System")
     message = f"""مرحبا ايها القائد
 
-🤖 بدء بوت التلجرام
-🔹 الأداة: Telegram Bot
-🔹 الوظيفة: استقبال الأوامر من المستخدمين
+🤖 بدء بوت التداول
+🔹 الأداة: Bybit Trading Bot
+🔹 Telegram: نشط ✅
+🔹 Webhook: نشط ✅
+🔹 المنفذ: {PORT}
 🔹 النظام: {system_type}
 ⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
     
-    send_telegram_notification("🤖 بدء بوت التلجرام", message)
+    send_telegram_notification("🤖 بدء بوت التداول", message)
     
-    # تشغيل البوت في الـ main thread
-    print("🤖 بدء تشغيل البوت...")
-    bot_application.run_polling(allowed_updates=['message', 'callback_query'], drop_pending_updates=False)
+    # انتظار Threads لتشغيل
+    try:
+        bot_thread.join()
+    except KeyboardInterrupt:
+        print("\n⏹️ إيقاف البوت...")
+        bot_application.stop()
+        print("👋 مع السلامة!")
