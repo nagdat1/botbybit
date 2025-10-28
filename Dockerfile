@@ -25,5 +25,5 @@ USER app
 # Expose port (Railway will set PORT environment variable)
 EXPOSE $PORT
 
-# Run the application using run_with_server.py as entry point
-CMD ["python", "run_with_server.py"]
+# Run the application using app.py as entry point
+CMD ["python", "app.py"]
