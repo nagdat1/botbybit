@@ -691,6 +691,10 @@ async def handle_api_keys_input(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
     """اختبار وحفظ مفاتيح Bybit - اختبار حقيقي 100%"""
+    logger.info(f"🔧 بدء test_and_save_bybit_keys للمستخدم {user_id}")
+    logger.debug(f"   - API Key (أول 8 أحرف): {api_key[:8] if api_key else 'فارغ'}")
+    logger.debug(f"   - API Secret: {'موجود' if api_secret else 'فارغ'}")
+    
     try:
         import hmac
         import hashlib
@@ -802,9 +806,24 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                         balance_info += "• لا يوجد رصيد حالياً\n"
             
             # حفظ المفاتيح وتهيئة الحساب الحقيقي وتفعيله تلقائياً
+            logger.info(f"🔧 بدء عملية حفظ المفاتيح للمستخدم {user_id}")
+            
             from users.database import db_manager
             from users.user_manager import user_manager
             from api.bybit_api import real_account_manager
+            
+            # التحقق من أن user_manager ليس None
+            if user_manager is None:
+                logger.error(f"❌ user_manager هو None! لا يمكن حفظ البيانات")
+                await update.message.reply_text(
+                    "❌ **خطأ في النظام**\n\n"
+                    "نظام إدارة المستخدمين غير مفعّل\n"
+                    "يرجى إعادة تشغيل البوت",
+                    parse_mode='Markdown'
+                )
+                return False
+            
+            logger.info(f"✅ user_manager متاح ويعمل")
             
             # حفظ مباشرة في قاعدة البيانات مع التفعيل التلقائي
             try:
@@ -853,16 +872,26 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
                 }
                 logger.debug(f"البيانات للحفظ: exchange={data_to_save['exchange']}, is_active={data_to_save['is_active']}")
                 
-                # الآن المستخدم موجود بالتأكيد
-                save_result = db_manager.update_user_data(user_id, data_to_save)
+                # الآن المستخدم موجود بالتأكيد - محاولة الحفظ
+                logger.info(f"💾 بدء حفظ البيانات للمستخدم {user_id}")
+                logger.debug(f"   - البيانات: {list(data_to_save.keys())}")
+                
+                try:
+                    save_result = db_manager.update_user_data(user_id, data_to_save)
+                    logger.info(f"💾 نتيجة update_user_data: {save_result}")
+                except Exception as save_error:
+                    logger.error(f"❌ استثناء أثناء الحفظ: {save_error}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    save_result = False
                 
                 if not save_result:
                     logger.error(f"❌ فشل في حفظ بيانات المستخدم {user_id}")
                     logger.error(f"تفاصيل: update_user_data returned False")
                     await update.message.reply_text(
                         "❌ **فشل في حفظ البيانات**\n\n"
-                        "حدث خطأ أثناء حفظ المفاتيح\n"
-                        "يرجى المحاولة مرة أخرى",
+                        "حدث خطأ أثناء حفظ المفاتيح في قاعدة البيانات\n"
+                        "يرجى المحاولة مرة أخرى أو التواصل مع الدعم",
                         parse_mode='Markdown'
                     )
                     return False
@@ -992,6 +1021,10 @@ async def test_and_save_bybit_keys(user_id: int, api_key: str, api_secret: str, 
 
 async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str, update: Update) -> bool:
     """اختبار وحفظ مفاتيح Bitget"""
+    logger.info(f"🔧 بدء test_and_save_bitget_keys للمستخدم {user_id}")
+    logger.debug(f"   - API Key (أول 8 أحرف): {api_key[:8] if api_key else 'فارغ'}")
+    logger.debug(f"   - API Secret: {'موجود' if api_secret else 'فارغ'}")
+    
     try:
         # استخدام النظام الجديد لاختبار Bitget
         from api.init_exchanges import create_exchange_instance
@@ -1020,9 +1053,24 @@ async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str,
             connection_ok = False
         
         # حفظ المفاتيح وتفعيل المنصة
+        logger.info(f"🔧 بدء عملية حفظ مفاتيح Bitget للمستخدم {user_id}")
+        
         from users.database import db_manager
         from users.user_manager import user_manager
         from api.bybit_api import real_account_manager
+        
+        # التحقق من أن user_manager ليس None
+        if user_manager is None:
+            logger.error(f"❌ user_manager هو None! لا يمكن حفظ البيانات")
+            await update.message.reply_text(
+                "❌ **خطأ في النظام**\n\n"
+                "نظام إدارة المستخدمين غير مفعّل\n"
+                "يرجى إعادة تشغيل البوت",
+                parse_mode='Markdown'
+            )
+            return False
+        
+        logger.info(f"✅ user_manager متاح ويعمل")
         
         try:
             # ✅ خطوة 0: التأكد من وجود المستخدم في قاعدة البيانات
@@ -1059,20 +1107,31 @@ async def test_and_save_bitget_keys(user_id: int, api_key: str, api_secret: str,
                 logger.info(f"✅ المستخدم {user_id} موجود في قاعدة البيانات")
             
             # ✅ خطوة 1: حفظ في قاعدة البيانات - استخدام update_user_data للمفاتيح
-            logger.info(f"💾 محاولة حفظ مفاتيح Bitget للمستخدم {user_id}")
-            save_result = db_manager.update_user_data(user_id, {
+            logger.info(f"💾 بدء حفظ مفاتيح Bitget للمستخدم {user_id}")
+            
+            data_to_save = {
                 'bitget_api_key': api_key,
                 'bitget_api_secret': api_secret,
                 'exchange': 'bitget',
                 'is_active': True
-            })
+            }
+            logger.debug(f"   - البيانات: {list(data_to_save.keys())}")
+            
+            try:
+                save_result = db_manager.update_user_data(user_id, data_to_save)
+                logger.info(f"💾 نتيجة update_user_data: {save_result}")
+            except Exception as save_error:
+                logger.error(f"❌ استثناء أثناء الحفظ: {save_error}")
+                import traceback
+                logger.error(traceback.format_exc())
+                save_result = False
             
             if not save_result:
                 logger.error(f"❌ فشل في حفظ بيانات المستخدم {user_id}")
                 await update.message.reply_text(
                     "❌ **فشل في حفظ البيانات**\n\n"
-                    "حدث خطأ أثناء حفظ المفاتيح\n"
-                    "يرجى المحاولة مرة أخرى",
+                    "حدث خطأ أثناء حفظ المفاتيح في قاعدة البيانات\n"
+                    "يرجى المحاولة مرة أخرى أو التواصل مع الدعم",
                     parse_mode='Markdown'
                 )
                 return False

@@ -3321,8 +3321,15 @@ trading_bot = TradingBot()
 trade_tools_manager = TradeToolsManager()
 
 # تهيئة مدير المستخدمين مع الفئات اللازمة
+from users import user_manager as um_module
 from users.user_manager import UserManager
+
+# إنشاء مثيل UserManager
 user_manager = UserManager(TradingAccount, BybitAPI)
+
+# تحديث user_manager في module users.user_manager
+um_module.user_manager = user_manager
+logger.info("✅ تم تهيئة user_manager وتحديثه في module users.user_manager")
 
 # تحميل المستخدمين من قاعدة البيانات
 user_manager.load_all_users()
