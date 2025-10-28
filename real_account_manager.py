@@ -378,6 +378,121 @@ class BybitRealAccount:
         except Exception as e:
             logger.error(f"خطأ في الحصول على السعر: {e}")
             return None
+    
+    def get_instrument_info(self, symbol: str, category: str = "linear") -> Optional[Dict]:
+        """الحصول على معلومات الرمز (minQty, qtyStep, etc.)"""
+        try:
+            endpoint = "/v5/market/instruments-info"
+            params = {"category": category, "symbol": symbol}
+            
+            result = self._make_request('GET', endpoint, params)
+            
+            if result and 'list' in result and result['list']:
+                instrument = result['list'][0]
+                lot_size_filter = instrument.get('lotSizeFilter', {})
+                
+                return {
+                    'symbol': symbol,
+                    'minQty': float(lot_size_filter.get('minOrderQty', 0.001)),
+                    'maxQty': float(lot_size_filter.get('maxOrderQty', 1000000)),
+                    'qtyStep': float(lot_size_filter.get('qtyStep', 0.001)),
+                    'minNotional': float(lot_size_filter.get('minOrderAmt', 1)),
+                    'category': category
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات الرمز: {e}")
+            return None
+    
+    def calculate_valid_quantity(self, symbol: str, category: str, trade_amount: float, 
+                                price: float, leverage: int = 1) -> Dict:
+        """حساب كمية صالحة حسب متطلبات Bybit"""
+        try:
+            # الحصول على معلومات الرمز
+            instrument_info = self.get_instrument_info(symbol, category)
+            
+            if not instrument_info:
+                logger.warning(f"لم يتم العثور على معلومات الرمز {symbol}, استخدام القيم الافتراضية")
+                min_qty = 0.001
+                qty_step = 0.001
+                min_notional = 1.0
+            else:
+                min_qty = instrument_info['minQty']
+                qty_step = instrument_info['qtyStep']
+                min_notional = instrument_info['minNotional']
+                
+                logger.info(f"معلومات {symbol}: minQty={min_qty}, qtyStep={qty_step}, minNotional={min_notional}")
+            
+            # حساب الكمية الأساسية
+            if category in ['linear', 'inverse']:
+                # للفيوتشر مع الرافعة المالية
+                base_qty = (trade_amount * leverage) / price
+            else:
+                # للسبوت بدون رافعة
+                base_qty = trade_amount / price
+            
+            logger.info(f"الكمية الأساسية المحسوبة: {base_qty}")
+            
+            # التأكد من الحد الأدنى
+            if base_qty < min_qty:
+                logger.info(f"الكمية {base_qty} أقل من الحد الأدنى {min_qty}")
+                
+                # حساب المبلغ المطلوب للحد الأدنى
+                min_amount_required = (min_qty * price) / leverage
+                
+                if trade_amount < min_amount_required:
+                    return {
+                        'success': False,
+                        'error': 'INSUFFICIENT_AMOUNT',
+                        'message': f'المبلغ {trade_amount} غير كافي للحد الأدنى. المطلوب: {min_amount_required:.2f} USDT',
+                        'min_amount_required': min_amount_required,
+                        'current_amount': trade_amount
+                    }
+                
+                # استخدام الحد الأدنى
+                adjusted_qty = min_qty
+            else:
+                # تقريب الكمية إلى أقرب qtyStep
+                steps = round(base_qty / qty_step)
+                adjusted_qty = steps * qty_step
+                
+                # التأكد من عدم النزول تحت الحد الأدنى
+                if adjusted_qty < min_qty:
+                    adjusted_qty = min_qty
+            
+            # التحقق من الحد الأدنى للقيمة (minNotional)
+            notional_value = adjusted_qty * price
+            if notional_value < min_notional:
+                logger.warning(f"القيمة {notional_value} أقل من الحد الأدنى {min_notional}")
+                # تعديل الكمية لتلبية الحد الأدنى للقيمة
+                required_qty = min_notional / price
+                steps = max(1, round(required_qty / qty_step))
+                adjusted_qty = steps * qty_step
+            
+            # تقريب نهائي
+            adjusted_qty = round(adjusted_qty, 8)
+            
+            logger.info(f"الكمية النهائية المعدلة: {adjusted_qty}")
+            
+            return {
+                'success': True,
+                'quantity': adjusted_qty,
+                'original_quantity': base_qty,
+                'min_qty': min_qty,
+                'qty_step': qty_step,
+                'notional_value': adjusted_qty * price,
+                'min_notional': min_notional
+            }
+            
+        except Exception as e:
+            logger.error(f"خطأ في حساب الكمية الصالحة: {e}")
+            return {
+                'success': False,
+                'error': 'CALCULATION_ERROR',
+                'message': str(e)
+            }
 
 
 class MEXCRealAccount:
