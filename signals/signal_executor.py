@@ -96,10 +96,53 @@ class SignalExecutor:
             
             if not real_account:
                 logger.error(f"❌ حساب حقيقي غير مفعّل للمستخدم {user_id}")
+                
+                # محاولة إعادة التهيئة من بيانات المستخدم
+                logger.info(f"🔍 محاولة تهيئة الحساب الحقيقي للمستخدم {user_id}...")
+                
+                # الحصول على مفاتيح API من بيانات المستخدم
+                api_key = user_data.get('api_key', '') or user_data.get('bybit_api_key', '')
+                api_secret = user_data.get('api_secret', '') or user_data.get('bybit_api_secret', '')
+                
+                if api_key and api_secret and len(api_key) > 10:
+                    try:
+                        real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+                        logger.info(f"✅ تم تهيئة الحساب للمستخدم {user_id}")
+                        # إعادة المحاولة للحصول على الحساب
+                        real_account = real_account_manager.get_account(user_id)
+                    except Exception as init_e:
+                        logger.error(f"❌ فشل تهيئة الحساب: {init_e}")
+                        error_msg = str(init_e)
+                        # تحديد نوع الخطأ
+                        if 'invalid' in error_msg.lower() or '401' in error_msg:
+                            return {
+                                'success': False,
+                                'message': 'API key is invalid. Please check your credentials.',
+                                'error': 'INVALID_API_KEY',
+                                'help': 'Please update your API keys in settings with valid credentials'
+                            }
+                        else:
+                            return {
+                                'success': False,
+                                'message': f'Failed to initialize account: {init_e}',
+                                'error': 'ACCOUNT_INIT_FAILED'
+                            }
+                else:
+                    logger.error(f"❌ مفاتيح API غير موجودة للمستخدم {user_id}")
+                    return {
+                        'success': False,
+                        'message': 'API keys not configured for real account',
+                        'error': 'API_KEYS_NOT_FOUND',
+                        'help': 'Please configure your API keys in settings'
+                    }
+            
+            # التحقق مرة أخرى
+            if not real_account:
+                logger.error(f"❌ حساب حقيقي غير متاح للمستخدم {user_id}")
                 return {
                     'success': False,
-                    'message': 'Real account not activated',
-                    'error': 'ACCOUNT_NOT_FOUND'
+                    'message': 'Real account not available',
+                    'error': 'ACCOUNT_NOT_AVAILABLE'
                 }
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
@@ -1038,18 +1081,38 @@ class SignalExecutor:
                 logger.info(f"=" * 80)
                 
                 # تنفيذ الصفقة مرة واحدة بالكمية المعدلة
-                result = account.place_order(
-                    category='linear',
-                    symbol=symbol,
-                    side=side,
-                    order_type='Market',
-                    qty=round(qty, 4),
-                    leverage=leverage,
-                    take_profit=take_profit,
-                    stop_loss=stop_loss
-                )
-                
-                logger.info(f"🔍 نتيجة تنفيذ الصفقة: {result}")
+                try:
+                    result = account.place_order(
+                        category='linear',
+                        symbol=symbol,
+                        side=side,
+                        order_type='Market',
+                        qty=round(qty, 4),
+                        leverage=leverage,
+                        take_profit=take_profit,
+                        stop_loss=stop_loss
+                    )
+                    
+                    logger.info(f"🔍 نتيجة تنفيذ الصفقة: {result}")
+                    
+                except Exception as order_error:
+                    logger.error(f"❌ خطأ في تنفيذ الصفقة: {order_error}")
+                    error_msg = str(order_error)
+                    
+                    # معالجة خطأ API key invalid
+                    if 'invalid' in error_msg.lower() or 'API key' in error_msg:
+                        return {
+                            'success': False,
+                            'message': 'API key is invalid. Please check your API credentials in settings.',
+                            'error': 'INVALID_API_CREDENTIALS',
+                            'help': 'Go to Settings > Real Account Setup and update your API keys'
+                        }
+                    else:
+                        return {
+                            'success': False,
+                            'message': f'Failed to execute order: {error_msg}',
+                            'error': 'ORDER_EXECUTION_FAILED'
+                        }
                 
                 # إذا تم تعديل الكمية، أضف رسالة للمستخدم
                 if qty_was_adjusted and result and isinstance(result, dict) and result.get('order_id'):
@@ -1074,13 +1137,37 @@ class SignalExecutor:
                         'error_details': f'Failed result: {result}'
                     }
             
-            # التحقق النهائي من النجاح قبل الإرجاع
+                # التحقق النهائي من النجاح قبل الإرجاع
             if not result or not isinstance(result, dict) or not result.get('order_id'):
                 logger.error(f"❌ فشل تنفيذ الصفقة - لا يوجد order_id")
                 logger.error(f"   النتيجة: {result}")
+                
+                # تحليل نوع الخطأ
+                error_msg = ""
+                if isinstance(result, dict):
+                    if result.get('error'):
+                        error_msg = result.get('error', 'Unknown error')
+                    elif result.get('retCode') is not None:
+                        # خطأ من Bybit API
+                        ret_code = result.get('retCode')
+                        ret_msg = result.get('retMsg', 'Unknown error')
+                        
+                        if ret_code == 10001:
+                            error_msg = "API key is invalid"
+                        elif ret_code == 10004:
+                            error_msg = "Insufficient balance"
+                        elif ret_code == 10005:
+                            error_msg = "Permission denied"
+                        else:
+                            error_msg = f"Bybit error ({ret_code}): {ret_msg}"
+                    else:
+                        error_msg = str(result)
+                else:
+                    error_msg = str(result) if result else "Empty result"
+                
                 return {
                     'success': False,
-                    'message': f'Order placement failed - no valid order_id',
+                    'message': f'Order placement failed: {error_msg}',
                     'is_real': True,
                     'error_details': result if result else 'Empty result'
                 }

@@ -17,6 +17,12 @@ ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
 # إعدادات Bybit API
 BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "")
 BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "")
+
+# تحذير إذا لم تكن المفاتيح موجودة
+if not BYBIT_API_KEY or not BYBIT_API_SECRET:
+    print("⚠️ تحذير: مفاتيح Bybit API غير موجودة. لن يعمل التداول الحقيقي.")
+    print("💡 للاستخدام: أنشئ ملف .env مع BYBIT_API_KEY و BYBIT_API_SECRET")
+
 BYBIT_BASE_URL = "https://api.bybit.com"
 
 

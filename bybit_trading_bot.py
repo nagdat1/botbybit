@@ -1962,7 +1962,14 @@ class TradingBot:
         # إعداد API
         self.bybit_api = None
         if BYBIT_API_KEY and BYBIT_API_SECRET:
-            self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
+            try:
+                self.bybit_api = BybitAPI(BYBIT_API_KEY, BYBIT_API_SECRET)
+                logger.info("✅ تم تهيئة Bybit API بنجاح")
+            except Exception as e:
+                logger.error(f"❌ فشل تهيئة Bybit API: {e}")
+                self.bybit_api = None
+        else:
+            logger.warning("⚠️ مفاتيح Bybit API غير موجودة - التداول الحقيقي غير متاح")
         
         # إعداد الحسابات التجريبية
         self.demo_account_spot = TradingAccount(
