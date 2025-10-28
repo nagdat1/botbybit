@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "./Dockerfile"
 
 [deploy]
-startCommand = "python run_with_server.py"
+startCommand = "python app.py"
 restartPolicyType = "never"
 
 [env]
