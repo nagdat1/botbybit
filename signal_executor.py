@@ -401,7 +401,9 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
-            # حساب الكمية بناءً على مبلغ التداول ونوع السوق - محسن ومطابق لمتطلبات Bybit
+            # حساب الكمية بناءً على مبلغ التداول ونوع السوق
+            # حساب الكمية - كود خفي للتحويل الذكي
+            # استخدام السعر الذي تم جلبه من API أو الموجود في البيانات
             price = float(signal_data.get('price', 0)) if signal_data.get('price') else 0.0
             
             # التحقق من أن السعر صحيح
@@ -413,39 +415,60 @@ class SignalExecutor:
                     'is_real': True
                 }
             
-            # استخدام الدالة الجديدة لحساب الكمية الصالحة
-            logger.info(f" حساب الكمية الصالحة لـ {symbol} - المبلغ: ${trade_amount}, السعر: ${price}, الرافعة: {leverage}")
+            # حساب الكمية مع ضمان عدم وجود قيم صغيرة جداً
+            if market_type == 'futures':
+                qty = (trade_amount * leverage) / price
+            else:
+                # للسبوت بدون رافعة
+                qty = trade_amount / price
             
-            qty_result = account.calculate_valid_quantity(
-                symbol=symbol,
-                category=category,
-                trade_amount=trade_amount,
-                price=price,
-                leverage=leverage
-            )
+            # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
+            min_quantity = 0.001  # الحد الأدنى لـ Bybit
             
-            if not qty_result.get('success'):
-                logger.error(f" فشل حساب الكمية الصالحة: {qty_result.get('message')}")
-                return {
-                    'success': False,
-                    'message': qty_result.get('message', 'Failed to calculate valid quantity'),
-                    'error': qty_result.get('error', 'QUANTITY_CALCULATION_FAILED'),
-                    'is_real': True,
-                    'error_details': qty_result
-                }
+            # فحص إذا كانت الكمية المحسوبة أقل من الحد الأدنى
+            if qty < min_quantity:
+                # حساب الهامش المطلوب للحد الأدنى
+                min_margin_required = (min_quantity * price) / leverage
+                
+                # فحص الرصيد المتاح
+                try:
+                    balance_info = account.get_wallet_balance('futures' if market_type == 'futures' else 'spot')
+                    if balance_info and 'coins' in balance_info and 'USDT' in balance_info['coins']:
+                        available_balance = float(balance_info['coins']['USDT']['equity'])
+                        
+                        logger.info(f"الرصيد المتاح: {available_balance} USDT")
+                        logger.info(f"الهامش المطلوب للحد الأدنى: {min_margin_required:.2f} USDT")
+                        
+                        if available_balance >= min_margin_required:
+                            # الرصيد كافي للحد الأدنى
+                            logger.warning(f"الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
+                            qty = min_quantity
+                        else:
+                            # الرصيد غير كافي حتى للحد الأدنى
+                            logger.error(f"الرصيد غير كافي حتى للحد الأدنى: {available_balance} < {min_margin_required}")
+                            return {
+                                'success': False,
+                                'message': f'Insufficient balance for minimum order. Available: {available_balance} USDT, Required: {min_margin_required:.2f} USDT',
+                                'error': 'INSUFFICIENT_BALANCE_MINIMUM',
+                                'is_real': True,
+                                'available_balance': available_balance,
+                                'required_balance': min_margin_required
+                            }
+                    else:
+                        logger.warning("لم يتم العثور على معلومات الرصيد USDT")
+                        # في حالة عدم العثور على الرصيد، نستخدم الحد الأدنى
+                        qty = min_quantity
+                except Exception as e:
+                    logger.warning(f"خطأ في فحص الرصيد للحد الأدنى: {e}")
+                    # في حالة الخطأ، نستخدم الحد الأدنى
+                    qty = min_quantity
             
-            qty = qty_result['quantity']
+            # تقريب الكمية حسب دقة الرمز
+            qty = round(qty, 6)
             
-            logger.info(f" ✅ حساب الكمية الصالحة نجح:")
-            logger.info(f"   - الكمية الأصلية: {qty_result.get('original_quantity', 0):.8f}")
-            logger.info(f"   - الكمية المعدلة: {qty:.8f}")
-            logger.info(f"   - الحد الأدنى: {qty_result.get('min_qty', 0)}")
-            logger.info(f"   - خطوة الكمية: {qty_result.get('qty_step', 0)}")
-            logger.info(f"   - القيمة الإجمالية: {qty_result.get('notional_value', 0):.2f} USDT")
-            
-            logger.info(f" 🔄 تحويل ذكي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
-            logger.info(f" 📊 المدخلات: amount = ${trade_amount}")
-            logger.info(f" 📈 المخرجات: qty = {qty} {symbol.split('USDT')[0]} (متوافق مع Bybit)")
+            logger.info(f" تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
+            logger.info(f" المدخلات (طريقتك): amount = ${trade_amount}")
+            logger.info(f" المخرجات (طريقة المنصة): qty = {qty} {symbol.split('USDT')[0]}")
             
             # استخراج TP/SL إذا كانت موجودة
             take_profit = signal_data.get('take_profit')
@@ -575,7 +598,7 @@ class SignalExecutor:
                     'error': 'INVALID_ACTION'
                 }
             
-            # حساب الكمية - محسن للتوافق مع MEXC
+            # حساب الكمية - كود خفي للتحويل الذكي
             price = float(signal_data.get('price', 1))
             
             # التحقق من أن السعر صحيح
@@ -587,28 +610,21 @@ class SignalExecutor:
                     'is_real': True
                 }
             
-            # حساب الكمية الأساسية
-            base_quantity = trade_amount / price
+            # حساب الكمية مع ضمان عدم وجود قيم صغيرة جداً
+            quantity = trade_amount / price
             
-            # تطبيق الحد الأدنى والتقريب المناسب لـ MEXC
-            min_quantity = 0.001  # الحد الأدنى لـ MEXC
-            qty_step = 0.001      # خطوة الكمية لـ MEXC
-            
-            if base_quantity < min_quantity:
-                logger.warning(f" الكمية {base_quantity} أقل من الحد الأدنى {min_quantity}, تم تعديلها")
+            # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
+            min_quantity = 0.001  # زيادة الحد الأدنى لـ Bybit
+            if quantity < min_quantity:
+                logger.warning(f" الكمية صغيرة جداً: {quantity}, تم تعديلها إلى الحد الأدنى")
                 quantity = min_quantity
-            else:
-                # تقريب الكمية إلى أقرب خطوة صالحة
-                steps = round(base_quantity / qty_step)
-                quantity = max(steps * qty_step, min_quantity)
             
-            # تقريب نهائي
+            # تقريب الكمية حسب دقة الرمز
             quantity = round(quantity, 6)
             
-            logger.info(f" 🔄 تحويل ذكي MEXC: ${trade_amount} → {quantity} {symbol.split('USDT')[0]} (السعر: ${price})")
-            logger.info(f" 📊 المدخلات: amount = ${trade_amount}")
-            logger.info(f" 📈 المخرجات: quantity = {quantity} {symbol.split('USDT')[0]} (متوافق مع MEXC)")
-            logger.info(f" ℹ️  الكمية الأصلية: {base_quantity:.8f}, المعدلة: {quantity:.6f}")
+            logger.info(f" تحويل خفي: ${trade_amount} → {quantity} {symbol.split('USDT')[0]} (السعر: ${price})")
+            logger.info(f" المدخلات (طريقتك): amount = ${trade_amount}")
+            logger.info(f" المخرجات (طريقة المنصة): quantity = {quantity} {symbol.split('USDT')[0]}")
             
             # وضع الأمر
             logger.info(f" تنفيذ أمر MEXC: {side} {quantity} {symbol}")
