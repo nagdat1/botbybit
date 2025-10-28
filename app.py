@@ -143,11 +143,6 @@ def webhook():
                 else:
                     print(f"🟢 [WEBHOOK] التنفيذ على حساب تجريبي...")
                     
-                    # 🔧 إصلاح: تفعيل البوت إذا كان متوقفاً
-                    if not trading_bot.is_running:
-                        print(f"⚠️ [WEBHOOK] البوت متوقف، يتم تفعيله...")
-                        trading_bot.is_running = True
-                    
                     # تطبيق إعدادات المستخدم على trading_bot
                     if user_data:
                         trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
@@ -159,7 +154,7 @@ def webhook():
                     print(f"📡 [WEBHOOK] استدعاء process_signal...")
                     print(f"📊 [WEBHOOK] بيانات الإشارة: {data}")
                     result = loop.run_until_complete(trading_bot.process_signal(data))
-                    print(f"✅ [WEBHOOK] اكتملت معالجة الإشارة: {result}")
+                    print(f"✅ [WEBHOOK] اكتملت معالجة الإشارة")
                     
                     # إرسال رسالة للمستخدم بعد التنفيذ (بشكل async)
                     try:
