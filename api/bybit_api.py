@@ -26,68 +26,35 @@ class BybitRealAccount:
     
     def round_quantity(self, qty: float, category: str, symbol: str) -> float:
         """
-        🔧 دالة التقريب - تعمل مع جميع المنصات بشكل موحد
-        تستخدم نفس المنطق من ExchangeBase لضمان التوافق
+        تقريب الكمية - المنطق القديم البسيط الذي كان يعمل
         """
         try:
-            # 🔧 إصلاح: تأكد أن qty هو float
+            # تحويل إلى float إذا كان string
             if isinstance(qty, str):
-                logger.warning(f"⚠️ qty هو string في round_quantity، تم تحويله إلى float")
                 qty = float(qty)
             
-            # جلب معلومات الرمز
-            symbol_info = self.get_symbol_info(category, symbol)
+            # ضمان الحد الأدنى للكمية (منطق النسخة القديمة)
+            min_quantity = 0.001  # الحد الأدنى لـ Bybit
             
-            if not symbol_info:
-                logger.warning(f"⚠️ فشل جلب معلومات الرمز {symbol}، استخدام التقريب الافتراضي")
-                # 🔧 تأكد أن qty هو float
-                qty_float = float(qty) if isinstance(qty, str) else qty
-                return round(qty_float, 6)
+            if qty < min_quantity:
+                logger.warning(f"الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى: {min_quantity}")
+                qty = min_quantity
             
-            qty_step = float(symbol_info.get('qty_step', '0.001'))
-            min_qty = symbol_info.get('min_qty', 0.0)
-            max_qty = symbol_info.get('max_qty', float('inf'))
-            qty_precision = symbol_info.get('qty_precision', 6)
+            # تقريب الكمية حسب دقة الرمز (منطق النسخة القديمة)
+            rounded_qty = round(qty, 6)
             
-            logger.info(f"📏 معلومات الرمز {symbol}:")
-            logger.info(f"   qty_step: {qty_step}")
-            logger.info(f"   min_qty: {min_qty}")
-            logger.info(f"   max_qty: {max_qty}")
-            logger.info(f"   precision: {qty_precision}")
+            # التأكد من أن الكمية ليست صفر
+            if rounded_qty <= 0:
+                logger.warning(f"الكمية أصبحت صفر بعد التقريب، استخدام الحد الأدنى: {min_quantity}")
+                rounded_qty = min_quantity
             
-            # 🔧 تأكد مرة أخرى أن qty هو float (أمان إضافي)
-            qty = float(qty) if isinstance(qty, str) else qty
-            
-            # تقريب حسب qty_step
-            rounded_qty = round(qty / qty_step) * qty_step
-            
-            # التأكد من الحد الأدنى
-            if rounded_qty < min_qty:
-                logger.warning(f"⚠️ الكمية {rounded_qty} أقل من الحد الأدنى {min_qty}، تم تعديلها")
-                rounded_qty = min_qty
-            
-            # التأكد من الحد الأقصى
-            if rounded_qty > max_qty:
-                logger.warning(f"⚠️ الكمية {rounded_qty} أكبر من الحد الأقصى {max_qty}، تم تعديلها")
-                rounded_qty = max_qty
-            
-            # تقريب نهائي بناءً على precision
-            rounded_qty = round(rounded_qty, qty_precision)
-            
-            logger.info(f"✅ تم تقريب الكمية: {qty} → {rounded_qty}")
-            
+            logger.info(f"تم تقريب الكمية: {qty} → {rounded_qty}")
             return rounded_qty
             
         except Exception as e:
-            logger.error(f"❌ خطأ في تقريب الكمية: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            # 🔧 تأكد أن qty هو float قبل التقريب
-            try:
-                qty_float = float(qty) if isinstance(qty, str) else qty
-                return round(qty_float, 6)
-            except:
-                return 0.001  # قيمة افتراضية آمنة
+            logger.error(f"خطأ في تقريب الكمية: {e}")
+            # في حالة الخطأ، استخدم الحد الأدنى الآمن
+            return 0.001
         
     def _generate_signature(self, timestamp: str, recv_window: str, params_str: str) -> str:
         """توليد التوقيع لـ Bybit V5"""
