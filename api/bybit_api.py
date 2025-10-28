@@ -23,6 +23,71 @@ class BybitRealAccount:
         self.api_key = api_key
         self.api_secret = api_secret
         self.base_url = "https://api.bybit.com"
+    
+    def round_quantity(self, qty: float, category: str, symbol: str) -> float:
+        """
+        🔧 دالة التقريب - تعمل مع جميع المنصات بشكل موحد
+        تستخدم نفس المنطق من ExchangeBase لضمان التوافق
+        """
+        try:
+            # 🔧 إصلاح: تأكد أن qty هو float
+            if isinstance(qty, str):
+                logger.warning(f"⚠️ qty هو string في round_quantity، تم تحويله إلى float")
+                qty = float(qty)
+            
+            # جلب معلومات الرمز
+            symbol_info = self.get_symbol_info(category, symbol)
+            
+            if not symbol_info:
+                logger.warning(f"⚠️ فشل جلب معلومات الرمز {symbol}، استخدام التقريب الافتراضي")
+                # 🔧 تأكد أن qty هو float
+                qty_float = float(qty) if isinstance(qty, str) else qty
+                return round(qty_float, 6)
+            
+            qty_step = float(symbol_info.get('qty_step', '0.001'))
+            min_qty = symbol_info.get('min_qty', 0.0)
+            max_qty = symbol_info.get('max_qty', float('inf'))
+            qty_precision = symbol_info.get('qty_precision', 6)
+            
+            logger.info(f"📏 معلومات الرمز {symbol}:")
+            logger.info(f"   qty_step: {qty_step}")
+            logger.info(f"   min_qty: {min_qty}")
+            logger.info(f"   max_qty: {max_qty}")
+            logger.info(f"   precision: {qty_precision}")
+            
+            # 🔧 تأكد مرة أخرى أن qty هو float (أمان إضافي)
+            qty = float(qty) if isinstance(qty, str) else qty
+            
+            # تقريب حسب qty_step
+            rounded_qty = round(qty / qty_step) * qty_step
+            
+            # التأكد من الحد الأدنى
+            if rounded_qty < min_qty:
+                logger.warning(f"⚠️ الكمية {rounded_qty} أقل من الحد الأدنى {min_qty}، تم تعديلها")
+                rounded_qty = min_qty
+            
+            # التأكد من الحد الأقصى
+            if rounded_qty > max_qty:
+                logger.warning(f"⚠️ الكمية {rounded_qty} أكبر من الحد الأقصى {max_qty}، تم تعديلها")
+                rounded_qty = max_qty
+            
+            # تقريب نهائي بناءً على precision
+            rounded_qty = round(rounded_qty, qty_precision)
+            
+            logger.info(f"✅ تم تقريب الكمية: {qty} → {rounded_qty}")
+            
+            return rounded_qty
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في تقريب الكمية: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # 🔧 تأكد أن qty هو float قبل التقريب
+            try:
+                qty_float = float(qty) if isinstance(qty, str) else qty
+                return round(qty_float, 6)
+            except:
+                return 0.001  # قيمة افتراضية آمنة
         
     def _generate_signature(self, timestamp: str, recv_window: str, params_str: str) -> str:
         """توليد التوقيع لـ Bybit V5"""
@@ -242,8 +307,15 @@ class BybitRealAccount:
         """وضع أمر تداول حقيقي"""
         
         try:
+            # 🔧 إصلاح: تأكد أن qty هو float
+            if isinstance(qty, str):
+                logger.warning(f"⚠️ qty هو string، تم تحويله إلى float")
+                qty = float(qty)
+            
             # 🔧 إصلاح: تقريب الكمية بناءً على قواعد الرمز
             logger.info(f"🔢 تقريب الكمية للرمز {symbol}...")
+            
+            # استخدام دالة التقريب من ExchangeBase
             rounded_qty = self.round_quantity(qty, category, symbol)
             
             # استخدام الكمية المقربة
@@ -493,7 +565,10 @@ class BybitRealAccount:
             return None
     
     def get_symbol_info(self, category: str, symbol: str) -> Optional[Dict]:
-        """الحصول على معلومات الرمز (precision, min/max qty, etc.)"""
+        """
+        الحصول على معلومات الرمز (precision, min/max qty, etc.)
+        🔧 يعمل بالتوافق مع ExchangeBase interface
+        """
         try:
             endpoint = "/v5/market/instruments-info"
             params = {"category": category, "symbol": symbol}
@@ -505,14 +580,21 @@ class BybitRealAccount:
                 lot_size = symbol_info.get('lotSizeFilter', {})
                 price_filter = symbol_info.get('priceFilter', {})
                 
+                qty_step = lot_size.get('qtyStep', '0.001')
+                qty_precision = len(qty_step.split('.')[-1]) if '.' in str(qty_step) else 0
+                
                 return {
                     'symbol': symbol_info.get('symbol'),
-                    'lotSizeFilter': lot_size,
-                    'priceFilter': price_filter,
-                    'minQty': float(lot_size.get('minQty', '0')),
-                    'maxQty': float(lot_size.get('maxQty', '0')),
-                    'qtyStep': lot_size.get('qtyStep', '0.001'),
-                    'qtyPrecision': len(lot_size.get('qtyStep', '0.001').split('.')[-1]) if '.' in str(lot_size.get('qtyStep', '0.001')) else 0,
+                    'qty_step': qty_step,
+                    'min_qty': float(lot_size.get('minQty', '0')),
+                    'max_qty': float(lot_size.get('maxQty', '0')),
+                    'qty_precision': qty_precision,
+                    'price_precision': int(price_filter.get('tickSize', '0.01').count('0') - 1),
+                    'min_price': float(price_filter.get('minPrice', '0')),
+                    'max_price': float(price_filter.get('maxPrice', '0')),
+                    # معلومات إضافية للمنصات الأخرى
+                    'lot_size_filter': lot_size,
+                    'price_filter': price_filter,
                 }
             
             return None
@@ -522,64 +604,6 @@ class BybitRealAccount:
             import traceback
             logger.error(traceback.format_exc())
             return None
-    
-    def round_quantity(self, qty: float, category: str, symbol: str) -> float:
-        """
-        تقريب الكمية بناءً على قواعد الرمز من Bybit
-        
-        Args:
-            qty: الكمية الأصلية
-            category: نوع السوق (spot, linear, etc.)
-            symbol: رمز العملة
-            
-        Returns:
-            الكمية المقربة حسب قواعد الرمز
-        """
-        try:
-            # جلب معلومات الرمز
-            symbol_info = self.get_symbol_info(category, symbol)
-            
-            if not symbol_info:
-                logger.warning(f"⚠️ فشل جلب معلومات الرمز {symbol}، استخدام التقريب الافتراضي")
-                return round(qty, 6)
-            
-            qty_step = float(symbol_info.get('qtyStep', '0.001'))
-            min_qty = symbol_info.get('minQty', 0.0)
-            max_qty = symbol_info.get('maxQty', float('inf'))
-            qty_precision = symbol_info.get('qtyPrecision', 6)
-            
-            logger.info(f"📏 معلومات الرمز {symbol}:")
-            logger.info(f"   qtyStep: {qty_step}")
-            logger.info(f"   minQty: {min_qty}")
-            logger.info(f"   maxQty: {max_qty}")
-            logger.info(f"   precision: {qty_precision}")
-            
-            # تقريب حسب qtyStep
-            rounded_qty = round(qty / qty_step) * qty_step
-            
-            # التأكد من الحد الأدنى
-            if rounded_qty < min_qty:
-                logger.warning(f"⚠️ الكمية {rounded_qty} أقل من الحد الأدنى {min_qty}، تم تعديلها")
-                rounded_qty = min_qty
-            
-            # التأكد من الحد الأقصى
-            if rounded_qty > max_qty:
-                logger.warning(f"⚠️ الكمية {rounded_qty} أكبر من الحد الأقصى {max_qty}، تم تعديلها")
-                rounded_qty = max_qty
-            
-            # تقريب نهائي بناءً على precision
-            rounded_qty = round(rounded_qty, qty_precision)
-            
-            logger.info(f"✅ تم تقريب الكمية: {qty} → {rounded_qty}")
-            
-            return rounded_qty
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في تقريب الكمية: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            # في حالة الخطأ، استخدم تقريب افتراضي
-            return round(qty, 6)
 
 
 

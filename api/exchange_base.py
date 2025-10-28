@@ -187,6 +187,78 @@ class ExchangeBase(ABC):
     def get_referral_link(self) -> str:
         """رابط الإحالة للمنصة"""
         pass
+    
+    @abstractmethod
+    def get_symbol_info(self, market_type: str, symbol: str) -> Optional[Dict]:
+        """
+        الحصول على معلومات الرمز (precision, min/max qty, etc.)
+        
+        Args:
+            market_type: نوع السوق ('spot', 'futures', etc.)
+            symbol: رمز العملة
+            
+        Returns:
+            dict: معلومات الرمز أو None
+        """
+        pass
+    
+    def round_quantity(self, qty: float, market_type: str, symbol: str) -> float:
+        """
+        🔧 دالة أساسية مشتركة: تقريب الكمية بناءً على قواعد الرمز
+        
+        Args:
+            qty: الكمية الأصلية
+            market_type: نوع السوق
+            symbol: رمز العملة
+            
+        Returns:
+            الكمية المقربة حسب قواعد المنصة
+        """
+        try:
+            # جلب معلومات الرمز
+            symbol_info = self.get_symbol_info(market_type, symbol)
+            
+            if not symbol_info:
+                logger.warning(f"⚠️ فشل جلب معلومات الرمز {symbol}، استخدام التقريب الافتراضي")
+                return round(qty, 6)
+            
+            qty_step = float(symbol_info.get('qty_step', '0.001'))
+            min_qty = symbol_info.get('min_qty', 0.0)
+            max_qty = symbol_info.get('max_qty', float('inf'))
+            qty_precision = symbol_info.get('qty_precision', 6)
+            
+            logger.info(f"📏 معلومات الرمز {symbol}:")
+            logger.info(f"   qty_step: {qty_step}")
+            logger.info(f"   min_qty: {min_qty}")
+            logger.info(f"   max_qty: {max_qty}")
+            logger.info(f"   precision: {qty_precision}")
+            
+            # تقريب حسب qty_step
+            rounded_qty = round(qty / qty_step) * qty_step
+            
+            # التأكد من الحد الأدنى
+            if rounded_qty < min_qty:
+                logger.warning(f"⚠️ الكمية {rounded_qty} أقل من الحد الأدنى {min_qty}، تم تعديلها")
+                rounded_qty = min_qty
+            
+            # التأكد من الحد الأقصى
+            if rounded_qty > max_qty:
+                logger.warning(f"⚠️ الكمية {rounded_qty} أكبر من الحد الأقصى {max_qty}، تم تعديلها")
+                rounded_qty = max_qty
+            
+            # تقريب نهائي بناءً على precision
+            rounded_qty = round(rounded_qty, qty_precision)
+            
+            logger.info(f"✅ تم تقريب الكمية: {qty} → {rounded_qty}")
+            
+            return rounded_qty
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في تقريب الكمية: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # في حالة الخطأ، استخدم تقريب افتراضي
+            return round(qty, 6)
 
 
 class ExchangeRegistry:
