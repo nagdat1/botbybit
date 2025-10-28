@@ -8016,15 +8016,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await close_position(position_id, update, context)
     if data == "refresh_positions" or data == "show_positions" or data == "open_positions":
         await open_positions(update, context)
+        return
     if data == "webhook_help":
         await show_webhook_help(update, context)
+        return
     if data == "back_to_main":
         await start(update, context)
+        return
     if data == "cancel":
         # إلغاء العملية والعودة للقائمة الرئيسية
         if user_id and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+        return
     if data == "confirm":
         # تأكيد العملية - سيتم تخصيصها حسب السياق
         await query.answer("✅ تم التأكيد")
@@ -8038,45 +8042,63 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer(f"📊 تم اختيار: {market}")
     if data == "auto_apply_menu":
         await auto_apply_settings_menu(update, context)
+        return
     if data == "risk_management_menu":
         await risk_management_menu(update, context)
+        return
     if data == "toggle_risk_management":
         await toggle_risk_management(update, context)
+        return
     if data == "set_max_loss_percent":
         await set_max_loss_percent(update, context)
+        return
     if data == "set_max_loss_amount":
         await set_max_loss_amount(update, context)
+        return
     if data == "set_daily_loss_limit":
         await set_daily_loss_limit(update, context)
+        return
     if data == "set_weekly_loss_limit":
         await set_weekly_loss_limit(update, context)
+        return
     if data == "toggle_stop_trading":
         await toggle_stop_trading_on_loss(update, context)
+        return
     if data == "show_risk_stats":
         await show_risk_statistics(update, context)
+        return
     if data == "reset_risk_stats":
         await reset_risk_statistics(update, context)
+        return
     if data == "risk_management_guide":
         await risk_management_guide(update, context)
+        return
     if data == "toggle_auto_apply":
         await toggle_auto_apply(update, context)
+        return
     if data == "quick_auto_setup":
         await quick_auto_setup(update, context)
+        return
     if data == "edit_auto_settings":
         logger.info(f"🔧 معالجة زر: edit_auto_settings")
         await edit_auto_settings(update, context)
+        return
     if data == "edit_auto_tp":
         logger.info(f"🔧 معالجة زر: edit_auto_tp")
         await edit_auto_tp(update, context)
+        return
     if data == "edit_auto_sl":
         logger.info(f"🔧 معالجة زر: edit_auto_sl")
         await edit_auto_sl(update, context)
+        return
     if data == "toggle_auto_trailing":
         logger.info(f"🔧 معالجة زر: toggle_auto_trailing")
         await toggle_auto_trailing(update, context)
+        return
     if data == "clear_auto_settings":
         logger.info(f"🔧 معالجة زر: clear_auto_settings")
         await clear_auto_settings(update, context)
+        return
     elif data.startswith("auto_tp_targets_"):
         await set_auto_tp_targets_count(update, context)
     elif data.startswith("quick_tp_"):
@@ -8244,6 +8266,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+        return
     if data == "market_futures":
         trading_bot.user_settings['market_type'] = 'futures'
         # حفظ الإعدادات في قاعدة البيانات
@@ -8257,6 +8280,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+        return
     if data == "account_real":
         trading_bot.user_settings['account_type'] = 'real'
         # حفظ الإعدادات في قاعدة البيانات
@@ -8283,6 +8307,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+        return
     if data == "back_to_settings":
         # إعادة تعيين حالة إدخال المستخدم
         if user_id is not None and user_id in user_input_state:
