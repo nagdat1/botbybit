@@ -101,37 +101,87 @@ class SignalExecutor:
                 logger.info(f"🔍 محاولة تهيئة الحساب الحقيقي للمستخدم {user_id}...")
                 
                 # الحصول على مفاتيح API من بيانات المستخدم
-                api_key = user_data.get('api_key', '') or user_data.get('bybit_api_key', '')
-                api_secret = user_data.get('api_secret', '') or user_data.get('bybit_api_secret', '')
+                api_key = user_data.get('bybit_api_key', '') or user_data.get('api_key', '')
+                api_secret = user_data.get('bybit_api_secret', '') or user_data.get('api_secret', '')
                 
-                if api_key and api_secret and len(api_key) > 10:
+                logger.info(f"🔑 محاولة استخدام مفاتيح API من قاعدة البيانات...")
+                logger.info(f"   API Key موجود: {bool(api_key and len(api_key) > 10)}")
+                logger.info(f"   API Secret موجود: {bool(api_secret and len(api_secret) > 10)}")
+                
+                if api_key and api_secret and len(api_key) > 10 and len(api_secret) > 10:
                     try:
+                        logger.info(f"🔧 تهيئة الحساب الحقيقي للمستخدم {user_id}...")
                         real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
                         logger.info(f"✅ تم تهيئة الحساب للمستخدم {user_id}")
                         # إعادة المحاولة للحصول على الحساب
                         real_account = real_account_manager.get_account(user_id)
+                        logger.info(f"✅ تم تحميل الحساب بنجاح: {real_account is not None}")
                     except Exception as init_e:
                         logger.error(f"❌ فشل تهيئة الحساب: {init_e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
                         error_msg = str(init_e)
-                        # تحديد نوع الخطأ
-                        if 'invalid' in error_msg.lower() or '401' in error_msg:
+                        
+                        # تحديد نوع الخطأ وتوفير رسالة واضحة
+                        if 'invalid' in error_msg.lower() or '401' in error_msg or '10001' in error_msg:
+                            detailed_message = f"""
+❌ فشل في تنفيذ صفقة الفيوتشر: API key is invalid.
+
+📋 السبب المحتمل:
+• المفاتيح غير صحيحة أو منتهية الصلاحية
+• المفاتيح غير موجودة في قاعدة البيانات
+• تفاصيل الخطأ: {error_msg}
+
+💡 الحل:
+1. اذهب إلى الإعدادات في البوت
+2. اختر "إعدادات الحساب الحقيقي"
+3. أدخل مفاتيح API الصحيحة من Bybit
+4. تأكد من تفعيل جميع الصلاحيات اللازمة
+
+🔑 للحصول على مفاتيح API من Bybit:
+1. اذهب إلى https://www.bybit.com/
+2. اذهب إلى Account & Security → API Management
+3. أنشئ API Key جديد مع الصلاحيات التالية:
+   - Trade (للتنفيذ)
+   - Read (للقراءة)
+   - Futures Trading (للإفتراضية)
+"""
                             return {
                                 'success': False,
-                                'message': 'API key is invalid. Please check your credentials.',
+                                'message': detailed_message.strip(),
                                 'error': 'INVALID_API_KEY',
                                 'help': 'Please update your API keys in settings with valid credentials'
                             }
                         else:
                             return {
                                 'success': False,
-                                'message': f'Failed to initialize account: {init_e}',
+                                'message': f'فشل تهيئة الحساب: {init_e}',
                                 'error': 'ACCOUNT_INIT_FAILED'
                             }
                 else:
                     logger.error(f"❌ مفاتيح API غير موجودة للمستخدم {user_id}")
+                    detailed_message = f"""
+❌ مفاتيح API غير موجودة في قاعدة البيانات
+
+🔍 التفاصيل:
+• نوع الحساب: {account_type}
+• المستخدم: {user_id}
+• المفاتيح الموجودة: {bool(api_key)} / {bool(api_secret)}
+
+💡 الحل:
+1. اذهب إلى الإعدادات في البوت
+2. اختر "إعدادات الحساب الحقيقي" أو "ربط الحساب"
+3. أدخل مفاتيح Bybit API الخاصة بك
+4. تأكد من تفعيل نوع الحساب على "Real" وليس "Demo"
+
+⚠️ ملاحظة مهمة:
+• يجب إدخال المفاتيح الصحيحة من Bybit
+• تأكد من تفعيل جميع الصلاحيات اللازمة
+• بعد إضافة المفاتيح، أعد المحاولة
+"""
                     return {
                         'success': False,
-                        'message': 'API keys not configured for real account',
+                        'message': detailed_message.strip(),
                         'error': 'API_KEYS_NOT_FOUND',
                         'help': 'Please configure your API keys in settings'
                     }

@@ -141,6 +141,21 @@ def webhook():
                         signal_executor.execute_signal(0, data, user_data)
                     )
                     print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
+                    
+                    # إرسال رسالة للمستخدم عند الفشل
+                    if not result.get('success', False):
+                        error_msg = result.get('message', 'Unknown error')
+                        import asyncio
+                        try:
+                            # إرسال إشعار للمستخدم في Telegram
+                            asyncio.create_task(trading_bot.send_message_to_admin(
+                                f"❌ فشل في معالجة الإشارة\n\n"
+                                f"📊 الرمز: {data.get('symbol', 'Unknown')}\n"
+                                f"🔄 الإجراء: {data.get('action', 'Unknown')}\n"
+                                f"❌ الخطأ: {error_msg[:500]}"
+                            ))
+                        except:
+                            pass
                 else:
                     print(f"🟢 [WEBHOOK] التنفيذ على حساب تجريبي...")
                     
