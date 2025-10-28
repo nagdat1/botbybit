@@ -131,9 +131,31 @@ class SignalExecutor:
                         logger.info(f"🔧 تهيئة الحساب الحقيقي للمستخدم {user_id}...")
                         real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
                         logger.info(f"✅ تم تهيئة الحساب للمستخدم {user_id}")
+                        
                         # إعادة المحاولة للحصول على الحساب
                         real_account = real_account_manager.get_account(user_id)
                         logger.info(f"✅ تم تحميل الحساب بنجاح: {real_account is not None}")
+                        
+                        # 🔧 اختبار الاتصال فوراً بعد التهيئة
+                        if real_account:
+                            logger.info(f"🧪 اختبار الاتصال بالمنصة...")
+                            test_result = real_account.get_wallet_balance(market_type)
+                            if test_result is None or (isinstance(test_result, dict) and test_result.get('error')):
+                                logger.error(f"❌ فشل اختبار الاتصال بالمنصة")
+                                error_details = test_result if isinstance(test_result, dict) else {}
+                                error_code = error_details.get('retCode', 'Unknown')
+                                error_msg = error_details.get('retMsg', 'Connection test failed')
+                                
+                                return {
+                                    'success': False,
+                                    'message': f'فشل اختبار الاتصال بالمنصة: {error_msg} (Code: {error_code})',
+                                    'error': 'CONNECTION_TEST_FAILED',
+                                    'error_code': error_code,
+                                    'help': 'Please check your API keys and permissions'
+                                }
+                            else:
+                                logger.info(f"✅ نجح اختبار الاتصال بالمنصة")
+                        
                     except Exception as init_e:
                         logger.error(f"❌ فشل تهيئة الحساب: {init_e}")
                         import traceback
@@ -1163,12 +1185,44 @@ class SignalExecutor:
                     
                     logger.info(f"🔍 نتيجة تنفيذ الصفقة: {result}")
                     
+                    # 🔧 التحقق من وجود أخطاء في النتيجة
+                    if result is None:
+                        logger.error(f"❌ فشل في تنفيذ الصفقة - النتيجة فارغة")
+                        return {
+                            'success': False,
+                            'message': 'Failed to execute order - empty response',
+                            'error': 'ORDER_EXECUTION_EMPTY'
+                        }
+                    
+                    if isinstance(result, dict) and result.get('error'):
+                        logger.error(f"❌ خطأ في تنفيذ الصفقة - خطأ من API")
+                        error_type = result.get('error_type', 'UNKNOWN')
+                        error_msg = result.get('message', result.get('retMsg', 'Unknown error'))
+                        
+                        # تحديد رسالة خطأ مناسبة
+                        if error_type in ['INVALID_API_KEY', 'EMPTY_RESPONSE']:
+                            return {
+                                'success': False,
+                                'message': f'API Error: {error_msg}',
+                                'error': error_type,
+                                'help': 'Please check your API keys and permissions in settings'
+                            }
+                        else:
+                            return {
+                                'success': False,
+                                'message': f'Order execution failed: {error_msg}',
+                                'error': error_type,
+                                'details': result
+                            }
+                    
                 except Exception as order_error:
                     logger.error(f"❌ خطأ في تنفيذ الصفقة: {order_error}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                     error_msg = str(order_error)
                     
                     # معالجة خطأ API key invalid
-                    if 'invalid' in error_msg.lower() or 'API key' in error_msg:
+                    if 'invalid' in error_msg.lower() or 'API key' in error_msg or '10001' in error_msg:
                         return {
                             'success': False,
                             'message': 'API key is invalid. Please check your API credentials in settings.',
@@ -1205,6 +1259,31 @@ class SignalExecutor:
                         'error_details': f'Failed result: {result}'
                     }
             
+                # 🔧 التحقق من وجود أخطاء في النتيجة قبل معالجة order_id
+                if result is None:
+                    logger.error(f"❌ فشل تنفيذ الصفقة - النتيجة None")
+                    return {
+                        'success': False,
+                        'message': 'Order placement failed - empty response',
+                        'is_real': True,
+                        'error_details': 'Empty result'
+                    }
+                
+                # التحقق من وجود خطأ في النتيجة
+                if isinstance(result, dict) and result.get('error'):
+                    logger.error(f"❌ خطأ من API في نتيجة الصفقة:")
+                    logger.error(f"   Details: {result}")
+                    
+                    error_type = result.get('error_type', 'UNKNOWN')
+                    error_msg = result.get('message', result.get('retMsg', 'Unknown error'))
+                    
+                    return {
+                        'success': False,
+                        'message': f'Order placement failed: {error_msg}',
+                        'is_real': True,
+                        'error_details': result
+                    }
+                
                 # التحقق النهائي من النجاح قبل الإرجاع
             if not result or not isinstance(result, dict) or not result.get('order_id'):
                 logger.error(f"❌ فشل تنفيذ الصفقة - لا يوجد order_id")
@@ -1214,7 +1293,8 @@ class SignalExecutor:
                 error_msg = ""
                 if isinstance(result, dict):
                     if result.get('error'):
-                        error_msg = result.get('error', 'Unknown error')
+                        error_msg = result.get('message', 'Unknown error')
+                        error_type = result.get('error_type', 'UNKNOWN')
                     elif result.get('retCode') is not None:
                         # خطأ من Bybit API
                         ret_code = result.get('retCode')
@@ -1256,7 +1336,7 @@ class SignalExecutor:
                     'notes': f'Futures position - {side} {qty} {symbol} (ID: {signal_id})'
                 }
                 
-                from enhanced_portfolio_manager import portfolio_factory
+                from systems.enhanced_portfolio_manager import portfolio_factory
                 portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
                 portfolio_manager.add_position(position_data)
             

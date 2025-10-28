@@ -107,12 +107,35 @@ class BybitRealAccount:
                     logger.info(f"✅ نجح الطلب: {endpoint}")
                     return result.get('result')
                 else:
-                    logger.error(f"❌ خطأ من Bybit API: {result.get('retMsg')}")
-                    logger.error(f"   retCode: {result.get('retCode')}")
-                    return None
+                    # 🔧 إصلاح: إرجاع معلومات الخطأ الكاملة بدلاً من None
+                    ret_code = result.get('retCode')
+                    ret_msg = result.get('retMsg', 'Unknown error')
+                    ret_ext_info = result.get('retExtInfo', {})
+                    
+                    logger.error(f"❌ فشل طلب Bybit API:")
+                    logger.error(f"   Endpoint: {endpoint}")
+                    logger.error(f"   Error Code: {ret_code}")
+                    logger.error(f"   Error Message: {ret_msg}")
+                    logger.error(f"   Extra Info: {ret_ext_info}")
+                    
+                    # إرجاع معلومات الخطأ بدلاً من None
+                    return {
+                        'error': True,
+                        'retCode': ret_code,
+                        'retMsg': ret_msg,
+                        'retExtInfo': ret_ext_info
+                    }
             else:
-                logger.error(f"❌ Bybit API Error (HTTP {response.status_code}): {response.text}")
-                return None
+                error_text = response.text[:500] if len(response.text) > 500 else response.text
+                logger.error(f"❌ Bybit API HTTP Error:")
+                logger.error(f"   Status Code: {response.status_code}")
+                logger.error(f"   Endpoint: {endpoint}")
+                logger.error(f"   Response: {error_text}")
+                return {
+                    'error': True,
+                    'http_status': response.status_code,
+                    'message': error_text
+                }
             
         except Exception as e:
             logger.error(f"❌ خطأ في طلب Bybit: {e}")
@@ -218,41 +241,68 @@ class BybitRealAccount:
                    reduce_only: bool = False) -> Optional[Dict]:
         """وضع أمر تداول حقيقي"""
         
-        # إرسال الكمية كما هي بدون تقريب - المنصة ستقوم بالتقريب
-        # فقط نضمن أن الكمية رقم صحيح
-        qty_str = str(float(qty))
-        
-        params = {
-            'category': category,
-            'symbol': symbol,
-            'side': side.capitalize(),
-            'orderType': order_type.capitalize(),
-            'qty': qty_str
-        }
-        
-        if price and order_type.lower() == 'limit':
-            params['price'] = str(price)
-        
-        # reduce_only للأوامر Futures فقط
-        if reduce_only and category in ['linear', 'inverse']:
-            params['reduceOnly'] = True
-        
-        if take_profit:
-            params['takeProfit'] = str(take_profit)
-        
-        if stop_loss:
-            params['stopLoss'] = str(stop_loss)
-        
-        # تعيين الرافعة المالية أولاً إذا كانت محددة
-        if leverage and category in ['linear', 'inverse']:
-            self.set_leverage(category, symbol, leverage)
-        
-        result = self._make_request('POST', '/v5/order/create', params)
-        
-        if result:
+        try:
+            # إرسال الكمية كما هي بدون تقريب - المنصة ستقوم بالتقريب
+            # فقط نضمن أن الكمية رقم صحيح
+            qty_str = str(float(qty))
+            
+            params = {
+                'category': category,
+                'symbol': symbol,
+                'side': side.capitalize(),
+                'orderType': order_type.capitalize(),
+                'qty': qty_str
+            }
+            
+            if price and order_type.lower() == 'limit':
+                params['price'] = str(price)
+            
+            # reduce_only للأوامر Futures فقط
+            if reduce_only and category in ['linear', 'inverse']:
+                params['reduceOnly'] = True
+            
+            if take_profit:
+                params['takeProfit'] = str(take_profit)
+            
+            if stop_loss:
+                params['stopLoss'] = str(stop_loss)
+            
+            # تعيين الرافعة المالية أولاً إذا كانت محددة
+            if leverage and category in ['linear', 'inverse']:
+                self.set_leverage(category, symbol, leverage)
+            
+            logger.info(f"📤 وضع أمر جديد:")
+            logger.info(f"   Category: {category}")
+            logger.info(f"   Symbol: {symbol}")
+            logger.info(f"   Side: {side}")
+            logger.info(f"   Order Type: {order_type}")
+            logger.info(f"   Quantity: {qty_str}")
+            if price:
+                logger.info(f"   Price: {price}")
+            
+            result = self._make_request('POST', '/v5/order/create', params)
+            
+            # 🔧 معالجة محسّنة للنتائج
+            if result is None:
+                logger.error(f"❌ لم يتم إرجاع نتيجة من Bybit API")
+                return {
+                    'error': True,
+                    'message': 'Empty result from Bybit API',
+                    'error_type': 'EMPTY_RESPONSE'
+                }
+            
+            # التحقق من وجود خطأ في النتيجة
+            if isinstance(result, dict) and result.get('error'):
+                logger.error(f"❌ خطأ من Bybit API في place_order:")
+                logger.error(f"   Details: {result}")
+                return result
+            
             logger.info(f"🔍 نتيجة place_order من Bybit: {result}")
+            
+            # استخراج orderId من النتيجة
             order_id = result.get('orderId')
             if order_id:
+                logger.info(f"✅ تم إنشاء أمر بنجاح: {order_id}")
                 return {
                     'order_id': order_id,
                     'order_link_id': result.get('orderLinkId'),
@@ -263,10 +313,43 @@ class BybitRealAccount:
                     'price': price
                 }
             else:
-                logger.error(f"❌ لا يوجد orderId في نتيجة Bybit: {result}")
-                return {'error': 'No orderId in result', 'details': result}
+                # البحث في مكان آخر
+                logger.warning(f"⚠️ لا يوجد orderId في المكان المتوقع، البحث في النتيجة الكاملة...")
+                logger.warning(f"   Result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+                
+                # محاولة الحصول من النتيجة الكاملة
+                if isinstance(result, dict):
+                    for key in ['orderId', 'order_id', 'order-link-id', 'orderLinkId']:
+                        if key in result:
+                            order_id = result[key]
+                            logger.info(f"✅ تم العثور على orderId في '{key}': {order_id}")
+                            return {
+                                'order_id': order_id,
+                                'order_link_id': result.get('order_link_id', result.get('orderLinkId')),
+                                'symbol': symbol,
+                                'side': side,
+                                'type': order_type,
+                                'qty': qty,
+                                'price': price
+                            }
+                
+                logger.error(f"❌ لا يوجد orderId في النتيجة: {result}")
+                return {
+                    'error': True,
+                    'message': 'No orderId in result',
+                    'details': result,
+                    'error_type': 'NO_ORDER_ID'
+                }
         
-        return {'error': 'Empty result from Bybit'}
+        except Exception as e:
+            logger.error(f"❌ خطأ في place_order: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                'error': True,
+                'message': str(e),
+                'error_type': 'EXCEPTION'
+            }
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
         """تعيين الرافعة المالية على المنصة"""
