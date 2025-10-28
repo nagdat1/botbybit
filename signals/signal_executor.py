@@ -573,86 +573,9 @@ class SignalExecutor:
                     'current_value': notional_value
                 }
             
-            # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
-            min_quantity = 0.0001  # الحد الأدنى المقبول
-            if qty < min_quantity:
-                logger.warning(f"⚠️ الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
-                qty = min_quantity
-            
-            # 🧠 كود خفي ذكي: تقريب تلقائي لأقرب كمية مسموحة
-            # يبحث عن أقرب كمية صالحة (من الأسفل أو الأعلى) للمبلغ المحدد
-            
-            # الخطوة 1: حساب التقريب الطبيعي
-            if qty >= 1000:
-                rounded_qty = round(qty)
-            elif qty >= 100:
-                rounded_qty = round(qty, 1)
-            elif qty >= 10:
-                rounded_qty = round(qty, 2)
-            elif qty >= 1:
-                rounded_qty = round(qty, 3)
-            elif qty >= 0.1:
-                rounded_qty = round(qty, 4)
-            elif qty >= 0.01:
-                rounded_qty = round(qty, 5)
-            elif qty >= 0.001:
-                rounded_qty = round(qty, 6)
-            else:
-                rounded_qty = round(qty, 8)
-            
-            # الخطوة 2: البحث عن أقرب قيمة صالحة (من الأسفل أو الأعلى)
-            # قائمة القيم الصالحة الشائعة (steps مسموحة)
-            valid_steps = []
-            for i in range(1, 1000):  # من 0.001 إلى 0.999
-                valid_steps.append(i / 1000)
-            
-            # إضافة قيم صغيرة جداً
-            if rounded_qty < 0.001:
-                rounded_qty = 0.001
-                logger.info(f"⚠️ الكمية {qty:.8f} أقل من الحد الأدنى (0.001)، تم تعديلها إلى {rounded_qty}")
-            else:
-                # البحث عن أقرب قيمة صالحة
-                best_qty = None
-                min_diff = float('inf')
-                
-                for valid_qty in valid_steps:
-                    diff = abs(valid_qty - rounded_qty)
-                    if diff < min_diff:
-                        min_diff = diff
-                        best_qty = valid_qty
-                
-                if best_qty is not None and best_qty != rounded_qty:
-                    logger.info(f"🔄 الكمية {rounded_qty:.6f} تم تعديلها إلى أقرب قيمة صالحة: {best_qty}")
-                    rounded_qty = best_qty
-            
-            # إذا تم التعديل، نحسب المبلغ الفعلي بعد التقريب
-            logger.info(f"=" * 80)
-            logger.info(f"🧠 تقريب ذكي عالمي:")
-            logger.info(f"   الكمية الأصلية: {qty:.8f}")
-            logger.info(f"   الكمية بعد التقريب: {rounded_qty:.8f}")
-            
-            if abs(rounded_qty - qty) > 0.00000001:
-                # حساب المبلغ الفعلي بعد التقريب
-                if market_type == 'futures':
-                    effective_amount = (rounded_qty * price) / leverage
-                else:
-                    effective_amount = rounded_qty * price
-                
-                logger.info(f"   ✅ تم التقريب")
-                logger.info(f"   📊 المبلغ الأصلي: ${trade_amount}")
-                logger.info(f"   📊 المبلغ بعد التقريب: ${effective_amount:.2f}")
-                logger.info(f"   📊 نسبة التقريب: {(effective_amount/trade_amount)*100:.1f}%")
-                qty = rounded_qty
-            else:
-                # لا حاجة لتعديل - الكمية بالفعل مقربة بشكل صحيح
-                logger.info(f"   ⚠️ لا حاجة للتقريب - الكمية بالفعل صحيحة")
-                qty = rounded_qty
-            
-            logger.info(f"=" * 80)
-            
-            # تتبع إذا تم التقريب لإرسال رسالة للمستخدم
-            original_qty = (trade_amount * leverage) / price if market_type == 'futures' else trade_amount / price
-            qty_was_adjusted = abs(rounded_qty - original_qty) > 0.00000001
+            # 🔧 ملاحظة: التقريب الآن يتم في place_order بناءً على قواعد Bybit
+            # لذلك نحتفظ بالكمية كما هي ونترك place_order يقوم بالتقريب الصحيح
+            qty_was_adjusted = False  # سيتم التقريب في place_order
             
             logger.info(f"🧠 تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
             logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")

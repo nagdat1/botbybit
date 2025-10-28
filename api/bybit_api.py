@@ -242,9 +242,13 @@ class BybitRealAccount:
         """وضع أمر تداول حقيقي"""
         
         try:
-            # إرسال الكمية كما هي بدون تقريب - المنصة ستقوم بالتقريب
-            # فقط نضمن أن الكمية رقم صحيح
-            qty_str = str(float(qty))
+            # 🔧 إصلاح: تقريب الكمية بناءً على قواعد الرمز
+            logger.info(f"🔢 تقريب الكمية للرمز {symbol}...")
+            rounded_qty = self.round_quantity(qty, category, symbol)
+            
+            # استخدام الكمية المقربة
+            qty_str = str(rounded_qty)
+            logger.info(f"✅ الكمية بعد التقريب: {qty_str}")
             
             params = {
                 'category': category,
@@ -487,6 +491,95 @@ class BybitRealAccount:
         except Exception as e:
             logger.error(f"خطأ في الحصول على السعر: {e}")
             return None
+    
+    def get_symbol_info(self, category: str, symbol: str) -> Optional[Dict]:
+        """الحصول على معلومات الرمز (precision, min/max qty, etc.)"""
+        try:
+            endpoint = "/v5/market/instruments-info"
+            params = {"category": category, "symbol": symbol}
+            
+            result = self._make_request('GET', endpoint, params)
+            
+            if result and 'list' in result and result['list']:
+                symbol_info = result['list'][0]
+                lot_size = symbol_info.get('lotSizeFilter', {})
+                price_filter = symbol_info.get('priceFilter', {})
+                
+                return {
+                    'symbol': symbol_info.get('symbol'),
+                    'lotSizeFilter': lot_size,
+                    'priceFilter': price_filter,
+                    'minQty': float(lot_size.get('minQty', '0')),
+                    'maxQty': float(lot_size.get('maxQty', '0')),
+                    'qtyStep': lot_size.get('qtyStep', '0.001'),
+                    'qtyPrecision': len(lot_size.get('qtyStep', '0.001').split('.')[-1]) if '.' in str(lot_size.get('qtyStep', '0.001')) else 0,
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على معلومات الرمز: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+    
+    def round_quantity(self, qty: float, category: str, symbol: str) -> float:
+        """
+        تقريب الكمية بناءً على قواعد الرمز من Bybit
+        
+        Args:
+            qty: الكمية الأصلية
+            category: نوع السوق (spot, linear, etc.)
+            symbol: رمز العملة
+            
+        Returns:
+            الكمية المقربة حسب قواعد الرمز
+        """
+        try:
+            # جلب معلومات الرمز
+            symbol_info = self.get_symbol_info(category, symbol)
+            
+            if not symbol_info:
+                logger.warning(f"⚠️ فشل جلب معلومات الرمز {symbol}، استخدام التقريب الافتراضي")
+                return round(qty, 6)
+            
+            qty_step = float(symbol_info.get('qtyStep', '0.001'))
+            min_qty = symbol_info.get('minQty', 0.0)
+            max_qty = symbol_info.get('maxQty', float('inf'))
+            qty_precision = symbol_info.get('qtyPrecision', 6)
+            
+            logger.info(f"📏 معلومات الرمز {symbol}:")
+            logger.info(f"   qtyStep: {qty_step}")
+            logger.info(f"   minQty: {min_qty}")
+            logger.info(f"   maxQty: {max_qty}")
+            logger.info(f"   precision: {qty_precision}")
+            
+            # تقريب حسب qtyStep
+            rounded_qty = round(qty / qty_step) * qty_step
+            
+            # التأكد من الحد الأدنى
+            if rounded_qty < min_qty:
+                logger.warning(f"⚠️ الكمية {rounded_qty} أقل من الحد الأدنى {min_qty}، تم تعديلها")
+                rounded_qty = min_qty
+            
+            # التأكد من الحد الأقصى
+            if rounded_qty > max_qty:
+                logger.warning(f"⚠️ الكمية {rounded_qty} أكبر من الحد الأقصى {max_qty}، تم تعديلها")
+                rounded_qty = max_qty
+            
+            # تقريب نهائي بناءً على precision
+            rounded_qty = round(rounded_qty, qty_precision)
+            
+            logger.info(f"✅ تم تقريب الكمية: {qty} → {rounded_qty}")
+            
+            return rounded_qty
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في تقريب الكمية: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # في حالة الخطأ، استخدم تقريب افتراضي
+            return round(qty, 6)
 
 
 
