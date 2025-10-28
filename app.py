@@ -99,9 +99,10 @@ def webhook():
     """استقبال إشارات TradingView (رابط عام)"""
     try:
         data = request.get_json()
-        print(f"[WEBHOOK] Received signal: {data}")
+        print(f"🔔 [WEBHOOK] استقبال إشارة: {data}")
         
         if not data:
+            print("❌ [WEBHOOK] لا توجد بيانات")
             return jsonify({"status": "error", "message": "No data received"}), 400
         
         # معالجة الإشارة في thread منفصل
@@ -110,19 +111,29 @@ def webhook():
             asyncio.set_event_loop(loop)
             
             try:
+                print(f"🔄 [WEBHOOK] بدء معالجة الإشارة...")
+                
                 # استخدام الإعدادات الافتراضية للمستخدم 0 (الإعدادات العامة)
                 from users.user_manager import user_manager
                 from users.database import db_manager
                 
+                print(f"📋 [WEBHOOK] جلب بيانات المستخدم...")
                 # الحصول على إعدادات المستخدم الافتراضي
                 user_data = user_manager.get_user(0) if user_manager else None
                 
                 if not user_data:
+                    print(f"⚠️ [WEBHOOK] المستخدم 0 غير موجود في الذاكرة، جاري تحميله من قاعدة البيانات...")
                     # محاولة التحميل من قاعدة البيانات
                     user_data = db_manager.get_user(0)
                 
+                print(f"📊 [WEBHOOK] بيانات المستخدم: {user_data}")
+                
                 # التحقق من نوع الحساب
-                if user_data and user_data.get('account_type') == 'real':
+                account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+                print(f"👤 [WEBHOOK] نوع الحساب: {account_type}")
+                
+                if account_type == 'real':
+                    print(f"🔴 [WEBHOOK] التنفيذ على حساب حقيقي...")
                     # تنفيذ على الحساب الحقيقي باستخدام signal_executor
                     from signals.signal_executor import signal_executor
                     result = loop.run_until_complete(
@@ -130,17 +141,31 @@ def webhook():
                     )
                     print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
                 else:
+                    print(f"🟢 [WEBHOOK] التنفيذ على حساب تجريبي...")
+                    # تطبيق إعدادات المستخدم على trading_bot
+                    if user_data:
+                        trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
+                        trading_bot.user_settings['account_type'] = user_data.get('account_type', 'demo')
+                        trading_bot.user_settings['trade_amount'] = user_data.get('trade_amount', 100.0)
+                        trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
+                        print(f"⚙️ [WEBHOOK] تم تطبيق الإعدادات: {trading_bot.user_settings}")
+                    
                     # معالجة الحساب التجريبي بالطريقة العادية
-                    loop.run_until_complete(trading_bot.process_signal(data))
+                    print(f"📡 [WEBHOOK] استدعاء process_signal...")
+                    result = loop.run_until_complete(trading_bot.process_signal(data))
+                    print(f"✅ [WEBHOOK] اكتملت معالجة الإشارة: {result}")
+                    
             except Exception as e:
                 print(f"❌ [APP - WEBHOOK] خطأ في معالجة الإشارة: {e}")
                 import traceback
                 traceback.print_exc()
                 # معالجة الحساب التجريبي كاحتياطي
                 try:
+                    print(f"🔄 [WEBHOOK] محاولة احتياطية...")
                     loop.run_until_complete(trading_bot.process_signal(data))
                 except Exception as fallback_e:
                     print(f"❌ [APP - WEBHOOK] خطأ في المعالجة الاحتياطية: {fallback_e}")
+                    traceback.print_exc()
             finally:
                 loop.close()
         
@@ -149,7 +174,9 @@ def webhook():
         return jsonify({"status": "success", "message": "Signal processed"}), 200
         
     except Exception as e:
-        print(f"[WEBHOOK] Error: {e}")
+        print(f"❌ [WEBHOOK] خطأ: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/personal/<int:user_id>/webhook', methods=['POST'])
