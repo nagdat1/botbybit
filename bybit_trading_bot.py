@@ -8221,6 +8221,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_input_state[user_id] = "waiting_for_trade_amount"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💰 أدخل مبلغ التداول الجديد:")
+        return
     if data == "set_market":
         # تنفيذ إعداد نوع السوق
         keyboard = [
@@ -8231,6 +8232,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("اختر نوع السوق:", reply_markup=reply_markup)
+        return
     if data == "set_account":
         # تنفيذ إعداد نوع الحساب
         keyboard = [
@@ -8241,18 +8243,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("اختر نوع الحساب:", reply_markup=reply_markup)
+        return
     if data == "set_leverage":
         # تنفيذ إعداد الرافعة المالية
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_leverage"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("⚡ أدخل قيمة الرافعة المالية الجديدة (1-100):")
+        return
     if data == "set_demo_balance":
         # تنفيذ إعداد رصيد الحساب التجريبي
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_demo_balance"
         if update.callback_query is not None:
             await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
+        return
     if data == "market_spot":
         trading_bot.user_settings['market_type'] = 'spot'
         # حفظ الإعدادات في قاعدة البيانات
@@ -8313,6 +8318,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id is not None and user_id in user_input_state:
             del user_input_state[user_id]
         await settings_menu(update, context)
+        return
     if data == "webhook_url":
         # عرض رابط الإشارات الشخصي للمستخدم
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
@@ -8382,13 +8388,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if update.callback_query is not None:
             await update.callback_query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        return
     # معالجة أزرار المطور
     if data == "developer_panel":
         await show_developer_panel(update, context)
+        return
     if data == "dev_show_followers":
         await handle_show_followers(update, context)
+        return
     if data == "dev_stats":
         await handle_developer_stats(update, context)
+        return
     if data == "dev_action_buy" or data == "dev_action_sell":
         # الخطوة 2: حفظ الاتجاه
         action = "buy" if data == "dev_action_buy" else "sell"
