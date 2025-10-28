@@ -2309,9 +2309,12 @@ class TradingBot:
         try:
             self.signals_received += 1
             
+            # 🔧 إصلاح: تفعيل البوت تلقائياً إذا كان متوقفاً لاستقبال الإشارات
             if not self.is_running:
-                logger.info("البوت متوقف، تم تجاهل الإشارة")
-                return
+                logger.warning("⚠️ البوت متوقف، يتم تفعيله تلقائياً لاستقبال الإشارة...")
+                self.is_running = True
+            
+            logger.info(f"✅ البوت نشط - سيتم معالجة الإشارة")
             
             # استخدام النظام المحسن إذا كان متاحاً
             if self.enhanced_system:
@@ -2469,6 +2472,8 @@ class TradingBot:
             
             # 🎯 تنفيذ الصفقة بناءً على نوع الحساب
             account_type = self.user_settings['account_type']
+            logger.info(f"🎯 نوع الحساب: {account_type.upper()}")
+            logger.info(f"📊 إعدادات التداول: مبلغ={self.user_settings.get('trade_amount', 100)}, رافعة={self.user_settings.get('leverage', 10)}x")
             
             if account_type == 'real':
                 # حساب حقيقي - التنفيذ عبر Bybit API

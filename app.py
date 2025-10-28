@@ -142,6 +142,12 @@ def webhook():
                     print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
                 else:
                     print(f"🟢 [WEBHOOK] التنفيذ على حساب تجريبي...")
+                    
+                    # 🔧 إصلاح: تفعيل البوت إذا كان متوقفاً
+                    if not trading_bot.is_running:
+                        print(f"⚠️ [WEBHOOK] البوت متوقف، يتم تفعيله...")
+                        trading_bot.is_running = True
+                    
                     # تطبيق إعدادات المستخدم على trading_bot
                     if user_data:
                         trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
@@ -150,10 +156,20 @@ def webhook():
                         trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
                         print(f"⚙️ [WEBHOOK] تم تطبيق الإعدادات: {trading_bot.user_settings}")
                     
-                    # معالجة الحساب التجريبي بالطريقة العادية
                     print(f"📡 [WEBHOOK] استدعاء process_signal...")
+                    print(f"📊 [WEBHOOK] بيانات الإشارة: {data}")
                     result = loop.run_until_complete(trading_bot.process_signal(data))
                     print(f"✅ [WEBHOOK] اكتملت معالجة الإشارة: {result}")
+                    
+                    # إرسال رسالة للمستخدم بعد التنفيذ (بشكل async)
+                    try:
+                        asyncio.create_task(trading_bot.send_message_to_admin(
+                            f"✅ تم معالجة الإشارة بنجاح!\n\n"
+                            f"📊 الرمز: {data.get('symbol', 'Unknown')}\n"
+                            f"🔄 الإجراء: {data.get('action', 'Unknown')}"
+                        ))
+                    except:
+                        pass
                     
             except Exception as e:
                 print(f"❌ [APP - WEBHOOK] خطأ في معالجة الإشارة: {e}")
