@@ -112,11 +112,11 @@ class WebServer:
                 print(f"🔔 [WEB SERVER - WEBHOOK القديم] استقبال إشارة: {data}")
                 
                 if not data:
-                    print("⚠️ [WEB SERVER - WEBHOOK القديم] لا توجد بيانات")
+                    print(" [WEB SERVER - WEBHOOK القديم] لا توجد بيانات")
                     return jsonify({"status": "error", "message": "No data received"}), 400
                 
                 # استيراد محول الإشارات
-                from signals.signal_converter import convert_simple_signal, validate_simple_signal
+                from signal_converter import convert_simple_signal, validate_simple_signal
                 
                 # التحقق من نوع الإشارة (جديدة أو قديمة)
                 if 'signal' in data and 'action' not in data:
@@ -124,17 +124,17 @@ class WebServer:
                     is_valid, validation_message = validate_simple_signal(data)
                     
                     if not is_valid:
-                        print(f"❌ [WEB SERVER - WEBHOOK القديم] إشارة غير صحيحة: {validation_message}")
+                        print(f" [WEB SERVER - WEBHOOK القديم] إشارة غير صحيحة: {validation_message}")
                         return jsonify({"status": "error", "message": validation_message}), 400
                     
                     # تحويل الإشارة إلى التنسيق الداخلي
                     converted_data = convert_simple_signal(data, self.trading_bot.user_settings)
                     
                     if not converted_data:
-                        print(f"❌ [WEB SERVER - WEBHOOK القديم] فشل تحويل الإشارة")
+                        print(f" [WEB SERVER - WEBHOOK القديم] فشل تحويل الإشارة")
                         return jsonify({"status": "error", "message": "Failed to convert signal"}), 400
                     
-                    print(f"✅ [WEB SERVER - WEBHOOK القديم] تم تحويل الإشارة: {converted_data}")
+                    print(f" [WEB SERVER - WEBHOOK القديم] تم تحويل الإشارة: {converted_data}")
                     data = converted_data
                 
                 # تسجيل الإشارة
@@ -147,65 +147,19 @@ class WebServer:
                 def process_signal_async():
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    
-                    try:
-                        # استخدام الإعدادات الافتراضية للمستخدم 0 (الإعدادات العامة)
-                        from users.user_manager import user_manager
-                        from users.database import db_manager
-                        
-                        # الحصول على إعدادات المستخدم الافتراضي
-                        user_data = user_manager.get_user(0) if user_manager else None
-                        
-                        if not user_data:
-                            # محاولة التحميل من قاعدة البيانات
-                            user_data = db_manager.get_user(0)
-                        
-                        # التحقق من نوع الحساب
-                        if user_data and user_data.get('account_type') == 'real':
-                            # تنفيذ على الحساب الحقيقي باستخدام signal_executor
-                            from signals.signal_executor import signal_executor
-                            result = loop.run_until_complete(
-                                signal_executor.execute_signal(0, data, user_data)
-                            )
-                            print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
-                            
-                            # إرسال إشعار بالنتيجة
-                            if result.get('success'):
-                                self.send_telegram_notification(
-                                    f"✅ تم تنفيذ الإشارة على الحساب الحقيقي\n\n"
-                                    f"المنصة: {user_data.get('exchange', 'N/A').upper()}\n"
-                                    f"{result.get('message', '')}",
-                                    data
-                                )
-                            else:
-                                self.send_telegram_notification(
-                                    f"❌ فشل تنفيذ الإشارة\n\n"
-                                    f"{result.get('message', 'خطأ غير معروف')}",
-                                    data
-                                )
-                        else:
-                            # معالجة الحساب التجريبي بالطريقة العادية
-                            loop.run_until_complete(self.trading_bot.process_signal(data))
-                    except Exception as e:
-                        print(f"❌ [WEB SERVER - WEBHOOK القديم] خطأ في معالجة الإشارة: {e}")
-                        # معالجة الحساب التجريبي كاحتياطي
-                        try:
-                            loop.run_until_complete(self.trading_bot.process_signal(data))
-                        except Exception as fallback_e:
-                            print(f"❌ [WEB SERVER - WEBHOOK القديم] خطأ في المعالجة الاحتياطية: {fallback_e}")
-                    finally:
-                        loop.close()
+                    loop.run_until_complete(self.trading_bot.process_signal(data))
+                    loop.close()
                 
                 threading.Thread(target=process_signal_async, daemon=True).start()
                 
                 # إرسال إشعار تلجرام
-                self.send_telegram_notification("📡 تم استقبال إشارة جديدة", data)
+                self.send_telegram_notification(" تم استقبال إشارة جديدة", data)
                 
-                print(f"✅ [WEB SERVER - WEBHOOK القديم] تمت معالجة الإشارة بنجاح")
+                print(f" [WEB SERVER - WEBHOOK القديم] تمت معالجة الإشارة بنجاح")
                 return jsonify({"status": "success"}), 200
                 
             except Exception as e:
-                print(f"❌ [WEB SERVER - WEBHOOK القديم] خطأ: {e}")
+                print(f" [WEB SERVER - WEBHOOK القديم] خطأ: {e}")
                 import traceback
                 traceback.print_exc()
                 return jsonify({"status": "error", "message": str(e)}), 400
@@ -217,18 +171,18 @@ class WebServer:
                 data = request.get_json()
                 
                 print(f"🔔 [WEB SERVER - WEBHOOK شخصي] المستخدم: {user_id}")
-                print(f"📊 [WEB SERVER - WEBHOOK شخصي] البيانات المستلمة: {data}")
+                print(f" [WEB SERVER - WEBHOOK شخصي] البيانات المستلمة: {data}")
                 
                 if not data:
-                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] لا توجد بيانات للمستخدم {user_id}")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] لا توجد بيانات للمستخدم {user_id}")
                     return jsonify({"status": "error", "message": "No data received"}), 400
                 
                 # التحقق من وجود user_manager
-                from users.user_manager import user_manager
-                from users.database import db_manager
+                from user_manager import user_manager
+                from database import db_manager
                 
                 if not user_manager:
-                    print(f"❌ [WEB SERVER - WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] user_manager غير متاح للمستخدم {user_id}")
                     return jsonify({"status": "error", "message": "User manager not initialized"}), 500
                 
                 # التحقق من وجود المستخدم في الذاكرة
@@ -236,30 +190,30 @@ class WebServer:
                 
                 # إذا لم يكن موجودًا في الذاكرة، تحقق من قاعدة البيانات مباشرة
                 if not user_data:
-                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في الذاكرة، جاري التحقق من قاعدة البيانات...")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في الذاكرة، جاري التحقق من قاعدة البيانات...")
                     user_data = db_manager.get_user(user_id)
                     
                     if not user_data:
-                        print(f"❌ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
+                        print(f" [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير موجود في قاعدة البيانات")
                         return jsonify({"status": "error", "message": f"User {user_id} not found. Please start the bot first with /start"}), 404
                     
                     # إعادة تحميل المستخدم في الذاكرة
-                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تم العثور على المستخدم {user_id} في قاعدة البيانات، جاري التحميل...")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] تم العثور على المستخدم {user_id} في قاعدة البيانات، جاري التحميل...")
                     user_manager.reload_user_data(user_id)
                     # إنشاء الحسابات للمستخدم
                     user_manager._create_user_accounts(user_id, user_data)
-                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تم تحميل المستخدم {user_id} بنجاح")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] تم تحميل المستخدم {user_id} بنجاح")
                 
                 # التحقق من تفعيل المستخدم
                 if not user_data.get('is_active', False):
-                    print(f"⚠️ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير نشط")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} غير نشط")
                     return jsonify({"status": "error", "message": f"User {user_id} is not active"}), 403
                 
-                print(f"✅ [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
-                print(f"📋 [WEB SERVER - WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
+                print(f" [WEB SERVER - WEBHOOK شخصي] المستخدم {user_id} موجود ونشط")
+                print(f" [WEB SERVER - WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
                 
                 # استيراد محول الإشارات
-                from signals.signal_converter import convert_simple_signal, validate_simple_signal
+                from signal_converter import convert_simple_signal, validate_simple_signal
                 
                 # التحقق من نوع الإشارة (جديدة أو قديمة)
                 if 'signal' in data and 'action' not in data:
@@ -267,17 +221,17 @@ class WebServer:
                     is_valid, validation_message = validate_simple_signal(data)
                     
                     if not is_valid:
-                        print(f"❌ [WEB SERVER - WEBHOOK شخصي] إشارة غير صحيحة: {validation_message}")
+                        print(f" [WEB SERVER - WEBHOOK شخصي] إشارة غير صحيحة: {validation_message}")
                         return jsonify({"status": "error", "message": validation_message}), 400
                     
                     # تحويل الإشارة إلى التنسيق الداخلي مع إعدادات المستخدم
                     converted_data = convert_simple_signal(data, user_data)
                     
                     if not converted_data:
-                        print(f"❌ [WEB SERVER - WEBHOOK شخصي] فشل تحويل الإشارة")
+                        print(f" [WEB SERVER - WEBHOOK شخصي] فشل تحويل الإشارة")
                         return jsonify({"status": "error", "message": "Failed to convert signal"}), 400
                     
-                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تم تحويل الإشارة: {converted_data}")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] تم تحويل الإشارة: {converted_data}")
                     data = converted_data
                 
                 # حفظ إعدادات البوت الحالية مؤقتًا واستخدام نفس دالة المعالجة
@@ -292,7 +246,7 @@ class WebServer:
                     self.trading_bot.user_settings['trade_amount'] = user_data.get('trade_amount', 100.0)
                     self.trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
                     
-                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تم تطبيق إعدادات المستخدم {user_id}")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] تم تطبيق إعدادات المستخدم {user_id}")
                     
                     # تسجيل الإشارة في الرسم البياني
                     self.add_signal_to_chart(data)
@@ -311,23 +265,23 @@ class WebServer:
                             # التحقق من نوع الحساب
                             if user_data.get('account_type') == 'real':
                                 # تنفيذ على الحساب الحقيقي
-                                from signals.signal_executor import signal_executor
+                                from signal_executor import signal_executor
                                 result = loop.run_until_complete(
                                     signal_executor.execute_signal(user_id, data, user_data)
                                 )
-                                print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
+                                print(f" [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
                                 
                                 # إرسال إشعار بالنتيجة
                                 if result.get('success'):
                                     self.send_telegram_notification(
-                                        f"✅ تم تنفيذ الإشارة على الحساب الحقيقي\n\n"
+                                        f" تم تنفيذ الإشارة على الحساب الحقيقي\n\n"
                                         f"المنصة: {user_data.get('exchange', 'N/A').upper()}\n"
                                         f"{result.get('message', '')}",
                                         data
                                     )
                                 else:
                                     self.send_telegram_notification(
-                                        f"❌ فشل تنفيذ الإشارة\n\n"
+                                        f" فشل تنفيذ الإشارة\n\n"
                                         f"{result.get('message', 'خطأ غير معروف')}",
                                         data
                                     )
@@ -342,7 +296,7 @@ class WebServer:
                     
                     threading.Thread(target=process_signal_async, daemon=True).start()
                     
-                    print(f"✅ [WEB SERVER - WEBHOOK شخصي] تمت معالجة إشارة المستخدم {user_id} بنجاح")
+                    print(f" [WEB SERVER - WEBHOOK شخصي] تمت معالجة إشارة المستخدم {user_id} بنجاح")
                     return jsonify({
                         "status": "success", 
                         "message": f"Signal processed for user {user_id}",
@@ -356,7 +310,7 @@ class WebServer:
                     raise
                 
             except Exception as e:
-                print(f"❌ [WEB SERVER - WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
+                print(f" [WEB SERVER - WEBHOOK شخصي] خطأ للمستخدم {user_id}: {e}")
                 import traceback
                 traceback.print_exc()
                 return jsonify({"status": "error", "message": str(e)}), 500
@@ -468,7 +422,7 @@ class WebServer:
             return self.current_url
             
         except Exception as e:
-            print(f"❌ خطأ في إعداد رابط Webhook: {e}")
+            print(f" خطأ في إعداد رابط Webhook: {e}")
             port = PORT
             local_url = f"http://localhost:{port}/webhook"
             self.send_startup_notification(local_url)
@@ -499,7 +453,7 @@ class WebServer:
             )
             
         except Exception as e:
-            print(f"❌ خطأ في إرسال رسالة الترحيب: {e}")
+            print(f" خطأ في إرسال رسالة الترحيب: {e}")
     
     def send_detailed_startup_notification(self, current_url, old_url=None):
         """إرسال رسالة الترحيب المفصلة مع تفاصيل URL"""
@@ -515,11 +469,11 @@ class WebServer:
                     "الرابط القديم": old_url,
                     "الرابط الجديد": current_url,
                     "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    "الحالة": "تم التحديث بنجاح ✅"
+                    "الحالة": "تم التحديث بنجاح "
                 }
                 
                 self.send_telegram_notification(
-                    "🔄 تم تحديث رابط السيرفر تلقائياً",
+                    " تم تحديث رابط السيرفر تلقائياً",
                     notification_data
                 )
             elif "localhost" in current_url:
@@ -528,11 +482,11 @@ class WebServer:
                     "الرابط القديم": old_url,
                     "الرابط الحالي": current_url,
                     "الوقت": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    "الحالة": "فشل في إنشاء نفق ngrok ❌"
+                    "الحالة": "فشل في إنشاء نفق ngrok "
                 }
                 
                 self.send_telegram_notification(
-                    "❌ فشل في إنشاء نفق ngrok",
+                    " فشل في إنشاء نفق ngrok",
                     notification_data
                 )
             else:
@@ -547,7 +501,7 @@ class WebServer:
                 )
             
         except Exception as e:
-            print(f"❌ خطأ في إرسال رسالة الترحيب المفصلة: {e}")
+            print(f" خطأ في إرسال رسالة الترحيب المفصلة: {e}")
 
     def send_telegram_notification(self, title, data):
         """إرسال إشعار تلجرام"""
@@ -556,7 +510,7 @@ class WebServer:
             
             if isinstance(data, dict):
                 for key, value in data.items():
-                    message += f"🔹 {key}: {value}\n"
+                    message += f" {key}: {value}\n"
             else:
                 message += str(data)
             
@@ -581,7 +535,7 @@ class WebServer:
             threading.Thread(target=run_async, daemon=True).start()
             
         except Exception as e:
-            print(f"❌ خطأ في إرسال إشعار تلجرام: {e}")
+            print(f" خطأ في إرسال إشعار تلجرام: {e}")
     
     def start_background_tasks(self):
         """بدء المهام الخلفية"""
@@ -610,7 +564,7 @@ class WebServer:
         # بدء المهام الخلفية
         self.start_background_tasks()
         
-        print(f"🚀 تشغيل السيرفر على http://{host}:{port}")
+        print(f" تشغيل السيرفر على http://{host}:{port}")
         if webhook_url:
             print(f"🌐 رابط Webhook: {webhook_url}")
         

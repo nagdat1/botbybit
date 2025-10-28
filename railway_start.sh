@@ -1,11 +1,10 @@
 #!/bin/bash
-# Railway Startup Script
+# Startup script for Railway deployment
 
-echo "🚀 بدء تشغيل بوت التداول على Railway..."
+echo "Starting Bybit Trading Bot on Railway..."
 
-# تعيين المنفذ
+# Set the port environment variable if not already set
 export PORT=${PORT:-5000}
 
-# تشغيل التطبيق
-echo "✅ جاري التشغيل على المنفذ: $PORT"
+# Start the application
 python app.py
