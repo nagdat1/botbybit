@@ -5,11 +5,39 @@
 """
 
 import logging
+import sys
+import os
 from typing import Dict, Optional
 from api.bybit_api import real_account_manager
 from . import signal_position_manager
 
+# إضافة مسار المشروع للاستيراد
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 logger = logging.getLogger(__name__)
+
+# استيراد أداة التعديل الذكية
+try:
+    from api.quantity_adjuster import QuantityAdjuster
+    QUANTITY_ADJUSTER_AVAILABLE = True
+    logger.info("✅ تم تحميل أداة التعديل الذكية بنجاح")
+except ImportError as e:
+    QUANTITY_ADJUSTER_AVAILABLE = False
+    logger.warning(f"⚠️ لم يتم العثور على أداة التعديل الذكية: {e}")
+    
+    # إنشاء فئة بديلة بسيطة
+    class QuantityAdjuster:
+        @staticmethod
+        def smart_quantity_adjustment(qty, price, trade_amount, leverage, exchange):
+            return round(qty, 4)
+        
+        @staticmethod
+        def get_multiple_quantity_options(qty, price, exchange):
+            return [round(qty, 4), round(qty * 1.001, 4), round(qty * 0.999, 4)]
+        
+        @staticmethod
+        def validate_quantity(qty, price, exchange, market_type='futures'):
+            return {'valid': True, 'errors': [], 'warnings': [], 'suggestions': []}
 
 # استيراد دالة فحص المخاطر
 try:
@@ -990,7 +1018,7 @@ class SignalExecutor:
             }
     
     @staticmethod
-    def _calculate_adjusted_quantity(qty: float, price: float, trade_amount: float, leverage: int) -> float:
+    def _calculate_adjusted_quantity(qty: float, price: float, trade_amount: float, leverage: int, exchange: str = 'bybit') -> float:
         """
         حساب كمية معدلة عند فشل الصفقة بالتقريب الذكي
         
@@ -999,29 +1027,128 @@ class SignalExecutor:
             price: السعر الحالي
             trade_amount: المبلغ الأصلي
             leverage: الرافعة المالية
+            exchange: اسم المنصة
             
         Returns:
             الكمية المعدلة
         """
-        # تقريب الكمية بناءً على حجمها
-        if qty < 0.001:
-            # أرقام صغيرة جداً: تقريب لـ 5 منازل عشرية
-            adjusted = round(qty, 5)
-        elif qty < 0.01:
-            # أرقام صغيرة: تقريب لـ 4 منازل عشرية
+        try:
+            if QUANTITY_ADJUSTER_AVAILABLE:
+                logger.info(f"🧮 بدء التعديل الذكي للكمية:")
+                logger.info(f"   المدخلات: qty={qty}, price={price}, amount={trade_amount}, leverage={leverage}, exchange={exchange}")
+                
+                # استخدام التعديل الذكي الجديد
+                adjusted = QuantityAdjuster.smart_quantity_adjustment(
+                    qty=qty,
+                    price=price,
+                    trade_amount=trade_amount,
+                    leverage=leverage,
+                    exchange=exchange
+                )
+                
+                logger.info(f"✅ التقريب التلقائي المحسن: {qty:.8f} → {adjusted:.8f}")
+                return adjusted
+            else:
+                raise ImportError("QuantityAdjuster not available")
+            
+        except (ImportError, Exception):
+            logger.warning("⚠️ لم يتم العثور على أداة التعديل الذكية، استخدام الطريقة القديمة")
+            # الطريقة القديمة كبديل
+            if qty < 0.001:
+                adjusted = round(qty, 5)
+            elif qty < 0.01:
+                adjusted = round(qty, 4)
+            elif qty < 0.1:
+                adjusted = round(qty, 3)
+            elif qty < 1:
+                adjusted = round(qty, 2)
+            else:
+                adjusted = round(qty, 1)
+            
+            logger.info(f"🧮 التقريب التلقائي (قديم): {qty:.8f} → {adjusted:.8f}")
+            return adjusted
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في التعديل الذكي: {e}")
+            # العودة للطريقة القديمة في حالة الخطأ
             adjusted = round(qty, 4)
-        elif qty < 0.1:
-            # أرقام متوسطة: تقريب لـ 3 منازل عشرية
-            adjusted = round(qty, 3)
-        elif qty < 1:
-            # أرقام كبيرة نسبياً: تقريب لـ 2 منزل عشري
-            adjusted = round(qty, 2)
-        else:
-            # أرقام كبيرة جداً: تقريب لـ 1 منزل عشري
-            adjusted = round(qty, 1)
+            logger.info(f"🧮 التقريب الاحتياطي: {qty:.8f} → {adjusted:.8f}")
+            return adjusted
+    
+    @staticmethod
+    async def _try_multiple_quantities(account, symbol: str, side: str, original_qty: float, 
+                                     price: float, leverage: int, take_profit: float, 
+                                     stop_loss: float, exchange: str = 'bybit') -> Optional[Dict]:
+        """
+        محاولة تنفيذ الطلب مع خيارات كمية متعددة
         
-        logger.info(f"🧮 التقريب التلقائي: {qty:.8f} → {adjusted:.8f}")
-        return adjusted
+        Args:
+            account: حساب التداول
+            symbol: رمز العملة
+            side: اتجاه التداول
+            original_qty: الكمية الأصلية
+            price: السعر
+            leverage: الرافعة المالية
+            take_profit: جني الأرباح
+            stop_loss: وقف الخسارة
+            exchange: اسم المنصة
+            
+        Returns:
+            نتيجة الطلب الناجح أو None
+        """
+        try:
+            if not QUANTITY_ADJUSTER_AVAILABLE:
+                logger.warning("⚠️ أداة التعديل الذكية غير متاحة للمحاولات المتعددة")
+                return None
+            
+            # الحصول على خيارات كمية متعددة
+            quantity_options = QuantityAdjuster.get_multiple_quantity_options(
+                original_qty, price, exchange
+            )
+            
+            logger.info(f"🎯 محاولة {len(quantity_options)} خيارات كمية: {quantity_options}")
+            
+            for i, qty_option in enumerate(quantity_options):
+                try:
+                    logger.info(f"🔄 المحاولة {i+1}/{len(quantity_options)}: كمية = {qty_option}")
+                    
+                    # التحقق من صحة الكمية قبل المحاولة
+                    validation = QuantityAdjuster.validate_quantity(qty_option, price, exchange)
+                    if not validation['valid']:
+                        logger.warning(f"⚠️ الكمية {qty_option} غير صالحة: {validation['errors']}")
+                        continue
+                    
+                    # محاولة تنفيذ الطلب
+                    result = await account.place_order(
+                        symbol=symbol,
+                        side=side,
+                        order_type='Market',
+                        qty=qty_option,
+                        leverage=leverage,
+                        take_profit=take_profit,
+                        stop_loss=stop_loss
+                    )
+                    
+                    if result and not result.get('error'):
+                        logger.info(f"✅ نجحت المحاولة {i+1} بالكمية {qty_option}")
+                        result['adjustment_message'] = f'تم تعديل الكمية بعد محاولات متعددة: {original_qty:.6f} → {qty_option:.6f}'
+                        result['final_qty'] = qty_option
+                        result['attempts_made'] = i + 1
+                        return result
+                    else:
+                        error_msg = result.get('message', 'Unknown error') if result else 'No result'
+                        logger.warning(f"⚠️ المحاولة {i+1} فشلت: {error_msg}")
+                        
+                except Exception as attempt_error:
+                    logger.warning(f"⚠️ خطأ في المحاولة {i+1}: {attempt_error}")
+                    continue
+            
+            logger.error(f"❌ فشلت جميع المحاولات ({len(quantity_options)} محاولة)")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في المحاولات المتعددة: {e}")
+            return None
     
     @staticmethod
     async def _handle_futures_order(account, signal_data: Dict, side: str, qty: float,
@@ -1121,8 +1248,75 @@ class SignalExecutor:
                         logger.error(f"❌ خطأ في تنفيذ الصفقة - خطأ من API")
                         error_type = result.get('error_type', 'UNKNOWN')
                         error_msg = result.get('message', result.get('retMsg', 'Unknown error'))
+                        error_code = result.get('retCode', '')
                         
-                        # تحديد رسالة خطأ مناسبة
+                        # معالجة خاصة لأخطاء الكمية
+                        if 'minimum' in error_msg.lower() or 'exceeds' in error_msg.lower() or 'limit' in error_msg.lower():
+                            logger.warning(f"🔄 محاولة إعادة حساب الكمية بسبب خطأ الحد الأدنى")
+                            
+                            # إعادة حساب الكمية بطريقة أكثر دقة
+                            # تحديد اسم المنصة من الحساب
+                            exchange_name = getattr(account, 'exchange_name', 'bybit') if hasattr(account, 'exchange_name') else 'bybit'
+                            adjusted_qty = SignalExecutor._calculate_adjusted_quantity(qty, price, trade_amount, leverage, exchange_name)
+                            
+                            if adjusted_qty != qty and adjusted_qty > 0:
+                                logger.info(f"🔧 إعادة المحاولة بكمية معدلة: {qty} → {adjusted_qty}")
+                                
+                                # محاولة ثانية بالكمية المعدلة
+                                try:
+                                    result = await account.place_order(
+                                        symbol=symbol,
+                                        side=side,
+                                        order_type='Market',
+                                        qty=adjusted_qty,
+                                        leverage=leverage,
+                                        take_profit=take_profit,
+                                        stop_loss=stop_loss
+                                    )
+                                    
+                                    if result and not result.get('error'):
+                                        logger.info(f"✅ نجحت المحاولة الثانية بالكمية المعدلة")
+                                        result['adjustment_message'] = f'تم تعديل الكمية تلقائياً: {qty:.6f} → {adjusted_qty:.6f}'
+                                        # تحديث qty للاستخدام في باقي الكود
+                                        qty = adjusted_qty
+                                        # استمرار التنفيذ العادي
+                                    else:
+                                        # محاولة مع خيارات كمية متعددة
+                                        logger.warning(f"🔄 المحاولة الثانية فشلت، جرب خيارات متعددة")
+                                        success = await SignalExecutor._try_multiple_quantities(
+                                            account, symbol, side, qty, price, leverage, 
+                                            take_profit, stop_loss, exchange_name
+                                        )
+                                        
+                                        if success:
+                                            result = success
+                                            qty = success.get('final_qty', qty)
+                                            logger.info(f"✅ نجحت إحدى المحاولات المتعددة")
+                                        else:
+                                            logger.error(f"❌ فشلت جميع المحاولات")
+                                            return {
+                                                'success': False,
+                                                'message': f'فشل في تنفيذ الصفقة حتى بعد محاولات متعددة: {error_msg}',
+                                                'error': 'ALL_QUANTITY_ATTEMPTS_FAILED',
+                                                'original_qty': qty,
+                                                'adjusted_qty': adjusted_qty
+                                            }
+                                except Exception as retry_error:
+                                    logger.error(f"❌ خطأ في المحاولة الثانية: {retry_error}")
+                                    return {
+                                        'success': False,
+                                        'message': f'فشل في إعادة المحاولة: {str(retry_error)}',
+                                        'error': 'RETRY_FAILED'
+                                    }
+                            else:
+                                return {
+                                    'success': False,
+                                    'message': f'لا يمكن تعديل الكمية لحل المشكلة: {error_msg}',
+                                    'error': 'QUANTITY_CANNOT_BE_ADJUSTED',
+                                    'original_qty': qty
+                                }
+                        
+                        # تحديد رسالة خطأ مناسبة للأخطاء الأخرى
                         if error_type in ['INVALID_API_KEY', 'EMPTY_RESPONSE']:
                             return {
                                 'success': False,

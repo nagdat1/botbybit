@@ -102,7 +102,7 @@ class BybitExchange(ExchangeBase):
                 else:
                     response = requests.post(url, headers=headers, timeout=10)
             else:
-                logger.error(f"❌ نوع طلب غير مدعوم: {method}")
+                logger.error(f"نوع طلب غير مدعوم: {method}")
                 return None
             
             if response.status_code == 200:
@@ -110,8 +110,18 @@ class BybitExchange(ExchangeBase):
                 if result.get('retCode') == 0:
                     return result.get('result')
                 else:
-                    logger.error(f"❌ خطأ من Bybit API: {result.get('retMsg')}")
-                    return None
+                    error_msg = result.get('retMsg', 'Unknown error')
+                    error_code = result.get('retCode', 'Unknown code')
+                    logger.error(f"خطأ من Bybit API: {error_msg} (Code: {error_code})")
+                    
+                    # إرجاع معلومات الخطأ بدلاً من None لمعالجة أفضل
+                    return {
+                        'error': True,
+                        'error_type': 'BYBIT_API_ERROR',
+                        'retCode': error_code,
+                        'retMsg': error_msg,
+                        'message': error_msg
+                    }
             else:
                 logger.error(f"❌ Bybit API Error (HTTP {response.status_code})")
                 return None
@@ -208,6 +218,36 @@ class BybitExchange(ExchangeBase):
             params['takeProfit'] = str(kwargs['takeProfit'])
         
         return self._make_request('POST', '/v5/order/create', params)
+    
+    def get_symbol_info(self, market_type: str, symbol: str) -> Optional[Dict]:
+        """الحصول على معلومات الرمز"""
+        try:
+            category = 'linear' if market_type == 'futures' else 'spot'
+            params = {
+                'category': category,
+                'symbol': symbol
+            }
+            
+            result = self._make_request('GET', '/v5/market/instruments-info', params)
+            
+            if result and 'list' in result and result['list']:
+                symbol_data = result['list'][0]
+                return {
+                    'symbol': symbol_data.get('symbol'),
+                    'baseCoin': symbol_data.get('baseCoin'),
+                    'quoteCoin': symbol_data.get('quoteCoin'),
+                    'minOrderQty': float(symbol_data.get('lotSizeFilter', {}).get('minOrderQty', '0.001')),
+                    'maxOrderQty': float(symbol_data.get('lotSizeFilter', {}).get('maxOrderQty', '1000000')),
+                    'qtyStep': float(symbol_data.get('lotSizeFilter', {}).get('qtyStep', '0.001')),
+                    'minNotional': float(symbol_data.get('lotSizeFilter', {}).get('minNotional', '10')),
+                    'tickSize': float(symbol_data.get('priceFilter', {}).get('tickSize', '0.01'))
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"خطأ في جلب معلومات الرمز {symbol}: {e}")
+            return None
     
     def cancel_order(self, symbol: str, order_id: str) -> bool:
         """إلغاء أمر"""

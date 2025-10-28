@@ -28,6 +28,7 @@ class ExchangeBase(ABC):
             api_secret: سر API
         """
         self.name = name
+        self.exchange_name = name  # إضافة للتوافق مع الكود الحالي
         self.api_key = api_key
         self.api_secret = api_secret
         self.is_initialized = False

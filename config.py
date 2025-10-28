@@ -20,8 +20,8 @@ BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "")
 
 # تحذير إذا لم تكن المفاتيح موجودة
 if not BYBIT_API_KEY or not BYBIT_API_SECRET:
-    print("⚠️ تحذير: مفاتيح Bybit API غير موجودة. لن يعمل التداول الحقيقي.")
-    print("💡 للاستخدام: أنشئ ملف .env مع BYBIT_API_KEY و BYBIT_API_SECRET")
+    print("تحذير: مفاتيح Bybit API غير موجودة. لن يعمل التداول الحقيقي.")
+    print("للاستخدام: أنشئ ملف .env مع BYBIT_API_KEY و BYBIT_API_SECRET")
 
 BYBIT_BASE_URL = "https://api.bybit.com"
 
