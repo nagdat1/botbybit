@@ -244,29 +244,49 @@ def personal_webhook(user_id):
             asyncio.set_event_loop(loop)
             
             try:
-                # تطبيق إعدادات المستخدم
-                original_settings = trading_bot.user_settings.copy()
-                original_user_id = trading_bot.user_id
+                print(f"🔄 [PERSONAL WEBHOOK] بدء معالجة إشارة للمستخدم {user_id}")
                 
-                trading_bot.user_id = user_settings_copy['user_id']
-                trading_bot.user_settings['market_type'] = user_settings_copy['market_type']
-                trading_bot.user_settings['account_type'] = user_settings_copy['account_type']
-                trading_bot.user_settings['trade_amount'] = user_settings_copy['trade_amount']
-                trading_bot.user_settings['leverage'] = user_settings_copy['leverage']
+                # التحقق من نوع الحساب
+                account_type = user_settings_copy['account_type']
+                print(f"👤 [PERSONAL WEBHOOK] نوع الحساب: {account_type}")
                 
-                # معالجة الإشارة
-                if NEW_SYSTEM_AVAILABLE:
-                    loop.run_until_complete(process_signal_integrated(data, user_settings_copy['user_id']))
-                elif ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
-                    enhanced_system.process_signal(user_settings_copy['user_id'], data)
+                if account_type == 'real':
+                    # حساب حقيقي - استخدام signal_executor
+                    print(f"🔴 [PERSONAL WEBHOOK] التنفيذ على حساب حقيقي...")
+                    from signals.signal_executor import signal_executor
+                    result = loop.run_until_complete(
+                        signal_executor.execute_signal(user_id, data, user_data)
+                    )
+                    print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
                 else:
-                    loop.run_until_complete(trading_bot.process_signal(data))
-                
-                # استعادة الإعدادات
-                trading_bot.user_settings.update(original_settings)
-                trading_bot.user_id = original_user_id
+                    # حساب تجريبي - استخدام trading_bot
+                    print(f"🟢 [PERSONAL WEBHOOK] التنفيذ على حساب تجريبي...")
+                    
+                    # تطبيق إعدادات المستخدم
+                    original_settings = trading_bot.user_settings.copy()
+                    original_user_id = trading_bot.user_id
+                    
+                    trading_bot.user_id = user_settings_copy['user_id']
+                    trading_bot.user_settings['market_type'] = user_settings_copy['market_type']
+                    trading_bot.user_settings['account_type'] = user_settings_copy['account_type']
+                    trading_bot.user_settings['trade_amount'] = user_settings_copy['trade_amount']
+                    trading_bot.user_settings['leverage'] = user_settings_copy['leverage']
+                    
+                    print(f"⚙️ [PERSONAL WEBHOOK] تم تطبيق الإعدادات: {trading_bot.user_settings}")
+                    
+                    # معالجة الإشارة
+                    print(f"📡 [PERSONAL WEBHOOK] استدعاء process_signal...")
+                    result = loop.run_until_complete(trading_bot.process_signal(data))
+                    print(f"✅ [PERSONAL WEBHOOK] اكتملت معالجة الإشارة")
+                    
+                    # استعادة الإعدادات
+                    trading_bot.user_settings.update(original_settings)
+                    trading_bot.user_id = original_user_id
+                    
             except Exception as e:
-                print(f"❌ خطأ: {e}")
+                print(f"❌ [PERSONAL WEBHOOK] خطأ: {e}")
+                import traceback
+                traceback.print_exc()
             finally:
                 loop.close()
         
