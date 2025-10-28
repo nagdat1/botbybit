@@ -14,16 +14,11 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw")
 ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
 
-# إعدادات Bybit API - المفاتيح الجديدة المختبرة
-BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "RKk6fTapgDqys6vt5S")
-BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "Rm1TEZnF8hJhZgoj2btSJCr7lx64qAP55dhp")
+# إعدادات Bybit API
+BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "")
+BYBIT_API_SECRET = os.getenv('BYBIT_API_SECRET', "")
 BYBIT_BASE_URL = "https://api.bybit.com"
 
-# إعدادات MEXC API
-# ملاحظة: MEXC تدعم التداول الفوري (Spot) فقط عبر API - لا يوجد دعم للفيوتشر
-MEXC_API_KEY = os.getenv('MEXC_API_KEY', "")
-MEXC_API_SECRET = os.getenv('MEXC_API_SECRET', "")
-MEXC_BASE_URL = "https://api.mexc.com"
 
 # إعدادات Webhook
 # Use Railway's provided URL if available, otherwise use ngrok or localhost
@@ -46,21 +41,20 @@ else:
 
 WEBHOOK_PORT = PORT  # Use Railway's PORT
 
-# إعدادات افتراضية للبوت - محدثة
+# إعدادات افتراضية للبوت
 DEFAULT_SETTINGS = {
-    'account_type': 'real',          # demo أو real - تم تغييره إلى real
-    'market_type': 'futures',        # spot أو futures - تم تغييره إلى futures
-    'exchange': 'bybit',             # bybit أو mexc
-    'trade_amount': 50.0,            # مبلغ التداول الافتراضي - تم تقليله
-    'leverage': 2,                   # الرافعة المالية للفيوتشر - تم تقليلها
+    'account_type': 'demo',          # demo أو real
+    'market_type': 'spot',           # spot أو futures
+    'exchange': 'bybit',
+    'trade_amount': 20.0,            # مبلغ التداول الافتراضي (الحد الأدنى 20 USDT للتأكد)
+    'leverage': 10,                  # الرافعة المالية للفيوتشر (Bybit فقط)
     'profit_plan': 'trailing',       # trailing أو multi_tp
     'trailing_stop_percent': 0.5,    # نسبة التوقف المتحرك
     'tp1_percent': 1.5,              # هدف الربح الأول
     'tp2_percent': 3.0,              # هدف الربح الثاني
     'tp3_percent': 6.0,              # هدف الربح الثالث
     'stop_loss_percent': 2.0,        # نسبة وقف الخسارة
-    'language': 'ar',                # اللغة
-    'min_quantity': 0.001            # الكمية الدنيا للصفقات (BTC)
+    'language': 'ar'                 # اللغة
 }
 
 # إعدادات الحساب التجريبي الداخلي
@@ -89,7 +83,7 @@ MESSAGES = {
     'welcome': """
 🤖 مرحباً بك في بوت التداول على Bybit
 
- الميزات المتاحة:
+🔧 الميزات المتاحة:
 • التداول الحقيقي والتجريبي الداخلي
 • دعم أسواق Spot و Futures
 • استقبال إشارات من TradingView
@@ -99,14 +93,14 @@ MESSAGES = {
 استخدم الأزرار أدناه للتنقل في البوت
     """,
     
-    'bot_started': " تم تشغيل البوت، سيتم معالجة الإشارات الواردة",
+    'bot_started': "✅ تم تشغيل البوت، سيتم معالجة الإشارات الواردة",
     'bot_stopped': "⏹️ تم إيقاف البوت، لن يتم معالجة الإشارات الجديدة",
-    'symbol_not_found': " الرمز {} غير موجود في منصة Bybit",
-    'insufficient_balance': " الرصيد غير كافي لفتح الصفقة",
-    'trade_success': " تم تنفيذ الصفقة بنجاح",
-    'trade_failed': " فشل في تنفيذ الصفقة: {}",
+    'symbol_not_found': "❌ الرمز {} غير موجود في منصة Bybit",
+    'insufficient_balance': "❌ الرصيد غير كافي لفتح الصفقة",
+    'trade_success': "✅ تم تنفيذ الصفقة بنجاح",
+    'trade_failed': "❌ فشل في تنفيذ الصفقة: {}",
     'no_open_positions': "📭 لا توجد صفقات مفتوحة حالياً",
-    'position_closed': " تم إغلاق الصفقة بنجاح",
+    'position_closed': "✅ تم إغلاق الصفقة بنجاح",
     'unauthorized': "غير مصرح لك باستخدام هذا البوت"
 }
 

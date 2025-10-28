@@ -1,29 +1,22 @@
-# Use Python 3.11 as base image
+# Dockerfile للمشروع على Railway
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Set working directory
+# تعيين مجلد العمل
 WORKDIR /app
 
-# Copy requirements first (for better Docker layer caching)
-COPY requirements.txt .
-
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy all project files
+# نسخ ملفات المشروع
 COPY . .
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash app \
-    && chown -R app:app /app
-USER app
+# تثبيت المتطلبات
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port (Railway will set PORT environment variable)
-EXPOSE $PORT
+# تعيين المتغيرات البيئية
+ENV PORT=5000
+ENV PYTHONUNBUFFERED=1
 
-# Run the application using run_with_server.py as entry point
-CMD ["python", "run_with_server.py"]
+# فتح المنفذ
+EXPOSE 5000
+
+# الأمر البدء
+CMD ["python", "app.py"]
+

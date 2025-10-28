@@ -1,0 +1,336 @@
+🌐 خريطة تفصيلية شاملة للبوت
+1️⃣ استقبال الإشارة
+
+مصدر الإشارة:
+
+TradingView عبر webhook() في app.py
+
+أو زر Auto Apply في Telegram (auto_apply_on)
+
+الملفات المعنية:
+
+app.py → استقبال الإشارة وتحويلها لـ signal_converter.py
+
+signal_converter.py → تحويل الإشارة للـ format الداخلي
+
+signal_id_manager.py → إنشاء معرف فريد لكل إشارة
+
+تدفق:
+
+Webhook/Auto Apply
+      │
+      ▼
+app.py.webhook()
+      │
+      ▼
+signal_converter.convert_simple_signal()
+      │
+      ▼
+signal_id_manager.generate_position_id()
+      │
+      ▼
+signal_executor.execute_signal(user_id, signal_data)
+
+2️⃣ تحديد نوع الحساب
+
+الملفات المعنية:
+
+user_manager.py → get_user_account_type(user_id)
+
+تدفق:
+
+signal_executor
+      │
+      ▼
+get_user_account_type(user_id)
+      │
+      ├─ إذا Real → جلب المراكز من API
+      └─ إذا Demo → جلب المراكز من DB
+
+3️⃣ حساب كمية الصفقة
+
+الملفات المعنية:
+
+signal_executor.py → calculate_raw_quantity(), calculate_final_quantity()
+
+config.py → min_qty, step_size, leverage
+
+تدفق:
+
+signal_executor
+      │
+      ▼
+calculate_raw_quantity(user_id, signal_data) → qty أولي
+      │
+      ▼
+calculate_final_quantity(raw_qty, signal_data)
+      │
+      ├─ إذا qty صالح → استخدمه مباشرة
+      └─ إذا qty غير صالح → تقريب لمرة واحدة باستخدام min_qty و step_size
+
+
+ملاحظات:
+
+لا محاولات إضافية، عملية التقريب مرة واحدة فقط.
+
+الحساب يختلف إذا كان العقد آجل (futures) أو فوري (spot) بسبب الرافعة المالية.
+
+4️⃣ تنفيذ الصفقة
+
+الملفات المعنية:
+
+signal_executor.py
+
+bybit_api.py (للحساب الحقيقي)
+
+user_manager.py (للحساب التجريبي)
+
+signal_position_manager.py → تحديث حالة المركز
+
+تدفق لكل نوع حساب:
+
+A. الحساب الحقيقي (Real)
+signal_executor.execute_signal()
+      │
+      ▼
+bybit_api.create_order(user_id, symbol, final_qty, side)
+      │
+      ▼
+signal_position_manager.update_position(user_id, order, 'real')
+      │
+      ▼
+إشعار Telegram
+
+B. الحساب التجريبي (Demo)
+signal_executor.execute_signal()
+      │
+      ▼
+user_manager.create_demo_order(user_id, symbol, final_qty, side)
+      │
+      ▼
+signal_position_manager.update_position(user_id, order, 'demo')
+      │
+      ▼
+إشعار Telegram (توضيح أنها صفقة تجريبية)
+
+5️⃣ تحديث المراكز المفتوحة
+
+الملفات المعنية:
+
+signal_position_manager.py → إنشاء/تحديث/إغلاق المراكز
+
+bybit_api.py → قراءة المراكز الحقيقية
+
+تدفق:
+
+user_actions / Auto Apply / Signal Execution
+      │
+      ▼
+get_open_positions(user_id)
+      │
+      ├─ إذا Real → bybit_api.get_open_positions()
+      └─ إذا Demo → user_manager.get_demo_positions()
+
+6️⃣ الأزرار المرتبطة
+نوع الزر	الملفات	وظيفة	تدفق التنفيذ
+open_long / open_short	bybit_trading_bot.py → signal_executor.py → bybit_api.py/user_manager.py	تنفيذ صفقة شراء/بيع	كما في تدفق التنفيذ أعلاه
+close_position / modify_position	signal_position_manager.py → bybit_api.py/user_manager.py	تعديل/إغلاق مركز	التحقق من نوع الحساب → تنفيذ مناسب → تحديث DB/API → إشعار
+auto_apply_on/off	user_manager.py → bybit_trading_bot.py	تفعيل/إيقاف التطبيق التلقائي	كل إشارة جديدة تمر بنفس التدفق مع تحديد نوع الحساب
+broadcast_signal / follow_developer	developer_manager.py → signal_executor.py	إرسال إشارة لجميع المتابعين	لكل متابع → تدفق كامل حسب نوع الحساب
+7️⃣ التعامل مع الأخطاء
+
+الملفات:
+
+callback_error_handler.py
+
+trading_bot.log
+
+آلية:
+
+جميع الأزرار محمية بمعالج الأخطاء
+
+أي فشل في API أو DB → تسجيل الخطأ وإشعار المطور
+
+يحافظ على استقرار البوت ولا يقاطع باقي الوظائف
+
+8️⃣ الريستارت ومسح الذاكرة
+
+الملفات:
+
+developer_manager.py → restart_project_memory()
+
+زر 🔄 Restart Memory في buttons_definition.py
+
+تدفق:
+
+المطور يضغط زر
+      │
+bybit_trading_bot.py.handle_developer()
+      │
+developer_manager.restart_project_memory()
+      │
+      ├─ مسح DB أو إعادة تهيئتها
+      ├─ مسح JSON و cache
+      └─ إعادة تهيئة init_developers + init_exchanges
+      │
+إشعار Telegram → نجاح / فشل
+
+
+✅ المراكز المفتوحة للحساب الحقيقي تظل على المنصة، أما الحساب التجريبي يتم مسح المراكز في DB. 
+9️⃣ نقاط حاسمة
+
+كل إشارة تمر عبر calculate_final_quantity للتأكد من صلاحية الكمية مرة واحدة فقط.
+
+كل زر مرتبط بوظيفة محددة ومسار تنفيذي واضح للـ Agent.
+
+التفريق بين Real و Demo لضمان سلامة الأموال.
+
+Auto Apply و Broadcast Signals متوافقة مع نوع الحساب.
+
+Restart Memory لا يضر بالحساب الحقيقي ولا يوقف البوت.
+الملف المسؤول عن الزر
+
+معالج الاستدعاء (Callback Handler)
+
+نوع الحساب الذي يتأثر به (Real / Demo)
+
+الملفات الأخرى التي يتفاعل معها الزر
+
+التدفق الكامل من الضغط على الزر إلى التنفيذ والإشعارات
+
+سأرتبها حسب أقسام الزر الأساسية.
+
+🌐 خريطة تفصيلية لكل زر
+1️⃣ أزرار المنصات (EXCHANGE_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+bybit	📊 Bybit	bybit_trading_bot.py	handle_exchange_selection	Real/Demo	المستخدم يختار Bybit → تحديث إعدادات المستخدم → يظهر إعدادات التداول الخاصة بالمنصة → جميع الصفقات اللاحقة تستخدم API أو DB حسب نوع الحساب
+binance	📈 Binance	binance_exchange.py / bybit_trading_bot.py	handle_exchange_selection	Real/Demo	نفس تدفق Bybit
+bitget	🚀 Bitget	bitget_exchange.py / bybit_trading_bot.py	handle_exchange_selection	Real/Demo	نفس تدفق Bybit
+okx	💎 OKX	okx_exchange.py / bybit_trading_bot.py	handle_exchange_selection	Real/Demo	نفس تدفق Bybit
+2️⃣ أزرار إعدادات التداول (TRADING_SETTINGS_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+leverage	⚡ الرافعة المالية	bybit_trading_bot.py	handle_trading_settings	Real/Demo	طلب إدخال قيمة الرافعة → تحديث config/user_manager → يؤثر على حسابات Real أو Demo عند تنفيذ الصفقات
+risk_management	🛡️ إدارة المخاطر	simple_enhanced_system.py	handle_trading_settings	Real/Demo	يعرض خيارات المخاطر → يحفظ في user_manager/config → كل إشارة تمر عبر تحليل المخاطر
+position_size	📏 حجم المركز	config.py / user_manager.py	handle_trading_settings	Real/Demo	يطلب نسبة من رأس المال → يؤثر على calculate_raw_quantity → ينتقل إلى calculate_final_quantity
+stop_loss	🛑 وقف الخسارة	signal_executor.py	handle_trading_settings	Real/Demo	يطلب النسبة → يتم تطبيقها عند تنفيذ أي صفقة
+take_profit	💰 أخذ الربح	signal_executor.py	handle_trading_settings	Real/Demo	يطلب النسبة → يتم تطبيقها عند تنفيذ أي صفقة
+max_positions	🔢 الحد الأقصى للمراكز	config.py	handle_trading_settings	Real/Demo	يحد من عدد المراكز المفتوحة → يتحقق عند تنفيذ أي صفقة جديدة
+3️⃣ أزرار التطبيق التلقائي (AUTO_APPLY_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+auto_apply_on	✅ تفعيل التطبيق التلقائي	bybit_trading_bot.py / user_manager.py	handle_auto_apply	Real/Demo	يفعل التطبيق → كل إشارة جديدة تمر عبر execute_signal مع تحديد نوع الحساب
+auto_apply_off	❌ إلغاء التطبيق التلقائي	bybit_trading_bot.py / user_manager.py	handle_auto_apply	Real/Demo	يلغي التطبيق → أي إشارات مستقبلية تتوقف عن التنفيذ التلقائي
+auto_apply_settings	⚙️ إعدادات التطبيق التلقائي	config.py	handle_auto_apply	Real/Demo	يعرض خيارات إضافية → يؤثر على تنفيذ كل إشارة حسب الإعدادات
+4️⃣ أزرار أوضاع التداول (TRADING_MODES_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+spot_trading	💱 تداول فوري	spot_pairs.json / exchange_commands.py	handle_trading_mode	Real/Demo	يحدد وضع التداول → جميع الإشارات التالية تستخدم التداول الفوري → qty و leverage تختلف حسب النوع
+futures_trading	📈 تداول عقود آجلة	futures_pairs.json / exchange_commands.py	handle_trading_mode	Real/Demo	يحدد العقود → تنفيذ الصفقة يتضمن leverage → qty يحسب بحسب الفيوتشر
+margin_trading	💰 تداول بالهامش	exchange_commands.py	handle_trading_mode	Real/Demo	يحدد وضع الهامش → qty محسوب مع مراعاة متطلبات الهامش
+5️⃣ أزرار المحفظة (PORTFOLIO_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+portfolio_overview	📊 نظرة عامة على المحفظة	bybit_api.py / user_manager.py	handle_portfolio	Real/Demo	يجلب البيانات → إذا Real من API → إذا Demo من DB → يعرض الملخص
+open_positions	📂 المراكز المفتوحة	bybit_api.py / signal_position_manager.py	handle_portfolio	Real/Demo	يجلب المراكز المفتوحة → عرض القائمة مع نوع الحساب
+trading_history	📈 تاريخ التداول	database.py / user_manager.py	handle_portfolio	Real/Demo	يجلب تاريخ الصفقات → يعرض جدول مع التفاصيل
+pnl_analysis	💹 تحليل الأرباح والخسائر	database.py / enhanced_portfolio_manager.py	handle_portfolio	Real/Demo	يحسب P&L → يميز بين Real و Demo → يعرض النتائج
+6️⃣ أزرار الإشارات (SIGNALS_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+signal_history	📡 تاريخ الإشارات	database.py / signal_id_manager.py	handle_signals	Real/Demo	يجلب سجل الإشارات → عرض قائمة مرتبة
+active_signals	🎯 الإشارات النشطة	signal_executor.py / signal_position_manager.py	handle_signals	Real/Demo	يجلب الإشارات الجارية → إذا Real يربط مع API → إذا Demo مع DB
+signal_performance	📊 أداء الإشارات	database.py / simple_enhanced_system.py	handle_signals	Real/Demo	يحسب نجاح الإشارات → يعرض نسب النجاح لكل نوع حساب
+follow_developer	👥 متابعة مطور	developer_manager.py / user_manager.py	handle_signals	Demo	متابعة مطور → إرسال إشارات للمتابعين → التنفيذ حسب نوع الحساب لكل متابع
+7️⃣ أزرار المطورين (DEVELOPER_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+broadcast_signal	📢 بث إشارة	developer_manager.py / app.py	handle_developer	Real/Demo	إدخال بيانات الإشارة → إرسال لكل متابع → تنفيذ حسب نوع الحساب لكل متابع
+manage_followers	👥 إدارة المتابعين	developer_manager.py / database.py	handle_developer	Demo	عرض وإدارة المتابعين → تعديل الحقوق أو الإعدادات
+developer_stats	📈 إحصائيات المطور	database.py / developer_manager.py	handle_developer	Demo	حساب الأداء → عرض إحصائيات على Telegram
+signal_templates	📝 قوالب الإشارات	developer_config.py	handle_developer	Demo	إدارة القوالب → تعديل / حذف / إنشاء
+restart_memory	🔄 إعادة تشغيل الذاكرة	developer_manager.py / bybit_trading_bot.py	handle_developer	Real/Demo	مسح DB / JSON / cache → إعادة تهيئة الأنظمة → إشعار Telegram
+8️⃣ أزرار التحكم في الصفقات (TRADE_CONTROL_BUTTONS)
+الزر	النص	الملف الرئيسي	المعالج	نوع الحساب	التدفق
+open_long	📈 فتح صفقة شراء	signal_executor.py / bybit_api.py	handle_trade_control	Real/Demo	تحديد symbol, qty → تنفيذ → update_position → إشعار
+open_short	📉 فتح صفقة بيع	signal_executor.py / bybit_api.py	handle_trade_control	Real/Demo	نفس open_long لكن جانب البيع
+close_position	🔒 إغلاق المركز	signal_position_manager.py	handle_trade_control	Real/Demo	جلب المراكز المفتوحة → اختيار المركز → إغلاق عبر API أو DB → إشعار
+modify_position	✏️ تعديل المركز	signal_position_manager.py	handle_trade_control	Real/Demo	جلب المراكز → تعديل qty/SL/TP → تحديث API أو DB → إشعار
+9️⃣ أزرار الإدارة العامة والإضافية
+الزر	النص	الملف الرئيسي	المعالج	وظيفة إضافية
+confirm	✅ تأكيد	جميع الملفات	callback_error_handler.py	تأكيد أي عملية مثل صفقة أو إعداد
+cancel	❌ إلغاء	جميع الملفات	callback_error_handler.py	إلغاء العملية الحالية
+retry	🔄 إعادة المحاولة	error_handlers/callback_error_handler.py	callback_error_handler.py	إعادة تنفيذ العملية عند فشل
+refresh	🔄 تحديث	web_server.py / bybit_api.py	callback_error_handler.py	تحديث بيانات المراكز أو المحفظة
+
+✅ بهذا التفصيل، لكل زر:ملفات المصدر
+
+المعالج المسؤول
+
+نوع الحساب المتأثر
+
+التدفق الكامل من الضغط على الزر إلى التنفيذ النهائي
+
+تأثيره على الحساب الحقيقي أو التجريبي 
+1️⃣ الملفات الرئيسية في الجذر
+الملف	الوظيفة	يجب أن يرتبط بـ
+app.py	استقبال إشارات TradingView عبر webhook، وإدارة Telegram Bot	signal_converter.py, signal_executor.py, user_manager.py, developer_manager.py, config.py
+bybit_trading_bot.py	منطق البوت الأساسي، إدارة الحسابات والصفقات	user_manager.py, signal_executor.py, bybit_api.py, buttons/, developer_manager.py
+config.py	إعدادات عامة، مفاتيح API، إعدادات التداول	جميع الملفات التي تحتاج إعدادات (signal_executor, user_manager, buttons, developers)
+web_server.py	لوحة التحكم وعرض بيانات الوقت الفعلي	bybit_api.py, signal_position_manager.py, user_manager.py
+requirements.txt	قائمة المكتبات المطلوبة	–
+Dockerfile / railway.toml	نشر التطبيق	جميع الملفات لتشغيل البوت في البيئة السحابية
+trading_bot.db	قاعدة بيانات للمستخدمين، الصفقات، الإشارات	user_manager.py, signal_position_manager.py, developer_manager.py
+trading_bot.log	سجل الأخطاء والأحداث	callback_error_handler.py، جميع الملفات التي تولد أحداث
+2️⃣ ملفات API (api/)
+الملف	الوظيفة	يجب أن يرتبط بـ
+bybit_api.py	تنفيذ الصفقات على Bybit، جلب المراكز والأرصدة	signal_executor.py, bybit_trading_bot.py, user_manager.py, web_server.py
+exchange_base.py	الأساس لجميع المنصات	exchange_commands.py, init_exchanges.py, ملفات المنصات الأخرى
+exchange_commands.py	تنفيذ أوامر التداول المشتركة	signal_executor.py, bybit_trading_bot.py
+init_exchanges.py	تهيئة جميع المنصات	bybit_trading_bot.py, developer_manager.py
+exchanges/*.py	تنفيذ مخصص لكل منصة	exchange_base.py, exchange_commands.py, bybit_trading_bot.py
+QUICK_SUMMARY.md	توثيق سريع	–
+3️⃣ ملفات الأنظمة (systems/)
+الملف	الوظيفة	يجب أن يرتبط بـ
+simple_enhanced_system.py	النظام المحسن البسيط لمعالجة الإشارات	signal_executor.py, user_manager.py
+enhanced_portfolio_manager.py	إدارة المحفظة وتحليل P&L	user_manager.py, web_server.py, database.py
+integrated_signal_system.py	دمج وتحليل إشارات متعددة	signal_converter.py, signal_executor.py
+4️⃣ ملفات الإشارات (signals/)
+الملف	الوظيفة	يجب أن يرتبط بـ
+signal_executor.py	تنفيذ الإشارات على Real/Demo	bybit_api.py, user_manager.py, signal_position_manager.py, config.py
+signal_converter.py	تحويل إشارات TradingView للـ format الداخلي	app.py, signal_executor.py, signal_id_manager.py
+signal_id_manager.py	إنشاء معرفات فريدة للإشارات	signal_converter.py, signal_executor.py
+signal_position_manager.py	إدارة المراكز المفتوحة	signal_executor.py, bybit_api.py, user_manager.py, web_server.py
+5️⃣ ملفات المستخدمين (users/)
+الملف	الوظيفة	يجب أن يرتبط بـ
+user_manager.py	إدارة المستخدمين المتعددين	bybit_trading_bot.py, signal_executor.py, database.py, config.py
+database.py	حفظ بيانات المستخدمين، الصفقات، الإشارات	user_manager.py, developer_manager.py, signal_position_manager.py
+6️⃣ ملفات المطورين (developers/)
+الملف	الوظيفة	يجب أن يرتبط بـ
+developer_manager.py	إدارة حسابات المطورين، بث الإشارات	signal_executor.py, user_manager.py, app.py, database.py
+developer_config.py	إعدادات المطورين	developer_manager.py
+init_developers.py	تهيئة المطورين	developer_manager.py, app.py
+developer_example.py	مثال للتطبيق	–
+7️⃣ ملفات الأزرار (buttons/)
+الملف	الوظيفة	يجب أن يرتبط بـ
+buttons_definition.py	تعريف جميع أزرار Telegram	bybit_trading_bot.py, keyboard_builders.py
+keyboard_builders.py	بناء لوحات مفاتيح ديناميكية	buttons_definition.py, bybit_trading_bot.py
+8️⃣ ملفات معالجات الأخطاء (error_handlers/)
+الملف	الوظيفة	يجب أن يرتبط بـ
+callback_error_handler.py	حماية الأزرار ومعالجة الأخطاء	جميع الملفات التي تحتوي أزرار أو تنفيذ صفقات، trading_bot.log
+9️⃣ ملفات البيانات
+الملف	الوظيفة	يجب أن يرتبط بـ
+futures_pairs.json	أزواج العقود الآجلة	exchange_commands.py, signal_executor.py
+spot_pairs.json	أزواج التداول الفوري	exchange_commands.py, signal_executor.py
+popular_pairs.json	الأزواج الأكثر تداولاً	exchange_commands.py, signal_executor.py
+10️⃣ ملفات البدء والنشر
+الملف	الوظيفة	يجب أن يرتبط بـ
+START_FULL.bat / restart_bot.bat / restart_bot.ps1	تشغيل البوت في Windows	جميع الملفات الرئيسية
+railway_start.sh	تشغيل البوت على Railway	جميع الملفات الرئيسية
+11️⃣ نقاط حاسمة للارتباط
+
+كل ملف API يجب أن يرتبط بـ signal_executor.py و user_manager.py لإتمام الصفقات.
+
+كل زر مرتبط بـ bybit_trading_bot.py → معالج Callback → يمر عبر ملفات تنفيذية حسب نوع الزر (Trade, Signals, Portfolio, Developer).
+
+الحساب الحقيقي يعتمد على API مباشر، التجريبي على DB داخلي.
+
+calculate_final_quantity() يجب أن يتم استدعاؤه من كل تنفيذ صفقة لتقريب الكمية مرة واحدة.
+
+ملفات المطورين مرتبطة بالزر restart_memory لإعادة تهيئة المشروع بدون التأثير على الحسابات الحقيقية.
+
+إذا أحببت، أستطيع أن أرسم لك Diagram كامل للارتباط بين الملفات والأزرار والعمليات بحيث يكون جاهز للـ Agent بشكل بصري، مع توضيح نوع الحساب (Real/Demo) ومسار كل إشارة وصفقة.
