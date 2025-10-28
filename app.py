@@ -7,6 +7,7 @@
 
 import os
 import sys
+import json
 import threading
 import asyncio
 import time
@@ -195,108 +196,61 @@ def personal_webhook(user_id):
     """استقبال إشارات TradingView الشخصية لكل مستخدم"""
     try:
         print(f"\n{'='*60}")
-        print(f"🔔 [WEBHOOK شخصي] استقبال طلب جديد")
+        print(f"🔔 [WEBHOOK شخصي] استقبال طلب")
         print(f"👤 المستخدم: {user_id}")
-        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         data = request.get_json()
-        print(f"📊 البيانات المستلمة: {data}")
+        print(f"📊 البيانات: {json.dumps(data, ensure_ascii=False)}")
         
         if not data:
-            return jsonify({"status": "error", "message": "No data received"}), 400
+            return jsonify({"status": "error", "message": "No data"}), 400
         
-        # التحقق من وجود user_manager
-        from users.user_manager import user_manager
-        from users.database import db_manager
-        
-        if user_manager is None:
-            return jsonify({"status": "error", "message": "User manager not initialized"}), 500
-        
-        # التحقق من وجود المستخدم
-        user_data = user_manager.get_user(user_id)
-        
-        if not user_data:
-            # محاولة التحميل من قاعدة البيانات
-            user_data = db_manager.get_user(user_id)
-            if user_data:
-                user_manager.reload_user_data(user_id)
-                user_data = user_manager.get_user(user_id)
-                user_manager._create_user_accounts(user_id, user_data)
-        
-        if not user_data:
-            return jsonify({"status": "error", "message": f"User {user_id} not found"}), 404
-        
-        if not user_data.get('is_active', False):
-            return jsonify({"status": "error", "message": f"User {user_id} is not active"}), 403
-        
-        # إعدادات المستخدم
-        user_settings_copy = {
-            'user_id': user_id,
-            'market_type': user_data.get('market_type', 'spot'),
-            'account_type': user_data.get('account_type', 'demo'),
-            'trade_amount': user_data.get('trade_amount', 100.0),
-            'leverage': user_data.get('leverage', 10)
-        }
-        
-        # معالجة الإشارة في thread منفصل
-        def process_signal_async():
+        # معالجة الإشارة مباشرة
+        def process():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
             try:
-                print(f"🔄 [PERSONAL WEBHOOK] بدء معالجة إشارة للمستخدم {user_id}")
+                print(f"🔄 [WEBHOOK] معالجة لإشارة...")
                 
-                # التحقق من نوع الحساب
-                account_type = user_settings_copy['account_type']
-                print(f"👤 [PERSONAL WEBHOOK] نوع الحساب: {account_type}")
+                # استخدام user_manager
+                from users.user_manager import user_manager
+                from users.database import db_manager
                 
-                if account_type == 'real':
-                    # حساب حقيقي - استخدام signal_executor
-                    print(f"🔴 [PERSONAL WEBHOOK] التنفيذ على حساب حقيقي...")
-                    from signals.signal_executor import signal_executor
-                    result = loop.run_until_complete(
-                        signal_executor.execute_signal(user_id, data, user_data)
-                    )
-                    print(f"✅ [SIGNAL EXECUTOR] نتيجة التنفيذ: {result}")
-                else:
-                    # حساب تجريبي - استخدام trading_bot
-                    print(f"🟢 [PERSONAL WEBHOOK] التنفيذ على حساب تجريبي...")
-                    
-                    # تطبيق إعدادات المستخدم
-                    original_settings = trading_bot.user_settings.copy()
-                    original_user_id = trading_bot.user_id
-                    
-                    trading_bot.user_id = user_settings_copy['user_id']
-                    trading_bot.user_settings['market_type'] = user_settings_copy['market_type']
-                    trading_bot.user_settings['account_type'] = user_settings_copy['account_type']
-                    trading_bot.user_settings['trade_amount'] = user_settings_copy['trade_amount']
-                    trading_bot.user_settings['leverage'] = user_settings_copy['leverage']
-                    
-                    print(f"⚙️ [PERSONAL WEBHOOK] تم تطبيق الإعدادات: {trading_bot.user_settings}")
-                    
-                    # معالجة الإشارة
-                    print(f"📡 [PERSONAL WEBHOOK] استدعاء process_signal...")
-                    result = loop.run_until_complete(trading_bot.process_signal(data))
-                    print(f"✅ [PERSONAL WEBHOOK] اكتملت معالجة الإشارة")
-                    
-                    # استعادة الإعدادات
-                    trading_bot.user_settings.update(original_settings)
-                    trading_bot.user_id = original_user_id
-                    
+                user_data = user_manager.get_user(user_id) if user_manager else None
+                if not user_data:
+                    user_data = db_manager.get_user(user_id)
+                    if user_data:
+                        user_manager.reload_user_data(user_id)
+                        user_data = user_manager.get_user(user_id)
+                        user_manager._create_user_accounts(user_id, user_data)
+                
+                if not user_data:
+                    print(f"❌ المستخدم {user_id} غير موجود")
+                    return
+                
+                print(f"📊 نوع الحساب: {user_data.get('account_type')}")
+                
+                # تطبيق الإعدادات
+                trading_bot.user_id = user_id
+                trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
+                trading_bot.user_settings['account_type'] = user_data.get('account_type', 'demo')
+                trading_bot.user_settings['trade_amount'] = user_data.get('trade_amount', 100.0)
+                trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
+                trading_bot.is_running = True
+                
+                print(f"📡 استدعاء process_signal...")
+                loop.run_until_complete(trading_bot.process_signal(data))
+                print(f"✅ اكتملت المعالجة")
             except Exception as e:
-                print(f"❌ [PERSONAL WEBHOOK] خطأ: {e}")
+                print(f"❌ خطأ: {e}")
                 import traceback
                 traceback.print_exc()
             finally:
                 loop.close()
         
-        threading.Thread(target=process_signal_async, daemon=True).start()
-        
-        return jsonify({
-            "status": "success",
-            "message": f"Signal processing started for user {user_id}",
-            "user_id": user_id
-        }), 200
+        threading.Thread(target=process, daemon=True).start()
+        return jsonify({"status": "success", "message": "Processing"}), 200
         
     except Exception as e:
         print(f"❌ خطأ: {e}")
