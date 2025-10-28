@@ -8664,17 +8664,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.message.edit_text(message, reply_markup=reply_markup)
             await update.callback_query.answer("✅ تم التحديث")
     
-    else:
-        # معالجة أي أزرار أخرى غير محددة
+    # معالجة الأزرار غير المحددة بشكل صريح
+    # (نُعطل الـ else لتجنب اعتراض الأزرار المعالجة من قبل)
+    logger.warning(f"⚠️ لم يتم التعرف على الزر: {data}")
+    try:
+        from error_handlers.callback_error_handler import UnknownCommandHandler
+        await UnknownCommandHandler.handle_unknown_callback(update, context, data)
+    except Exception as e:
+        logger.error(f"❌ خطأ في معالجة الأمر غير المدعوم: {e}")
         try:
-            from error_handlers.callback_error_handler import UnknownCommandHandler
-            await UnknownCommandHandler.handle_unknown_callback(update, context, data)
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة الأمر غير المدعوم: {e}")
-            try:
-                await query.answer("⚠️ أمر غير مدعوم")
-            except:
-                pass
+            await query.answer("⚠️ أمر غير مدعوم")
+        except:
+            pass
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة النصوص المدخلة"""
