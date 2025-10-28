@@ -2475,12 +2475,14 @@ class TradingBot:
             logger.info(f"🎯 نوع الحساب: {account_type.upper()}")
             logger.info(f"📊 إعدادات التداول: مبلغ={self.user_settings.get('trade_amount', 100)}, رافعة={self.user_settings.get('leverage', 10)}x")
             
-            if account_type == 'real':
-                # حساب حقيقي - التنفيذ عبر Bybit API
+            if account_type == 'real' and self.bybit_api:
+                # حساب حقيقي - التنفيذ عبر Bybit API (فقط إذا كان API متاح)
                 logger.info(f"🔴 تنفيذ صفقة حقيقية عبر Bybit API")
                 await self.execute_real_trade(symbol, action, current_price, bybit_category)
             else:
                 # حساب تجريبي - التنفيذ داخل البوت
+                if account_type == 'real' and not self.bybit_api:
+                    logger.warning(f"⚠️ نوع الحساب حقيقي لكن API غير متاح - استخدام الحساب التجريبي")
                 logger.info(f"🟢 تنفيذ صفقة تجريبية داخل البوت")
                 await self.execute_demo_trade(symbol, action, current_price, bybit_category, market_type)
             

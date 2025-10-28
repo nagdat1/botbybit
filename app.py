@@ -229,12 +229,19 @@ def personal_webhook(user_id):
                     print(f"❌ المستخدم {user_id} غير موجود")
                     return
                 
-                print(f"📊 نوع الحساب: {user_data.get('account_type')}")
+                account_type = user_data.get('account_type', 'demo')
+                print(f"📊 نوع الحساب: {account_type}")
+                
+                # 🔧 إصلاح: التحقق من API قبل استخدام الحساب الحقيقي
+                if account_type == 'real' and not trading_bot.bybit_api:
+                    print(f"⚠️ الحساب الحقيقي مطلوب لكن API غير متاح - استخدام التجريبي")
+                    user_data['account_type'] = 'demo'
+                    account_type = 'demo'
                 
                 # تطبيق الإعدادات
                 trading_bot.user_id = user_id
                 trading_bot.user_settings['market_type'] = user_data.get('market_type', 'spot')
-                trading_bot.user_settings['account_type'] = user_data.get('account_type', 'demo')
+                trading_bot.user_settings['account_type'] = account_type
                 trading_bot.user_settings['trade_amount'] = user_data.get('trade_amount', 100.0)
                 trading_bot.user_settings['leverage'] = user_data.get('leverage', 10)
                 trading_bot.is_running = True
