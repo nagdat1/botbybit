@@ -197,27 +197,80 @@ class BybitExchange(ExchangeBase):
     
     def place_order(self, symbol: str, side: str, order_type: str,
                    quantity: float, price: float = None, **kwargs) -> Optional[Dict]:
-        """وضع أمر تداول"""
+        """وضع أمر تداول حقيقي"""
+        
+        logger.info(f"Bybit place_order called: {kwargs.get('category', 'linear')}, {symbol}, {side}, {order_type}, qty={quantity}")
+        
         params = {
             'category': kwargs.get('category', 'linear'),
             'symbol': symbol,
-            'side': 'Buy' if side.lower() == 'buy' else 'Sell',
-            'orderType': 'Market' if order_type.lower() == 'market' else 'Limit',
+            'side': side.capitalize(),
+            'orderType': order_type.capitalize(),
             'qty': str(quantity)
         }
         
-        if price:
+        if price and order_type.lower() == 'limit':
             params['price'] = str(price)
         
-        # إضافة معاملات إضافية
-        if 'timeInForce' in kwargs:
-            params['timeInForce'] = kwargs['timeInForce']
-        if 'stopLoss' in kwargs:
-            params['stopLoss'] = str(kwargs['stopLoss'])
-        if 'takeProfit' in kwargs:
-            params['takeProfit'] = str(kwargs['takeProfit'])
+        if kwargs.get('take_profit'):
+            params['takeProfit'] = str(kwargs['take_profit'])
         
-        return self._make_request('POST', '/v5/order/create', params)
+        if kwargs.get('stop_loss'):
+            params['stopLoss'] = str(kwargs['stop_loss'])
+        
+        # تعيين الرافعة المالية أولاً إذا كانت محددة
+        leverage = kwargs.get('leverage')
+        category = kwargs.get('category', 'linear')
+        if leverage and category in ['linear', 'inverse']:
+            logger.info(f"Setting leverage to {leverage} for {symbol}")
+            leverage_result = self.set_leverage(category, symbol, leverage)
+            if not leverage_result:
+                logger.error(f"Failed to set leverage for {symbol}")
+        
+        result = self._make_request('POST', '/v5/order/create', params)
+        
+        if result:
+            logger.info(f"Bybit order placed successfully: {result}")
+            return {
+                'order_id': result.get('orderId'),
+                'order_link_id': result.get('orderLinkId'),
+                'symbol': symbol,
+                'side': side,
+                'type': order_type,
+                'qty': quantity,
+                'price': price,
+                'success': True,
+                'raw_response': result
+            }
+        else:
+            logger.error(f"Bybit order placement failed for {symbol}")
+            return {
+                'success': False,
+                'error': 'Order placement failed - API returned None',
+                'symbol': symbol,
+                'side': side,
+                'qty': quantity,
+                'error_type': 'API_NULL_RESPONSE'
+            }
+    
+    def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
+        """تعيين الرافعة المالية على المنصة"""
+        params = {
+            'category': category,
+            'symbol': symbol,
+            'buyLeverage': str(leverage),
+            'sellLeverage': str(leverage)
+        }
+        
+        logger.info(f"Setting leverage for {symbol}: {leverage}x")
+        result = self._make_request('POST', '/v5/position/set-leverage', params)
+        
+        if result is not None and not result.get('error'):
+            logger.info(f"Leverage set successfully for {symbol}: {leverage}x")
+            return True
+        else:
+            logger.error(f"Failed to set leverage for {symbol}: {leverage}x")
+            return False
     
     def get_symbol_info(self, market_type: str, symbol: str) -> Optional[Dict]:
         """الحصول على معلومات الرمز"""

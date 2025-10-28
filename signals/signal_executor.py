@@ -566,20 +566,53 @@ class SignalExecutor:
                 logger.info(f"   ✅ Spot: qty = {trade_amount} / {price} = {qty}")
                 logger.info(f"   ✅ notional_value = {trade_amount}")
             
-            # 🔧 تطبيق التعديل الذكي للكمية مباشرة
-            logger.info(f"🧠 تطبيق التعديل الذكي للكمية...")
-            exchange_name = getattr(account, 'exchange_name', 'bybit') if hasattr(account, 'exchange_name') else 'bybit'
-            original_qty = qty
-            qty = SignalExecutor._calculate_adjusted_quantity(qty, price, trade_amount, leverage, exchange_name)
+            # ضمان الحد الأدنى للكمية (تجنب رفض المنصة) - منطق النسخة القديمة
+            min_quantity = 0.001  # الحد الأدنى لـ Bybit
             
-            if qty != original_qty:
-                logger.info(f"🔧 تم تعديل الكمية: {original_qty:.8f} → {qty:.8f}")
-                # إعادة حساب القيمة الإجمالية
-                if market_type == 'futures':
-                    notional_value = qty * price / leverage
-                else:
-                    notional_value = qty * price
-                logger.info(f"   القيمة الإجمالية المحدثة: {notional_value:.2f} USDT")
+            # فحص إذا كانت الكمية المحسوبة أقل من الحد الأدنى
+            if qty < min_quantity:
+                # حساب الهامش المطلوب للحد الأدنى
+                min_margin_required = (min_quantity * price) / leverage if market_type == 'futures' else min_quantity * price
+                
+                # فحص الرصيد المتاح
+                try:
+                    balance_info = account.get_wallet_balance('futures' if market_type == 'futures' else 'spot')
+                    if balance_info and 'coins' in balance_info and 'USDT' in balance_info['coins']:
+                        available_balance = float(balance_info['coins']['USDT']['equity'])
+                        
+                        logger.info(f"الرصيد المتاح: {available_balance} USDT")
+                        logger.info(f"الهامش المطلوب للحد الأدنى: {min_margin_required:.2f} USDT")
+                        
+                        if available_balance >= min_margin_required:
+                            # الرصيد كافي للحد الأدنى
+                            logger.warning(f"الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
+                            qty = min_quantity
+                        else:
+                            # الرصيد غير كافي حتى للحد الأدنى
+                            logger.error(f"الرصيد غير كافي حتى للحد الأدنى: {available_balance} < {min_margin_required}")
+                            return {
+                                'success': False,
+                                'message': f'Insufficient balance for minimum order. Available: {available_balance} USDT, Required: {min_margin_required:.2f} USDT',
+                                'error': 'INSUFFICIENT_BALANCE_MINIMUM',
+                                'is_real': True,
+                                'available_balance': available_balance,
+                                'required_balance': min_margin_required
+                            }
+                    else:
+                        logger.warning("لم يتم العثور على معلومات الرصيد USDT")
+                        # في حالة عدم العثور على الرصيد، نستخدم الحد الأدنى
+                        qty = min_quantity
+                except Exception as e:
+                    logger.warning(f"خطأ في فحص الرصيد للحد الأدنى: {e}")
+                    # في حالة الخطأ، نستخدم الحد الأدنى
+                    qty = min_quantity
+            
+            # تقريب الكمية حسب دقة الرمز (منطق النسخة القديمة)
+            qty = round(qty, 6)
+            
+            logger.info(f"🧠 تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
+            logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
+            logger.info(f"📤 المخرجات (طريقة المنصة): qty = {qty} {symbol.split('USDT')[0]}")
             
             logger.info(f"=" * 80)
             
