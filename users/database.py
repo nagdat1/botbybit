@@ -1429,6 +1429,14 @@ class DatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
+                # التحقق من وجود المستخدم أولاً
+                cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+                user_exists = cursor.fetchone()
+                
+                if not user_exists:
+                    logger.warning(f"⚠️ المستخدم {user_id} غير موجود")
+                    return False
+                
                 # 1. حذف جميع الصفقات
                 cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
                 orders_deleted = cursor.rowcount
@@ -1468,6 +1476,58 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ خطأ في إعادة تعيين بيانات المستخدم {user_id}: {e}")
             return False
+    
+    def reset_all_users_data(self) -> int:
+        """إعادة تعيين بيانات جميع المستخدمين (دون حذفهم)"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # عد المستخدمين
+                cursor.execute("SELECT COUNT(*) FROM users")
+                user_count = cursor.fetchone()[0]
+                
+                if user_count == 0:
+                    logger.info("⚠️ لا يوجد مستخدمين")
+                    return 0
+                
+                # حذف جميع الصفقات
+                cursor.execute("DELETE FROM orders")
+                orders_deleted = cursor.rowcount
+                
+                # حذف جميع صفقات الإشارات
+                cursor.execute("DELETE FROM signal_positions")
+                signals_deleted = cursor.rowcount
+                
+                # إعادة تعيين بيانات جميع المستخدمين
+                cursor.execute("""
+                    UPDATE users 
+                    SET balance = 10000.0,
+                        daily_loss = 0.0,
+                        weekly_loss = 0.0,
+                        total_loss = 0.0,
+                        last_reset_date = NULL,
+                        last_reset_week = NULL,
+                        last_loss_update = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                """)
+                
+                # إعادة تعيين إعدادات جميع المستخدمين
+                cursor.execute("""
+                    UPDATE user_settings 
+                    SET market_type = 'spot',
+                        trade_amount = 100.0,
+                        leverage = 10,
+                        account_type = 'demo'
+                """)
+                
+                conn.commit()
+                logger.warning(f"🔄 تم إعادة تعيين بيانات جميع المستخدمين ({user_count} مستخدم، {orders_deleted} صفقة، {signals_deleted} إشارة)")
+                return user_count
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في إعادة تعيين بيانات جميع المستخدمين: {e}")
+            return 0
     
     def delete_all_users(self) -> int:
         """حذف جميع المستخدمين (خطير - للمطورين فقط)"""

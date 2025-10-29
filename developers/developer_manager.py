@@ -401,6 +401,49 @@ class DeveloperManager:
         except Exception as e:
             logger.error(f"❌ خطأ في الحصول على قائمة المستخدمين: {e}")
             return []
+    
+    def reset_all_users_data(self, developer_id: int) -> Dict[str, Any]:
+        """إعادة تعيين بيانات جميع المستخدمين (للمطورين فقط)"""
+        try:
+            # التحقق من صلاحية المطور
+            if not self.is_developer(developer_id):
+                return {
+                    'success': False,
+                    'message': 'ليس لديك صلاحيات مطور'
+                }
+            
+            if not self.is_developer_active(developer_id):
+                return {
+                    'success': False,
+                    'message': 'حساب المطور غير نشط'
+                }
+            
+            # إعادة تعيين بيانات جميع المستخدمين
+            user_count = db_manager.reset_all_users_data()
+            
+            if user_count > 0:
+                # إعادة تحميل بيانات جميع المستخدمين في الذاكرة
+                from users.user_manager import user_manager
+                user_manager.load_all_users()
+                
+                logger.warning(f"🔄 المطور {developer_id} أعاد تعيين بيانات جميع المستخدمين ({user_count} مستخدم)")
+                return {
+                    'success': True,
+                    'message': f'تم إعادة تعيين بيانات {user_count} مستخدم بنجاح',
+                    'user_count': user_count
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'لا يوجد مستخدمين لإعادة التعيين'
+                }
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في إعادة تعيين بيانات جميع المستخدمين: {e}")
+            return {
+                'success': False,
+                'message': f'خطأ: {str(e)}'
+            }
 
 # إنشاء مثيل عام لمدير المطورين
 developer_manager = DeveloperManager()

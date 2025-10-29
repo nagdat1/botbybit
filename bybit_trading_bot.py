@@ -3516,8 +3516,10 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     keyboard = [
         [KeyboardButton("📡 إرسال إشارة"), KeyboardButton("👥 المتابعين")],
         [KeyboardButton("📊 إحصائيات المطور"), KeyboardButton("👥 إدارة المستخدمين")],
-        [KeyboardButton("📱 إشعار جماعي"), KeyboardButton("⚙️ إعدادات المطور")],
-        [KeyboardButton("🔄 تحديث"), KeyboardButton("👤 الوضع العادي")]
+        [KeyboardButton("🗑️ حذف بيانات مستخدم"), KeyboardButton("🔄 إعادة تعيين بيانات مستخدم")],
+        [KeyboardButton("⚠️ إعادة تعيين كل المشروع"), KeyboardButton("📱 إشعار جماعي")],
+        [KeyboardButton("⚙️ إعدادات المطور"), KeyboardButton("🔄 تحديث")],
+        [KeyboardButton("👤 الوضع العادي")]
     ]
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -5441,10 +5443,6 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="toggle_bot")])
     else:
         keyboard.append([InlineKeyboardButton("▶️ تشغيل البوت", callback_data="toggle_bot")])
-    
-    # إضافة زر إعادة تشغيل البوت للمطور/الأدمن فقط
-    if user_id == ADMIN_USER_ID:
-        keyboard.append([InlineKeyboardButton("🔄 إعادة تشغيل البوت", callback_data="restart_bot")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -7890,47 +7888,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if update.callback_query is not None:
                     await update.callback_query.edit_message_text("❌ فشل في تبديل حالة البوت")
     
-    if data == "restart_bot":
-        # التحقق من أن المستخدم هو الأدمن
-        if user_id == ADMIN_USER_ID:
-            logger.warning(f"🔄 طلب إعادة تشغيل البوت من المستخدم {user_id}")
-            
-            if update.callback_query is not None:
-                await update.callback_query.answer("جاري إعادة تشغيل البوت...")
-                await update.callback_query.edit_message_text(
-                    "🔄 **جاري إعادة تشغيل البوت...**\n\n"
-                    "⏳ انتظر لحظات...\n"
-                    "✅ سيتم تحديث البوت تلقائياً\n\n"
-                    "💡 **ملاحظة:** قد يستغرق هذا 10-15 ثانية",
-                    parse_mode='Markdown'
-                )
-            
-            # إرسال إشعار للوغ
-            logger.warning("⚠️ بدء إعادة تشغيل البوت...")
-            
-            # إعادة تشغيل البوت
-            import sys
-            
-            try:
-                # حفظ جميع البيانات قبل الإعادة
-                logger.info("💾 حفظ البيانات قبل إعادة التشغيل...")
-                
-                # إعادة تشغيل العملية
-                logger.info("🔄 إعادة تشغيل العملية...")
-                python = sys.executable
-                os.execl(python, python, *sys.argv)
-            except Exception as e:
-                logger.error(f"❌ خطأ في إعادة التشغيل: {e}")
-                if update.callback_query is not None:
-                    await update.callback_query.edit_message_text(
-                        f"❌ **فشل في إعادة التشغيل**\n\n"
-                        f"الخطأ: {str(e)}\n\n"
-                        f"💡 يُرجى إعادة تشغيل البوت يدوياً",
-                        parse_mode='Markdown'
-                    )
-        else:
-            if update.callback_query is not None:
-                await update.callback_query.answer("⚠️ هذه الميزة للمطورين فقط!", show_alert=True)
     if data == "info":
         info_text = """
 ℹ️ معلومات البوت
@@ -8408,6 +8365,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "developer_panel":
         await show_developer_panel(update, context)
         return
+    if data == "confirm_reset_all_project":
+        if user_id and developer_manager.is_developer(user_id):
+            # تنفيذ إعادة تعيين كل المشروع
+            result = developer_manager.reset_all_users_data(user_id)
+            
+            if result['success']:
+                await update.callback_query.edit_message_text(
+                    f"✅ {result['message']}\n\n"
+                    f"تم إعادة تعيين بيانات {result.get('user_count', 0)} مستخدم\n"
+                    "جميع الصفقات تم حذفها\n"
+                    "جميع الإعدادات تم إعادتها للافتراضي"
+                )
+            else:
+                await update.callback_query.edit_message_text(f"❌ {result['message']}")
+        return
     if data == "dev_show_followers":
         await handle_show_followers(update, context)
         return
@@ -8790,6 +8762,38 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(message, reply_markup=reply_markup)
             return
+        elif text == "🗑️ حذف بيانات مستخدم":
+            await update.message.reply_text("🗑️ أرسل ID المستخدم الذي تريد حذف جميع بياناته:\n\nمثال: 123456789")
+            if user_id:
+                user_input_state[user_id] = "waiting_for_delete_user_id"
+            return
+        elif text == "🔄 إعادة تعيين بيانات مستخدم":
+            await update.message.reply_text("🔄 أرسل ID المستخدم الذي تريد إعادة تعيين بياناته:\n\nمثال: 123456789")
+            if user_id:
+                user_input_state[user_id] = "waiting_for_reset_user_id"
+            return
+        elif text == "⚠️ إعادة تعيين كل المشروع":
+            # تحذير شديد قبل إعادة تعيين كل المشروع
+            keyboard = [
+                [InlineKeyboardButton("✅ نعم، إعادة التعيين", callback_data="confirm_reset_all_project")],
+                [InlineKeyboardButton("❌ إلغاء", callback_data="developer_panel")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                "⚠️ **تحذير خطير!**\n\n"
+                "هذا الإجراء سيقوم بـ:\n"
+                "• حذف جميع الصفقات\n"
+                "• حذف جميع صفقات الإشارات\n"
+                "• إعادة تعيين رصيد جميع المستخدمين إلى 10000\n"
+                "• إعادة تعيين جميع الإعدادات للافتراضية\n"
+                "• سيبقى المستخدمين موجودين\n\n"
+                "❗ لا يمكن التراجع عن هذا الإجراء!\n\n"
+                "هل أنت متأكد؟",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            return
         elif text == "🔄 تحديث":
             await show_developer_panel(update, context)
             return
@@ -9054,6 +9058,46 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 del user_input_state[user_id]
                 await update.message.reply_text("❌ ليس لديك صلاحية")
                 return
+        
+        # معالجة حذف بيانات مستخدم
+        elif state == "waiting_for_delete_user_id":
+            if developer_manager.is_developer(user_id):
+                try:
+                    target_user_id = int(text)
+                    result = developer_manager.delete_user_data(user_id, target_user_id)
+                    
+                    del user_input_state[user_id]
+                    
+                    if result['success']:
+                        await update.message.reply_text(f"✅ {result['message']}")
+                    else:
+                        await update.message.reply_text(f"❌ {result['message']}")
+                except ValueError:
+                    await update.message.reply_text("❌ يرجى إدخال ID صحيح (رقم فقط)")
+                except Exception as e:
+                    del user_input_state[user_id]
+                    await update.message.reply_text(f"❌ خطأ: {str(e)}")
+            return
+        
+        # معالجة إعادة تعيين بيانات مستخدم
+        elif state == "waiting_for_reset_user_id":
+            if developer_manager.is_developer(user_id):
+                try:
+                    target_user_id = int(text)
+                    result = developer_manager.reset_user_data(user_id, target_user_id)
+                    
+                    del user_input_state[user_id]
+                    
+                    if result['success']:
+                        await update.message.reply_text(f"✅ {result['message']}")
+                    else:
+                        await update.message.reply_text(f"❌ {result['message']}")
+                except ValueError:
+                    await update.message.reply_text("❌ يرجى إدخال ID صحيح (رقم فقط)")
+                except Exception as e:
+                    del user_input_state[user_id]
+                    await update.message.reply_text(f"❌ خطأ: {str(e)}")
+            return
         
         if state == "waiting_for_api_key":
             # حفظ API_KEY مؤقتاً
