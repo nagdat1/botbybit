@@ -147,9 +147,9 @@ def webhook():
                 converted_signal = convert_simple_signal(data, user_settings)
                 
                 if converted_signal:
-                    # تنفيذ الإشارة
+                    # تنفيذ الإشارة - استخدام user_settings بدلاً من user_data
                     result = loop.run_until_complete(
-                        sig_executor.execute_signal(user_id, converted_signal, user_data)
+                        sig_executor.execute_signal(user_id, converted_signal, user_settings)
                     )
                     print(f"OK نتيجة تنفيذ الإشارة: {result}")
                 else:
@@ -247,9 +247,9 @@ def personal_webhook(user_id):
                 if converted_signal:
                     print(f"OK تم تحويل الإشارة: {converted_signal.get('action')} {converted_signal.get('symbol')}")
                     
-                    # تنفيذ الإشارة
+                    # تنفيذ الإشارة - استخدام user_settings_copy بدلاً من user_data
                     result = loop.run_until_complete(
-                        sig_executor.execute_signal(user_id, converted_signal, user_data)
+                        sig_executor.execute_signal(user_id, converted_signal, user_settings_copy)
                     )
                     
                     print(f"OK نتيجة التنفيذ: {result}")

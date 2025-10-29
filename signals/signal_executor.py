@@ -479,7 +479,7 @@ class SignalExecutor:
             # تطبيق التقريب الذكي مباشرة لضمان قبول المنصة
             logger.info(f"🧠 تطبيق التقريب الذكي المحسن...")
             final_qty = SignalExecutor._smart_quantity_rounding(
-                qty, price, trade_amount, leverage, market_type, symbol
+                qty, price, trade_amount, leverage, market_type, symbol, account
             )
             
             # فحص إضافي للرصيد (مستوحى من الملفات المرفقة)
@@ -1090,7 +1090,7 @@ class SignalExecutor:
 
     @staticmethod
     def _smart_quantity_rounding(qty: float, price: float, trade_amount: float,
-                                leverage: int, market_type: str, symbol: str) -> float:
+                                leverage: int, market_type: str, symbol: str, account=None) -> float:
         """
         دالة التقريب التلقائي الذكية المحسنة
         
@@ -1124,6 +1124,31 @@ class SignalExecutor:
             
             original_qty = qty
             
+            # جلب معلومات الرمز من Bybit API إذا كان الحساب متاحاً
+            instrument_min_qty = None
+            instrument_qty_step = None
+            
+            if account:
+                try:
+                    category = 'linear' if market_type == 'futures' else 'spot'
+                    instrument_info = account.get_instrument_info(symbol, category)
+                    
+                    if instrument_info:
+                        instrument_min_qty = instrument_info['min_order_qty']
+                        instrument_qty_step = instrument_info['qty_step']
+                        
+                        logger.info(f"📋 معلومات الرمز من Bybit:")
+                        logger.info(f"   الحد الأدنى للكمية: {instrument_min_qty}")
+                        logger.info(f"   خطوة الكمية: {instrument_qty_step}")
+                except Exception as e:
+                    logger.warning(f"⚠️ فشل جلب معلومات الرمز: {e}")
+            
+            # إذا كانت الكمية أقل من الحد الأدنى، رفعها
+            if instrument_min_qty and qty < instrument_min_qty:
+                logger.warning(f"⚠️ الكمية {qty} أقل من الحد الأدنى {instrument_min_qty}")
+                qty = instrument_min_qty
+                logger.info(f"✅ تم رفع الكمية للحد الأدنى: {qty}")
+            
             # الخطوة 1: تحديد مستوى الدقة حسب حجم الكمية
             if qty >= 1000:
                 decimal_places = 0  # أرقام كبيرة جداً
@@ -1151,7 +1176,12 @@ class SignalExecutor:
                 step_size = 0.00000001
             
             # الخطوة 2: التقريب الأساسي
-            rounded_qty = round(qty, decimal_places)
+            # إذا كان لدينا خطوة من API، استخدمها
+            if instrument_qty_step:
+                rounded_qty = round(qty / instrument_qty_step) * instrument_qty_step
+                logger.info(f"✅ تم استخدام خطوة الكمية من API: {instrument_qty_step}")
+            else:
+                rounded_qty = round(qty, decimal_places)
             
             # الخطوة 3: تحديد الحد الأدنى بناءً على المبلغ المالي المحدد للصفقة
             # حساب القيمة المالية للكمية الحالية
@@ -1178,7 +1208,12 @@ class SignalExecutor:
                 min_qty_step = 0.0005
             
             # حساب الحد الأدنى للكمية بناءً على القيمة المالية
-            min_qty = min_notional_value / price
+            # إذا كان لدينا حد أدنى من API، استخدمه
+            if instrument_min_qty:
+                min_qty = max(instrument_min_qty, min_notional_value / price)
+                logger.info(f"✅ استخدام الحد الأدنى من API: {instrument_min_qty}")
+            else:
+                min_qty = min_notional_value / price
             
             logger.info(f"💰 تحديد الحد الأدنى بناءً على المبلغ:")
             logger.info(f"   مبلغ الصفقة: ${trade_amount}")
@@ -1506,18 +1541,27 @@ class SignalExecutor:
             action = signal_data.get('action', 'غير محدد')
             
             # ترجمة رسائل الخطأ الشائعة
-            if 'ab not enough' in error_message.lower():
+            if 'ab not enough' in error_message.lower() or 'insufficient balance' in error_message.lower():
                 arabic_error = "❌ الرصيد غير كافي لتنفيذ الصفقة"
                 suggestion = "💡 تأكد من وجود رصيد كافي في حسابك على Bybit"
             elif 'invalid price' in error_message.lower():
                 arabic_error = "❌ السعر غير صحيح"
                 suggestion = "💡 تحقق من صحة السعر المرسل في الإشارة"
+            elif 'qty invalid' in error_message.lower() or 'invalid quantity' in error_message.lower():
+                arabic_error = "❌ الكمية غير صحيحة"
+                suggestion = f"💡 الكمية أقل من الحد الأدنى المسموح به لهذا الرمز\n💡 جرّب زيادة مبلغ التداول من الإعدادات"
             elif 'symbol not found' in error_message.lower():
                 arabic_error = "❌ الرمز غير موجود"
                 suggestion = "💡 تأكد من صحة رمز العملة (مثل BTCUSDT)"
+            elif 'leverage not modified' in error_message.lower():
+                arabic_error = "✅ الرافعة المالية مُعيّنة بالفعل"
+                suggestion = "💡 هذا تحذير عادي وليس خطأ"
             elif 'connection' in error_message.lower():
                 arabic_error = "❌ مشكلة في الاتصال بالمنصة"
                 suggestion = "💡 سيتم إعادة المحاولة تلقائياً"
+            elif 'no valid order_id' in error_message.lower():
+                arabic_error = "❌ فشل إنشاء الأمر على المنصة"
+                suggestion = "💡 تحقق من:\n  - صحة مفاتيح API\n  - الرصيد المتاح\n  - مبلغ التداول والكمية"
             else:
                 arabic_error = f"❌ خطأ في تنفيذ الصفقة: {error_message}"
                 suggestion = "💡 تحقق من إعدادات حسابك وحاول مرة أخرى"

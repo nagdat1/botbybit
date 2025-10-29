@@ -239,8 +239,25 @@ class BybitRealAccount:
                    reduce_only: bool = False) -> Optional[Dict]:
         """وضع أمر تداول حقيقي"""
         
-        # إرسال الكمية كما هي بدون تقريب - المنصة ستقوم بالتقريب
-        # فقط نضمن أن الكمية رقم صحيح
+        # جلب معلومات الرمز للتحقق من الحد الأدنى
+        instrument_info = self.get_instrument_info(symbol, category)
+        
+        if instrument_info:
+            min_qty = instrument_info['min_order_qty']
+            qty_step = instrument_info['qty_step']
+            
+            # التحقق من الحد الأدنى
+            if qty < min_qty:
+                logger.warning(f"⚠️ الكمية {qty} أقل من الحد الأدنى {min_qty}. سيتم رفعها للحد الأدنى.")
+                qty = min_qty
+            
+            # تقريب الكمية حسب الخطوة المسموح بها
+            qty = self.round_quantity_to_step(qty, qty_step)
+            logger.info(f"✅ الكمية بعد التقريب: {qty}")
+        else:
+            logger.warning(f"⚠️ لم يتم جلب معلومات الرمز {symbol}. سيتم استخدام الكمية كما هي.")
+        
+        # تحويل الكمية لنص
         qty_str = str(float(qty))
         
         params = {
