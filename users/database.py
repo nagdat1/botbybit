@@ -8,6 +8,7 @@ import sqlite3
 import json
 import logging
 import os
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
@@ -1447,13 +1448,35 @@ class DatabaseManager:
             except:
                 pass
             
-            # حذف الملف الفعلي إذا كان موجوداً
+            # حذف الملف الفعلي إذا كان موجوداً (مع تحقق مضاعف!)
             if os.path.exists(self.db_path):
                 try:
+                    # محاولة حذف الملف
                     os.remove(self.db_path)
                     logger.info(f"🗑️ تم حذف ملف قاعدة البيانات: {self.db_path}")
+                    
+                    # التحقق من الحذف الفعلي
+                    if os.path.exists(self.db_path):
+                        logger.error(f"❌ الملف {self.db_path} مازال موجود بعد الحذف!")
+                        # محاولة ثانية بقوة
+                        import time
+                        time.sleep(0.5)
+                        os.remove(self.db_path)
+                        logger.info(f"🗑️ تم حذف الملف في المحاولة الثانية")
+                    else:
+                        logger.info(f"✅ تأكيد: الملف {self.db_path} محذوف نهائياً")
+                        
                 except Exception as e:
                     logger.error(f"⚠️ لم يتم حذف الملف {self.db_path}: {e}")
+                    # محاولة إعادة تسمية الملف بدلاً من حذفه
+                    try:
+                        backup_name = f"{self.db_path}.backup_{int(time.time())}"
+                        os.rename(self.db_path, backup_name)
+                        logger.info(f"🔄 تم إعادة تسمية الملف إلى: {backup_name}")
+                    except Exception as e2:
+                        logger.error(f"❌ فشل في إعادة تسمية الملف: {e2}")
+            else:
+                logger.info(f"ℹ️ الملف {self.db_path} غير موجود أصلاً")
             
             # 3. إعادة إنشاء قاعدة البيانات من الصفر (بدون أي مستخدمين!)
             logger.info("🔄 إعادة إنشاء قاعدة البيانات من الصفر...")
