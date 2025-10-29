@@ -1412,44 +1412,24 @@ class SignalExecutor:
                     from systems.enhanced_portfolio_manager import portfolio_factory
                     portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
                     
-                position_data = {
-                    'signal_id': signal_id,
-                    'user_id': user_id,
-                    'symbol': symbol,
-                    'side': side,
-                    'entry_price': signal_data.get('price', 0),
-                    'quantity': qty,
-                    'exchange': 'bybit',
-                    'market_type': 'futures',
-                    'order_id': result.get('order_id', ''),
-                    'status': 'OPEN',
-                    'notes': f'Futures position - {side} {qty} {symbol} (ID: {signal_id})'
-                }
-                
-                portfolio_manager.add_position(position_data)
-                    logger.info(f"✅ تم حفظ الصفقة في نظام المحفظة المحسن")
+                    position_data = {
+                        'signal_id': signal_id,
+                        'user_id': user_id,
+                        'symbol': symbol,
+                        'side': side,
+                        'entry_price': signal_data.get('price', 0),
+                        'quantity': qty,
+                        'exchange': 'bybit',
+                        'market_type': 'futures',
+                        'order_id': result.get('order_id', ''),
+                        'status': 'OPEN',
+                        'notes': f'Futures position - {side} {qty} {symbol} (ID: {signal_id})'
+                    }
                     
-                except ImportError as e:
-                    logger.warning(f"⚠️ نظام المحفظة المحسن غير متاح: {e}")
-                    # محاولة الحفظ في قاعدة البيانات مباشرة
-                    try:
-                        from .signal_position_manager import signal_position_manager
-                        signal_position_manager.create_position(
-                            signal_id=signal_id,
-                            user_id=user_id,
-                            symbol=symbol,
-                            side=side,
-                            entry_price=signal_data.get('price', 0),
-                            quantity=qty,
-                            exchange='bybit',
-                            market_type='futures',
-                            order_id=result.get('order_id', '')
-                        )
-                        logger.info(f"✅ تم حفظ الصفقة في قاعدة البيانات مباشرة")
-                    except Exception as db_error:
-                        logger.warning(f"⚠️ فشل حفظ الصفقة في قاعدة البيانات (لا يؤثر على الصفقة): {db_error}")
-                except Exception as save_error:
-                    logger.warning(f"⚠️ فشل حفظ الصفقة في النظام (لا يؤثر على الصفقة): {save_error}")
+                    portfolio_manager.add_position(position_data)
+                    logger.info(f"✅ تم حفظ الصفقة في نظام المحفظة المحسن")
+                except (ImportError, Exception) as e:
+                    logger.warning(f"⚠️ فشل حفظ الصفقة في النظام (لا يؤثر على الصفقة): {e}")
             
             # إرجاع النتيجة الناجحة (الصفقة تمت بنجاح على Bybit)
             return result
