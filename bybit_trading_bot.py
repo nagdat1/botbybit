@@ -5473,8 +5473,8 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     real_account = real_account_manager.get_account(user_id)
             
             if real_account:
-                # تمرير نوع السوق لجلب الرصيد الصحيح (spot أو futures)
-                balance = real_account.get_wallet_balance(market_type)
+                # Bybit V5 API يدعم فقط UNIFIED account type
+                balance = real_account.get_wallet_balance('unified')
                 
                 if balance:
                     account_info = {
@@ -5550,7 +5550,7 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if real_account:
                 # اختبار الاتصال بالحصول على الرصيد
                 try:
-                    test_balance = real_account.get_wallet_balance(market_type)
+                    test_balance = real_account.get_wallet_balance('unified')
                     if test_balance:
                         api_status = f"🟢 متصل فعلياً ب{exchange.upper()} ✅"
                     else:
@@ -5661,7 +5661,7 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if real_account:
                     # جلب الرصيد الحقيقي
-                    balance = real_account.get_wallet_balance(market_type)
+                    balance = real_account.get_wallet_balance('unified')
                     
                     if balance:
                         total_equity = balance.get('total_equity', 0)

@@ -148,13 +148,10 @@ class BybitRealAccount:
             except (ValueError, TypeError):
                 return default
         
-        # تحديد نوع الحساب حسب نوع السوق
-        if market_type == 'spot':
-            account_type = 'SPOT'
-        elif market_type == 'futures':
-            account_type = 'CONTRACT'
-        else:
-            account_type = 'UNIFIED'
+        # Bybit V5 API يدعم فقط UNIFIED account type
+        account_type = 'UNIFIED'
+        
+        logger.info(f"🔍 جلب رصيد المحفظة الموحدة من Bybit (نوع السوق: {market_type})")
         
         result = self._make_request('GET', '/v5/account/wallet-balance', {
             'accountType': account_type

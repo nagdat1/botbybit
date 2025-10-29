@@ -259,8 +259,8 @@ async def show_bybit_options(update: Update, context: ContextTypes.DEFAULT_TYPE)
             real_account = real_account_manager.get_account(user_id)
             if real_account:
                 try:
-                    # جلب الرصيد من Bybit حسب نوع السوق الحالي
-                    balance = real_account.get_wallet_balance(market_type_current)
+                    # جلب الرصيد من Bybit (UNIFIED account type فقط)
+                    balance = real_account.get_wallet_balance('unified')
                     if balance:
                         total_equity = balance.get('total_equity', 0)
                         available_balance = balance.get('available_balance', 0)
@@ -1387,7 +1387,7 @@ async def activate_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if account:
             try:
-                balance = account.get_wallet_balance(market_type)
+                balance = account.get_wallet_balance('unified')
                 if balance:
                     total_equity = balance.get('total_equity', 0)
                     available = balance.get('available_balance', 0)
