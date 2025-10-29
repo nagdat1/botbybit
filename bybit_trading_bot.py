@@ -3516,10 +3516,9 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     keyboard = [
         [KeyboardButton("📡 إرسال إشارة"), KeyboardButton("👥 المتابعين")],
         [KeyboardButton("📊 إحصائيات المطور"), KeyboardButton("👥 إدارة المستخدمين")],
-        [KeyboardButton("🗑️ حذف بيانات مستخدم"), KeyboardButton("🔄 إعادة تعيين بيانات مستخدم")],
-        [KeyboardButton("⚠️ إعادة تعيين كل المشروع"), KeyboardButton("📱 إشعار جماعي")],
-        [KeyboardButton("⚙️ إعدادات المطور"), KeyboardButton("🔄 تحديث")],
-        [KeyboardButton("👤 الوضع العادي")]
+        [KeyboardButton("🗑️ حذف بيانات مستخدم"), KeyboardButton("📱 إشعار جماعي")],
+        [KeyboardButton("⚠️ إعادة تعيين كل المشروع"), KeyboardButton("⚙️ إعدادات المطور")],
+        [KeyboardButton("🔄 تحديث"), KeyboardButton("👤 الوضع العادي")]
     ]
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -8372,10 +8371,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if result['success']:
                 await update.callback_query.edit_message_text(
-                    f"✅ {result['message']}\n\n"
-                    f"تم إعادة تعيين بيانات {result.get('user_count', 0)} مستخدم\n"
-                    "جميع الصفقات تم حذفها\n"
-                    "جميع الإعدادات تم إعادتها للافتراضي"
+                    f"✅ **تم إعادة تعيين المشروع بنجاح!**\n\n"
+                    f"📊 **الإحصائيات:**\n"
+                    f"• {result.get('user_count', 0)} مستخدم\n"
+                    f"• تم حذف جميع الصفقات والإشارات\n"
+                    f"• تم مسح الذاكرة (Cache)\n"
+                    f"• تم إعادة جميع الإعدادات للافتراضي\n"
+                    f"• تم إعادة الرصيد إلى 10000 USDT\n\n"
+                    f"🔄 المشروع الآن في حالته الافتراضية",
+                    parse_mode='Markdown'
                 )
             else:
                 await update.callback_query.edit_message_text(f"❌ {result['message']}")
@@ -8767,11 +8771,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id:
                 user_input_state[user_id] = "waiting_for_delete_user_id"
             return
-        elif text == "🔄 إعادة تعيين بيانات مستخدم":
-            await update.message.reply_text("🔄 أرسل ID المستخدم الذي تريد إعادة تعيين بياناته:\n\nمثال: 123456789")
-            if user_id:
-                user_input_state[user_id] = "waiting_for_reset_user_id"
-            return
         elif text == "⚠️ إعادة تعيين كل المشروع":
             # تحذير شديد قبل إعادة تعيين كل المشروع
             keyboard = [
@@ -8783,12 +8782,17 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "⚠️ **تحذير خطير!**\n\n"
                 "هذا الإجراء سيقوم بـ:\n"
-                "• حذف جميع الصفقات\n"
-                "• حذف جميع صفقات الإشارات\n"
-                "• إعادة تعيين رصيد جميع المستخدمين إلى 10000\n"
-                "• إعادة تعيين جميع الإعدادات للافتراضية\n"
-                "• سيبقى المستخدمين موجودين\n\n"
-                "❗ لا يمكن التراجع عن هذا الإجراء!\n\n"
+                "✅ **سيتم حذف:**\n"
+                "• جميع الصفقات والإشارات\n"
+                "• جميع بيانات المستخدمين\n"
+                "• الذاكرة المؤقتة (Cache)\n"
+                "• سجلات التداول\n\n"
+                "🔄 **سيتم إعادة تعيين:**\n"
+                "• رصيد جميع المستخدمين → 10000 USDT\n"
+                "• جميع الإعدادات → الافتراضية\n\n"
+                "👥 **سيبقى:**\n"
+                "• حسابات المستخدمين (بدون بيانات)\n\n"
+                "❗ **لا يمكن التراجع عن هذا الإجراء!**\n\n"
                 "هل أنت متأكد؟",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
@@ -9080,25 +9084,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # معالجة إعادة تعيين بيانات مستخدم
-        elif state == "waiting_for_reset_user_id":
-            if developer_manager.is_developer(user_id):
-                try:
-                    target_user_id = int(text)
-                    result = developer_manager.reset_user_data(user_id, target_user_id)
-                    
-                    del user_input_state[user_id]
-                    
-                    if result['success']:
-                        await update.message.reply_text(f"✅ {result['message']}")
-                    else:
-                        await update.message.reply_text(f"❌ {result['message']}")
-                except ValueError:
-                    await update.message.reply_text("❌ يرجى إدخال ID صحيح (رقم فقط)")
-                except Exception as e:
-                    del user_input_state[user_id]
-                    await update.message.reply_text(f"❌ خطأ: {str(e)}")
-            return
-        
         if state == "waiting_for_api_key":
             # حفظ API_KEY مؤقتاً
             if not hasattr(context, 'user_data') or context.user_data is None:

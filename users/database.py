@@ -1423,60 +1423,6 @@ class DatabaseManager:
             logger.error(f"❌ خطأ في حذف المستخدم {user_id}: {e}")
             return False
     
-    def reset_user_data(self, user_id: int) -> bool:
-        """إعادة تعيين بيانات المستخدم (للمطورين فقط)"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # التحقق من وجود المستخدم أولاً
-                cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-                user_exists = cursor.fetchone()
-                
-                if not user_exists:
-                    logger.warning(f"⚠️ المستخدم {user_id} غير موجود")
-                    return False
-                
-                # 1. حذف جميع الصفقات
-                cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
-                orders_deleted = cursor.rowcount
-                
-                # 2. حذف صفقات الإشارات
-                cursor.execute("DELETE FROM signal_positions WHERE user_id = ?", (user_id,))
-                signals_deleted = cursor.rowcount
-                
-                # 3. إعادة تعيين الرصيد والإحصائيات
-                cursor.execute("""
-                    UPDATE users 
-                    SET balance = 10000.0,
-                        daily_loss = 0.0,
-                        weekly_loss = 0.0,
-                        total_loss = 0.0,
-                        last_reset_date = NULL,
-                        last_reset_week = NULL,
-                        last_loss_update = NULL,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ?
-                """, (user_id,))
-                
-                # 4. إعادة تعيين الإعدادات
-                cursor.execute("""
-                    UPDATE user_settings 
-                    SET market_type = 'spot',
-                        trade_amount = 100.0,
-                        leverage = 10,
-                        account_type = 'demo'
-                    WHERE user_id = ?
-                """, (user_id,))
-                
-                conn.commit()
-                logger.info(f"🔄 تم إعادة تعيين بيانات المستخدم {user_id} ({orders_deleted} صفقة، {signals_deleted} إشارة)")
-                return True
-                
-        except Exception as e:
-            logger.error(f"❌ خطأ في إعادة تعيين بيانات المستخدم {user_id}: {e}")
-            return False
-    
     def reset_all_users_data(self) -> int:
         """إعادة تعيين بيانات جميع المستخدمين (دون حذفهم)"""
         try:

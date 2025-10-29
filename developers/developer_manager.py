@@ -315,48 +315,6 @@ class DeveloperManager:
                 'message': f'خطأ: {str(e)}'
             }
     
-    def reset_user_data(self, developer_id: int, user_id: int) -> Dict[str, Any]:
-        """إعادة تعيين بيانات مستخدم محدد (للمطورين فقط)"""
-        try:
-            # التحقق من صلاحية المطور
-            if not self.is_developer(developer_id):
-                return {
-                    'success': False,
-                    'message': 'ليس لديك صلاحيات مطور'
-                }
-            
-            if not self.is_developer_active(developer_id):
-                return {
-                    'success': False,
-                    'message': 'حساب المطور غير نشط'
-                }
-            
-            # إعادة تعيين البيانات
-            success = db_manager.reset_user_data(user_id)
-            
-            if success:
-                # إعادة تحميل بيانات المستخدم في الذاكرة
-                from users.user_manager import user_manager
-                user_manager.reload_user_data(user_id)
-                
-                logger.info(f"🔄 المطور {developer_id} أعاد تعيين بيانات المستخدم {user_id}")
-                return {
-                    'success': True,
-                    'message': f'تم إعادة تعيين بيانات المستخدم {user_id} بنجاح'
-                }
-            else:
-                return {
-                    'success': False,
-                    'message': f'فشل إعادة تعيين بيانات المستخدم {user_id}'
-                }
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في إعادة تعيين المستخدم {user_id} بواسطة المطور {developer_id}: {e}")
-            return {
-                'success': False,
-                'message': f'خطأ: {str(e)}'
-            }
-    
     def get_user_count(self, developer_id: int) -> int:
         """الحصول على عدد المستخدمين (للمطورين فقط)"""
         try:
@@ -403,7 +361,7 @@ class DeveloperManager:
             return []
     
     def reset_all_users_data(self, developer_id: int) -> Dict[str, Any]:
-        """إعادة تعيين بيانات جميع المستخدمين (للمطورين فقط)"""
+        """إعادة تعيين بيانات جميع المستخدمين وحذف الذاكرة (للمطورين فقط)"""
         try:
             # التحقق من صلاحية المطور
             if not self.is_developer(developer_id):
@@ -418,18 +376,26 @@ class DeveloperManager:
                     'message': 'حساب المطور غير نشط'
                 }
             
-            # إعادة تعيين بيانات جميع المستخدمين
+            # إعادة تعيين بيانات جميع المستخدمين في قاعدة البيانات
             user_count = db_manager.reset_all_users_data()
             
             if user_count > 0:
-                # إعادة تحميل بيانات جميع المستخدمين في الذاكرة
+                # حذف جميع البيانات من الذاكرة (cache)
                 from users.user_manager import user_manager
+                
+                # حذف جميع المستخدمين من الذاكرة
+                user_manager.users.clear()
+                user_manager.user_accounts.clear()
+                user_manager.user_apis.clear()
+                user_manager.user_positions.clear()
+                
+                # إعادة تحميل بيانات المستخدمين من قاعدة البيانات
                 user_manager.load_all_users()
                 
-                logger.warning(f"🔄 المطور {developer_id} أعاد تعيين بيانات جميع المستخدمين ({user_count} مستخدم)")
+                logger.warning(f"🔄 المطور {developer_id} أعاد تعيين المشروع بالكامل ({user_count} مستخدم)")
                 return {
                     'success': True,
-                    'message': f'تم إعادة تعيين بيانات {user_count} مستخدم بنجاح',
+                    'message': f'تم إعادة تعيين المشروع بالكامل\n• {user_count} مستخدم\n• حذف جميع الصفقات\n• حذف الذاكرة\n• إعادة الإعدادات للافتراضي',
                     'user_count': user_count
                 }
             else:

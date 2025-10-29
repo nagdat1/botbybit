@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Optional
 from datetime import datetime
 from api.bybit_api import real_account_manager
-from signals import signal_position_manager
+from signals.signal_position_manager import signal_position_manager
 
 logger = logging.getLogger(__name__)
 
