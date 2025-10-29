@@ -3958,9 +3958,14 @@ async def risk_management_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         user_data = user_manager.get_user(user_id)
         
         if not user_data:
-            if update.message is not None:
-                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
-            return
+            # إنشاء المستخدم تلقائياً إن لم يكن موجوداً
+            try:
+                user_manager.create_user(user_id)
+                user_data = user_manager.get_user(user_id)
+            except Exception:
+                if update.message is not None:
+                    await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+                return
         
         # الحصول على إعدادات إدارة المخاطر
         risk_management_raw = user_data.get('risk_management')
@@ -4502,8 +4507,12 @@ async def send_risk_management_menu(message, user_id: int):
         user_data = user_manager.get_user(user_id)
         
         if not user_data:
-            await message.reply_text("❌ يرجى استخدام /start أولاً")
-            return
+            try:
+                user_manager.create_user(user_id)
+                user_data = user_manager.get_user(user_id)
+            except Exception:
+                await message.reply_text("❌ يرجى استخدام /start أولاً")
+                return
         
         # الحصول على إعدادات إدارة المخاطر
         risk_management_raw = user_data.get('risk_management')
@@ -5409,9 +5418,14 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = user_manager.get_user(user_id)
     
     if not user_data:
-        if update.message is not None:
-            await update.message.reply_text("❌ يرجى استخدام /start أولاً")
-        return
+        # إذا لم يكن لدى المستخدم حساب، ننشئه تلقائياً ثم نكمل
+        try:
+            user_manager.create_user(user_id)
+            user_data = user_manager.get_user(user_id)
+        except Exception:
+            if update.message is not None:
+                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+            return
     
     auto_status = "✅" if trade_tools_manager.auto_apply_enabled else "⏸️"
     
@@ -8234,12 +8248,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data = user_manager.get_user(user_id)
         
         if not user_data:
-            if update.callback_query is not None:
-                await update.callback_query.edit_message_text(
-                    "❌ يرجى استخدام /start أولاً",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]])
-                )
-            return
+            # إنشاء المستخدم تلقائياً ثم المتابعة
+            try:
+                user_manager.create_user(user_id)
+                user_data = user_manager.get_user(user_id)
+            except Exception:
+                if update.callback_query is not None:
+                    await update.callback_query.edit_message_text(
+                        "❌ يرجى استخدام /start أولاً",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]])
+                    )
+                return
         
         # عرض رابط الإشارات الشخصي للمستخدم
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
