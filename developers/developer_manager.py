@@ -376,57 +376,63 @@ class DeveloperManager:
                     'message': 'حساب المطور غير نشط'
                 }
             
-        # إنشاء ملف إعادة التعيين الإجباري
-        import os
-        reset_file = "FORCE_RESET.flag"
-        try:
-            with open(reset_file, 'w') as f:
-                f.write(f"FORCE_RESET_DATABASE_ON_STARTUP\nCreated by developer {developer_id} at {datetime.now()}")
-            logger.warning(f"🔥 تم إنشاء ملف إعادة التعيين الإجباري: {reset_file}")
-        except Exception as e:
-            logger.error(f"❌ فشل إنشاء ملف إعادة التعيين: {e}")
-        
-        try:
-            # حذف جميع البيانات من الذاكرة (cache) أولاً
-            from users.user_manager import user_manager
-            
-            # حذف جميع المستخدمين من الذاكرة
-            user_manager.users.clear()
-            user_manager.user_accounts.clear()
-            user_manager.user_apis.clear()
-            user_manager.user_positions.clear()
-            
-            logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
-            
-            # حذف جميع الحسابات الحقيقية من real_account_manager
+            # إنشاء ملف إعادة التعيين الإجباري
+            import os
+            reset_file = "FORCE_RESET.flag"
             try:
-                from api.bybit_api import real_account_manager
-                real_account_manager.accounts.clear()
-                logger.info("🗑️ تم حذف جميع الحسابات الحقيقية من real_account_manager")
+                with open(reset_file, 'w') as f:
+                    f.write(f"FORCE_RESET_DATABASE_ON_STARTUP\nCreated by developer {developer_id} at {datetime.now()}")
+                logger.warning(f"🔥 تم إنشاء ملف إعادة التعيين الإجباري: {reset_file}")
             except Exception as e:
-                logger.warning(f"⚠️ لم يتم حذف الحسابات الحقيقية: {e}")
+                logger.error(f"❌ فشل إنشاء ملف إعادة التعيين: {e}")
             
-            # إعادة تعيين بيانات جميع المستخدمين في قاعدة البيانات (حذف ملف قواعد البيانات بالكامل!)
-            user_count = db_manager.reset_all_users_data()
-            
-            if user_count > 0:
-                # إعادة تحميل بيانات المستخدمين من قاعدة البيانات الجديدة
-                user_manager.load_all_users()
+            try:
+                # حذف جميع البيانات من الذاكرة (cache) أولاً
+                from users.user_manager import user_manager
                 
-                logger.warning(f"🔄 المطور {developer_id} أعاد تعيين المشروع بالكامل ({user_count} مستخدم)")
-                return {
-                    'success': True,
-                    'message': f'تم إعادة تعيين المشروع بالكامل\n• {user_count} مستخدم\n• حذف ملف قاعدة البيانات\n• حذف الذاكرة\n• إعادة الإعدادات للافتراضي',
-                    'user_count': user_count
-                }
-            else:
+                # حذف جميع المستخدمين من الذاكرة
+                user_manager.users.clear()
+                user_manager.user_accounts.clear()
+                user_manager.user_apis.clear()
+                user_manager.user_positions.clear()
+                
+                logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
+                
+                # حذف جميع الحسابات الحقيقية من real_account_manager
+                try:
+                    from api.bybit_api import real_account_manager
+                    real_account_manager.accounts.clear()
+                    logger.info("🗑️ تم حذف جميع الحسابات الحقيقية من real_account_manager")
+                except Exception as e:
+                    logger.warning(f"⚠️ لم يتم حذف الحسابات الحقيقية: {e}")
+                
+                # إعادة تعيين بيانات جميع المستخدمين في قاعدة البيانات (حذف ملف قواعد البيانات بالكامل!)
+                user_count = db_manager.reset_all_users_data()
+                
+                if user_count > 0:
+                    # إعادة تحميل بيانات المستخدمين من قاعدة البيانات الجديدة
+                    user_manager.load_all_users()
+                    
+                    logger.warning(f"🔄 المطور {developer_id} أعاد تعيين المشروع بالكامل ({user_count} مستخدم)")
+                    return {
+                        'success': True,
+                        'message': f'تم إعادة تعيين المشروع بالكامل\n• {user_count} مستخدم\n• حذف ملف قاعدة البيانات\n• حذف الذاكرة\n• إعادة الإعدادات للافتراضي',
+                        'user_count': user_count
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'message': 'لا يوجد مستخدمين لإعادة التعيين'
+                    }
+                
+            except Exception as e:
+                logger.error(f"❌ خطأ في إعادة تعيين بيانات جميع المستخدمين: {e}")
                 return {
                     'success': False,
-                    'message': 'لا يوجد مستخدمين لإعادة التعيين'
+                    'message': f'خطأ: {str(e)}'
                 }
-            
         except Exception as e:
-            logger.error(f"❌ خطأ في إعادة تعيين بيانات جميع المستخدمين: {e}")
+            logger.error(f"❌ خطأ في reset_all_users_data: {e}")
             return {
                 'success': False,
                 'message': f'خطأ: {str(e)}'
