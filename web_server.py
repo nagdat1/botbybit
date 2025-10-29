@@ -116,7 +116,7 @@ class WebServer:
                     return jsonify({"status": "error", "message": "No data received"}), 400
                 
                 # استيراد محول الإشارات
-                from signal_converter import convert_simple_signal, validate_simple_signal
+                from signals.signal_converter import convert_simple_signal, validate_simple_signal
                 
                 # التحقق من نوع الإشارة (جديدة أو قديمة)
                 if 'signal' in data and 'action' not in data:
@@ -213,7 +213,7 @@ class WebServer:
                 print(f"📋 [WEB SERVER - WEBHOOK شخصي] إعدادات المستخدم: market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
                 
                 # استيراد محول الإشارات
-                from signal_converter import convert_simple_signal, validate_simple_signal
+                from signals.signal_converter import convert_simple_signal, validate_simple_signal
                 
                 # التحقق من نوع الإشارة (جديدة أو قديمة)
                 if 'signal' in data and 'action' not in data:
@@ -265,7 +265,7 @@ class WebServer:
                             # التحقق من نوع الحساب
                             if user_data.get('account_type') == 'real':
                                 # تنفيذ على الحساب الحقيقي
-                                from signal_executor import signal_executor
+                                from signals.signal_executor import signal_executor
                                 result = loop.run_until_complete(
                                     signal_executor.execute_signal(user_id, data, user_data)
                                 )

@@ -2330,7 +2330,7 @@ class TradingBot:
                     logger.warning("⚠️ فشل النظام المحسن، نعود للنظام العادي")
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
-            from signal_converter import convert_simple_signal, validate_simple_signal
+            from signals.signal_converter import convert_simple_signal, validate_simple_signal
             
             # التحقق من نوع الإشارة (جديدة أو قديمة)
             if 'signal' in signal_data and 'action' not in signal_data:
