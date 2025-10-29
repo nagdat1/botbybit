@@ -261,7 +261,9 @@ class BybitRealAccount:
         
         # تعيين الرافعة المالية أولاً إذا كانت محددة
         if leverage and category in ['linear', 'inverse']:
-            self.set_leverage(category, symbol, leverage)
+            leverage_result = self.set_leverage(category, symbol, leverage)
+            if not leverage_result:
+                logger.warning(f"⚠️ فشل تعيين الرافعة المالية {leverage}x لـ {symbol} - سيتم المتابعة بالرافعة الحالية")
         
         result = self._make_request('POST', '/v5/order/create', params)
         
@@ -277,8 +279,14 @@ class BybitRealAccount:
                 error_msg = "رمز العملة غير صحيح"
             elif 'invalid price' in error_msg.lower():
                 error_msg = "السعر غير صحيح"
-            elif 'invalid quantity' in error_msg.lower():
-                error_msg = "الكمية غير صحيحة"
+            elif 'invalid quantity' in error_msg.lower() or 'qty invalid' in error_msg.lower():
+                error_msg = "الكمية غير صحيحة - تحقق من الحد الأدنى للكمية"
+            elif 'leverage not modified' in error_msg.lower():
+                error_msg = "الرافعة المالية مُعيّنة بالفعل"
+            elif 'insufficient balance' in error_msg.lower():
+                error_msg = "الرصيد غير كافي"
+            elif 'order rejected' in error_msg.lower():
+                error_msg = "تم رفض الأمر من المنصة"
             
             return {'error': error_msg, 'details': result.get('details', '')}
         
@@ -303,15 +311,37 @@ class BybitRealAccount:
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:
         """تعيين الرافعة المالية على المنصة"""
-        params = {
-            'category': category,
-            'symbol': symbol,
-            'buyLeverage': str(leverage),
-            'sellLeverage': str(leverage)
-        }
-        
-        result = self._make_request('POST', '/v5/position/set-leverage', params)
-        return result is not None
+        try:
+            params = {
+                'category': category,
+                'symbol': symbol,
+                'buyLeverage': str(leverage),
+                'sellLeverage': str(leverage)
+            }
+            
+            result = self._make_request('POST', '/v5/position/set-leverage', params)
+            
+            # التحقق من وجود خطأ في النتيجة
+            if result and isinstance(result, dict) and 'error' in result:
+                error_msg = result['error']
+                logger.warning(f"⚠️ تحذير من Bybit عند تعيين الرافعة: {error_msg}")
+                
+                # بعض الأخطاء مقبولة (مثل الرافعة مُعيّنة بالفعل)
+                if 'leverage not modified' in error_msg.lower():
+                    logger.info(f"✅ الرافعة المالية {leverage}x مُعيّنة بالفعل لـ {symbol}")
+                    return True  # نعتبرها نجاح
+                
+                return False
+            
+            if result is not None:
+                logger.info(f"✅ تم تعيين الرافعة المالية {leverage}x لـ {symbol}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في تعيين الرافعة المالية: {e}")
+            return False
     
     def set_trading_stop(self, category: str, symbol: str, position_idx: int,
                         take_profit: float = None, stop_loss: float = None) -> bool:
