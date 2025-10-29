@@ -207,6 +207,13 @@ class SignalExecutor:
             logger.error(f"❌ خطأ في تنفيذ الإشارة: {e}")
             import traceback
             traceback.print_exc()
+            
+            # إرسال رسالة فشل للمستخدم
+            try:
+                await SignalExecutor._send_error_notification(user_id, str(e), signal_data)
+            except Exception as notify_error:
+                logger.error(f"❌ فشل إرسال إشعار الخطأ: {notify_error}")
+            
             return {
                 'success': False,
                 'message': str(e),
@@ -445,51 +452,10 @@ class SignalExecutor:
                 logger.warning(f"⚠️ الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
                 qty = min_quantity
             
-            # 🧠 كود خفي ذكي: تقريب تلقائي لأقرب كمية مسموحة
-            # يبحث عن أقرب كمية صالحة (من الأسفل أو الأعلى) للمبلغ المحدد
+            # 🧠 دالة التقريب التلقائي المحسنة - تعمل مع جميع أنواع الصفقات
+            # تحسب أفضل كمية مقبولة من المنصة مع الحفاظ على المبلغ المالي المقصود
             
-            # الخطوة 1: حساب التقريب الطبيعي
-            if qty >= 1000:
-                rounded_qty = round(qty)
-            elif qty >= 100:
-                rounded_qty = round(qty, 1)
-            elif qty >= 10:
-                rounded_qty = round(qty, 2)
-            elif qty >= 1:
-                rounded_qty = round(qty, 3)
-            elif qty >= 0.1:
-                rounded_qty = round(qty, 4)
-            elif qty >= 0.01:
-                rounded_qty = round(qty, 5)
-            elif qty >= 0.001:
-                rounded_qty = round(qty, 6)
-            else:
-                rounded_qty = round(qty, 8)
-            
-            # الخطوة 2: البحث عن أقرب قيمة صالحة (من الأسفل أو الأعلى)
-            # قائمة القيم الصالحة الشائعة (steps مسموحة)
-            valid_steps = []
-            for i in range(1, 1000):  # من 0.001 إلى 0.999
-                valid_steps.append(i / 1000)
-            
-            # إضافة قيم صغيرة جداً
-            if rounded_qty < 0.001:
-                rounded_qty = 0.001
-                logger.info(f"⚠️ الكمية {qty:.8f} أقل من الحد الأدنى (0.001)، تم تعديلها إلى {rounded_qty}")
-            else:
-                # البحث عن أقرب قيمة صالحة
-                best_qty = None
-                min_diff = float('inf')
-                
-                for valid_qty in valid_steps:
-                    diff = abs(valid_qty - rounded_qty)
-                    if diff < min_diff:
-                        min_diff = diff
-                        best_qty = valid_qty
-                
-                if best_qty is not None and best_qty != rounded_qty:
-                    logger.info(f"🔄 الكمية {rounded_qty:.6f} تم تعديلها إلى أقرب قيمة صالحة: {best_qty}")
-                    rounded_qty = best_qty
+            rounded_qty = SignalExecutor._smart_quantity_rounding(qty, price, trade_amount, leverage, market_type, symbol)
             
             # إذا تم التعديل، نحسب المبلغ الفعلي بعد التقريب
             logger.info(f"=" * 80)
@@ -624,6 +590,16 @@ class SignalExecutor:
             else:
                 logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على Bybit")
                 logger.error(f"❌ النتيجة: {result}")
+                
+                # إرسال رسالة فشل للمستخدم
+                try:
+                    error_message = f'Failed to place order on Bybit - no valid order_id'
+                    if result and isinstance(result, dict) and 'error' in result:
+                        error_message = result['error']
+                    await SignalExecutor._send_error_notification(user_id, error_message, signal_data)
+                except Exception as notify_error:
+                    logger.error(f"❌ فشل إرسال إشعار الخطأ: {notify_error}")
+                
                 return {
                     'success': False,
                     'message': f'Failed to place order on Bybit - no valid order_id',
@@ -633,6 +609,13 @@ class SignalExecutor:
                 
         except Exception as e:
             logger.error(f"❌ خطأ في تنفيذ إشارة Bybit: {e}")
+            
+            # إرسال رسالة فشل للمستخدم
+            try:
+                await SignalExecutor._send_error_notification(user_id, str(e), signal_data)
+            except Exception as notify_error:
+                logger.error(f"❌ فشل إرسال إشعار الخطأ: {notify_error}")
+            
             return {
                 'success': False,
                 'message': str(e),
@@ -812,6 +795,11 @@ class SignalExecutor:
                 # معالجة محسنة للأخطاء
                 if result is None:
                     logger.error(f"⚠️ فشل وضع أمر Spot - استجابة فارغة")
+                    # إرسال إشعار للمستخدم
+                    try:
+                        await SignalExecutor._send_error_notification(user_id, 'فشل وضع أمر Spot - استجابة فارغة', signal_data)
+                    except Exception as notify_error:
+                        logger.error(f"❌ فشل إرسال إشعار الخطأ: {notify_error}")
                     return {
                         'success': False,
                         'message': f'فشل وضع أمر Spot - استجابة فارغة',
@@ -821,6 +809,11 @@ class SignalExecutor:
                 
                 if isinstance(result, dict) and 'error' in result:
                     logger.error(f"⚠️ خطأ في Spot API: {result['error']}")
+                    # إرسال إشعار للمستخدم
+                    try:
+                        await SignalExecutor._send_error_notification(user_id, result['error'], signal_data)
+                    except Exception as notify_error:
+                        logger.error(f"❌ فشل إرسال إشعار الخطأ: {notify_error}")
                     return {
                         'success': False,
                         'message': f'خطأ في Spot API: {result["error"]}',
@@ -885,6 +878,11 @@ class SignalExecutor:
                 # معالجة محسنة للأخطاء
                 if result is None:
                     logger.error(f"⚠️ فشل وضع أمر البيع - استجابة فارغة")
+                    # إرسال إشعار للمستخدم
+                    try:
+                        await SignalExecutor._send_error_notification(user_id, 'فشل وضع أمر البيع - استجابة فارغة', signal_data)
+                    except Exception as notify_error:
+                        logger.error(f"❌ فشل إرسال إشعار الخطأ: {notify_error}")
                     return {
                         'success': False,
                         'message': f'فشل وضع أمر البيع - استجابة فارغة',
@@ -894,6 +892,11 @@ class SignalExecutor:
                 
                 if isinstance(result, dict) and 'error' in result:
                     logger.error(f"⚠️ خطأ في Sell API: {result['error']}")
+                    # إرسال إشعار للمستخدم
+                    try:
+                        await SignalExecutor._send_error_notification(user_id, result['error'], signal_data)
+                    except Exception as notify_error:
+                        logger.error(f"❌ فشل إرسال إشعار الخطأ: {notify_error}")
                     return {
                         'success': False,
                         'message': f'خطأ في API البيع: {result["error"]}',
@@ -936,9 +939,141 @@ class SignalExecutor:
             }
     
     @staticmethod
+    def _smart_quantity_rounding(qty: float, price: float, trade_amount: float, 
+                                leverage: int, market_type: str, symbol: str) -> float:
+        """
+        دالة التقريب التلقائي الذكية المحسنة
+        
+        تعمل بالطريقة التالية:
+        1. تحدد مستوى الدقة المطلوب حسب حجم الكمية
+        2. تبحث عن أقرب قيمة مقبولة من المنصة
+        3. تتحقق من أن التأثير المالي مقبول
+        4. ترجع أفضل كمية ممكنة
+        
+        Args:
+            qty: الكمية الأصلية المحسوبة
+            price: السعر الحالي
+            trade_amount: المبلغ المراد تداوله
+            leverage: الرافعة المالية
+            market_type: نوع السوق (spot/futures)
+            symbol: رمز العملة
+            
+        Returns:
+            الكمية المقربة والمحسنة
+        """
+        try:
+            original_qty = qty
+            
+            # الخطوة 1: تحديد مستوى الدقة حسب حجم الكمية
+            if qty >= 1000:
+                decimal_places = 0  # أرقام كبيرة جداً
+                step_size = 1.0
+            elif qty >= 100:
+                decimal_places = 1
+                step_size = 0.1
+            elif qty >= 10:
+                decimal_places = 2
+                step_size = 0.01
+            elif qty >= 1:
+                decimal_places = 3
+                step_size = 0.001
+            elif qty >= 0.1:
+                decimal_places = 4
+                step_size = 0.0001
+            elif qty >= 0.01:
+                decimal_places = 5
+                step_size = 0.00001
+            elif qty >= 0.001:
+                decimal_places = 6
+                step_size = 0.000001
+            else:
+                decimal_places = 8
+                step_size = 0.00000001
+            
+            # الخطوة 2: التقريب الأساسي
+            rounded_qty = round(qty, decimal_places)
+            
+            # الخطوة 3: التحقق من الحد الأدنى
+            min_qty = 0.0001  # الحد الأدنى العام
+            if rounded_qty < min_qty:
+                rounded_qty = min_qty
+                logger.info(f"⚠️ تم رفع الكمية للحد الأدنى: {min_qty}")
+            
+            # الخطوة 4: البحث عن أقرب قيمة صالحة
+            # نجرب القيم القريبة (أعلى وأسفل) لإيجاد الأنسب
+            candidates = []
+            
+            # القيمة المقربة الأساسية
+            candidates.append(rounded_qty)
+            
+            # قيم قريبة أعلى وأسفل
+            for i in range(1, 6):  # نجرب 5 قيم في كل اتجاه
+                higher = rounded_qty + (step_size * i)
+                lower = rounded_qty - (step_size * i)
+                
+                if lower > 0:
+                    candidates.append(lower)
+                candidates.append(higher)
+            
+            # الخطوة 5: اختيار أفضل قيمة بناءً على التأثير المالي
+            best_qty = rounded_qty
+            min_financial_impact = float('inf')
+            
+            target_notional = trade_amount * leverage if market_type == 'futures' else trade_amount
+            
+            for candidate in candidates:
+                if candidate <= 0:
+                    continue
+                
+                # حساب القيمة المالية لهذه الكمية
+                candidate_notional = candidate * price
+                if market_type == 'futures':
+                    candidate_amount = candidate_notional / leverage
+                else:
+                    candidate_amount = candidate_notional
+                
+                # حساب الانحراف عن المبلغ المطلوب
+                financial_impact = abs(candidate_amount - trade_amount)
+                
+                # اختيار الأقل انحرافاً
+                if financial_impact < min_financial_impact:
+                    min_financial_impact = financial_impact
+                    best_qty = candidate
+            
+            # الخطوة 6: التحقق النهائي والتقرير
+            if abs(best_qty - original_qty) > 0.00000001:
+                # حساب التأثير المالي الفعلي
+                if market_type == 'futures':
+                    effective_amount = (best_qty * price) / leverage
+                else:
+                    effective_amount = best_qty * price
+                
+                impact_percentage = ((effective_amount - trade_amount) / trade_amount) * 100
+                
+                logger.info(f"🧠 التقريب الذكي المحسن:")
+                logger.info(f"   الكمية الأصلية: {original_qty:.8f}")
+                logger.info(f"   الكمية المحسنة: {best_qty:.8f}")
+                logger.info(f"   المبلغ الأصلي: ${trade_amount:.2f}")
+                logger.info(f"   المبلغ الفعلي: ${effective_amount:.2f}")
+                logger.info(f"   التأثير المالي: {impact_percentage:+.2f}%")
+                
+                # تحذير إذا كان التأثير كبيراً
+                if abs(impact_percentage) > 5:
+                    logger.warning(f"⚠️ تأثير مالي كبير: {impact_percentage:+.2f}%")
+            else:
+                logger.info(f"✅ الكمية مثالية بالفعل: {best_qty:.8f}")
+            
+            return best_qty
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في التقريب الذكي: {e}")
+            # في حالة الخطأ، نرجع التقريب البسيط
+            return round(qty, 4)
+    
+    @staticmethod
     def _calculate_adjusted_quantity(qty: float, price: float, trade_amount: float, leverage: int) -> float:
         """
-        حساب كمية معدلة عند فشل الصفقة بالتقريب الذكي
+        حساب كمية معدلة عند فشل الصفقة بالتقريب الذكي (دالة قديمة للتوافق)
         
         Args:
             qty: الكمية الأصلية
@@ -949,25 +1084,8 @@ class SignalExecutor:
         Returns:
             الكمية المعدلة
         """
-        # تقريب الكمية بناءً على حجمها
-        if qty < 0.001:
-            # أرقام صغيرة جداً: تقريب لـ 5 منازل عشرية
-            adjusted = round(qty, 5)
-        elif qty < 0.01:
-            # أرقام صغيرة: تقريب لـ 4 منازل عشرية
-            adjusted = round(qty, 4)
-        elif qty < 0.1:
-            # أرقام متوسطة: تقريب لـ 3 منازل عشرية
-            adjusted = round(qty, 3)
-        elif qty < 1:
-            # أرقام كبيرة نسبياً: تقريب لـ 2 منزل عشري
-            adjusted = round(qty, 2)
-        else:
-            # أرقام كبيرة جداً: تقريب لـ 1 منزل عشري
-            adjusted = round(qty, 1)
-        
-        logger.info(f"🧮 التقريب التلقائي: {qty:.8f} → {adjusted:.8f}")
-        return adjusted
+        # استخدام الدالة الجديدة المحسنة
+        return SignalExecutor._smart_quantity_rounding(qty, price, trade_amount, leverage, 'futures', 'UNKNOWN')
     
     @staticmethod
     async def _handle_futures_order(account, signal_data: Dict, side: str, qty: float,
@@ -1129,6 +1247,68 @@ class SignalExecutor:
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
         random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
         return f"{symbol}-{timestamp}-{random_part}"
+    
+    @staticmethod
+    async def _send_error_notification(user_id: int, error_message: str, signal_data: Dict):
+        """إرسال إشعار خطأ للمستخدم"""
+        try:
+            # استيراد الوحدات المطلوبة
+            from config import TELEGRAM_TOKEN
+            from telegram.ext import Application
+            
+            # إنشاء رسالة مفصلة
+            symbol = signal_data.get('symbol', 'غير محدد')
+            action = signal_data.get('action', 'غير محدد')
+            
+            # ترجمة رسائل الخطأ الشائعة
+            if 'ab not enough' in error_message.lower():
+                arabic_error = "❌ الرصيد غير كافي لتنفيذ الصفقة"
+                suggestion = "💡 تأكد من وجود رصيد كافي في حسابك على Bybit"
+            elif 'invalid price' in error_message.lower():
+                arabic_error = "❌ السعر غير صحيح"
+                suggestion = "💡 تحقق من صحة السعر المرسل في الإشارة"
+            elif 'symbol not found' in error_message.lower():
+                arabic_error = "❌ الرمز غير موجود"
+                suggestion = "💡 تأكد من صحة رمز العملة (مثل BTCUSDT)"
+            elif 'connection' in error_message.lower():
+                arabic_error = "❌ مشكلة في الاتصال بالمنصة"
+                suggestion = "💡 سيتم إعادة المحاولة تلقائياً"
+            else:
+                arabic_error = f"❌ خطأ في تنفيذ الصفقة: {error_message}"
+                suggestion = "💡 تحقق من إعدادات حسابك وحاول مرة أخرى"
+            
+            notification_text = f"""
+🚨 **فشل تنفيذ الصفقة**
+
+📊 **تفاصيل الإشارة:**
+• الرمز: {symbol}
+• الإجراء: {action.upper()}
+
+⚠️ **سبب الفشل:**
+{arabic_error}
+
+{suggestion}
+
+🔧 **الإجراءات المقترحة:**
+• تحقق من رصيد حسابك على Bybit
+• تأكد من صحة إعدادات API
+• راجع إعدادات التداول
+
+📞 **للمساعدة:** تواصل مع الدعم الفني
+            """.strip()
+            
+            # إرسال الرسالة
+            application = Application.builder().token(TELEGRAM_TOKEN).build()
+            await application.bot.send_message(
+                chat_id=user_id,
+                text=notification_text,
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"✅ تم إرسال إشعار فشل الصفقة للمستخدم {user_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ فشل إرسال إشعار الخطأ للمستخدم {user_id}: {e}")
 
 
 # مثيل عام

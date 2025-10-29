@@ -267,8 +267,20 @@ class BybitRealAccount:
         
         # التحقق من وجود خطأ في الاستجابة
         if result and isinstance(result, dict) and 'error' in result:
-            logger.error(f"❌ خطأ في وضع الأمر: {result['error']}")
-            return {'error': result['error'], 'details': result.get('details', '')}
+            error_msg = result['error']
+            logger.error(f"❌ خطأ في وضع الأمر: {error_msg}")
+            
+            # ترجمة رسائل الخطأ الشائعة
+            if 'ab not enough' in error_msg.lower():
+                error_msg = "الرصيد غير كافي لتنفيذ الصفقة"
+            elif 'invalid symbol' in error_msg.lower():
+                error_msg = "رمز العملة غير صحيح"
+            elif 'invalid price' in error_msg.lower():
+                error_msg = "السعر غير صحيح"
+            elif 'invalid quantity' in error_msg.lower():
+                error_msg = "الكمية غير صحيحة"
+            
+            return {'error': error_msg, 'details': result.get('details', '')}
         
         if result:
             logger.info(f"🔍 نتيجة place_order من Bybit: {result}")
