@@ -7971,7 +7971,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # إعادة تشغيل البوت
             import sys
-            import os
             
             try:
                 # حفظ جميع البيانات قبل الإعادة
@@ -8331,6 +8330,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_menu(update, context)
         return
     if data == "webhook_url":
+        # الحصول على بيانات المستخدم
+        user_data = user_manager.get_user(user_id)
+        
+        if not user_data:
+            if update.callback_query is not None:
+                await update.callback_query.edit_message_text(
+                    "❌ يرجى استخدام /start أولاً",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]])
+                )
+            return
+        
         # عرض رابط الإشارات الشخصي للمستخدم
         railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
         render_url = os.getenv('RENDER_EXTERNAL_URL')
