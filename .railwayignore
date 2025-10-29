@@ -1,0 +1,56 @@
+# Railway Ignore File
+# الملفات التي لا يجب رفعها إلى Railway
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Local Files
+*.log
+*.db-journal
+*.bak
+*.tmp
+
+# Documentation (local only)
+*.md
+!README.md
+
+# Scripts (local only)
+*.bat
+*.ps1
+check_signal_positions.py
+DEPLOY_TO_RAILWAY.bat
+RESTART_BOT.bat
+QUICK_RESTART.bat
+
+# Test Files
+test_*.py
+*_test.py
+tests/
+
