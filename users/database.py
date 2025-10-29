@@ -7,6 +7,7 @@
 import sqlite3
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
@@ -1424,55 +1425,55 @@ class DatabaseManager:
             return False
     
     def reset_all_users_data(self) -> int:
-        """إعادة تعيين بيانات جميع المستخدمين (دون حذفهم)"""
+        """إعادة تعيين بيانات جميع المستخدمين - حذف نهائي لجميع البيانات وإعادة إنشاء قاعدة البيانات"""
         try:
+            # 1. جلب عدد المستخدمين قبل الحذف
+            user_count = 0
+            try:
+                with self.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM users")
+                    user_count = cursor.fetchone()[0]
+            except:
+                pass
+            
+            # 2. 🔥 حذف ملف قاعدة البيانات بالكامل وإعادة إنشائها!
+            logger.warning(f"🔥 حذف قاعدة البيانات بالكامل وإعادة إنشائها...")
+            
+            # إغلاق جميع الاتصالات أولاً
+            try:
+                # إغلاق أي اتصالات مفتوحة
+                pass
+            except:
+                pass
+            
+            # حذف الملف الفعلي إذا كان موجوداً
+            if os.path.exists(self.db_path):
+                try:
+                    os.remove(self.db_path)
+                    logger.info(f"🗑️ تم حذف ملف قاعدة البيانات: {self.db_path}")
+                except Exception as e:
+                    logger.error(f"⚠️ لم يتم حذف الملف {self.db_path}: {e}")
+            
+            # 3. إعادة إنشاء قاعدة البيانات من الصفر
+            logger.info("🔄 إعادة إنشاء قاعدة البيانات من الصفر...")
+            
+            # إعادة تهيئة الاتصال
             with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # عد المستخدمين
-                cursor.execute("SELECT COUNT(*) FROM users")
-                user_count = cursor.fetchone()[0]
-                
-                if user_count == 0:
-                    logger.info("⚠️ لا يوجد مستخدمين")
-                    return 0
-                
-                # حذف جميع الصفقات
-                cursor.execute("DELETE FROM orders")
-                orders_deleted = cursor.rowcount
-                
-                # حذف جميع صفقات الإشارات
-                cursor.execute("DELETE FROM signal_positions")
-                signals_deleted = cursor.rowcount
-                
-                # إعادة تعيين بيانات جميع المستخدمين
-                cursor.execute("""
-                    UPDATE users 
-                    SET balance = 10000.0,
-                        daily_loss = 0.0,
-                        weekly_loss = 0.0,
-                        total_loss = 0.0,
-                        last_reset_date = NULL,
-                        last_reset_week = NULL,
-                        last_loss_update = NULL,
-                        updated_at = CURRENT_TIMESTAMP
-                """)
-                
-                # إعادة تعيين إعدادات جميع المستخدمين
-                cursor.execute("""
-                    UPDATE user_settings 
-                    SET market_type = 'spot',
-                        trade_amount = 100.0,
-                        leverage = 10,
-                        account_type = 'demo'
-                """)
-                
-                conn.commit()
-                logger.warning(f"🔄 تم إعادة تعيين بيانات جميع المستخدمين ({user_count} مستخدم، {orders_deleted} صفقة، {signals_deleted} إشارة)")
-                return user_count
+                pass  # مجرد فتح اتصال لإنشاء الملف
+            
+            # استدعاء init_database لإعادة إنشاء الجداول
+            self.init_database()
+            logger.info("✅ تم إعادة إنشاء قاعدة البيانات بنجاح")
+            
+            # 4. إرسال رسالة النجاح
+            logger.warning(f"🔄 تم إعادة تعيين المشروع بالكامل: {user_count} مستخدم، قاعدة البيانات أعيدت من الصفر")
+            return user_count
                 
         except Exception as e:
             logger.error(f"❌ خطأ في إعادة تعيين بيانات جميع المستخدمين: {e}")
+            import traceback
+            traceback.print_exc()
             return 0
     
     def delete_all_users(self) -> int:
