@@ -9378,7 +9378,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # استدعاء دالة الإغلاق الجزئي مع النسبة المخصصة
                     # تحويل إلى callback query وهمي
-                    from telegram import InlineKeyboardButton
                     
                     # البحث عن الصفقة
                     position_info = None
