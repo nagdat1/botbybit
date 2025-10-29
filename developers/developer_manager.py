@@ -387,6 +387,14 @@ class DeveloperManager:
             
             logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
             
+            # حذف جميع الحسابات الحقيقية من real_account_manager
+            try:
+                from api.bybit_api import real_account_manager
+                real_account_manager.accounts.clear()
+                logger.info("🗑️ تم حذف جميع الحسابات الحقيقية من real_account_manager")
+            except Exception as e:
+                logger.warning(f"⚠️ لم يتم حذف الحسابات الحقيقية: {e}")
+            
             # إعادة تعيين بيانات جميع المستخدمين في قاعدة البيانات (حذف ملف قواعد البيانات بالكامل!)
             user_count = db_manager.reset_all_users_data()
             
