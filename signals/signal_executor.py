@@ -6,6 +6,7 @@
 
 import logging
 from typing import Dict, Optional
+from datetime import datetime
 from api.bybit_api import real_account_manager
 from signals import signal_position_manager
 
@@ -446,24 +447,75 @@ class SignalExecutor:
                     'current_value': notional_value
                 }
             
-            # حساب الكمية بناءً على المبلغ والرافعة المحددين (بدون تقريب مسبق)
-            # سيتم التقريب فقط عند الضرورة إذا رفضت المنصة الكمية
-            logger.info(f"💰 حساب الكمية الأصلية:")
+            # حساب الكمية الأصلية
+            logger.info(f"💰 حساب الكمية:")
             logger.info(f"   المبلغ: ${trade_amount}")
             logger.info(f"   الرافعة: {leverage}x")
             logger.info(f"   السعر: ${price}")
-            logger.info(f"   الكمية المحسوبة: {qty:.8f}")
+            logger.info(f"   الكمية الأصلية: {qty:.8f}")
             
-            # لا نقوم بأي تقريب هنا - نرسل الكمية كما هي أولاً
-            rounded_qty = qty
+            # تطبيق التقريب الذكي مباشرة لضمان قبول المنصة
+            logger.info(f"🧠 تطبيق التقريب الذكي المحسن...")
+            final_qty = SignalExecutor._smart_quantity_rounding(
+                qty, price, trade_amount, leverage, market_type, symbol
+            )
             
-            # استخدام الكمية الأصلية بدون تقريب
-            qty = rounded_qty
-            logger.info(f"✅ سيتم إرسال الكمية الأصلية: {qty:.8f}")
+            # فحص إضافي للرصيد (مستوحى من الملفات المرفقة)
+            if final_qty < qty * 0.5:  # إذا كان التقريب قلل الكمية بأكثر من 50%
+                logger.warning(f"⚠️ التقريب قلل الكمية بشكل كبير: {qty:.8f} → {final_qty:.8f}")
+                
+                # فحص الرصيد المتاح لضمان إمكانية التنفيذ
+                try:
+                    balance_info = account.get_wallet_balance('unified')
+                    if balance_info and 'list' in balance_info:
+                        usdt_balance = next((coin for coin in balance_info['list'] if coin['coin'] == 'USDT'), None)
+                        if usdt_balance:
+                            available_balance = float(usdt_balance.get('walletBalance', 0))
+                            required_margin = (final_qty * price) / leverage if market_type == 'futures' else final_qty * price
+                            
+                            logger.info(f"💰 فحص الرصيد: متاح={available_balance:.2f}, مطلوب={required_margin:.2f}")
+                            
+                            if available_balance < required_margin:
+                                logger.error(f"❌ رصيد غير كافي للكمية المقربة")
+                                return {
+                                    'success': False,
+                                    'message': f'رصيد غير كافي. متاح: {available_balance:.2f} USDT، مطلوب: {required_margin:.2f} USDT',
+                                    'error': 'INSUFFICIENT_BALANCE_AFTER_ROUNDING',
+                                    'is_real': True,
+                                    'available_balance': available_balance,
+                                    'required_balance': required_margin
+                                }
+                except Exception as e:
+                    logger.warning(f"⚠️ لم يتم فحص الرصيد: {e}")
+            
+            # حساب التأثير المالي
+            if market_type == 'futures':
+                original_amount = (qty * price) / leverage
+                final_amount = (final_qty * price) / leverage
+            else:
+                original_amount = qty * price
+                final_amount = final_qty * price
+            
+            impact_percentage = ((final_amount - original_amount) / original_amount) * 100 if original_amount > 0 else 0
+            
+            logger.info(f"✅ النتيجة النهائية:")
+            logger.info(f"   الكمية النهائية: {final_qty:.8f}")
+            logger.info(f"   المبلغ الأصلي: ${original_amount:.2f}")
+            logger.info(f"   المبلغ النهائي: ${final_amount:.2f}")
+            logger.info(f"   التأثير: {impact_percentage:+.2f}%")
+            
+            # استخدام الكمية المقربة
+            qty = final_qty
+            
+            # إضافة معلومات إضافية للتتبع (مستوحى من الملفات المرفقة)
+            signal_data['original_calculated_qty'] = (trade_amount * leverage) / price if market_type == 'futures' else trade_amount / price
+            signal_data['final_rounded_qty'] = final_qty
+            signal_data['quantity_adjustment_applied'] = abs(final_qty - signal_data['original_calculated_qty']) > 0.00000001
+            signal_data['quantity_adjustment_percentage'] = impact_percentage
             
             # تتبع إذا تم التقريب لإرسال رسالة للمستخدم
             original_qty = (trade_amount * leverage) / price if market_type == 'futures' else trade_amount / price
-            qty_was_adjusted = abs(rounded_qty - original_qty) > 0.00000001
+            qty_was_adjusted = abs(final_qty - original_qty) > 0.00000001
             
             logger.info(f"🧠 تحويل خفي Bybit: ${trade_amount} → {qty} {symbol.split('USDT')[0]} (السعر: ${price}, الرافعة: {leverage})")
             logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
@@ -570,54 +622,7 @@ class SignalExecutor:
                 logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على Bybit")
                 logger.error(f"❌ النتيجة: {result}")
                 
-                # التحقق إذا كان الفشل بسبب كمية غير صالحة - نحاول التقريب
-                if result and isinstance(result, dict) and 'error' in result:
-                    error_msg = result['error'].lower()
-                    if ('qty invalid' in error_msg or 
-                        'invalid quantity' in error_msg or 
-                        'الكمية غير صحيحة' in error_msg or
-                        'كمية غير صالحة' in error_msg):
-                        logger.info(f"🔄 محاولة تصحيح الكمية والإعادة...")
-                        logger.info(f"   الكمية الأصلية: {qty:.8f}")
-                        logger.info(f"   السبب: {result['error']}")
-                        
-                        # تطبيق التقريب الذكي فقط الآن
-                        corrected_qty = SignalExecutor._smart_quantity_rounding(
-                            qty, price, trade_amount, leverage, market_type, symbol
-                        )
-                        logger.info(f"   الكمية المصححة: {corrected_qty:.8f}")
-                        
-                        if abs(corrected_qty - qty) > 0.00000001:
-                            logger.info(f"🔧 إعادة المحاولة بكمية مصححة: {corrected_qty:.8f}")
-                            
-                            # إعادة تنفيذ الصفقة بالكمية المصححة
-                            if category == 'spot':
-                                retry_result = await SignalExecutor._handle_spot_order(
-                                    account, signal_data, side, corrected_qty, price, market_type, user_id
-                                )
-                            else:
-                                retry_result = await SignalExecutor._handle_futures_order(
-                                    account, signal_data, side, corrected_qty, leverage, 
-                                    take_profit, stop_loss, market_type, user_id, True, trade_amount, price
-                                )
-                            
-                            # إذا نجحت المحاولة الثانية
-                            if retry_result and isinstance(retry_result, dict) and retry_result.get('order_id'):
-                                logger.info(f"✅ نجحت الصفقة بعد تصحيح الكمية!")
-                                
-                                # إضافة معلومات التصحيح
-                                retry_result['quantity_corrected'] = True
-                                retry_result['original_qty'] = qty
-                                retry_result['corrected_qty'] = corrected_qty
-                                
-                                return retry_result
-                            else:
-                                logger.error(f"❌ فشلت المحاولة الثانية أيضاً")
-                                logger.error(f"   نتيجة المحاولة الثانية: {retry_result}")
-                        else:
-                            logger.warning(f"⚠️ الكمية المصححة مطابقة للأصلية - لا حاجة لإعادة المحاولة")
-                
-                # إذا لم تنجح المحاولة أو لم تكن المشكلة في الكمية
+                # إرسال رسالة فشل للمستخدم (بدون محاولات إضافية)
                 try:
                     error_message = f'Failed to place order on Bybit - no valid order_id'
                     if result and isinstance(result, dict) and 'error' in result:
@@ -965,7 +970,104 @@ class SignalExecutor:
             }
     
     @staticmethod
-    def _smart_quantity_rounding(qty: float, price: float, trade_amount: float, 
+    def _log_quantity_adjustment_details(original_qty: float, final_qty: float, 
+                                       trade_amount: float, symbol: str, 
+                                       market_type: str, leverage: int) -> Dict:
+        """
+        تسجيل تفاصيل تعديل الكمية (مستوحى من الملفات المرفقة)
+        
+        Returns:
+            معلومات مفصلة عن التعديل
+        """
+        try:
+            adjustment_info = {
+                'symbol': symbol,
+                'market_type': market_type,
+                'original_qty': original_qty,
+                'final_qty': final_qty,
+                'qty_change': final_qty - original_qty,
+                'qty_change_percentage': ((final_qty - original_qty) / original_qty * 100) if original_qty > 0 else 0,
+                'trade_amount': trade_amount,
+                'leverage': leverage,
+                'adjustment_applied': abs(final_qty - original_qty) > 0.00000001,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # تصنيف نوع التعديل
+            if adjustment_info['qty_change'] > 0:
+                adjustment_info['adjustment_type'] = 'INCREASE'
+                adjustment_info['adjustment_reason'] = 'Minimum quantity requirement'
+            elif adjustment_info['qty_change'] < 0:
+                adjustment_info['adjustment_type'] = 'DECREASE'
+                adjustment_info['adjustment_reason'] = 'Smart rounding optimization'
+            else:
+                adjustment_info['adjustment_type'] = 'NONE'
+                adjustment_info['adjustment_reason'] = 'No adjustment needed'
+            
+            # تقييم مستوى التأثير
+            abs_change_pct = abs(adjustment_info['qty_change_percentage'])
+            if abs_change_pct > 20:
+                adjustment_info['impact_level'] = 'HIGH'
+            elif abs_change_pct > 10:
+                adjustment_info['impact_level'] = 'MEDIUM'
+            elif abs_change_pct > 5:
+                adjustment_info['impact_level'] = 'LOW'
+            else:
+                adjustment_info['impact_level'] = 'MINIMAL'
+            
+            logger.info(f"📊 تفاصيل تعديل الكمية لـ {symbol}:")
+            logger.info(f"   النوع: {adjustment_info['adjustment_type']}")
+            logger.info(f"   السبب: {adjustment_info['adjustment_reason']}")
+            logger.info(f"   مستوى التأثير: {adjustment_info['impact_level']}")
+            logger.info(f"   التغيير: {adjustment_info['qty_change']:+.8f} ({adjustment_info['qty_change_percentage']:+.2f}%)")
+            
+            return adjustment_info
+            
+        except Exception as e:
+            logger.error(f"خطأ في تسجيل تفاصيل تعديل الكمية: {e}")
+            return {}
+
+    @staticmethod
+    def _validate_trading_parameters(qty: float, price: float, trade_amount: float, 
+                                   leverage: int, symbol: str) -> tuple[bool, str]:
+        """
+        التحقق من صحة معاملات التداول (مستوحى من الملفات المرفقة)
+        
+        Returns:
+            (صحيح/خطأ, رسالة الخطأ)
+        """
+        try:
+            # فحص القيم الأساسية
+            if qty <= 0:
+                return False, f"كمية غير صحيحة: {qty}"
+            
+            if price <= 0:
+                return False, f"سعر غير صحيح: {price}"
+            
+            if trade_amount <= 0:
+                return False, f"مبلغ التداول غير صحيح: {trade_amount}"
+            
+            if leverage <= 0:
+                return False, f"رافعة مالية غير صحيحة: {leverage}"
+            
+            if not symbol or len(symbol) < 6:
+                return False, f"رمز العملة غير صحيح: {symbol}"
+            
+            # فحص القيم المنطقية
+            notional_value = qty * price
+            if notional_value < 1:  # أقل من دولار واحد
+                return False, f"قيمة الصفقة صغيرة جداً: ${notional_value:.4f}"
+            
+            if notional_value > 1000000:  # أكثر من مليون دولار
+                return False, f"قيمة الصفقة كبيرة جداً: ${notional_value:.2f}"
+            
+            return True, "المعاملات صحيحة"
+            
+        except Exception as e:
+            return False, f"خطأ في التحقق من المعاملات: {e}"
+
+    @staticmethod
+    def _smart_quantity_rounding(qty: float, price: float, trade_amount: float,
                                 leverage: int, market_type: str, symbol: str) -> float:
         """
         دالة التقريب التلقائي الذكية المحسنة
@@ -988,6 +1090,16 @@ class SignalExecutor:
             الكمية المقربة والمحسنة
         """
         try:
+            # التحقق من صحة المعاملات أولاً
+            is_valid, validation_message = SignalExecutor._validate_trading_parameters(
+                qty, price, trade_amount, leverage, symbol
+            )
+            
+            if not is_valid:
+                logger.error(f"❌ معاملات غير صحيحة: {validation_message}")
+                # في حالة الخطأ، نرجع كمية آمنة
+                return max(0.001, qty)
+            
             original_qty = qty
             
             # الخطوة 1: تحديد مستوى الدقة حسب حجم الكمية
@@ -1020,14 +1132,37 @@ class SignalExecutor:
             rounded_qty = round(qty, decimal_places)
             
             # الخطوة 3: التحقق من الحد الأدنى حسب الرمز
-            # متطلبات Bybit للحد الأدنى للكمية
+            # متطلبات Bybit للحد الأدنى للكمية (محسنة ومحدثة)
             min_qty_rules = {
+                # العملات الرئيسية
                 'BTCUSDT': 0.001,    # Bitcoin
                 'ETHUSDT': 0.01,     # Ethereum
                 'BNBUSDT': 0.01,     # BNB
+                'SOLUSDT': 0.01,     # Solana
+                'XRPUSDT': 1.0,      # Ripple
                 'ADAUSDT': 1.0,      # Cardano
                 'DOGEUSDT': 1.0,     # Dogecoin
-                'SOLUSDT': 0.01,     # Solana
+                'DOTUSDT': 0.1,      # Polkadot
+                'MATICUSDT': 1.0,    # Polygon
+                'AVAXUSDT': 0.01,    # Avalanche
+                'LINKUSDT': 0.01,    # Chainlink
+                'LTCUSDT': 0.01,     # Litecoin
+                'UNIUSDT': 0.1,      # Uniswap
+                'ATOMUSDT': 0.1,     # Cosmos
+                'FILUSDT': 0.1,      # Filecoin
+                'TRXUSDT': 10.0,     # Tron
+                'ETCUSDT': 0.1,      # Ethereum Classic
+                'XLMUSDT': 10.0,     # Stellar
+                'VETUSDT': 100.0,    # VeChain
+                'ICPUSDT': 0.1,      # Internet Computer
+                'THETAUSDT': 1.0,    # Theta
+                'FTMUSDT': 1.0,      # Fantom
+                'AXSUSDT': 0.1,      # Axie Infinity
+                'SANDUSDT': 1.0,     # The Sandbox
+                'MANAUSDT': 1.0,     # Decentraland
+                # العملات الناشئة (حدود أعلى)
+                'SHIBUSDT': 100000.0, # Shiba Inu
+                'PEPEUSDT': 1000000.0, # Pepe
             }
             
             # تحديد الحد الأدنى حسب الرمز
@@ -1086,7 +1221,12 @@ class SignalExecutor:
                     min_financial_impact = financial_impact
                     best_qty = candidate
             
-            # الخطوة 6: التحقق النهائي والتقرير
+            # الخطوة 6: تسجيل تفاصيل التعديل (مستوحى من الملفات المرفقة)
+            adjustment_details = SignalExecutor._log_quantity_adjustment_details(
+                original_qty, best_qty, trade_amount, symbol, market_type, leverage
+            )
+            
+            # الخطوة 7: التحقق النهائي والتقرير
             if abs(best_qty - original_qty) > 0.00000001:
                 # حساب التأثير المالي الفعلي
                 if market_type == 'futures':
@@ -1103,9 +1243,15 @@ class SignalExecutor:
                 logger.info(f"   المبلغ الفعلي: ${effective_amount:.2f}")
                 logger.info(f"   التأثير المالي: {impact_percentage:+.2f}%")
                 
-                # تحذير إذا كان التأثير كبيراً
-                if abs(impact_percentage) > 5:
-                    logger.warning(f"⚠️ تأثير مالي كبير: {impact_percentage:+.2f}%")
+                # نظام تحذيرات ذكي (مستوحى من الملفات المرفقة)
+                if abs(impact_percentage) > 20:
+                    logger.error(f"🚨 تأثير مالي خطير: {impact_percentage:+.2f}% - يتطلب مراجعة!")
+                elif abs(impact_percentage) > 10:
+                    logger.warning(f"⚠️ تأثير مالي كبير: {impact_percentage:+.2f}% - انتبه!")
+                elif abs(impact_percentage) > 5:
+                    logger.warning(f"⚠️ تأثير مالي ملحوظ: {impact_percentage:+.2f}%")
+                else:
+                    logger.info(f"✅ تأثير مالي مقبول: {impact_percentage:+.2f}%")
             else:
                 logger.info(f"✅ الكمية مثالية بالفعل: {best_qty:.8f}")
             
