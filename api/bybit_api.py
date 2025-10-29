@@ -524,6 +524,52 @@ class BybitRealAccount:
         except Exception as e:
             logger.error(f"خطأ في الحصول على السعر: {e}")
             return None
+    
+    def get_instrument_info(self, symbol: str, category: str) -> Optional[Dict]:
+        """الحصول على معلومات الأداة المالية (مثل الحد الأدنى للكمية وخطوة الكمية)"""
+        try:
+            api_category = "linear" if category == "futures" else category
+            result = self._make_request('GET', '/v5/market/instruments-info', {
+                'category': api_category,
+                'symbol': symbol
+            })
+            
+            if result and 'list' in result and result['list']:
+                instrument = result['list'][0]
+                
+                # استخراج المعلومات المطلوبة
+                min_order_qty = float(instrument.get('lotSizeFilter', {}).get('minOrderQty', 0) or 0)
+                qty_step = float(instrument.get('lotSizeFilter', {}).get('qtyStep', 0) or 0)
+                
+                logger.info(f"📋 معلومات الرمز {symbol}:")
+                logger.info(f"   الحد الأدنى: {min_order_qty}")
+                logger.info(f"   خطوة الكمية: {qty_step}")
+                
+                return {
+                    'min_order_qty': min_order_qty if min_order_qty > 0 else 0.001,
+                    'qty_step': qty_step if qty_step > 0 else 0.001
+                }
+            
+            # في حالة عدم وجود معلومات، إرجاع قيم افتراضية آمنة
+            logger.warning(f"⚠️ لم يتم العثور على معلومات الرمز {symbol} - استخدام القيم الافتراضية")
+            return {
+                'min_order_qty': 0.001,
+                'qty_step': 0.001
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على معلومات الرمز {symbol}: {e}")
+            return {
+                'min_order_qty': 0.001,
+                'qty_step': 0.001
+            }
+    
+    def round_quantity_to_step(self, qty: float, step: float) -> float:
+        """تقريب الكمية لخطوة محددة"""
+        if step <= 0:
+            return round(qty, 6)
+        
+        return round(qty / step) * step
 
 
 
