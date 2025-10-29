@@ -386,16 +386,17 @@ class DeveloperManager:
         except Exception as e:
             logger.error(f"❌ فشل إنشاء ملف إعادة التعيين: {e}")
         
-        # حذف جميع البيانات من الذاكرة (cache) أولاً
-        from users.user_manager import user_manager
-        
-        # حذف جميع المستخدمين من الذاكرة
-        user_manager.users.clear()
-        user_manager.user_accounts.clear()
-        user_manager.user_apis.clear()
-        user_manager.user_positions.clear()
-        
-        logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
+        try:
+            # حذف جميع البيانات من الذاكرة (cache) أولاً
+            from users.user_manager import user_manager
+            
+            # حذف جميع المستخدمين من الذاكرة
+            user_manager.users.clear()
+            user_manager.user_accounts.clear()
+            user_manager.user_apis.clear()
+            user_manager.user_positions.clear()
+            
+            logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
             
             # حذف جميع الحسابات الحقيقية من real_account_manager
             try:
