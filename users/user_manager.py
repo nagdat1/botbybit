@@ -52,9 +52,10 @@ class UserManager:
     
     def load_all_users(self):
         """تحميل جميع المستخدمين من قاعدة البيانات"""
+        logger.warning("🚀 بدء تحميل المستخدمين من قاعدة البيانات...")
         try:
             users_data = db_manager.get_all_active_users()
-            logger.info(f"🔍 جلب {len(users_data)} مستخدم من قاعدة البيانات")
+            logger.warning(f"🔍 جلب {len(users_data)} مستخدم من قاعدة البيانات")
             
             for user_data in users_data:
                 user_id = user_data['user_id']

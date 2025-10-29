@@ -718,9 +718,20 @@ class DatabaseManager:
     
     def get_all_active_users(self) -> List[Dict]:
         """الحصول على جميع المستخدمين النشطين"""
+        logger.warning("🔍 بدء جلب المستخدمين النشطين من قاعدة البيانات...")
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
+                
+                # أولاً: فحص عدد المستخدمين الإجمالي
+                cursor.execute("SELECT COUNT(*) FROM users")
+                total_users = cursor.fetchone()[0]
+                logger.warning(f"📊 إجمالي المستخدمين في قاعدة البيانات: {total_users}")
+                
+                # ثانياً: فحص عدد المستخدمين النشطين
+                cursor.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
+                active_users = cursor.fetchone()[0]
+                logger.warning(f"📊 المستخدمين النشطين: {active_users}")
                 
                 cursor.execute("""
                     SELECT u.*, s.* FROM users u

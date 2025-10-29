@@ -3336,7 +3336,9 @@ um_module.user_manager = user_manager
 logger.info("✅ تم تهيئة user_manager وتحديثه في module users.user_manager")
 
 # تحميل المستخدمين من قاعدة البيانات
+logger.warning("🔄 استدعاء load_all_users()...")
 user_manager.load_all_users()
+logger.warning("✅ انتهى استدعاء load_all_users()")
 
 # تهيئة نظام المطورين
 try:
