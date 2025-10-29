@@ -20,6 +20,28 @@ class DatabaseManager:
     
     def __init__(self, db_path: str = "trading_bot.db"):
         self.db_path = db_path
+        
+        # 🔥 فحص ملف إعادة التعيين الإجباري
+        reset_file = "FORCE_RESET.flag"
+        if os.path.exists(reset_file):
+            logger.warning("🔥 تم العثور على ملف إعادة التعيين الإجباري!")
+            logger.warning("🗑️ حذف قاعدة البيانات الحالية...")
+            
+            # حذف قاعدة البيانات الحالية
+            if os.path.exists(self.db_path):
+                try:
+                    os.remove(self.db_path)
+                    logger.warning(f"✅ تم حذف {self.db_path}")
+                except Exception as e:
+                    logger.error(f"❌ فشل حذف {self.db_path}: {e}")
+            
+            # حذف ملف الإعادة التعيين
+            try:
+                os.remove(reset_file)
+                logger.warning(f"✅ تم حذف ملف الإعادة التعيين: {reset_file}")
+            except Exception as e:
+                logger.error(f"❌ فشل حذف ملف الإعادة التعيين: {e}")
+        
         self.init_database()
     
     def init_database(self):

@@ -376,16 +376,26 @@ class DeveloperManager:
                     'message': 'حساب المطور غير نشط'
                 }
             
-            # حذف جميع البيانات من الذاكرة (cache) أولاً
-            from users.user_manager import user_manager
-            
-            # حذف جميع المستخدمين من الذاكرة
-            user_manager.users.clear()
-            user_manager.user_accounts.clear()
-            user_manager.user_apis.clear()
-            user_manager.user_positions.clear()
-            
-            logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
+        # إنشاء ملف إعادة التعيين الإجباري
+        import os
+        reset_file = "FORCE_RESET.flag"
+        try:
+            with open(reset_file, 'w') as f:
+                f.write(f"FORCE_RESET_DATABASE_ON_STARTUP\nCreated by developer {developer_id} at {datetime.now()}")
+            logger.warning(f"🔥 تم إنشاء ملف إعادة التعيين الإجباري: {reset_file}")
+        except Exception as e:
+            logger.error(f"❌ فشل إنشاء ملف إعادة التعيين: {e}")
+        
+        # حذف جميع البيانات من الذاكرة (cache) أولاً
+        from users.user_manager import user_manager
+        
+        # حذف جميع المستخدمين من الذاكرة
+        user_manager.users.clear()
+        user_manager.user_accounts.clear()
+        user_manager.user_apis.clear()
+        user_manager.user_positions.clear()
+        
+        logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
             
             # حذف جميع الحسابات الحقيقية من real_account_manager
             try:

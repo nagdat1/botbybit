@@ -1,0 +1,4 @@
+FORCE_RESET_DATABASE_ON_STARTUP
+This file triggers a complete database reset when the bot starts.
+Created: 2024-10-29
+Reason: Railway persistent database issue after reset
