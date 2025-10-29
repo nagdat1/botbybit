@@ -230,54 +230,73 @@ class SignalConverter:
             بيانات الإشارة مع الإعدادات المطبقة
         """
         try:
+            logger.info(f"{'='*80}")
+            logger.info(f"🔧 تطبيق إعدادات المستخدم على الإشارة")
+            logger.info(f"{'='*80}")
+            logger.info(f"📥 الإشارة الأصلية: {signal}")
+            logger.info(f"⚙️ إعدادات المستخدم الكاملة: {user_settings}")
+            
             # إضافة مبلغ التداول
             if 'trade_amount' in user_settings:
                 signal['amount'] = user_settings['trade_amount']
-                logger.info(f"💰 مبلغ التداول: {signal['amount']}")
+                logger.info(f"✅ تم تطبيق مبلغ التداول من الإعدادات: {signal['amount']} USDT")
             else:
                 signal['amount'] = 100.0  # القيمة الافتراضية
-                logger.warning(f"⚠️ استخدام مبلغ التداول الافتراضي: {signal['amount']}")
-            
-            logger.info(f"🔍 جميع إعدادات user_settings: {user_settings}")
+                logger.warning(f"⚠️ لم يتم العثور على trade_amount في الإعدادات - استخدام الافتراضي: {signal['amount']} USDT")
             
             # إضافة المنصة
             if 'exchange' in user_settings:
                 signal['exchange'] = user_settings['exchange']
+                logger.info(f"✅ تم تطبيق المنصة من الإعدادات: {signal['exchange']}")
             else:
                 signal['exchange'] = 'bybit'  # الافتراضي
+                logger.warning(f"⚠️ لم يتم العثور على exchange في الإعدادات - استخدام الافتراضي: {signal['exchange']}")
             
             # إضافة نوع الحساب
             if 'account_type' in user_settings:
                 signal['account_type'] = user_settings['account_type']
+                logger.info(f"✅ تم تطبيق نوع الحساب من الإعدادات: {signal['account_type']}")
             else:
                 signal['account_type'] = 'demo'  # الافتراضي
+                logger.warning(f"⚠️ لم يتم العثور على account_type في الإعدادات - استخدام الافتراضي: {signal['account_type']}")
             
             # تحديد نوع السوق من إعدادات المستخدم (الآن يجب أن يكون محدداً)
             if 'market_type' in user_settings:
                 signal['market_type'] = user_settings['market_type']
-                logger.info(f"✅ استخدام نوع السوق من إعدادات المستخدم: {signal['market_type']}")
+                logger.info(f"✅ تم تطبيق نوع السوق من الإعدادات: {signal['market_type']}")
             else:
                 signal['market_type'] = 'spot'  # افتراضي
-                logger.warning(f"⚠️ لم يتم تحديد نوع السوق - استخدام الافتراضي: spot")
+                logger.warning(f"⚠️ لم يتم العثور على market_type في الإعدادات - استخدام الافتراضي: spot")
             
             # إعادة حساب الرافعة بعد تحديد نوع السوق
             if signal.get('market_type') == 'futures':
                 if 'leverage' in user_settings:
                     signal['leverage'] = user_settings['leverage']
-                    logger.info(f"⚡ تحديث الرافعة للـ Futures: {signal['leverage']}x")
+                    logger.info(f"✅ تم تطبيق الرافعة من الإعدادات للـ Futures: {signal['leverage']}x")
                 else:
                     signal['leverage'] = 10
-                    logger.warning(f"⚠️ استخدام الرافعة الافتراضية للـ Futures: {signal['leverage']}x")
+                    logger.warning(f"⚠️ لم يتم العثور على leverage في الإعدادات - استخدام الافتراضي للـ Futures: {signal['leverage']}x")
             else:
                 signal['leverage'] = 1
-                logger.info(f"⚡ الرافعة للـ Spot: {signal['leverage']}x")
+                logger.info(f"✅ الرافعة للـ Spot (ثابتة): {signal['leverage']}x")
             
-            logger.info(f"✅ الإشارة النهائية بعد تطبيق الإعدادات: {signal}")
+            logger.info(f"{'='*80}")
+            logger.info(f"✅ الإشارة النهائية بعد تطبيق الإعدادات:")
+            logger.info(f"   - الرمز: {signal.get('symbol')}")
+            logger.info(f"   - الإجراء: {signal.get('action')}")
+            logger.info(f"   - المبلغ: {signal.get('amount')} USDT")
+            logger.info(f"   - الرافعة: {signal.get('leverage')}x")
+            logger.info(f"   - نوع السوق: {signal.get('market_type')}")
+            logger.info(f"   - نوع الحساب: {signal.get('account_type')}")
+            logger.info(f"   - المنصة: {signal.get('exchange')}")
+            logger.info(f"{'='*80}")
             
             return signal
             
         except Exception as e:
             logger.error(f"❌ خطأ في تطبيق إعدادات المستخدم: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return signal
     
     @staticmethod

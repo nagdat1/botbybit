@@ -134,6 +134,16 @@ def webhook():
                     'exchange': user_data.get('exchange', 'bybit')
                 }
                 
+                print(f"{'='*60}")
+                print(f"⚙️ إعدادات المستخدم ADMIN المستخرجة:")
+                print(f"   - user_id: {user_settings['user_id']}")
+                print(f"   - market_type: {user_settings['market_type']}")
+                print(f"   - account_type: {user_settings['account_type']}")
+                print(f"   - trade_amount: {user_settings['trade_amount']} USDT")
+                print(f"   - leverage: {user_settings['leverage']}x")
+                print(f"   - exchange: {user_settings['exchange']}")
+                print(f"{'='*60}")
+                
                 converted_signal = convert_simple_signal(data, user_settings)
                 
                 if converted_signal:
@@ -208,8 +218,18 @@ def personal_webhook(user_id):
             'market_type': user_data.get('market_type', 'spot'),
             'account_type': user_data.get('account_type', 'demo'),
             'trade_amount': user_data.get('trade_amount', 100.0),
-            'leverage': user_data.get('leverage', 10)
+            'leverage': user_data.get('leverage', 10),
+            'exchange': user_data.get('exchange', 'bybit')
         }
+        
+        print(f"{'='*60}")
+        print(f"⚙️ إعدادات المستخدم {user_id} المستخرجة:")
+        print(f"   - market_type: {user_settings_copy['market_type']}")
+        print(f"   - account_type: {user_settings_copy['account_type']}")
+        print(f"   - trade_amount: {user_settings_copy['trade_amount']} USDT")
+        print(f"   - leverage: {user_settings_copy['leverage']}x")
+        print(f"   - exchange: {user_settings_copy['exchange']}")
+        print(f"{'='*60}")
         
         # معالجة الإشارة في thread منفصل
         def process_signal_async():

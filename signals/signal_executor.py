@@ -162,11 +162,19 @@ class SignalExecutor:
             leverage = user_data.get('leverage', 10)
             
             logger.info(f"=" * 80)
-            logger.info(f"🔍 تحليل الإعدادات المستلمة:")
-            logger.info(f"   trade_amount: {trade_amount} USDT")
-            logger.info(f"   leverage: {leverage}x")
-            logger.info(f"   market_type: {user_data.get('market_type')}")
-            logger.info(f"   user_data كامل: {user_data}")
+            logger.info(f"🔍 استخراج الإعدادات من user_data:")
+            logger.info(f"=" * 80)
+            logger.info(f"📊 الإعدادات الأساسية:")
+            logger.info(f"   ✅ trade_amount: {trade_amount} USDT (من user_data.get('trade_amount', 100.0))")
+            logger.info(f"   ✅ leverage: {leverage}x (من user_data.get('leverage', 10))")
+            logger.info(f"   ✅ market_type: {user_data.get('market_type', 'غير محدد')}")
+            logger.info(f"   ✅ account_type: {user_data.get('account_type', 'غير محدد')}")
+            logger.info(f"   ✅ exchange: {user_data.get('exchange', 'غير محدد')}")
+            logger.info(f"")
+            logger.info(f"📋 user_data الكامل:")
+            for key, value in user_data.items():
+                if key not in ['api_key', 'api_secret', 'bybit_api_key', 'bybit_api_secret']:
+                    logger.info(f"   - {key}: {value}")
             logger.info(f"=" * 80)
             
             # تنفيذ الإشارة حسب المنصة
@@ -374,18 +382,23 @@ class SignalExecutor:
             # حساب الكمية بناءً على مبلغ التداول ونوع السوق
             # حساب الكمية - كود خفي للتحويل الذكي مع فحص الرافعة المالية
             # استخدام السعر الحقيقي من API بدلاً من القيمة الافتراضية
+            logger.info(f"=" * 80)
+            logger.info(f"💰 بدء حساب الكمية بناءً على الإعدادات")
+            logger.info(f"=" * 80)
+            
             try:
+                logger.info(f"🔍 جلب السعر الحالي من المنصة...")
                 current_price = account.get_ticker_price(symbol)
                 price = float(current_price)
-                logger.info(f"✅ تم جلب السعر الحقيقي: {price} USDT")
+                logger.info(f"✅ تم جلب السعر الحقيقي من المنصة: {price} USDT")
             except Exception as e:
                 logger.warning(f"⚠️ فشل جلب السعر الحقيقي: {e}")
                 price = float(signal_data.get('price', 1))
-                logger.warning(f"⚠️ استخدام السعر الافتراضي: {price}")
+                logger.warning(f"⚠️ استخدام السعر الافتراضي من الإشارة: {price}")
             
             # التحقق من أن السعر صحيح
             if price <= 0:
-                logger.error(f"⚠️ سعر غير صحيح: {price}")
+                logger.error(f"❌ سعر غير صحيح: {price}")
                 return {
                     'success': False,
                     'message': f'Invalid price: {price}',
@@ -393,24 +406,33 @@ class SignalExecutor:
                 }
             
             # حساب الكمية مع ضمان عدم وجود قيم صغيرة جداً
-            logger.info(f"=" * 80)
-            logger.info(f"🧮 حساب الكمية:")
-            logger.info(f"   market_type: {market_type}")
-            logger.info(f"   trade_amount: {trade_amount} USDT")
-            logger.info(f"   leverage: {leverage}x")
-            logger.info(f"   price: {price}")
+            logger.info(f"")
+            logger.info(f"🧮 حساب الكمية باستخدام الإعدادات:")
+            logger.info(f"   📊 المدخلات:")
+            logger.info(f"      - market_type: {market_type}")
+            logger.info(f"      - trade_amount: {trade_amount} USDT (من إعدادات المستخدم)")
+            logger.info(f"      - leverage: {leverage}x (من إعدادات المستخدم)")
+            logger.info(f"      - price: {price} USDT (السعر الحالي)")
             
             if market_type == 'futures':
                 qty = (trade_amount * leverage) / price
                 notional_value = trade_amount * leverage
-                logger.info(f"   ✅ Futures: qty = ({trade_amount} × {leverage}) / {price} = {qty}")
-                logger.info(f"   ✅ notional_value = {trade_amount} × {leverage} = {notional_value}")
+                logger.info(f"")
+                logger.info(f"   📈 حساب Futures:")
+                logger.info(f"      - الصيغة: qty = (trade_amount × leverage) / price")
+                logger.info(f"      - الحساب: qty = ({trade_amount} × {leverage}) / {price}")
+                logger.info(f"      - النتيجة: qty = {qty}")
+                logger.info(f"      - القيمة الاسمية: {notional_value} USDT")
             else:
                 # للسبوت بدون رافعة
                 qty = trade_amount / price
                 notional_value = trade_amount
-                logger.info(f"   ✅ Spot: qty = {trade_amount} / {price} = {qty}")
-                logger.info(f"   ✅ notional_value = {trade_amount}")
+                logger.info(f"")
+                logger.info(f"   📊 حساب Spot:")
+                logger.info(f"      - الصيغة: qty = trade_amount / price")
+                logger.info(f"      - الحساب: qty = {trade_amount} / {price}")
+                logger.info(f"      - النتيجة: qty = {qty}")
+                logger.info(f"      - القيمة الاسمية: {notional_value} USDT")
             
             logger.info(f"=" * 80)
             
