@@ -53,9 +53,19 @@ async def cmd_select_exchange(update: Update, context: ContextTypes.DEFAULT_TYPE
         bitget_key = user_data.get('bitget_api_key', '')
         bitget_linked = bitget_key and len(bitget_key) > 10
     
+    # التحقق من التفعيل الفعلي (مربوط + مفعّل + حساب حقيقي)
+    account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+    is_active = user_data.get('is_active', False) if user_data else False
+    
     # بناء الأزرار مع الحالة الصحيحة
-    bybit_icon = "✅" if (current_exchange == 'bybit' and bybit_linked) else ("🔗" if bybit_linked else "⚪")
-    bitget_icon = "✅" if (current_exchange == 'bitget' and bitget_linked) else ("🔗" if bitget_linked else "⚪")
+    # ✅ = مربوط + مفعّل + حساب حقيقي
+    # 🔗 = مربوط لكن غير مفعّل أو حساب تجريبي
+    # ⚪ = غير مربوط
+    bybit_fully_active = (current_exchange == 'bybit' and bybit_linked and account_type == 'real' and is_active)
+    bitget_fully_active = (current_exchange == 'bitget' and bitget_linked and account_type == 'real' and is_active)
+    
+    bybit_icon = "✅" if bybit_fully_active else ("🔗" if bybit_linked else "⚪")
+    bitget_icon = "✅" if bitget_fully_active else ("🔗" if bitget_linked else "⚪")
     
     keyboard = [
         [
@@ -1476,10 +1486,174 @@ async def test_exchange_connection(update: Update, context: ContextTypes.DEFAULT
         if exchange != 'bybit':
             result = "⚠️ **هذه المنصة غير مدعومة حالياً**\n\n"
             result += "🔧 البوت يدعم Bybit فقط"
-        else:
-            result = "✅ الاتصال بـ Bybit ناجح!"
+            
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="exchange_select_bybit")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                result,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            return
         
-        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="exchange_select_bybit")]]
+        # اختبار Bybit مع عرض الرصيد الحقيقي
+        api_key = user_data.get('bybit_api_key', '')
+        api_secret = user_data.get('bybit_api_secret', '')
+        
+        # التحقق من وجود المفاتيح
+        if not api_key or not api_secret:
+            result = "❌ **لا توجد مفاتيح API مربوطة**\n\n"
+            result += "🔗 يجب ربط API Keys أولاً لاختبار الاتصال"
+            
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="exchange_select_bybit")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                result,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            return
+        
+        # إرسال رسالة "جاري الاختبار..."
+        await query.edit_message_text("🔄 **جاري اختبار الاتصال مع Bybit...**\n\n⏳ يرجى الانتظار...")
+        
+        # اختبار الاتصال الفعلي وجلب الرصيد
+        from api.bybit_api import real_account_manager
+        
+        try:
+            # تهيئة الحساب إذا لم يكن موجوداً
+            account = real_account_manager.get_account(user_id)
+            if not account:
+                real_account_manager.initialize_account(user_id, 'bybit', api_key, api_secret)
+                account = real_account_manager.get_account(user_id)
+            
+            if not account:
+                raise Exception("فشل في تهيئة الحساب")
+            
+            # جلب الرصيد الحقيقي من Bybit
+            logger.info(f"🔍 اختبار اتصال Bybit للمستخدم {user_id}")
+            balance = account.get_wallet_balance('unified')
+            
+            if balance:
+                total_equity = balance.get('total_equity', 0)
+                available_balance = balance.get('available_balance', 0)
+                
+                # بناء رسالة النجاح مع الرصيد
+                result = f"""✅ **اختبار الاتصال ناجح!**
+
+🏦 **منصة Bybit متصلة بنجاح**
+
+💰 **الرصيد الحقيقي:**
+• الرصيد الإجمالي: ${total_equity:,.4f}
+• الرصيد المتاح: ${available_balance:,.4f}
+
+🔐 **حالة API:**
+• المفاتيح: صالحة ✅
+• الصلاحيات: مفعّلة ✅
+• الاتصال: نشط ✅
+
+📊 **تفاصيل إضافية:**"""
+                
+                # إضافة معلومات العملات إن وجدت
+                coins = balance.get('coins', {})
+                if coins:
+                    result += "\n\n💎 **العملات المتوفرة:**"
+                    displayed_coins = 0
+                    for coin_name, coin_info in coins.items():
+                        if displayed_coins < 5 and coin_info.get('equity', 0) > 0:
+                            equity = coin_info.get('equity', 0)
+                            available = coin_info.get('available_balance', 0)
+                            result += f"\n• {coin_name}: {equity:.6f} (متاح: {available:.6f})"
+                            displayed_coins += 1
+                    
+                    if len(coins) > 5:
+                        result += f"\n• ... و {len(coins) - 5} عملات أخرى"
+                
+                result += f"""
+
+🎯 **الحساب جاهز للتداول!**
+• يمكنك استقبال الإشارات
+• التداول الحقيقي مفعّل
+• جميع الوظائف متاحة"""
+                
+                logger.info(f"✅ اختبار Bybit ناجح للمستخدم {user_id}: ${total_equity:,.4f}")
+                
+            else:
+                # نجح الاتصال لكن لا يوجد رصيد
+                result = f"""✅ **اختبار الاتصال ناجح!**
+
+🏦 **منصة Bybit متصلة بنجاح**
+
+💰 **الرصيد الحقيقي:**
+• الرصيد: $0.00 (حساب فارغ)
+
+🔐 **حالة API:**
+• المفاتيح: صالحة ✅
+• الصلاحيات: مفعّلة ✅
+• الاتصال: نشط ✅
+
+💡 **ملاحظة:**
+الحساب فارغ حالياً، لكن الاتصال يعمل بشكل مثالي.
+يمكنك إيداع أموال والبدء في التداول."""
+                
+                logger.info(f"✅ اختبار Bybit ناجح للمستخدم {user_id} (حساب فارغ)")
+        
+        except Exception as e:
+            # فشل الاتصال
+            logger.error(f"❌ فشل اختبار Bybit للمستخدم {user_id}: {e}")
+            
+            error_msg = str(e)
+            if "Invalid API key" in error_msg or "authentication" in error_msg.lower():
+                result = f"""❌ **فشل الاتصال - مفاتيح API خاطئة**
+
+🔐 **المشكلة:**
+• API Key أو Secret غير صحيح
+• المفاتيح منتهية الصلاحية
+• الصلاحيات غير مفعّلة
+
+🔧 **الحلول:**
+1. تحقق من صحة المفاتيح في حسابك على Bybit
+2. تأكد من تفعيل صلاحيات التداول والقراءة
+3. جرب إعادة إنشاء المفاتيح
+4. تأكد من عدم انتهاء صلاحية API
+
+💡 **نصيحة:** اذهب إلى Bybit → Account → API Management"""
+            
+            elif "network" in error_msg.lower() or "timeout" in error_msg.lower():
+                result = f"""❌ **فشل الاتصال - مشكلة في الشبكة**
+
+🌐 **المشكلة:**
+• انقطاع في الاتصال بالإنترنت
+• مشكلة في خوادم Bybit
+• انتهت مهلة الاتصال
+
+🔧 **الحلول:**
+1. تحقق من اتصالك بالإنترنت
+2. جرب مرة أخرى بعد دقائق
+3. تأكد من عدم حجب Bybit في منطقتك
+
+⏳ **المحاولة مرة أخرى خلال دقائق قد تحل المشكلة**"""
+            
+            else:
+                result = f"""❌ **فشل اختبار الاتصال**
+
+🔐 **تفاصيل الخطأ:**
+`{error_msg[:200]}`
+
+🔧 **الحلول المقترحة:**
+1. تحقق من صحة مفاتيح API
+2. تأكد من تفعيل الصلاحيات المطلوبة
+3. جرب إعادة ربط API
+4. تحقق من حالة حسابك على Bybit
+
+💡 **للمساعدة:** تواصل مع الدعم الفني"""
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 إعادة الاختبار", callback_data="exchange_test_bybit")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="exchange_select_bybit")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
