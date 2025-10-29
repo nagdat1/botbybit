@@ -446,41 +446,20 @@ class SignalExecutor:
                     'current_value': notional_value
                 }
             
-            # ضمان الحد الأدنى للكمية (تجنب رفض المنصة)
-            min_quantity = 0.0001  # الحد الأدنى المقبول
-            if qty < min_quantity:
-                logger.warning(f"⚠️ الكمية صغيرة جداً: {qty}, تم تعديلها إلى الحد الأدنى")
-                qty = min_quantity
+            # حساب الكمية بناءً على المبلغ والرافعة المحددين (بدون تقريب مسبق)
+            # سيتم التقريب فقط عند الضرورة إذا رفضت المنصة الكمية
+            logger.info(f"💰 حساب الكمية الأصلية:")
+            logger.info(f"   المبلغ: ${trade_amount}")
+            logger.info(f"   الرافعة: {leverage}x")
+            logger.info(f"   السعر: ${price}")
+            logger.info(f"   الكمية المحسوبة: {qty:.8f}")
             
-            # 🧠 دالة التقريب التلقائي المحسنة - تعمل مع جميع أنواع الصفقات
-            # تحسب أفضل كمية مقبولة من المنصة مع الحفاظ على المبلغ المالي المقصود
+            # لا نقوم بأي تقريب هنا - نرسل الكمية كما هي أولاً
+            rounded_qty = qty
             
-            rounded_qty = SignalExecutor._smart_quantity_rounding(qty, price, trade_amount, leverage, market_type, symbol)
-            
-            # إذا تم التعديل، نحسب المبلغ الفعلي بعد التقريب
-            logger.info(f"=" * 80)
-            logger.info(f"🧠 تقريب ذكي عالمي:")
-            logger.info(f"   الكمية الأصلية: {qty:.8f}")
-            logger.info(f"   الكمية بعد التقريب: {rounded_qty:.8f}")
-            
-            if abs(rounded_qty - qty) > 0.00000001:
-                # حساب المبلغ الفعلي بعد التقريب
-                if market_type == 'futures':
-                    effective_amount = (rounded_qty * price) / leverage
-                else:
-                    effective_amount = rounded_qty * price
-                
-                logger.info(f"   ✅ تم التقريب")
-                logger.info(f"   📊 المبلغ الأصلي: ${trade_amount}")
-                logger.info(f"   📊 المبلغ بعد التقريب: ${effective_amount:.2f}")
-                logger.info(f"   📊 نسبة التقريب: {(effective_amount/trade_amount)*100:.1f}%")
-                qty = rounded_qty
-            else:
-                # لا حاجة لتعديل - الكمية بالفعل مقربة بشكل صحيح
-                logger.info(f"   ⚠️ لا حاجة للتقريب - الكمية بالفعل صحيحة")
-                qty = rounded_qty
-            
-            logger.info(f"=" * 80)
+            # استخدام الكمية الأصلية بدون تقريب
+            qty = rounded_qty
+            logger.info(f"✅ سيتم إرسال الكمية الأصلية: {qty:.8f}")
             
             # تتبع إذا تم التقريب لإرسال رسالة للمستخدم
             original_qty = (trade_amount * leverage) / price if market_type == 'futures' else trade_amount / price
@@ -591,7 +570,43 @@ class SignalExecutor:
                 logger.error(f"❌ فشل تنفيذ أمر {side} {symbol} على Bybit")
                 logger.error(f"❌ النتيجة: {result}")
                 
-                # إرسال رسالة فشل للمستخدم
+                # التحقق إذا كان الفشل بسبب كمية غير صالحة - نحاول التقريب
+                if result and isinstance(result, dict) and 'error' in result:
+                    error_msg = result['error'].lower()
+                    if 'qty invalid' in error_msg or 'invalid quantity' in error_msg:
+                        logger.info(f"🔄 محاولة تصحيح الكمية والإعادة...")
+                        
+                        # تطبيق التقريب الذكي فقط الآن
+                        corrected_qty = SignalExecutor._smart_quantity_rounding(
+                            qty, price, trade_amount, leverage, market_type, symbol
+                        )
+                        
+                        if abs(corrected_qty - qty) > 0.00000001:
+                            logger.info(f"🔧 إعادة المحاولة بكمية مصححة: {corrected_qty:.8f}")
+                            
+                            # إعادة تنفيذ الصفقة بالكمية المصححة
+                            if category == 'spot':
+                                retry_result = await SignalExecutor._handle_spot_order(
+                                    account, signal_data, side, corrected_qty, price, market_type, user_id
+                                )
+                            else:
+                                retry_result = await SignalExecutor._handle_futures_order(
+                                    account, signal_data, side, corrected_qty, leverage, 
+                                    take_profit, stop_loss, market_type, user_id, True, trade_amount, price
+                                )
+                            
+                            # إذا نجحت المحاولة الثانية
+                            if retry_result and isinstance(retry_result, dict) and retry_result.get('order_id'):
+                                logger.info(f"✅ نجحت الصفقة بعد تصحيح الكمية!")
+                                
+                                # إضافة معلومات التصحيح
+                                retry_result['quantity_corrected'] = True
+                                retry_result['original_qty'] = qty
+                                retry_result['corrected_qty'] = corrected_qty
+                                
+                                return retry_result
+                
+                # إذا لم تنجح المحاولة أو لم تكن المشكلة في الكمية
                 try:
                     error_message = f'Failed to place order on Bybit - no valid order_id'
                     if result and isinstance(result, dict) and 'error' in result:
@@ -1192,14 +1207,14 @@ class SignalExecutor:
                 
                 logger.info(f"🔍 نتيجة تنفيذ الصفقة: {result}")
                 
-                # إذا تم تعديل الكمية، أضف رسالة للمستخدم
+                # إذا تم تعديل الكمية (في المحاولة الثانية)، أضف رسالة للمستخدم
                 if qty_was_adjusted and result and isinstance(result, dict) and result.get('order_id'):
                     effective_amount = (qty * price) / leverage
-                    logger.info(f"📢 تم تنفيذ الصفقة بالتقريب التلقائي")
-                    logger.info(f"   المبلغ الأصلي: ${trade_amount}")
+                    logger.info(f"📢 تم تنفيذ الصفقة بكمية مصححة")
+                    logger.info(f"   المبلغ المستهدف: ${trade_amount}")
                     logger.info(f"   المبلغ الفعلي: ${effective_amount:.2f}")
                     # سيتم إضافة هذه الرسالة في النتيجة
-                    result['adjustment_message'] = f'تم تنفيذ الصفقة بالتقريب التلقائي: ${trade_amount} → ${effective_amount:.2f}'
+                    result['adjustment_message'] = f'تم تصحيح الكمية لتتوافق مع متطلبات المنصة'
                 
                 # التحقق من وجود order_id
                 if result and isinstance(result, dict) and result.get('order_id'):
