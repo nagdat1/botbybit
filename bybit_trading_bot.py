@@ -3817,9 +3817,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not user_data:
         # مستخدم جديد - إنشاء حساب
+        logger.warning(f"🆕 إنشاء مستخدم جديد: {user_id}")
         try:
             user_manager.create_user(user_id)
             user_data = user_manager.get_user(user_id)
+            logger.info(f"✅ تم إنشاء المستخدم {user_id} بنجاح")
         except Exception as e:
             logger.error(f"خطأ في إنشاء المستخدم {user_id}: {e}")
             await update.message.reply_text(
@@ -8810,7 +8812,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # لا نغير أي شيء، فقط نعرض القائمة العادية
             user_data = user_manager.get_user(user_id)
             if not user_data:
+                logger.warning(f"🆕 إنشاء مستخدم جديد في وضع المطور: {user_id}")
                 user_manager.create_user(user_id)
+                logger.info(f"✅ تم إنشاء المستخدم {user_id} في وضع المطور")
             
             # عرض القائمة العادية مع زر مخفي للمطور للعودة لوضع المطور
             keyboard = [

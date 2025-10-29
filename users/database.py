@@ -235,6 +235,7 @@ class DatabaseManager:
     # إدارة المستخدمين
     def create_user(self, user_id: int, api_key: str = None, api_secret: str = None) -> bool:
         """إنشاء مستخدم جديد"""
+        logger.warning(f"🔍 محاولة إنشاء المستخدم {user_id}")
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
@@ -243,10 +244,11 @@ class DatabaseManager:
                 cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
                 existing = cursor.fetchone()
                 if existing:
-                    logger.info(f"المستخدم {user_id} موجود بالفعل")
+                    logger.warning(f"⚠️ المستخدم {user_id} موجود بالفعل في قاعدة البيانات")
                     return True  # نعتبرها نجاحاً لأن المستخدم موجود
                 
                 # إنشاء المستخدم الجديد
+                logger.warning(f"🆕 إنشاء مستخدم جديد في قاعدة البيانات: {user_id}")
                 cursor.execute("""
                     INSERT INTO users (user_id, api_key, api_secret)
                     VALUES (?, ?, ?)
