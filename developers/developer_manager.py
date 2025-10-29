@@ -271,6 +271,136 @@ class DeveloperManager:
         if dev_data:
             return dev_data.get('webhook_url')
         return None
+    
+    # دوال إدارة المستخدمين (للمطورين فقط)
+    def delete_user_data(self, developer_id: int, user_id: int) -> Dict[str, Any]:
+        """حذف بيانات مستخدم محدد (للمطورين فقط)"""
+        try:
+            # التحقق من صلاحية المطور
+            if not self.is_developer(developer_id):
+                return {
+                    'success': False,
+                    'message': 'ليس لديك صلاحيات مطور'
+                }
+            
+            if not self.is_developer_active(developer_id):
+                return {
+                    'success': False,
+                    'message': 'حساب المطور غير نشط'
+                }
+            
+            # حذف المستخدم من قاعدة البيانات
+            success = db_manager.delete_user(user_id)
+            
+            if success:
+                # إزالة من ذاكرة user_manager
+                from users.user_manager import user_manager
+                user_manager.remove_user_from_cache(user_id)
+                
+                logger.info(f"🗑️ المطور {developer_id} حذف المستخدم {user_id}")
+                return {
+                    'success': True,
+                    'message': f'تم حذف المستخدم {user_id} وجميع بياناته بنجاح'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': f'فشل حذف المستخدم {user_id} أو أنه غير موجود'
+                }
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في حذف المستخدم {user_id} بواسطة المطور {developer_id}: {e}")
+            return {
+                'success': False,
+                'message': f'خطأ: {str(e)}'
+            }
+    
+    def reset_user_data(self, developer_id: int, user_id: int) -> Dict[str, Any]:
+        """إعادة تعيين بيانات مستخدم محدد (للمطورين فقط)"""
+        try:
+            # التحقق من صلاحية المطور
+            if not self.is_developer(developer_id):
+                return {
+                    'success': False,
+                    'message': 'ليس لديك صلاحيات مطور'
+                }
+            
+            if not self.is_developer_active(developer_id):
+                return {
+                    'success': False,
+                    'message': 'حساب المطور غير نشط'
+                }
+            
+            # إعادة تعيين البيانات
+            success = db_manager.reset_user_data(user_id)
+            
+            if success:
+                # إعادة تحميل بيانات المستخدم في الذاكرة
+                from users.user_manager import user_manager
+                user_manager.reload_user_data(user_id)
+                
+                logger.info(f"🔄 المطور {developer_id} أعاد تعيين بيانات المستخدم {user_id}")
+                return {
+                    'success': True,
+                    'message': f'تم إعادة تعيين بيانات المستخدم {user_id} بنجاح'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': f'فشل إعادة تعيين بيانات المستخدم {user_id}'
+                }
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في إعادة تعيين المستخدم {user_id} بواسطة المطور {developer_id}: {e}")
+            return {
+                'success': False,
+                'message': f'خطأ: {str(e)}'
+            }
+    
+    def get_user_count(self, developer_id: int) -> int:
+        """الحصول على عدد المستخدمين (للمطورين فقط)"""
+        try:
+            # التحقق من صلاحية المطور
+            if not self.is_developer(developer_id):
+                return 0
+            
+            all_users = db_manager.get_all_active_users()
+            return len(all_users)
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على عدد المستخدمين: {e}")
+            return 0
+    
+    def list_all_users(self, developer_id: int) -> List[Dict]:
+        """الحصول على قائمة جميع المستخدمين (للمطورين فقط)"""
+        try:
+            # التحقق من صلاحية المطور
+            if not self.is_developer(developer_id):
+                return []
+            
+            if not self.is_developer_active(developer_id):
+                return []
+            
+            all_users = db_manager.get_all_active_users()
+            
+            # إرجاع معلومات مختصرة لكل مستخدم
+            users_list = []
+            for user in all_users:
+                users_list.append({
+                    'user_id': user.get('user_id'),
+                    'balance': user.get('balance', 0),
+                    'account_type': user.get('account_type', 'demo'),
+                    'market_type': user.get('market_type', 'spot'),
+                    'is_active': user.get('is_active', False),
+                    'created_at': user.get('created_at', ''),
+                    'total_loss': user.get('total_loss', 0)
+                })
+            
+            return users_list
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على قائمة المستخدمين: {e}")
+            return []
 
 # إنشاء مثيل عام لمدير المطورين
 developer_manager = DeveloperManager()

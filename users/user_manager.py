@@ -144,41 +144,50 @@ class UserManager:
             return False
     
     def get_user(self, user_id: int) -> Optional[Dict]:
-        """الحصول على بيانات المستخدم"""
+        """الحصول على بيانات المستخدم - استخدام الذاكرة أولاً"""
         # أولاً: محاولة الحصول من الذاكرة
-        user_data = self.users.get(user_id)
+        if user_id in self.users:
+            logger.debug(f"📦 جلب بيانات المستخدم {user_id} من الذاكرة")
+            return self.users[user_id]
         
         # إذا لم يكن في الذاكرة، جلبه من قاعدة البيانات
-        if not user_data:
-            try:
-                user_data = db_manager.get_user(user_id)
-                if user_data:
-                    # حفظه في الذاكرة للمرات القادمة
-                    self.users[user_id] = user_data
-                    logger.info(f"تم تحميل بيانات المستخدم {user_id} من قاعدة البيانات")
-            except Exception as e:
-                logger.error(f"خطأ في جلب بيانات المستخدم {user_id} من قاعدة البيانات: {e}")
-                return None
+        try:
+            user_data = db_manager.get_user(user_id)
+            if user_data:
+                # حفظه في الذاكرة للمرات القادمة
+                self.users[user_id] = user_data
+                logger.info(f"✅ تم تحميل بيانات المستخدم {user_id} من قاعدة البيانات")
+                return user_data
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب بيانات المستخدم {user_id} من قاعدة البيانات: {e}")
+            return None
         
-        # إذا كان في الذاكرة، تحديث القيم من قاعدة البيانات للتأكد من الحصول على أحدث البيانات
-        elif user_data:
-            try:
-                # جلب أحدث البيانات من قاعدة البيانات
-                fresh_data = db_manager.get_user(user_id)
-                if fresh_data:
-                    # تحديث القيم المهمة فقط (الإعدادات)
-                    user_data['trade_amount'] = fresh_data.get('trade_amount', user_data.get('trade_amount', 100.0))
-                    user_data['leverage'] = fresh_data.get('leverage', user_data.get('leverage', 10))
-                    user_data['market_type'] = fresh_data.get('market_type', user_data.get('market_type', 'spot'))
-                    user_data['account_type'] = fresh_data.get('account_type', user_data.get('account_type', 'demo'))
-                    user_data['is_active'] = fresh_data.get('is_active', user_data.get('is_active', False))
-                    
-                    # تحديث في الذاكرة
-                    self.users[user_id] = user_data
-            except Exception as e:
-                logger.debug(f"تعذر تحديث بيانات المستخدم {user_id} من قاعدة البيانات: {e}")
+        return None
+    
+    def reload_user_data(self, user_id: int) -> bool:
+        """إعادة تحميل بيانات المستخدم من قاعدة البيانات"""
+        try:
+            user_data = db_manager.get_user(user_id)
+            if user_data:
+                self.users[user_id] = user_data
+                logger.info(f"🔄 تم إعادة تحميل بيانات المستخدم {user_id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"❌ خطأ في إعادة تحميل بيانات المستخدم {user_id}: {e}")
+            return False
+    
+    def remove_user_from_cache(self, user_id: int):
+        """إزالة المستخدم من الذاكرة"""
+        if user_id in self.users:
+            del self.users[user_id]
+            logger.info(f"🗑️ تم إزالة المستخدم {user_id} من الذاكرة")
         
-        return user_data
+        if user_id in self.user_accounts:
+            del self.user_accounts[user_id]
+        
+        if user_id in self.user_positions:
+            del self.user_positions[user_id]
     
     def get_user_settings(self, user_id: int) -> Optional[Dict]:
         """الحصول على إعدادات المستخدم في صيغة settings dict"""

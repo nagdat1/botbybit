@@ -878,25 +878,50 @@ class SignalExecutor:
                 logger.info(f"✅ تم تنفيذ أمر Spot {side} {symbol} على Bybit بنجاح")
                 logger.info(f"📋 تفاصيل الأمر: {result}")
                 
-                if result and has_signal_id and signal_id:
-                    # حفظ في قاعدة البيانات كمحفظة
-                    position_data = {
-                        'signal_id': signal_id,
-                        'user_id': user_id,
-                        'symbol': symbol,
-                        'side': 'buy',
-                        'entry_price': price,
-                        'quantity': qty,
-                        'exchange': 'bybit',
-                        'market_type': 'spot',
-                        'order_id': result.get('order_id', ''),
-                        'status': 'OPEN',
-                        'notes': f'Spot portfolio - buy {qty} {symbol}'
-                    }
-                    
-                    from systems.enhanced_portfolio_manager import portfolio_factory
-                    portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
-                    portfolio_manager.add_position(position_data)
+                # حفظ صفقة السبوت في قاعدة البيانات - دائماً
+                if result and result.get('order_id'):
+                    try:
+                        from users.database import db_manager
+                        
+                        order_data = {
+                            'order_id': result.get('order_id', SignalExecutor._generate_random_id(symbol)),
+                            'user_id': user_id,
+                            'symbol': symbol,
+                            'side': side,
+                            'entry_price': price,
+                            'quantity': qty,
+                            'status': 'OPEN',
+                            'market_type': 'spot',
+                            'leverage': 1,
+                            'notes': f'Spot order - {side} {qty} {symbol}'
+                        }
+                        
+                        db_manager.create_order(order_data)
+                        logger.info(f"✅ تم حفظ صفقة سبوت في قاعدة البيانات")
+                        
+                        # إذا كان لديه signal_id، حفظه أيضاً في signal_positions
+                        if has_signal_id and signal_id:
+                            from systems.enhanced_portfolio_manager import portfolio_factory
+                            portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
+                            
+                            position_data = {
+                                'signal_id': signal_id,
+                                'user_id': user_id,
+                                'symbol': symbol,
+                                'side': 'buy',
+                                'entry_price': price,
+                                'quantity': qty,
+                                'exchange': 'bybit',
+                                'market_type': 'spot',
+                                'order_id': result.get('order_id', ''),
+                                'status': 'OPEN',
+                                'notes': f'Spot portfolio - buy {qty} {symbol}'
+                            }
+                            
+                            portfolio_manager.add_position(position_data)
+                            logger.info(f"✅ تم حفظ الصفقة في signal_positions أيضاً")
+                    except Exception as e:
+                        logger.error(f"❌ فشل حفظ صفقة سبوت: {e}")
                     
             else:  # sell
                 # بيع: تقليل كمية من المحفظة
@@ -1405,31 +1430,62 @@ class SignalExecutor:
                     'error_details': result if result else 'Empty result'
                 }
             
-            # حفظ الصفقة في قاعدة البيانات (اختياري - لا يؤثر على نجاح الصفقة)
-            if result and has_signal_id and result.get('order_id'):
-                logger.info(f"📝 محاولة حفظ الصفقة في قاعدة البيانات...")
+            # حفظ الصفقة في قاعدة البيانات - دائماً، حتى بدون signal_id
+            if result and result.get('order_id'):
+                logger.info(f"📝 حفظ صفقة الفيوتشر في قاعدة البيانات...")
                 try:
-                    from systems.enhanced_portfolio_manager import portfolio_factory
-                    portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
+                    from users.database import db_manager
                     
-                    position_data = {
-                        'signal_id': signal_id,
+                    # حساب margin amount للفيوتشر
+                    price = signal_data.get('price', 0)
+                    margin_amount = (qty * price) / leverage if leverage > 0 else 0
+                    
+                    order_data = {
+                        'order_id': result.get('order_id', SignalExecutor._generate_random_id(symbol)),
                         'user_id': user_id,
                         'symbol': symbol,
                         'side': side,
-                        'entry_price': signal_data.get('price', 0),
+                        'entry_price': price,
                         'quantity': qty,
-                        'exchange': 'bybit',
-                        'market_type': 'futures',
-                        'order_id': result.get('order_id', ''),
+                        'leverage': leverage,
                         'status': 'OPEN',
-                        'notes': f'Futures position - {side} {qty} {symbol} (ID: {signal_id})'
+                        'market_type': market_type,
+                        'margin_amount': margin_amount,
+                        'sl': stop_loss if stop_loss else 0.0,
+                        'tps': [take_profit] if take_profit else [],
+                        'notes': f'Futures order - {side} {qty} {symbol}'
                     }
                     
-                    portfolio_manager.add_position(position_data)
-                    logger.info(f"✅ تم حفظ الصفقة في نظام المحفظة المحسن")
-                except (ImportError, Exception) as e:
-                    logger.warning(f"⚠️ فشل حفظ الصفقة في النظام (لا يؤثر على الصفقة): {e}")
+                    db_manager.create_order(order_data)
+                    logger.info(f"✅ تم حفظ صفقة فيوتشر في قاعدة البيانات")
+                    
+                    # إذا كان لديه signal_id، حفظه أيضاً في signal_positions
+                    if has_signal_id and signal_id:
+                        try:
+                            from systems.enhanced_portfolio_manager import portfolio_factory
+                            portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
+                            
+                            position_data = {
+                                'signal_id': signal_id,
+                                'user_id': user_id,
+                                'symbol': symbol,
+                                'side': side,
+                                'entry_price': price,
+                                'quantity': qty,
+                                'exchange': 'bybit',
+                                'market_type': 'futures',
+                                'order_id': result.get('order_id', ''),
+                                'status': 'OPEN',
+                                'notes': f'Futures position - {side} {qty} {symbol} (ID: {signal_id})'
+                            }
+                            
+                            portfolio_manager.add_position(position_data)
+                            logger.info(f"✅ تم حفظ الصفقة في signal_positions أيضاً")
+                        except Exception as e:
+                            logger.warning(f"⚠️ فشل حفظ في signal_positions: {e}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ فشل حفظ الصفقة في قاعدة البيانات: {e}")
             
             # إرجاع النتيجة الناجحة (الصفقة تمت بنجاح على Bybit)
             return result

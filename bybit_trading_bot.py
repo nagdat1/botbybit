@@ -5754,72 +5754,29 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ خطأ في تحديد المستخدم")
             return
         
-        # استخدام مدير المحفظة المحسن
-        portfolio_manager = portfolio_factory.get_portfolio_manager(user_id)
+        # جلب الصفقات المفتوحة من قاعدة البيانات
+        open_orders = db_manager.get_user_orders(user_id, status='OPEN')
         
-        # 🔍 التحقق من نوع الحساب
-        user_settings = user_manager.get_user_settings(user_id) if user_id else None
-        account_type = user_settings.get('account_type', 'demo') if user_settings else 'demo'
-        market_type = user_settings.get('market_type', 'spot') if user_settings else 'spot'
+        logger.info(f"📊 تم جلب {len(open_orders)} صفقة مفتوحة من قاعدة البيانات")
         
-        logger.info(f"👤 المستخدم {user_id}: الحساب={account_type}, السوق={market_type}")
-        logger.info(f"🔍 DEBUG: user_settings = {user_settings}")
-        
-        # استخدام الدالة الموحدة لجمع جميع الصفقات
-        all_positions_list = portfolio_manager.get_all_user_positions_unified(account_type)
-        logger.info(f"🔍 DEBUG: all_positions_list = {all_positions_list}")
-        
-        # إضافة الصفقات مباشرة من user_manager.user_positions كإصلاح مؤقت
-        logger.info(f"🔍 DEBUG: جلب الصفقات مباشرة من user_manager.user_positions")
-        direct_positions = user_manager.user_positions.get(user_id, {})
-        logger.info(f"🔍 DEBUG: direct_positions = {direct_positions}")
-        
-        # تحويل القائمة إلى قاموس
+        # تحويل إلى الصيغة المطلوبة
         all_positions = {}
-        
-        # إضافة الصفقات من الدالة الموحدة
-        for position in all_positions_list:
-            position_id = position.get('order_id', f"pos_{position.get('symbol')}_{len(all_positions)}")
+        for order in open_orders:
+            position_id = order.get('order_id')
             all_positions[position_id] = {
-                'symbol': position.get('symbol'),
-                'entry_price': position.get('entry_price', 0),
-                'side': position.get('side', 'buy'),
-                'account_type': position.get('market_type', market_type),
-                'leverage': position.get('leverage', 1),
-                'exchange': position.get('exchange', 'bybit'),
-                'position_size': position.get('quantity', 0),
-                'current_price': position.get('current_price', position.get('entry_price', 0)),
-                'pnl_percent': position.get('pnl_percent', 0),
-                'is_real_position': position.get('is_real', False),
-                'source': position.get('source', 'unknown')
+                'symbol': order.get('symbol'),
+                'entry_price': order.get('entry_price', 0),
+                'side': order.get('side', 'buy'),
+                'account_type': order.get('market_type', 'spot'),
+                'leverage': order.get('leverage', 1),
+                'exchange': 'bybit',
+                'position_size': order.get('quantity', 0),
+                'current_price': order.get('entry_price', 0),
+                'pnl_percent': 0,
+                'is_real_position': True,
+                'margin_amount': order.get('margin_amount', 0),
+                'liquidation_price': order.get('liquidation_price', 0)
             }
-        
-        # إضافة الصفقات مباشرة من user_manager.user_positions
-        for position_id, position_info in direct_positions.items():
-            if position_id not in all_positions:
-                logger.info(f"🔍 DEBUG: إضافة صفقة مباشرة: {position_id} = {position_info}")
-                all_positions[position_id] = {
-                    'symbol': position_info.get('symbol'),
-                    'entry_price': position_info.get('entry_price', 0),
-                    'side': position_info.get('side', 'buy'),
-                    'account_type': position_info.get('account_type', market_type),
-                    'leverage': position_info.get('leverage', 1),
-                    'exchange': 'bybit',
-                    'position_size': position_info.get('amount', position_info.get('position_size', 0)),
-                    'current_price': position_info.get('current_price', position_info.get('entry_price', 0)),
-                    'pnl_percent': position_info.get('pnl_percent', 0),
-                    'is_real_position': False,
-                    'source': 'direct_memory'
-                }
-            
-            # إضافة معلومات إضافية للفيوتشر
-            if position_info.get('account_type') == 'futures':
-                all_positions[position_id]['liquidation_price'] = position_info.get('liquidation_price', 0)
-                all_positions[position_id]['margin_amount'] = position_info.get('margin_amount', 0)
-                all_positions[position_id]['contracts'] = position_info.get('contracts', 0)
-        
-        logger.info(f"📊 إجمالي الصفقات المعروضة: {len(all_positions)} صفقة")
-        logger.info(f"🔍 DEBUG: all_positions = {all_positions}")
         
         # تحديث الأسعار الحالية أولاً
         await trading_bot.update_open_positions_prices()
@@ -7223,56 +7180,38 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
             await update.callback_query.edit_message_text(f"❌ خطأ في إغلاق الصفقة: {e}")
 
 async def trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض تاريخ التداول مع تفاصيل محسنة للفيوتشر"""
+    """عرض تاريخ التداول من قاعدة البيانات"""
     try:
         user_id = update.effective_user.id
-        user_data = user_manager.get_user(user_id)
         
-        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
-        exchange = user_data.get('exchange', 'bybit') if user_data else 'bybit'
-        market_type = user_data.get('market_type', 'spot') if user_data else 'spot'
+        # جلب جميع الصفقات من قاعدة البيانات
+        all_orders = db_manager.get_user_orders(user_id)
         
+        # تحويل إلى صيغة التاريخ
         all_history = []
-        
-        # إذا كان حساب حقيقي، جلب التاريخ من المنصة
-        if account_type == 'real':
-            from api.bybit_api import real_account_manager
-            
-            real_account = real_account_manager.get_account(user_id)
-            
-            if real_account and hasattr(real_account, 'get_order_history'):
-                try:
-                    category = 'linear' if market_type == 'futures' else 'spot'
-                    orders = real_account.get_order_history(category, limit=20)
-                    
-                    # تحويل الأوامر إلى صيغة التاريخ
-                    for order in orders:
-                        if order.get('status') in ['Filled', 'PartiallyFilled']:
-                            all_history.append({
-                                'symbol': order.get('symbol'),
-                                'side': order.get('side'),
-                                'entry_price': order.get('avg_price', order.get('price', 0)),
-                                'closing_price': order.get('avg_price', order.get('price', 0)),
-                                'pnl': 0,  # يحتاج حساب من الصفقات المغلقة
-                                'market_type': market_type,
-                                'timestamp': datetime.fromtimestamp(int(order.get('created_time', 0)) / 1000) if order.get('created_time') else datetime.now(),
-                                'position_size': order.get('qty', 0),
-                                'is_real': True
-                            })
-                    
-                    logger.info(f"✅ تم جلب {len(all_history)} أمر من {exchange}")
-                except Exception as e:
-                    logger.error(f"❌ خطأ في جلب تاريخ الأوامر: {e}")
-        else:
-            # الحصول على تاريخ الصفقات من الحسابات التجريبية
-            spot_history = trading_bot.demo_account_spot.trade_history
-            futures_history = trading_bot.demo_account_futures.trade_history
-            
-            # دمج التاريخ
-            all_history = spot_history + futures_history
+        for order in all_orders:
+            all_history.append({
+                'symbol': order.get('symbol', 'N/A'),
+                'side': order.get('side', 'N/A'),
+                'entry_price': order.get('entry_price', 0),
+                'closing_price': order.get('closing_price', order.get('entry_price', 0)),
+                'pnl': order.get('pnl', 0),
+                'market_type': order.get('market_type', 'spot'),
+                'timestamp': order.get('open_time'),
+                'close_timestamp': order.get('close_time'),
+                'position_size': order.get('quantity', 0),
+                'leverage': order.get('leverage', 1),
+                'liquidation_price': order.get('liquidation_price', 0),
+                'margin_amount': order.get('margin_amount', 0),
+                'status': order.get('status', 'UNKNOWN'),
+                'order_id': order.get('order_id', '')
+            })
         
         # فرز حسب التاريخ (الأحدث أولاً)
-        all_history.sort(key=lambda x: x.get('close_timestamp', x.get('timestamp', datetime.min)), reverse=True)
+        all_history.sort(
+            key=lambda x: x.get('close_timestamp') if x.get('close_timestamp') else x.get('timestamp') if x.get('timestamp') else datetime.min,
+            reverse=True
+        )
         
         if not all_history:
             if update.message is not None:

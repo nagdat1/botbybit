@@ -192,6 +192,27 @@ class DatabaseManager:
                         else:
                             logger.error(f"خطأ في إضافة العمود {column_name}: {e}")
                 
+                # إضافة حقول جديدة لجدول orders
+                orders_columns_to_add = [
+                    ("market_type", "TEXT DEFAULT 'spot'"),
+                    ("leverage", "INTEGER DEFAULT 1"),
+                    ("margin_amount", "REAL DEFAULT 0.0"),
+                    ("liquidation_price", "REAL DEFAULT 0.0"),
+                    ("pnl", "REAL DEFAULT 0.0"),
+                    ("closing_price", "REAL DEFAULT 0.0")
+                ]
+                
+                for column_name, column_def in orders_columns_to_add:
+                    try:
+                        cursor.execute(f"ALTER TABLE orders ADD COLUMN {column_name} {column_def}")
+                        logger.info(f"تم إضافة العمود {column_name} لجدول orders")
+                    except Exception as e:
+                        # العمود موجود بالفعل
+                        if "duplicate column name" in str(e).lower():
+                            logger.debug(f"العمود {column_name} موجود بالفعل في orders")
+                        else:
+                            logger.error(f"خطأ في إضافة العمود {column_name} لـ orders: {e}")
+                
                 conn.commit()
                 logger.info("تم تحديث قاعدة البيانات بالحقول الجديدة")
                 
@@ -524,8 +545,9 @@ class DatabaseManager:
                 cursor.execute("""
                     INSERT INTO orders (
                         order_id, user_id, symbol, side, entry_price, quantity,
-                        tps, sl, partial_close, status, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        tps, sl, partial_close, status, notes, market_type, 
+                        leverage, margin_amount, liquidation_price
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     order_data['order_id'],
                     order_data['user_id'],
@@ -537,7 +559,11 @@ class DatabaseManager:
                     order_data.get('sl', 0.0),
                     json.dumps(order_data.get('partial_close', [])),
                     order_data.get('status', 'OPEN'),
-                    order_data.get('notes', '')
+                    order_data.get('notes', ''),
+                    order_data.get('market_type', 'spot'),
+                    order_data.get('leverage', 1),
+                    order_data.get('margin_amount', 0.0),
+                    order_data.get('liquidation_price', 0.0)
                 ))
                 
                 conn.commit()
@@ -648,7 +674,7 @@ class DatabaseManager:
             logger.error(f"خطأ في تحديث الصفقة {order_id}: {e}")
             return False
     
-    def close_order(self, order_id: str, close_price: float, pnl: float) -> bool:
+    def close_order(self, order_id: str, close_price: float = 0.0, pnl: float = 0.0) -> bool:
         """إغلاق صفقة"""
         try:
             with self.get_connection() as conn:
@@ -656,15 +682,36 @@ class DatabaseManager:
                 
                 cursor.execute("""
                     UPDATE orders 
-                    SET status = 'CLOSED', close_time = CURRENT_TIMESTAMP
+                    SET status = 'CLOSED', close_time = CURRENT_TIMESTAMP,
+                        closing_price = ?, pnl = ?
                     WHERE order_id = ?
-                """, (order_id,))
+                """, (close_price, pnl, order_id))
+                
+                conn.commit()
+                logger.info(f"✅ تم إغلاق الصفقة {order_id} - PnL: {pnl}")
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"خطأ في إغلاق الصفقة {order_id}: {e}")
+            return False
+    
+    def update_order_pnl(self, order_id: str, pnl: float, closing_price: float = 0.0) -> bool:
+        """تحديث ربح/خسارة الصفقة"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE orders 
+                    SET pnl = ?, closing_price = ?
+                    WHERE order_id = ?
+                """, (pnl, closing_price, order_id))
                 
                 conn.commit()
                 return cursor.rowcount > 0
                 
         except Exception as e:
-            logger.error(f"خطأ في إغلاق الصفقة {order_id}: {e}")
+            logger.error(f"خطأ في تحديث PnL للصفقة {order_id}: {e}")
             return False
     
     def get_all_active_users(self) -> List[Dict]:
@@ -1336,6 +1383,120 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على صفقة بالرمز: {e}")
             return None
+    
+    # دوال المطور - إدارة المستخدمين
+    def delete_user(self, user_id: int) -> bool:
+        """حذف مستخدم وجميع بياناته المرتبطة (للمطورين فقط)"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # حذف جميع البيانات المرتبطة بالمستخدم
+                # 1. حذف الصفقات
+                cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
+                orders_deleted = cursor.rowcount
+                
+                # 2. حذف الإعدادات
+                cursor.execute("DELETE FROM user_settings WHERE user_id = ?", (user_id,))
+                
+                # 3. حذف صفقات الإشارات
+                cursor.execute("DELETE FROM signal_positions WHERE user_id = ?", (user_id,))
+                signals_deleted = cursor.rowcount
+                
+                # 4. حذف المتابعات
+                cursor.execute("DELETE FROM developer_followers WHERE user_id = ?", (user_id,))
+                
+                # 5. حذف المستخدم نفسه
+                cursor.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+                user_deleted = cursor.rowcount
+                
+                conn.commit()
+                
+                if user_deleted > 0:
+                    logger.info(f"🗑️ تم حذف المستخدم {user_id} وجميع بياناته ({orders_deleted} صفقة، {signals_deleted} إشارة)")
+                    return True
+                else:
+                    logger.warning(f"⚠️ المستخدم {user_id} غير موجود")
+                    return False
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في حذف المستخدم {user_id}: {e}")
+            return False
+    
+    def reset_user_data(self, user_id: int) -> bool:
+        """إعادة تعيين بيانات المستخدم (للمطورين فقط)"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 1. حذف جميع الصفقات
+                cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
+                orders_deleted = cursor.rowcount
+                
+                # 2. حذف صفقات الإشارات
+                cursor.execute("DELETE FROM signal_positions WHERE user_id = ?", (user_id,))
+                signals_deleted = cursor.rowcount
+                
+                # 3. إعادة تعيين الرصيد والإحصائيات
+                cursor.execute("""
+                    UPDATE users 
+                    SET balance = 10000.0,
+                        daily_loss = 0.0,
+                        weekly_loss = 0.0,
+                        total_loss = 0.0,
+                        last_reset_date = NULL,
+                        last_reset_week = NULL,
+                        last_loss_update = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (user_id,))
+                
+                # 4. إعادة تعيين الإعدادات
+                cursor.execute("""
+                    UPDATE user_settings 
+                    SET market_type = 'spot',
+                        trade_amount = 100.0,
+                        leverage = 10,
+                        account_type = 'demo'
+                    WHERE user_id = ?
+                """, (user_id,))
+                
+                conn.commit()
+                logger.info(f"🔄 تم إعادة تعيين بيانات المستخدم {user_id} ({orders_deleted} صفقة، {signals_deleted} إشارة)")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في إعادة تعيين بيانات المستخدم {user_id}: {e}")
+            return False
+    
+    def delete_all_users(self) -> int:
+        """حذف جميع المستخدمين (خطير - للمطورين فقط)"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # عد المستخدمين قبل الحذف
+                cursor.execute("SELECT COUNT(*) FROM users")
+                user_count = cursor.fetchone()[0]
+                
+                if user_count == 0:
+                    logger.info("⚠️ لا يوجد مستخدمين للحذف")
+                    return 0
+                
+                # حذف جميع البيانات
+                cursor.execute("DELETE FROM orders")
+                cursor.execute("DELETE FROM signal_positions")
+                cursor.execute("DELETE FROM developer_followers")
+                cursor.execute("DELETE FROM user_settings")
+                cursor.execute("DELETE FROM users")
+                
+                conn.commit()
+                logger.warning(f"🗑️ تم حذف جميع المستخدمين ({user_count} مستخدم)")
+                return user_count
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في حذف جميع المستخدمين: {e}")
+            return 0
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()
