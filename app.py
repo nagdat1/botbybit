@@ -104,19 +104,62 @@ def webhook():
         if not data:
             return jsonify({"status": "error", "message": "No data received"}), 400
         
+        # استخدام النظام الجديد لمعالجة الإشارات
+        from signals.signal_converter import convert_simple_signal
+        from signals.signal_executor import signal_executor as sig_executor
+        from users.user_manager import user_manager
+        from config import ADMIN_USER_ID
+        
         # معالجة الإشارة في thread منفصل
         def process_signal_async():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(trading_bot.process_signal(data))
-            loop.close()
+            
+            try:
+                # استخدام المستخدم الافتراضي (ADMIN) للإشارات العامة
+                user_id = ADMIN_USER_ID
+                user_data = user_manager.get_user(user_id) if user_manager else None
+                
+                if not user_data:
+                    print(f"⚠️ المستخدم {user_id} غير موجود")
+                    return
+                
+                # تحويل الإشارة
+                user_settings = {
+                    'user_id': user_id,
+                    'market_type': user_data.get('market_type', 'spot'),
+                    'account_type': user_data.get('account_type', 'demo'),
+                    'trade_amount': user_data.get('trade_amount', 100.0),
+                    'leverage': user_data.get('leverage', 10),
+                    'exchange': user_data.get('exchange', 'bybit')
+                }
+                
+                converted_signal = convert_simple_signal(data, user_settings)
+                
+                if converted_signal:
+                    # تنفيذ الإشارة
+                    result = loop.run_until_complete(
+                        sig_executor.execute_signal(user_id, converted_signal, user_data)
+                    )
+                    print(f"✅ نتيجة تنفيذ الإشارة: {result}")
+                else:
+                    print(f"❌ فشل تحويل الإشارة")
+                    
+            except Exception as e:
+                print(f"❌ خطأ في معالجة الإشارة: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                loop.close()
         
         threading.Thread(target=process_signal_async, daemon=True).start()
         
-        return jsonify({"status": "success", "message": "Signal processed"}), 200
+        return jsonify({"status": "success", "message": "Signal processing started"}), 200
         
     except Exception as e:
         print(f"[WEBHOOK] Error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/personal/<int:user_id>/webhook', methods=['POST'])
@@ -173,29 +216,58 @@ def personal_webhook(user_id):
             asyncio.set_event_loop(loop)
             
             try:
-                # تطبيق إعدادات المستخدم
-                original_settings = trading_bot.user_settings.copy()
-                original_user_id = trading_bot.user_id
+                # استخدام النظام الجديد لمعالجة الإشارات
+                from signals.signal_converter import convert_simple_signal
+                from signals.signal_executor import signal_executor as sig_executor
                 
-                trading_bot.user_id = user_settings_copy['user_id']
-                trading_bot.user_settings['market_type'] = user_settings_copy['market_type']
-                trading_bot.user_settings['account_type'] = user_settings_copy['account_type']
-                trading_bot.user_settings['trade_amount'] = user_settings_copy['trade_amount']
-                trading_bot.user_settings['leverage'] = user_settings_copy['leverage']
+                # تحويل الإشارة مع إعدادات المستخدم
+                converted_signal = convert_simple_signal(data, user_settings_copy)
                 
-                # معالجة الإشارة
-                if NEW_SYSTEM_AVAILABLE:
-                    loop.run_until_complete(process_signal_integrated(data, user_settings_copy['user_id']))
-                elif ENHANCED_SYSTEM_AVAILABLE and enhanced_system:
-                    enhanced_system.process_signal(user_settings_copy['user_id'], data)
+                if converted_signal:
+                    print(f"✅ تم تحويل الإشارة: {converted_signal.get('action')} {converted_signal.get('symbol')}")
+                    
+                    # تنفيذ الإشارة
+                    result = loop.run_until_complete(
+                        sig_executor.execute_signal(user_id, converted_signal, user_data)
+                    )
+                    
+                    print(f"✅ نتيجة التنفيذ: {result}")
+                    
+                    # إرسال إشعار للمستخدم في Telegram
+                    if result.get('success'):
+                        message = f"""
+✅ تم تنفيذ إشارة بنجاح
+
+🎯 الإجراء: {converted_signal.get('action')}
+💎 الرمز: {converted_signal.get('symbol')}
+💰 المبلغ: {user_settings_copy.get('trade_amount')} USDT
+📊 نوع السوق: {user_settings_copy.get('market_type')}
+🏦 نوع الحساب: {user_settings_copy.get('account_type')}
+                        """
+                        
+                        # إرسال رسالة Telegram
+                        try:
+                            from config import TELEGRAM_TOKEN
+                            import requests
+                            
+                            telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+                            telegram_data = {
+                                'chat_id': user_id,
+                                'text': message,
+                                'parse_mode': 'Markdown'
+                            }
+                            requests.post(telegram_url, json=telegram_data, timeout=5)
+                        except Exception as e:
+                            print(f"⚠️ فشل إرسال إشعار Telegram: {e}")
+                    else:
+                        print(f"❌ فشل تنفيذ الإشارة: {result.get('message')}")
                 else:
-                    loop.run_until_complete(trading_bot.process_signal(data))
-                
-                # استعادة الإعدادات
-                trading_bot.user_settings.update(original_settings)
-                trading_bot.user_id = original_user_id
+                    print(f"❌ فشل تحويل الإشارة")
+                    
             except Exception as e:
-                print(f"❌ خطأ: {e}")
+                print(f"❌ خطأ في معالجة الإشارة: {e}")
+                import traceback
+                traceback.print_exc()
             finally:
                 loop.close()
         
