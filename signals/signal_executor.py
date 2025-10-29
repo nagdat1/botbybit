@@ -1131,102 +1131,131 @@ class SignalExecutor:
             # الخطوة 2: التقريب الأساسي
             rounded_qty = round(qty, decimal_places)
             
-            # الخطوة 3: التحقق من الحد الأدنى حسب الرمز
-            # متطلبات Bybit للحد الأدنى للكمية (محسنة ومحدثة)
-            min_qty_rules = {
-                # العملات الرئيسية
-                'BTCUSDT': 0.001,    # Bitcoin
-                'ETHUSDT': 0.01,     # Ethereum
-                'BNBUSDT': 0.01,     # BNB
-                'SOLUSDT': 0.01,     # Solana
-                'XRPUSDT': 1.0,      # Ripple
-                'ADAUSDT': 1.0,      # Cardano
-                'DOGEUSDT': 1.0,     # Dogecoin
-                'DOTUSDT': 0.1,      # Polkadot
-                'MATICUSDT': 1.0,    # Polygon
-                'AVAXUSDT': 0.01,    # Avalanche
-                'LINKUSDT': 0.01,    # Chainlink
-                'LTCUSDT': 0.01,     # Litecoin
-                'UNIUSDT': 0.1,      # Uniswap
-                'ATOMUSDT': 0.1,     # Cosmos
-                'FILUSDT': 0.1,      # Filecoin
-                'TRXUSDT': 10.0,     # Tron
-                'ETCUSDT': 0.1,      # Ethereum Classic
-                'XLMUSDT': 10.0,     # Stellar
-                'VETUSDT': 100.0,    # VeChain
-                'ICPUSDT': 0.1,      # Internet Computer
-                'THETAUSDT': 1.0,    # Theta
-                'FTMUSDT': 1.0,      # Fantom
-                'AXSUSDT': 0.1,      # Axie Infinity
-                'SANDUSDT': 1.0,     # The Sandbox
-                'MANAUSDT': 1.0,     # Decentraland
-                # العملات الناشئة (حدود أعلى)
-                'SHIBUSDT': 100000.0, # Shiba Inu
-                'PEPEUSDT': 1000000.0, # Pepe
-            }
+            # الخطوة 3: تحديد الحد الأدنى بناءً على المبلغ المالي المحدد للصفقة
+            # حساب القيمة المالية للكمية الحالية
+            current_notional_value = rounded_qty * price
             
-            # تحديد الحد الأدنى حسب الرمز
-            min_qty = min_qty_rules.get(symbol, 0.001)  # افتراضي 0.001
+            # تحديد الحد الأدنى للقيمة المالية (بناءً على المبلغ المحدد)
+            if trade_amount >= 1000:  # صفقات كبيرة
+                min_notional_value = 5.0  # حد أدنى $5
+                min_qty_step = 0.1
+            elif trade_amount >= 500:  # صفقات متوسطة كبيرة
+                min_notional_value = 2.0  # حد أدنى $2
+                min_qty_step = 0.05
+            elif trade_amount >= 100:  # صفقات متوسطة
+                min_notional_value = 1.0  # حد أدنى $1
+                min_qty_step = 0.01
+            elif trade_amount >= 50:   # صفقات صغيرة متوسطة
+                min_notional_value = 0.5  # حد أدنى $0.5
+                min_qty_step = 0.005
+            elif trade_amount >= 20:   # صفقات صغيرة
+                min_notional_value = 0.2  # حد أدنى $0.2
+                min_qty_step = 0.001
+            else:  # صفقات صغيرة جداً
+                min_notional_value = 0.1  # حد أدنى $0.1
+                min_qty_step = 0.0005
+            
+            # حساب الحد الأدنى للكمية بناءً على القيمة المالية
+            min_qty = min_notional_value / price
+            
+            logger.info(f"💰 تحديد الحد الأدنى بناءً على المبلغ:")
+            logger.info(f"   مبلغ الصفقة: ${trade_amount}")
+            logger.info(f"   الحد الأدنى للقيمة: ${min_notional_value}")
+            logger.info(f"   الحد الأدنى للكمية: {min_qty:.8f}")
+            logger.info(f"   القيمة الحالية: ${current_notional_value:.4f}")
             
             if rounded_qty < min_qty:
                 old_qty = rounded_qty
                 rounded_qty = min_qty
                 logger.info(f"⚠️ تم رفع الكمية للحد الأدنى: {old_qty:.8f} → {min_qty}")
             
-            # الخطوة 4: البحث عن أقرب قيمة صالحة متوافقة مع Bybit
-            # نجرب القيم القريبة (أعلى وأسفل) لإيجاد الأنسب
+            # الخطوة 4: البحث عن أقرب كمية تحقق المبلغ المطلوب
+            # نبحث عن كميات مختلفة تقترب من المبلغ المحدد
             candidates = []
             
             # القيمة المقربة الأساسية
             candidates.append(rounded_qty)
             
-            # قيم قريبة أعلى وأسفل مع مراعاة الحد الأدنى
-            for i in range(1, 6):  # نجرب 5 قيم في كل اتجاه
-                higher = rounded_qty + (step_size * i)
-                lower = rounded_qty - (step_size * i)
+            # إنشاء كميات مرشحة بناءً على المبلغ المحدد
+            # الهدف: العثور على كمية تعطي قيمة مالية قريبة من trade_amount
+            target_notional = trade_amount * leverage if market_type == 'futures' else trade_amount
+            
+            # حساب الكمية المثالية للمبلغ المحدد
+            ideal_qty_for_amount = target_notional / price
+            
+            # إضافة كميات مرشحة حول الكمية المثالية
+            for percentage in [0.95, 0.98, 1.0, 1.02, 1.05, 1.1]:
+                candidate_qty = ideal_qty_for_amount * percentage
+                if candidate_qty >= min_qty:
+                    candidates.append(candidate_qty)
+            
+            # إضافة كميات بناءً على خطوات صغيرة من الكمية الأصلية
+            for i in range(1, 6):
+                higher = rounded_qty + (min_qty_step * i)
+                lower = rounded_qty - (min_qty_step * i)
                 
-                # التأكد من أن القيم أكبر من الحد الأدنى
                 if lower >= min_qty:
                     candidates.append(lower)
                 candidates.append(higher)
             
-            # إضافة قيم مضاعفة للحد الأدنى (للتأكد من التوافق)
-            for multiplier in [1.0, 1.1, 1.2, 1.5, 2.0]:
-                candidate = min_qty * multiplier
-                if candidate not in candidates:
-                    candidates.append(candidate)
+            # إضافة كميات تحقق قيماً مالية محددة قريبة من المبلغ المطلوب
+            for target_value in [target_notional * 0.98, target_notional, target_notional * 1.02]:
+                candidate_qty = target_value / price
+                if candidate_qty >= min_qty:
+                    candidates.append(candidate_qty)
             
-            # الخطوة 5: اختيار أفضل قيمة بناءً على التأثير المالي
+            # الخطوة 5: اختيار أفضل كمية تحقق أقرب مبلغ للمبلغ المحدد
             best_qty = rounded_qty
-            min_financial_impact = float('inf')
+            min_amount_deviation = float('inf')
+            best_candidate_info = {}
             
-            target_notional = trade_amount * leverage if market_type == 'futures' else trade_amount
+            logger.info(f"🎯 البحث عن أفضل كمية للمبلغ المحدد: ${trade_amount}")
             
             for candidate in candidates:
                 if candidate <= 0:
                     continue
                 
-                # حساب القيمة المالية لهذه الكمية
+                # حساب المبلغ الفعلي لهذه الكمية
                 candidate_notional = candidate * price
                 if market_type == 'futures':
-                    candidate_amount = candidate_notional / leverage
+                    actual_amount = candidate_notional / leverage
                 else:
-                    candidate_amount = candidate_notional
+                    actual_amount = candidate_notional
                 
-                # حساب الانحراف عن المبلغ المطلوب
-                financial_impact = abs(candidate_amount - trade_amount)
+                # حساب الانحراف عن المبلغ المحدد
+                amount_deviation = abs(actual_amount - trade_amount)
+                deviation_percentage = (amount_deviation / trade_amount) * 100 if trade_amount > 0 else 0
                 
-                # اختيار الأقل انحرافاً
-                if financial_impact < min_financial_impact:
-                    min_financial_impact = financial_impact
+                # معايير اختيار أفضل كمية:
+                # 1. أقل انحراف عن المبلغ المحدد
+                # 2. ضمن حدود مقبولة (أقل من 10% انحراف)
+                if (amount_deviation < min_amount_deviation and 
+                    deviation_percentage <= 15):  # حد أقصى 15% انحراف
+                    
+                    min_amount_deviation = amount_deviation
                     best_qty = candidate
+                    best_candidate_info = {
+                        'quantity': candidate,
+                        'actual_amount': actual_amount,
+                        'target_amount': trade_amount,
+                        'deviation': amount_deviation,
+                        'deviation_percentage': deviation_percentage
+                    }
+            
+            # تسجيل تفاصيل الاختيار
+            if best_candidate_info:
+                logger.info(f"✅ أفضل كمية محددة:")
+                logger.info(f"   الكمية: {best_candidate_info['quantity']:.8f}")
+                logger.info(f"   المبلغ المستهدف: ${best_candidate_info['target_amount']:.2f}")
+                logger.info(f"   المبلغ الفعلي: ${best_candidate_info['actual_amount']:.2f}")
+                logger.info(f"   الانحراف: ${best_candidate_info['deviation']:.2f} ({best_candidate_info['deviation_percentage']:.2f}%)")
             
             # الخطوة 6: تسجيل تفاصيل التعديل (مستوحى من الملفات المرفقة)
             adjustment_details = SignalExecutor._log_quantity_adjustment_details(
                 original_qty, best_qty, trade_amount, symbol, market_type, leverage
             )
             
-            # الخطوة 7: التحقق النهائي والتقرير
+            # الخطوة 7: التحقق النهائي والتقرير المالي
             if abs(best_qty - original_qty) > 0.00000001:
                 # حساب التأثير المالي الفعلي
                 if market_type == 'futures':
@@ -1234,26 +1263,28 @@ class SignalExecutor:
                 else:
                     effective_amount = best_qty * price
                 
-                impact_percentage = ((effective_amount - trade_amount) / trade_amount) * 100
+                amount_deviation = effective_amount - trade_amount
+                impact_percentage = (amount_deviation / trade_amount) * 100 if trade_amount > 0 else 0
                 
-                logger.info(f"🧠 التقريب الذكي المحسن:")
+                logger.info(f"🧠 التقريب الذكي المحسن (مبني على المبلغ):")
                 logger.info(f"   الكمية الأصلية: {original_qty:.8f}")
                 logger.info(f"   الكمية المحسنة: {best_qty:.8f}")
-                logger.info(f"   المبلغ الأصلي: ${trade_amount:.2f}")
+                logger.info(f"   المبلغ المستهدف: ${trade_amount:.2f}")
                 logger.info(f"   المبلغ الفعلي: ${effective_amount:.2f}")
-                logger.info(f"   التأثير المالي: {impact_percentage:+.2f}%")
+                logger.info(f"   انحراف المبلغ: ${amount_deviation:+.2f} ({impact_percentage:+.2f}%)")
                 
-                # نظام تحذيرات ذكي (مستوحى من الملفات المرفقة)
-                if abs(impact_percentage) > 20:
-                    logger.error(f"🚨 تأثير مالي خطير: {impact_percentage:+.2f}% - يتطلب مراجعة!")
-                elif abs(impact_percentage) > 10:
-                    logger.warning(f"⚠️ تأثير مالي كبير: {impact_percentage:+.2f}% - انتبه!")
-                elif abs(impact_percentage) > 5:
-                    logger.warning(f"⚠️ تأثير مالي ملحوظ: {impact_percentage:+.2f}%")
+                # نظام تحذيرات مبني على انحراف المبلغ
+                abs_deviation = abs(amount_deviation)
+                if abs_deviation > trade_amount * 0.2:  # أكثر من 20% من المبلغ
+                    logger.error(f"🚨 انحراف مالي خطير: ${abs_deviation:.2f} - يتطلب مراجعة!")
+                elif abs_deviation > trade_amount * 0.1:  # أكثر من 10% من المبلغ
+                    logger.warning(f"⚠️ انحراف مالي كبير: ${abs_deviation:.2f} - انتبه!")
+                elif abs_deviation > trade_amount * 0.05:  # أكثر من 5% من المبلغ
+                    logger.warning(f"⚠️ انحراف مالي ملحوظ: ${abs_deviation:.2f}")
                 else:
-                    logger.info(f"✅ تأثير مالي مقبول: {impact_percentage:+.2f}%")
+                    logger.info(f"✅ انحراف مالي مقبول: ${abs_deviation:.2f}")
             else:
-                logger.info(f"✅ الكمية مثالية بالفعل: {best_qty:.8f}")
+                logger.info(f"✅ الكمية مثالية للمبلغ المحدد: {best_qty:.8f}")
             
             return best_qty
             
