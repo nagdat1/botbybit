@@ -715,6 +715,12 @@ class SignalExecutor:
                     logger.error(f"❌ خطأ في إغلاق صفقة مرتبطة بالـ ID: {e}")
             
             if closed_count > 0:
+                # إرسال إشعار نجاح الإغلاق
+                try:
+                    await SignalExecutor._send_close_notification(user_id, signal_id, symbol, closed_count, 'full')
+                except Exception as e:
+                    logger.error(f"❌ فشل إرسال إشعار الإغلاق: {e}")
+                
                 return {
                     'success': True,
                     'message': f'Closed {closed_count} positions for signal ID: {signal_id}',
@@ -799,6 +805,12 @@ class SignalExecutor:
                     logger.error(f"❌ خطأ في الإغلاق الجزئي لصفقة مرتبطة بالـ ID: {e}")
             
             if closed_count > 0:
+                # إرسال إشعار نجاح الإغلاق الجزئي
+                try:
+                    await SignalExecutor._send_close_notification(user_id, signal_id, symbol, closed_count, 'partial', percentage)
+                except Exception as e:
+                    logger.error(f"❌ فشل إرسال إشعار الإغلاق الجزئي: {e}")
+                
                 return {
                     'success': True,
                     'message': f'Partial close {percentage}% of {closed_count} positions for signal ID: {signal_id}',
@@ -1578,6 +1590,50 @@ class SignalExecutor:
             
         except Exception as e:
             logger.error(f"❌ فشل إرسال إشعار الخطأ للمستخدم {user_id}: {e}")
+
+    @staticmethod
+    async def _send_close_notification(user_id: int, signal_id: str, symbol: str, 
+                                     closed_count: int, close_type: str, percentage: float = None):
+        """إرسال إشعار نجاح الإغلاق"""
+        try:
+            from telegram.ext import Application
+            from config import TELEGRAM_TOKEN
+            
+            # تحديد نوع الإغلاق
+            if close_type == 'partial':
+                close_text = f"إغلاق جزئي {percentage}%"
+                action_emoji = "🟡"
+            else:
+                close_text = "إغلاق كامل"
+                action_emoji = "🔴"
+            
+            # إنشاء رسالة الإشعار
+            notification_text = f"""
+{action_emoji} **تم تنفيذ {close_text} بنجاح!**
+
+📊 **تفاصيل العملية:**
+• الرمز: {symbol}
+• Signal ID: {signal_id}
+• عدد الصفقات: {closed_count}
+• نوع الإغلاق: {close_text}
+
+✅ **حالة التنفيذ:** نجح
+🕐 **الوقت:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+💡 تم تنفيذ العملية على حسابك الحقيقي في Bybit""".strip()
+            
+            # إرسال الإشعار
+            application = Application.builder().token(TELEGRAM_TOKEN).build()
+            await application.bot.send_message(
+                chat_id=user_id,
+                text=notification_text,
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"✅ تم إرسال إشعار {close_type} للمستخدم {user_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ فشل إرسال إشعار الإغلاق للمستخدم {user_id}: {e}")
 
 
 # مثيل عام

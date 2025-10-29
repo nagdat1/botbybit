@@ -448,8 +448,12 @@ class BybitRealAccount:
             if not position:
                 return None
             
-            # عكس الجهة للإغلاق
-            close_side = side if side else ('Sell' if position['side'].lower() == 'buy' else 'Buy')
+            # عكس الجهة للإغلاق (مهم جداً!)
+            if side:
+                close_side = side
+            else:
+                # إغلاق صفقة Buy بـ Sell والعكس
+                close_side = 'Sell' if position['side'].lower() == 'buy' else 'Buy'
             
             return self.place_order(
                 category=category,
