@@ -104,7 +104,15 @@ class BybitRealAccount:
                 result = response.json()
                 if result.get('retCode') == 0:
                     logger.debug(f"✅ نجح الطلب: {endpoint}")
-                    return result.get('result')
+                    
+                    # للأوامر، نحتاج الاستجابة الكاملة لأن orderId قد يكون في result أو في المستوى الأعلى
+                    if endpoint == '/v5/order/create':
+                        # إرجاع الاستجابة الكاملة للأوامر
+                        logger.debug(f"📋 استجابة كاملة للأمر: {result}")
+                        return result
+                    else:
+                        # للطلبات الأخرى، إرجاع result فقط
+                        return result.get('result')
                 else:
                     logger.error(f"❌ خطأ من Bybit API: {result.get('retMsg')}")
                     logger.error(f"   retCode: {result.get('retCode')}")
@@ -292,21 +300,56 @@ class BybitRealAccount:
         
         if result:
             logger.info(f"🔍 نتيجة place_order من Bybit: {result}")
-            order_id = result.get('orderId')
+            
+            # البحث عن orderId في مستويات مختلفة من الاستجابة
+            order_id = None
+            order_link_id = None
+            
+            # البحث في المستوى الأعلى
+            if 'orderId' in result:
+                order_id = result['orderId']
+                order_link_id = result.get('orderLinkId')
+            # البحث في result إذا كان موجود
+            elif 'result' in result and isinstance(result['result'], dict):
+                inner_result = result['result']
+                order_id = inner_result.get('orderId')
+                order_link_id = inner_result.get('orderLinkId')
+            
             if order_id:
+                logger.info(f"✅ تم الحصول على orderId: {order_id}")
                 return {
                     'order_id': order_id,
-                    'order_link_id': result.get('orderLinkId'),
+                    'order_link_id': order_link_id,
                     'symbol': symbol,
                     'side': side,
                     'type': order_type,
                     'qty': qty,
-                    'price': price
+                    'price': price,
+                    'bybit_response': result  # للتشخيص
                 }
             else:
-                logger.error(f"❌ لا يوجد orderId في نتيجة Bybit: {result}")
-                return {'error': 'No orderId in result', 'details': result}
+                # تحليل مفصل لسبب عدم وجود orderId
+                logger.error(f"❌ لا يوجد orderId في نتيجة Bybit")
+                logger.error(f"📋 النتيجة الكاملة: {result}")
+                
+                # البحث عن أسباب محتملة
+                error_details = []
+                if 'retCode' in result:
+                    error_details.append(f"retCode: {result['retCode']}")
+                if 'retMsg' in result:
+                    error_details.append(f"retMsg: {result['retMsg']}")
+                if 'result' in result:
+                    error_details.append(f"result: {result['result']}")
+                
+                error_summary = "; ".join(error_details) if error_details else "Unknown reason"
+                
+                return {
+                    'error': f'No orderId in Bybit response - {error_summary}',
+                    'details': result,
+                    'bybit_response': result
+                }
         
+        logger.error(f"❌ استجابة فارغة من Bybit")
         return {'error': 'Empty result from Bybit'}
     
     def set_leverage(self, category: str, symbol: str, leverage: int) -> bool:

@@ -573,13 +573,19 @@ class SignalExecutor:
                 # التحقق إذا كان الفشل بسبب كمية غير صالحة - نحاول التقريب
                 if result and isinstance(result, dict) and 'error' in result:
                     error_msg = result['error'].lower()
-                    if 'qty invalid' in error_msg or 'invalid quantity' in error_msg:
+                    if ('qty invalid' in error_msg or 
+                        'invalid quantity' in error_msg or 
+                        'الكمية غير صحيحة' in error_msg or
+                        'كمية غير صالحة' in error_msg):
                         logger.info(f"🔄 محاولة تصحيح الكمية والإعادة...")
+                        logger.info(f"   الكمية الأصلية: {qty:.8f}")
+                        logger.info(f"   السبب: {result['error']}")
                         
                         # تطبيق التقريب الذكي فقط الآن
                         corrected_qty = SignalExecutor._smart_quantity_rounding(
                             qty, price, trade_amount, leverage, market_type, symbol
                         )
+                        logger.info(f"   الكمية المصححة: {corrected_qty:.8f}")
                         
                         if abs(corrected_qty - qty) > 0.00000001:
                             logger.info(f"🔧 إعادة المحاولة بكمية مصححة: {corrected_qty:.8f}")
@@ -605,6 +611,11 @@ class SignalExecutor:
                                 retry_result['corrected_qty'] = corrected_qty
                                 
                                 return retry_result
+                            else:
+                                logger.error(f"❌ فشلت المحاولة الثانية أيضاً")
+                                logger.error(f"   نتيجة المحاولة الثانية: {retry_result}")
+                        else:
+                            logger.warning(f"⚠️ الكمية المصححة مطابقة للأصلية - لا حاجة لإعادة المحاولة")
                 
                 # إذا لم تنجح المحاولة أو لم تكن المشكلة في الكمية
                 try:
