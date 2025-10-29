@@ -7,7 +7,7 @@
 import logging
 from typing import Dict, Optional
 from api.bybit_api import real_account_manager
-from . import signal_position_manager
+from signals import signal_position_manager
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +103,7 @@ class SignalExecutor:
                 }
             
             # تحويل الإشارة إذا كانت بالتنسيق الجديد
-            from . import signal_converter
-            convert_simple_signal = signal_converter.convert_simple_signal
+            from signals.signal_converter import convert_simple_signal
             
             # التحقق من نوع الإشارة (جديدة أو قديمة)
             if 'signal' in signal_data and 'action' not in signal_data:
@@ -594,6 +593,7 @@ class SignalExecutor:
                             'notes': f'Created from signal {signal_id}'
                         }
                         
+                        from signals.signal_position_manager import signal_position_manager
                         signal_position_manager.create_position(
                             signal_id=signal_id,
                             user_id=user_id,
@@ -1040,6 +1040,7 @@ class SignalExecutor:
                 logger.info(f"=" * 80)
                 
                 # تنفيذ الصفقة مرة واحدة بالكمية المعدلة
+                logger.info(f"📤 وضع أمر على Bybit: {side} {symbol} - كمية: {qty}")
                 result = account.place_order(
                     category='linear',
                     symbol=symbol,

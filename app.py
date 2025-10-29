@@ -121,7 +121,7 @@ def webhook():
                 user_data = user_manager.get_user(user_id) if user_manager else None
                 
                 if not user_data:
-                    print(f"⚠️ المستخدم {user_id} غير موجود")
+                    print(f"WARNING المستخدم {user_id} غير موجود")
                     return
                 
                 # تحويل الإشارة
@@ -141,12 +141,12 @@ def webhook():
                     result = loop.run_until_complete(
                         sig_executor.execute_signal(user_id, converted_signal, user_data)
                     )
-                    print(f"✅ نتيجة تنفيذ الإشارة: {result}")
+                    print(f"OK نتيجة تنفيذ الإشارة: {result}")
                 else:
-                    print(f"❌ فشل تحويل الإشارة")
+                    print(f"ERROR فشل تحويل الإشارة")
                     
             except Exception as e:
-                print(f"❌ خطأ في معالجة الإشارة: {e}")
+                print(f"ERROR خطأ في معالجة الإشارة: {e}")
                 import traceback
                 traceback.print_exc()
             finally:
@@ -167,12 +167,12 @@ def personal_webhook(user_id):
     """استقبال إشارات TradingView الشخصية لكل مستخدم"""
     try:
         print(f"\n{'='*60}")
-        print(f"🔔 [WEBHOOK شخصي] استقبال طلب جديد")
-        print(f"👤 المستخدم: {user_id}")
-        print(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[WEBHOOK شخصي] استقبال طلب جديد")
+        print(f"المستخدم: {user_id}")
+        print(f"الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         data = request.get_json()
-        print(f"📊 البيانات المستلمة: {data}")
+        print(f"البيانات المستلمة: {data}")
         
         if not data:
             return jsonify({"status": "error", "message": "No data received"}), 400
@@ -182,6 +182,7 @@ def personal_webhook(user_id):
         from users.database import db_manager
         
         if user_manager is None:
+            print("ERROR: User manager not initialized")
             return jsonify({"status": "error", "message": "User manager not initialized"}), 500
         
         # التحقق من وجود المستخدم
@@ -224,25 +225,25 @@ def personal_webhook(user_id):
                 converted_signal = convert_simple_signal(data, user_settings_copy)
                 
                 if converted_signal:
-                    print(f"✅ تم تحويل الإشارة: {converted_signal.get('action')} {converted_signal.get('symbol')}")
+                    print(f"OK تم تحويل الإشارة: {converted_signal.get('action')} {converted_signal.get('symbol')}")
                     
                     # تنفيذ الإشارة
                     result = loop.run_until_complete(
                         sig_executor.execute_signal(user_id, converted_signal, user_data)
                     )
                     
-                    print(f"✅ نتيجة التنفيذ: {result}")
+                    print(f"OK نتيجة التنفيذ: {result}")
                     
                     # إرسال إشعار للمستخدم في Telegram
                     if result.get('success'):
                         message = f"""
-✅ تم تنفيذ إشارة بنجاح
+تم تنفيذ اشارة بنجاح
 
-🎯 الإجراء: {converted_signal.get('action')}
-💎 الرمز: {converted_signal.get('symbol')}
-💰 المبلغ: {user_settings_copy.get('trade_amount')} USDT
-📊 نوع السوق: {user_settings_copy.get('market_type')}
-🏦 نوع الحساب: {user_settings_copy.get('account_type')}
+الاجراء: {converted_signal.get('action')}
+الرمز: {converted_signal.get('symbol')}
+المبلغ: {user_settings_copy.get('trade_amount')} USDT
+نوع السوق: {user_settings_copy.get('market_type')}
+نوع الحساب: {user_settings_copy.get('account_type')}
                         """
                         
                         # إرسال رسالة Telegram
@@ -258,11 +259,11 @@ def personal_webhook(user_id):
                             }
                             requests.post(telegram_url, json=telegram_data, timeout=5)
                         except Exception as e:
-                            print(f"⚠️ فشل إرسال إشعار Telegram: {e}")
+                            print(f"WARNING فشل إرسال اشعار Telegram: {e}")
                     else:
-                        print(f"❌ فشل تنفيذ الإشارة: {result.get('message')}")
+                        print(f"ERROR فشل تنفيذ الإشارة: {result.get('message')}")
                 else:
-                    print(f"❌ فشل تحويل الإشارة")
+                    print(f"ERROR فشل تحويل الإشارة")
                     
             except Exception as e:
                 print(f"❌ خطأ في معالجة الإشارة: {e}")
@@ -280,7 +281,7 @@ def personal_webhook(user_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ خطأ: {e}")
+        print(f"ERROR خطأ: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -292,19 +293,19 @@ def setup_telegram_bot():
     # تهيئة النظام المحسن إذا كان متاحاً
     if ENHANCED_SYSTEM_AVAILABLE:
         try:
-            print("🚀 تهيئة النظام المحسن الكامل...")
+            print("تهيئة النظام المحسن الكامل...")
             enhanced_system = IntegratedTradingSystem()
-            print("✅ تم تهيئة النظام المحسن")
+            print("OK تم تهيئة النظام المحسن")
         except Exception as e:
             try:
-                print("🚀 تهيئة النظام المحسن المبسط...")
+                print("تهيئة النظام المحسن المبسط...")
                 enhanced_system = SimpleEnhancedSystem()
-                print("✅ تم تهيئة النظام المحسن")
+                print("OK تم تهيئة النظام المحسن")
             except Exception as e2:
-                print(f"⚠️ فشل في تهيئة النظام المحسن: {e2}")
+                print(f"WARNING فشل في تهيئة النظام المحسن: {e2}")
                 enhanced_system = None
     else:
-        print("📝 استخدام النظام العادي")
+        print("استخدام النظام العادي")
     
     # إعداد Telegram bot
     from telegram.ext import Application
@@ -328,9 +329,9 @@ def setup_telegram_bot():
     try:
         from api.exchange_commands import register_exchange_handlers
         register_exchange_handlers(application)
-        print("✅ تم تسجيل معالجات أوامر المنصات")
+        print("OK تم تسجيل معالجات أوامر المنصات")
     except Exception as e:
-        print(f"⚠️ خطأ: {e}")
+        print(f"WARNING خطأ: {e}")
     
     return application
 
@@ -346,7 +347,7 @@ def send_telegram_notification(title, message_text):
                     application = Application.builder().token(TELEGRAM_TOKEN).build()
                     await application.bot.send_message(chat_id=ADMIN_USER_ID, text=message_text)
                 except Exception as e:
-                    print(f"❌ خطأ في إرسال الرسالة: {e}")
+                    print(f"ERROR خطأ في إرسال الرسالة: {e}")
             
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -355,7 +356,7 @@ def send_telegram_notification(title, message_text):
         
         threading.Thread(target=run_send, daemon=True).start()
     except Exception as e:
-        print(f"❌ خطأ: {e}")
+        print(f"ERROR خطأ: {e}")
 
 def run_flask_in_thread():
     """تشغيل Flask في thread منفصل"""
@@ -387,7 +388,7 @@ if __name__ == "__main__":
     
     # إعداد وإعداد البوت
     bot_application = setup_telegram_bot()
-    print("✅ تم إعداد البوت")
+    print("OK تم إعداد البوت")
     
     # تشغيل Flask في thread منفصل
     flask_thread = threading.Thread(target=run_flask_in_thread, daemon=True)
