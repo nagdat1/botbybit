@@ -54,9 +54,12 @@ class UserManager:
         """تحميل جميع المستخدمين من قاعدة البيانات"""
         try:
             users_data = db_manager.get_all_active_users()
+            logger.info(f"🔍 جلب {len(users_data)} مستخدم من قاعدة البيانات")
             
             for user_data in users_data:
                 user_id = user_data['user_id']
+                logger.info(f"📊 تحميل المستخدم {user_id}: trade_amount={user_data.get('trade_amount')}, market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
+                
                 self.users[user_id] = user_data
                 
                 # إنشاء حسابات تجريبية للمستخدم
@@ -66,7 +69,7 @@ class UserManager:
                 if user_data.get('api_key') and user_data.get('api_secret'):
                     self._create_user_api(user_id, user_data['api_key'], user_data['api_secret'])
             
-            logger.info(f"تم تحميل {len(self.users)} مستخدم")
+            logger.warning(f"🔄 تم تحميل {len(self.users)} مستخدم في الذاكرة")
             
         except Exception as e:
             logger.error(f"خطأ في تحميل المستخدمين: {e}")

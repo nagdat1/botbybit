@@ -1489,7 +1489,36 @@ class DatabaseManager:
             self.init_database()
             logger.info("✅ تم إعادة إنشاء قاعدة البيانات بنجاح")
             
-            # 4. 🚫 لا نعيد إنشاء المستخدمين! قاعدة البيانات جديدة تماماً
+            # 4. التحقق من أن قاعدة البيانات فارغة فعلاً
+            try:
+                with self.get_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    # فحص عدد المستخدمين بعد إعادة الإنشاء
+                    cursor.execute("SELECT COUNT(*) FROM users")
+                    remaining_users = cursor.fetchone()[0]
+                    
+                    cursor.execute("SELECT COUNT(*) FROM user_settings")
+                    remaining_settings = cursor.fetchone()[0]
+                    
+                    cursor.execute("SELECT COUNT(*) FROM orders")
+                    remaining_orders = cursor.fetchone()[0]
+                    
+                    logger.warning(f"🔍 فحص قاعدة البيانات بعد إعادة الإنشاء:")
+                    logger.warning(f"   - المستخدمين: {remaining_users}")
+                    logger.warning(f"   - الإعدادات: {remaining_settings}")
+                    logger.warning(f"   - الصفقات: {remaining_orders}")
+                    
+                    if remaining_users > 0 or remaining_settings > 0 or remaining_orders > 0:
+                        logger.error(f"❌ قاعدة البيانات ليست فارغة! مازالت تحتوي على بيانات")
+                        return 0
+                    else:
+                        logger.info(f"✅ قاعدة البيانات فارغة تماماً")
+                        
+            except Exception as e:
+                logger.error(f"❌ خطأ في فحص قاعدة البيانات: {e}")
+            
+            # 5. 🚫 لا نعيد إنشاء المستخدمين! قاعدة البيانات جديدة تماماً
             logger.warning(f"🔄 تم إعادة تعيين المشروع بالكامل: حذفت {user_count} مستخدم، قاعدة البيانات أعيدت من الصفر")
             return user_count
                 
