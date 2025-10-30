@@ -56,6 +56,8 @@ Thumbs.db
 # ملفات مؤقتة
 *.tmp
 *.temp
+FORCE_RESET.flag
+.last_reset
 
 # ملفات النسخ الاحتياطي
 *.backup

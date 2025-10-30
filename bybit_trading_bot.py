@@ -3589,10 +3589,9 @@ async def show_developer_panel(update: Update, context: ContextTypes.DEFAULT_TYP
     # إنشاء الأزرار
     keyboard = [
         [KeyboardButton("📡 إرسال إشارة"), KeyboardButton("👥 المتابعين")],
-        [KeyboardButton("📊 إحصائيات المطور"), KeyboardButton("👥 إدارة المستخدمين")],
-        [KeyboardButton("🗑️ حذف بيانات مستخدم"), KeyboardButton("📱 إشعار جماعي")],
-        [KeyboardButton("⚠️ إعادة تعيين كل المشروع"), KeyboardButton("⚙️ إعدادات المطور")],
-        [KeyboardButton("🔄 تحديث"), KeyboardButton("👤 الوضع العادي")]
+        [KeyboardButton("👥 إدارة المستخدمين"), KeyboardButton("📱 إشعار جماعي")],
+        [KeyboardButton("🗑️ حذف بيانات مستخدم"), KeyboardButton("⚙️ إعدادات المطور")],
+        [KeyboardButton("⚠️ إعادة تعيين كل المشروع"), KeyboardButton("👤 الوضع العادي")]
     ]
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
