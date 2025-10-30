@@ -6273,6 +6273,20 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # جلب بيانات المستخدم
         user_data = db_manager.get_user(user_id)
         if not user_data:
+            # إذا لم يكن لدى المستخدم حساب، ننشئه تلقائياً ثم نكمل (مثل settings_menu)
+            try:
+                user_manager.create_user(user_id)
+                user_data = user_manager.get_user(user_id)
+                if not user_data:
+                    # إذا فشل الإنشاء، حاول مرة ثانية من db_manager
+                    user_data = db_manager.get_user(user_id)
+            except Exception as e:
+                logger.error(f"خطأ في إنشاء حساب للمستخدم {user_id}: {e}")
+                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+                return
+        
+        # التحقق مرة أخرى بعد المحاولة
+        if not user_data:
             await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
             return
         
@@ -6284,8 +6298,14 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if advanced_stats:
             advanced_stats.save_daily_snapshot(user_id, account_type)
         
-        # مؤشر نوع الحساب
-        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
+        # مؤشر نوع الحساب - توضيح أفضل
+        if account_type == 'real':
+            account_indicator = "💼 حسابي الحقيقي"
+            account_title = "حسابي الحقيقي"
+        else:
+            account_indicator = "🎮 حسابي التجريبي"
+            account_title = "حسابي التجريبي"
+        
         market_indicator = "📈 Spot" if market_type == 'spot' else "🚀 Futures"
         
         # حساب الرصيد الفعلي مع الصفقات المفتوحة
@@ -6296,9 +6316,14 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         locked_balance = balance_info['locked_in_trades']
         available_balance = balance - locked_balance
         
-        # جلب الصفقات المفتوحة والمغلقة
+        # جلب الصفقات المفتوحة والمغلقة - حسب نوع الحساب
         open_positions = db_manager.get_user_orders(user_id, status='OPEN')
+        # فلترة الصفقات حسب نوع الحساب
+        open_positions = [pos for pos in open_positions if pos.get('account_type') == account_type]
+        
+        # نفس الشيء للصفقات المغلقة
         closed_positions = db_manager.get_user_trade_history(user_id, filters={'status': 'CLOSED', 'limit': 100})
+        closed_positions = [pos for pos in closed_positions if pos.get('account_type') == account_type]
         
         # حساب الإحصائيات
         total_open = len(open_positions)
@@ -6332,7 +6357,7 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # بناء الرسالة الشاملة
         message = f"""
-💼 **نظرة عامة على حسابك**
+💼 **{account_title}**
 
 {account_indicator} | {market_indicator} | {risk_indicator}
 
@@ -9144,11 +9169,48 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text("⚡ أدخل قيمة الرافعة المالية الجديدة (1-100):")
         return
     if data == "set_demo_balance":
-        # تنفيذ إعداد رصيد الحساب التجريبي
+        # تنفيذ إعداد رصيد الحساب التجريبي مع تحذير
+        if user_id is not None:
+            # عرض تحذير مع خيارات التأكيد
+            warning_message = """
+⚠️ **تحذير مهم!**
+
+تغيير رصيد الحساب التجريبي سيؤدي إلى:
+
+🗑️ حذف جميع البيانات المحفوظة في حسابك التجريبي
+🔄 إعادة ضبط الحساب التجريبي بالكامل
+📊 فقدان جميع الصفقات الحالية
+📈 فقدان جميع الإحصائيات
+💰 تعيين رصيد جديد للحساب
+
+هل أنت متأكد من رغبتك في المتابعة؟
+            """
+            
+            keyboard = [
+                [InlineKeyboardButton("✅ نعم، متأكد", callback_data="confirm_demo_reset")],
+                [InlineKeyboardButton("❌ إلغاء", callback_data="settings")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    warning_message,
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                await update.callback_query.answer()
+        return
+    
+    if data == "confirm_demo_reset":
+        # بعد تأكيد المستخدم، الطلب لإدخال الرصيد الجديد
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_demo_balance"
-        if update.callback_query is not None:
-            await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    "💳 أدخل الرصيد الجديد للحساب التجريبي:",
+                    parse_mode='Markdown'
+                )
+                await update.callback_query.answer()
         return
     if data == "market_spot":
         trading_bot.user_settings['market_type'] = 'spot'
@@ -10448,20 +10510,62 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 balance = float(text)
                 if balance >= 0:
+                    logger.info(f"🔄 بدء إعادة ضبط الحساب التجريبي للمستخدم {user_id}...")
+                    
                     # تحديث رصيد الحساب التجريبي
                     user_data = user_manager.get_user(user_id)
                     if user_data:
+                        # 1. حذف جميع الصفقات المفتوحة للحساب التجريبي
+                        try:
+                            open_orders = db_manager.get_user_orders(user_id, status='OPEN')
+                            demo_orders = [order for order in open_orders if order.get('account_type') == 'demo']
+                            
+                            logger.info(f"🗑️ حذف {len(demo_orders)} صفقة تجريبية مفتوحة...")
+                            for order in demo_orders:
+                                db_manager.close_order(order['order_id'], 0.0, 0.0)
+                                logger.info(f"   ✅ تم حذف صفقة: {order['order_id']}")
+                        except Exception as e:
+                            logger.error(f"❌ خطأ في حذف الصفقات: {e}")
+                        
+                        # 2. إعادة تعيين رصيد الحساب
                         market_type = user_data.get('market_type', 'spot')
-                        # تحديث في حساب المستخدم
                         account = user_manager.get_user_account(user_id, market_type)
                         if account:
                             account.update_balance(balance)
-                        # حفظ في قاعدة البيانات
+                        
+                        # 3. حفظ الرصيد الجديد في قاعدة البيانات
                         user_manager.update_user_balance(user_id, balance)
+                        
+                        # 4. إعادة تعيين إحصائيات المخاطر (اختياري - حسب المتطلبات)
+                        try:
+                            db_manager.update_user_data(user_id, {
+                                'daily_loss': 0.0,
+                                'weekly_loss': 0.0,
+                                'total_loss': 0.0,
+                                'last_reset_date': datetime.now().strftime('%Y-%m-%d'),
+                                'last_reset_week': datetime.now().strftime('%Y-W%W')
+                            })
+                            logger.info("🔄 تم إعادة تعيين إحصائيات المخاطر")
+                        except Exception as e:
+                            logger.error(f"❌ خطأ في إعادة تعيين المخاطر: {e}")
+                    
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
+                    
                     if update.message is not None:
-                        await update.message.reply_text(f"✅ تم تحديث رصيد الحساب التجريبي إلى: {balance}")
+                        success_message = f"""
+✅ **تم إعادة ضبط الحساب التجريبي بنجاح!**
+
+💰 الرصيد الجديد: {balance:,.2f} USDT
+
+🗑️ **ما تم حذفه:**
+• جميع الصفقات المفتوحة
+• البيانات المخزنة مسبقاً
+• الإحصائيات القديمة
+
+🔄 **الحساب التجريبي الآن نظيف ومهيأ للبدء من جديد**
+                        """
+                        await update.message.reply_text(success_message, parse_mode='Markdown')
                         await settings_menu(update, context)
                 else:
                     if update.message is not None:

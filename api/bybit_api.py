@@ -622,7 +622,8 @@ class BybitRealAccount:
                     return True
                 else:
                     logger.warning(f"⚠️ الرمز {symbol} موجود لكن حالته: {status}")
-                    return False
+                    # نسمح بالإشارة حتى لو كانت الحالة غير Trading (قد يكون في صيانة مؤقتة)
+                    return True
             
             logger.warning(f"⚠️ الرمز {symbol} غير موجود في Bybit {category}")
             return False
