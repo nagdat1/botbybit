@@ -3388,6 +3388,11 @@ from users.user_manager import UserManager
 # إنشاء مثيل UserManager
 user_manager = UserManager(TradingAccount, BybitAPI)
 
+# 🔧 إصلاح: التأكد من أن user_positions تم تهيئته بشكل صحيح
+logger.info(f"🔍 تحقق من تهيئة user_positions: {hasattr(user_manager, 'user_positions')}")
+logger.info(f"🔍 user_positions is not None: {user_manager.user_positions is not None}")
+logger.info(f"🔍 user_positions type: {type(user_manager.user_positions)}")
+
 # تحديث user_manager في module users.user_manager
 um_module.user_manager = user_manager
 logger.info("✅ تم تهيئة user_manager وتحديثه في module users.user_manager")
@@ -3396,6 +3401,15 @@ logger.info("✅ تم تهيئة user_manager وتحديثه في module users.u
 logger.warning("🔄 استدعاء load_all_users()...")
 user_manager.load_all_users()
 logger.warning("✅ انتهى استدعاء load_all_users()")
+
+# 🔧 إصلاح: التأكد من حالة user_positions بعد تحميل المستخدمين
+logger.info(f"📊 عدد المستخدمين المحملين: {len(user_manager.users)}")
+logger.info(f"📊 عدد المستخدمين في user_positions: {len(user_manager.user_positions)}")
+for uid in user_manager.users.keys():
+    if uid not in user_manager.user_positions:
+        logger.warning(f"⚠️ المستخدم {uid} موجود في users لكن ليس في user_positions - سيتم إضافته")
+        user_manager.user_positions[uid] = {}
+logger.info(f"✅ تم التأكد من أن جميع المستخدمين لديهم user_positions")
 
 # تهيئة نظام المطورين
 try:

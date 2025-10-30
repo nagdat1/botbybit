@@ -27,9 +27,18 @@ class EnhancedPortfolioManager:
         try:
             logger.info(f"مزامنة الصفقات للمستخدم {self.user_id}...")
             
-            # جلب الصفقات من الذاكرة (مع فحص الوجود)
-            if not hasattr(user_manager, 'user_positions') or user_manager.user_positions is None:
-                logger.warning(f"user_positions غير متاح - تخطي المزامنة")
+            # 🔧 إصلاح: فحص أكثر دقة لوجود user_positions
+            if not hasattr(user_manager, 'user_positions'):
+                logger.warning(f"user_manager ليس لديه خاصية user_positions - تخطي المزامنة")
+                return True
+            
+            if user_manager.user_positions is None:
+                logger.warning(f"user_positions = None - تخطي المزامنة")
+                return True
+            
+            # التأكد من وجود user_id في user_positions
+            if self.user_id not in user_manager.user_positions:
+                logger.info(f"✅ المستخدم {self.user_id} ليس لديه صفقات في الذاكرة بعد - تخطي المزامنة")
                 return True
             
             memory_positions = user_manager.user_positions.get(self.user_id, {})
@@ -445,21 +454,29 @@ class EnhancedPortfolioManager:
             position_ids_seen = set()
             
             if account_type == 'demo':
-                # 1. من الذاكرة (user_manager.user_positions)
-                logger.info(f"🔍 DEBUG: user_manager.user_positions = {user_manager.user_positions}")
-                logger.info(f"🔍 DEBUG: self.user_id = {self.user_id}")
-                logger.info(f"🔍 DEBUG: type(self.user_id) = {type(self.user_id)}")
-                
-                memory_positions = user_manager.user_positions.get(self.user_id, {})
-                logger.info(f"🔍 DEBUG: memory_positions للمستخدم {self.user_id} = {memory_positions}")
-                logger.info(f"🔍 DEBUG: type(memory_positions) = {type(memory_positions)}")
-                logger.info(f"صفقات من الذاكرة: {len(memory_positions)}")
-                
-                # فحص مفصل لكل صفقة
-                for pos_id, pos_info in memory_positions.items():
-                    logger.info(f"🔍 DEBUG: صفقة {pos_id} = {pos_info}")
-                    logger.info(f"🔍 DEBUG: account_type في الصفقة = {pos_info.get('account_type')}")
-                    logger.info(f"🔍 DEBUG: market_type في الصفقة = {pos_info.get('market_type')}")
+                # 🔧 إصلاح: فحص وجود user_positions أولاً
+                if not hasattr(user_manager, 'user_positions') or user_manager.user_positions is None:
+                    logger.warning(f"⚠️ user_positions غير متاح للمستخدم {self.user_id}")
+                    memory_positions = {}
+                elif self.user_id not in user_manager.user_positions:
+                    logger.info(f"✅ المستخدم {self.user_id} ليس لديه صفقات في الذاكرة بعد")
+                    memory_positions = {}
+                else:
+                    # 1. من الذاكرة (user_manager.user_positions)
+                    logger.info(f"🔍 DEBUG: user_manager.user_positions = {user_manager.user_positions}")
+                    logger.info(f"🔍 DEBUG: self.user_id = {self.user_id}")
+                    logger.info(f"🔍 DEBUG: type(self.user_id) = {type(self.user_id)}")
+                    
+                    memory_positions = user_manager.user_positions.get(self.user_id, {})
+                    logger.info(f"🔍 DEBUG: memory_positions للمستخدم {self.user_id} = {memory_positions}")
+                    logger.info(f"🔍 DEBUG: type(memory_positions) = {type(memory_positions)}")
+                    logger.info(f"صفقات من الذاكرة: {len(memory_positions)}")
+                    
+                    # فحص مفصل لكل صفقة
+                    for pos_id, pos_info in memory_positions.items():
+                        logger.info(f"🔍 DEBUG: صفقة {pos_id} = {pos_info}")
+                        logger.info(f"🔍 DEBUG: account_type في الصفقة = {pos_info.get('account_type')}")
+                        logger.info(f"🔍 DEBUG: market_type في الصفقة = {pos_info.get('market_type')}")
                 
                 for position_id, position_info in memory_positions.items():
                     if position_id not in position_ids_seen:

@@ -286,8 +286,52 @@ class WebServer:
                                         data
                                     )
                             else:
-                                # معالجة الحساب التجريبي بالطريقة العادية
-                                loop.run_until_complete(self.trading_bot.process_signal(data))
+                                # 🔧 إصلاح: معالجة الحساب التجريبي مع تنفيذ الصفقة بشكل صحيح
+                                print(f"🎯 [DEMO] معالجة إشارة للحساب التجريبي للمستخدم {user_id}")
+                                
+                                # استخدام user_manager لتنفيذ الصفقة
+                                action = data.get('action', '').lower()
+                                symbol = data.get('symbol', '')
+                                price = float(data.get('price', 0))
+                                trade_amount = user_data.get('trade_amount', 100.0)
+                                market_type = user_data.get('market_type', 'spot')
+                                
+                                print(f"📊 [DEMO] تفاصيل الصفقة: {action} {symbol} @ {price}, amount={trade_amount}, market={market_type}")
+                                
+                                # تنفيذ الصفقة على الحساب التجريبي
+                                if action in ['buy', 'long', 'sell', 'short']:
+                                    success, result = user_manager.execute_user_trade(
+                                        user_id=user_id,
+                                        symbol=symbol,
+                                        action=action,
+                                        price=price,
+                                        amount=trade_amount,
+                                        market_type=market_type
+                                    )
+                                    
+                                    if success:
+                                        print(f"✅ [DEMO] تم تنفيذ الصفقة بنجاح: {result}")
+                                        self.send_telegram_notification(
+                                            f"✅ تم تنفيذ الإشارة على الحساب التجريبي\n\n"
+                                            f"الرمز: {symbol}\n"
+                                            f"الإجراء: {action.upper()}\n"
+                                            f"السعر: ${price:.2f}\n"
+                                            f"المبلغ: ${trade_amount:.2f}\n"
+                                            f"Position ID: {result}",
+                                            data
+                                        )
+                                    else:
+                                        print(f"❌ [DEMO] فشل تنفيذ الصفقة: {result}")
+                                        self.send_telegram_notification(
+                                            f"❌ فشل تنفيذ الإشارة على الحساب التجريبي\n\n"
+                                            f"السبب: {result}",
+                                            data
+                                        )
+                                elif action in ['close', 'partial_close']:
+                                    # إغلاق الصفقات (سنضيف هذا لاحقاً)
+                                    print(f"⚠️ [DEMO] إغلاق الصفقات غير مدعوم حالياً في الحساب التجريبي الشخصي")
+                                else:
+                                    print(f"❌ [DEMO] إجراء غير معروف: {action}")
                         finally:
                             # استعادة الإعدادات الأصلية
                             self.trading_bot.user_settings.update(original_settings)
