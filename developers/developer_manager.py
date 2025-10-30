@@ -387,24 +387,60 @@ class DeveloperManager:
                 logger.error(f"❌ فشل إنشاء ملف إعادة التعيين: {e}")
             
             try:
-                # حذف جميع البيانات من الذاكرة (cache) أولاً
+                # 🔥 حذف شامل لجميع البيانات من الذاكرة (cache)
+                logger.warning("🔥 بدء الحذف الشامل لجميع البيانات من الذاكرة...")
+                
                 from users.user_manager import user_manager
                 
-                # حذف جميع المستخدمين من الذاكرة
+                # 1. حذف جميع المستخدمين من الذاكرة
+                deleted_users = len(user_manager.users)
                 user_manager.users.clear()
+                logger.info(f"🗑️ تم حذف {deleted_users} مستخدم من user_manager.users")
+                
+                # 2. حذف جميع الحسابات التجريبية
+                deleted_accounts = len(user_manager.user_accounts)
                 user_manager.user_accounts.clear()
+                logger.info(f"🗑️ تم حذف {deleted_accounts} حساب تجريبي من user_manager.user_accounts")
+                
+                # 3. حذف جميع APIs
+                deleted_apis = len(user_manager.user_apis)
                 user_manager.user_apis.clear()
+                logger.info(f"🗑️ تم حذف {deleted_apis} API من user_manager.user_apis")
+                
+                # 4. حذف جميع الصفقات من الذاكرة
+                deleted_positions = sum(len(positions) for positions in user_manager.user_positions.values())
                 user_manager.user_positions.clear()
+                logger.info(f"🗑️ تم حذف {deleted_positions} صفقة من user_manager.user_positions")
                 
-                logger.info("🗑️ تم حذف جميع البيانات من الذاكرة")
-                
-                # حذف جميع الحسابات الحقيقية من real_account_manager
+                # 5. حذف جميع الحسابات الحقيقية من real_account_manager
                 try:
                     from api.bybit_api import real_account_manager
+                    deleted_real_accounts = len(real_account_manager.accounts)
                     real_account_manager.accounts.clear()
-                    logger.info("🗑️ تم حذف جميع الحسابات الحقيقية من real_account_manager")
+                    logger.info(f"🗑️ تم حذف {deleted_real_accounts} حساب حقيقي من real_account_manager.accounts")
                 except Exception as e:
                     logger.warning(f"⚠️ لم يتم حذف الحسابات الحقيقية: {e}")
+                
+                # 6. حذف البيانات من TradingBot إذا كان موجوداً
+                try:
+                    from bybit_trading_bot import trading_bot
+                    if hasattr(trading_bot, 'open_positions'):
+                        deleted_bot_positions = len(trading_bot.open_positions)
+                        trading_bot.open_positions.clear()
+                        logger.info(f"🗑️ تم حذف {deleted_bot_positions} صفقة من trading_bot.open_positions")
+                    
+                    # إعادة تعيين الحسابات التجريبية
+                    if hasattr(trading_bot, 'demo_account_spot'):
+                        trading_bot.demo_account_spot.reset_account()
+                        logger.info("🗑️ تم إعادة تعيين demo_account_spot")
+                    
+                    if hasattr(trading_bot, 'demo_account_futures'):
+                        trading_bot.demo_account_futures.reset_account()
+                        logger.info("🗑️ تم إعادة تعيين demo_account_futures")
+                except Exception as e:
+                    logger.warning(f"⚠️ لم يتم حذف بيانات TradingBot: {e}")
+                
+                logger.warning("✅ تم حذف جميع البيانات من الذاكرة بنجاح")
                 
                 # إعادة تعيين بيانات جميع المستخدمين في قاعدة البيانات (حذف ملف قواعد البيانات بالكامل!)
                 user_count = db_manager.reset_all_users_data()

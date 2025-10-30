@@ -1562,7 +1562,38 @@ class DatabaseManager:
             except:
                 pass
             
-            # 2. 🔥 حذف ملف قاعدة البيانات بالكامل وإعادة إنشائها!
+            # 2. 🔥 حذف جميع الملفات المتعلقة بالبيانات!
+            logger.warning(f"🔥 حذف شامل لجميع ملفات البيانات...")
+            
+            # قائمة الملفات التي يجب حذفها
+            files_to_delete = [
+                self.db_path,  # trading_bot.db
+                f"{self.db_path}-journal",  # trading_bot.db-journal
+                f"{self.db_path}-wal",  # trading_bot.db-wal
+                f"{self.db_path}-shm",  # trading_bot.db-shm
+                "trading_bot.log",  # ملف السجلات
+                "FORCE_RESET.flag",  # ملف إعادة التعيين
+            ]
+            
+            # حذف جميع النسخ الاحتياطية
+            import glob
+            backup_files = glob.glob(f"{self.db_path}.backup_*")
+            files_to_delete.extend(backup_files)
+            
+            deleted_files = []
+            for file_path in files_to_delete:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        deleted_files.append(file_path)
+                        logger.info(f"🗑️ تم حذف: {file_path}")
+                    except Exception as e:
+                        logger.error(f"❌ فشل حذف {file_path}: {e}")
+            
+            if deleted_files:
+                logger.warning(f"✅ تم حذف {len(deleted_files)} ملف: {', '.join(deleted_files)}")
+            
+            # 3. 🔥 حذف ملف قاعدة البيانات بالكامل وإعادة إنشائها!
             logger.warning(f"🔥 حذف قاعدة البيانات بالكامل وإعادة إنشائها...")
             
             # إغلاق جميع الاتصالات أولاً
@@ -1644,6 +1675,20 @@ class DatabaseManager:
             
             # 5. 🚫 لا نعيد إنشاء المستخدمين! قاعدة البيانات جديدة تماماً
             logger.warning(f"🔄 تم إعادة تعيين المشروع بالكامل: حذفت {user_count} مستخدم، قاعدة البيانات أعيدت من الصفر")
+            
+            # 6. إنشاء ملف علامة لتأكيد إعادة التعيين
+            try:
+                from datetime import datetime
+                reset_marker_file = ".last_reset"
+                with open(reset_marker_file, 'w', encoding='utf-8') as f:
+                    f.write(f"RESET_COMPLETED\n")
+                    f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+                    f.write(f"Users deleted: {user_count}\n")
+                    f.write(f"Files deleted: {len(deleted_files)}\n")
+                logger.info(f"✅ تم إنشاء ملف علامة إعادة التعيين: {reset_marker_file}")
+            except Exception as e:
+                logger.warning(f"⚠️ فشل إنشاء ملف العلامة: {e}")
+            
             return user_count
                 
         except Exception as e:
