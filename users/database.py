@@ -223,7 +223,16 @@ class DatabaseManager:
                     ("margin_amount", "REAL DEFAULT 0.0"),
                     ("liquidation_price", "REAL DEFAULT 0.0"),
                     ("pnl", "REAL DEFAULT 0.0"),
-                    ("closing_price", "REAL DEFAULT 0.0")
+                    ("closing_price", "REAL DEFAULT 0.0"),
+                    ("account_type", "TEXT DEFAULT 'demo'"),
+                    ("signal_id", "TEXT"),
+                    ("position_id_exchange", "TEXT"),
+                    ("current_price", "REAL DEFAULT 0.0"),
+                    ("pnl_value", "REAL DEFAULT 0.0"),
+                    ("pnl_percent", "REAL DEFAULT 0.0"),
+                    ("exchange", "TEXT DEFAULT 'bybit'"),
+                    ("partial_closes_history", "TEXT DEFAULT '[]'"),
+                    ("close_price", "REAL DEFAULT 0.0")
                 ]
                 
                 for column_name, column_def in orders_columns_to_add:
@@ -572,8 +581,10 @@ class DatabaseManager:
                     INSERT INTO orders (
                         order_id, user_id, symbol, side, entry_price, quantity,
                         tps, sl, partial_close, status, notes, market_type, 
-                        leverage, margin_amount, liquidation_price
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        leverage, margin_amount, liquidation_price,
+                        account_type, signal_id, position_id_exchange, exchange,
+                        partial_closes_history
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     order_data['order_id'],
                     order_data['user_id'],
@@ -589,7 +600,12 @@ class DatabaseManager:
                     order_data.get('market_type', 'spot'),
                     order_data.get('leverage', 1),
                     order_data.get('margin_amount', 0.0),
-                    order_data.get('liquidation_price', 0.0)
+                    order_data.get('liquidation_price', 0.0),
+                    order_data.get('account_type', 'demo'),
+                    order_data.get('signal_id', ''),
+                    order_data.get('position_id_exchange', ''),
+                    order_data.get('exchange', 'bybit'),
+                    json.dumps(order_data.get('partial_closes_history', []))
                 ))
                 
                 conn.commit()
@@ -1420,6 +1436,79 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"خطأ في الحصول على صفقة بالرمز: {e}")
             return None
+    
+    def get_user_trade_history(self, user_id: int, filters: Dict = None) -> List[Dict]:
+        """الحصول على سجل الصفقات مع فلاتر"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # بناء الاستعلام الأساسي
+                query = "SELECT * FROM orders WHERE user_id = ?"
+                params = [user_id]
+                
+                # إضافة الفلاتر
+                if filters:
+                    if 'status' in filters:
+                        query += " AND status = ?"
+                        params.append(filters['status'])
+                    
+                    if 'account_type' in filters:
+                        query += " AND account_type = ?"
+                        params.append(filters['account_type'])
+                    
+                    if 'market_type' in filters:
+                        query += " AND market_type = ?"
+                        params.append(filters['market_type'])
+                    
+                    if 'symbol' in filters:
+                        query += " AND symbol = ?"
+                        params.append(filters['symbol'])
+                    
+                    if 'exchange' in filters:
+                        query += " AND exchange = ?"
+                        params.append(filters['exchange'])
+                    
+                    if 'date_from' in filters:
+                        query += " AND open_time >= ?"
+                        params.append(filters['date_from'])
+                    
+                    if 'date_to' in filters:
+                        query += " AND open_time <= ?"
+                        params.append(filters['date_to'])
+                
+                # ترتيب حسب التاريخ
+                query += " ORDER BY open_time DESC"
+                
+                # تحديد عدد السجلات
+                if filters and 'limit' in filters:
+                    query += " LIMIT ?"
+                    params.append(filters['limit'])
+                
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                
+                trades = []
+                for row in rows:
+                    trade = dict(row)
+                    
+                    # تحويل النصوص JSON
+                    try:
+                        trade['tps'] = json.loads(trade.get('tps', '[]'))
+                        trade['partial_close'] = json.loads(trade.get('partial_close', '[]'))
+                        trade['partial_closes_history'] = json.loads(trade.get('partial_closes_history', '[]'))
+                    except (json.JSONDecodeError, TypeError):
+                        trade['tps'] = []
+                        trade['partial_close'] = []
+                        trade['partial_closes_history'] = []
+                    
+                    trades.append(trade)
+                
+                return trades
+                
+        except Exception as e:
+            logger.error(f"خطأ في الحصول على سجل الصفقات للمستخدم {user_id}: {e}")
+            return []
     
     # دوال المطور - إدارة المستخدمين
     def delete_user(self, user_id: int) -> bool:

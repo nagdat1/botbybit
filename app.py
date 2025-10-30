@@ -42,7 +42,13 @@ except ImportError as e:
 app = Flask(__name__)
 
 # إعدادات التطبيق
-app.config['SECRET_KEY'] = 'trading_bot_secret_key_2024'
+# استخدام SECRET_KEY من البيئة أو توليد واحد عشوائي
+import secrets
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
+
+# تحذير إذا لم يتم تعيين SECRET_KEY
+if not os.getenv('FLASK_SECRET_KEY'):
+    logger.warning("⚠️ FLASK_SECRET_KEY غير موجود في البيئة! تم توليد مفتاح عشوائي مؤقت.")
 
 # متغيرات عامة
 web_server = None

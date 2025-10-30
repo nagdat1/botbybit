@@ -11,8 +11,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # إعدادات تلغرام
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw")
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', "8169000394"))
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+if not TELEGRAM_TOKEN:
+    raise ValueError("❌ TELEGRAM_TOKEN غير موجود في متغيرات البيئة! يرجى إضافته في ملف .env")
+
+ADMIN_USER_ID = os.getenv('ADMIN_USER_ID')
+if not ADMIN_USER_ID:
+    raise ValueError("❌ ADMIN_USER_ID غير موجود في متغيرات البيئة! يرجى إضافته في ملف .env")
+ADMIN_USER_ID = int(ADMIN_USER_ID)
 
 # إعدادات Bybit API
 BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "")
