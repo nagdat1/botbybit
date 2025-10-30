@@ -2781,6 +2781,15 @@ class TradingBot:
                             if success:
                                 logger.info(f"✅ تم إغلاق صفقة الفيوتشر: {pos_id}")
                                 
+                                # 💾 تحديث الصفقة في قاعدة البيانات
+                                if self.user_id:
+                                    try:
+                                        from users.database import db_manager
+                                        db_manager.close_order(pos_id, price, pnl)
+                                        logger.info(f"💾 تم تحديث حالة الصفقة في قاعدة البيانات: {pos_id}")
+                                    except Exception as e:
+                                        logger.error(f"❌ فشل تحديث الصفقة في قاعدة البيانات: {e}")
+                                
                                 # إزالة من قائمة الصفقات
                                 del user_positions[pos_id]
                                 
@@ -2982,6 +2991,29 @@ class TradingBot:
                         }
                         
                         user_positions[position_id] = position_data_dict
+                        
+                        # 💾 حفظ الصفقة في قاعدة البيانات
+                        if self.user_id:
+                            try:
+                                from users.database import db_manager
+                                order_data = {
+                                    'user_id': self.user_id,
+                                    'order_id': position_id,
+                                    'symbol': symbol,
+                                    'side': action.upper(),
+                                    'entry_price': price,
+                                    'quantity': position.contracts,
+                                    'market_type': 'futures',
+                                    'account_type': 'demo',
+                                    'exchange': 'bybit',
+                                    'leverage': leverage,
+                                    'status': 'OPEN',
+                                    'signal_id': custom_position_id if custom_position_id else None
+                                }
+                                db_manager.create_order(order_data)
+                                logger.info(f"💾 تم حفظ الصفقة التجريبية في قاعدة البيانات: {position_id}")
+                            except Exception as e:
+                                logger.error(f"❌ فشل حفظ الصفقة في قاعدة البيانات: {e}")
                         
                         # حفظ مباشرة في user_manager.user_positions للتأكد
                         if self.user_id:
@@ -3192,35 +3224,28 @@ class TradingBot:
                     logger.info(f"🔍 DEBUG: بعد الحفظ - user_positions = {user_positions}")
                     logger.info(f"🔍 DEBUG: بعد الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
                     
-                    # حفظ الصفقة في قاعدة البيانات
+                    # 💾 حفظ الصفقة في قاعدة البيانات
                     if self.user_id:
                         try:
-                            portfolio_manager = portfolio_factory.get_portfolio_manager(self.user_id)
-                            position_data = {
-                                'order_id': position_id,
+                            from users.database import db_manager
+                            order_data = {
                                 'user_id': self.user_id,
+                                'order_id': position_id,
                                 'symbol': symbol,
-                                'side': action,
+                                'side': action.upper(),
                                 'entry_price': price,
-                                'quantity': amount,
-                                'market_type': user_market_type,
+                                'quantity': amount / price,  # عدد العملات المشتراة
+                                'market_type': 'spot',
+                                'account_type': 'demo',
                                 'exchange': 'bybit',
                                 'leverage': 1,
                                 'status': 'OPEN',
-                                'notes': f'صفقة سبوت تجريبية - {category}'
+                                'signal_id': custom_position_id if custom_position_id else None
                             }
-                            
-                            # إضافة signal_id إذا كان متاحاً
-                            if hasattr(self, '_current_signal_id') and self._current_signal_id:
-                                position_data['signal_id'] = self._current_signal_id
-                            
-                            success = portfolio_manager.add_position(position_data)
-                            if success:
-                                logger.info(f"✅ تم حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
-                            else:
-                                logger.warning(f"⚠️ فشل في حفظ صفقة السبوت في قاعدة البيانات: {position_id}")
+                            db_manager.create_order(order_data)
+                            logger.info(f"💾 تم حفظ صفقة السبوت التجريبية في قاعدة البيانات: {position_id}")
                         except Exception as e:
-                            logger.error(f"❌ خطأ في حفظ صفقة السبوت في قاعدة البيانات: {e}")
+                            logger.error(f"❌ فشل حفظ صفقة السبوت في قاعدة البيانات: {e}")
                     
                     # ربط ID الإشارة برقم الصفقة إذا كان متاحاً
                     if SIGNAL_ID_MANAGER_AVAILABLE and hasattr(self, 'current_signal_data'):

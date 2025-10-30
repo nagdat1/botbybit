@@ -257,41 +257,72 @@ def personal_webhook(user_id):
                 if converted_signal:
                     print(f"OK تم تحويل الإشارة: {converted_signal.get('action')} {converted_signal.get('symbol')}")
                     
-                    # تنفيذ الإشارة - استخدام user_settings_copy بدلاً من user_data
-                    result = loop.run_until_complete(
-                        sig_executor.execute_signal(user_id, converted_signal, user_settings_copy)
-                    )
+                    # 🎯 تنفيذ الإشارة بناءً على نوع الحساب
+                    account_type = user_settings_copy.get('account_type', 'demo')
                     
-                    print(f"OK نتيجة التنفيذ: {result}")
-                    
-                    # إرسال إشعار للمستخدم في Telegram
-                    if result.get('success'):
-                        message = f"""
-تم تنفيذ اشارة بنجاح
-
-الاجراء: {converted_signal.get('action')}
-الرمز: {converted_signal.get('symbol')}
-المبلغ: {user_settings_copy.get('trade_amount')} USDT
-نوع السوق: {user_settings_copy.get('market_type')}
-نوع الحساب: {user_settings_copy.get('account_type')}
-                        """
+                    if account_type == 'real':
+                        # حساب حقيقي - استخدام signal_executor
+                        print(f"🔴 تنفيذ على حساب حقيقي عبر signal_executor")
+                        result = loop.run_until_complete(
+                            sig_executor.execute_signal(user_id, converted_signal, user_settings_copy)
+                        )
+                        print(f"OK نتيجة التنفيذ: {result}")
                         
-                        # إرسال رسالة Telegram
-                        try:
-                            from config import TELEGRAM_TOKEN
-                            import requests
-                            
-                            telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-                            telegram_data = {
-                                'chat_id': user_id,
-                                'text': message,
-                                'parse_mode': 'Markdown'
-                            }
-                            requests.post(telegram_url, json=telegram_data, timeout=5)
-                        except Exception as e:
-                            print(f"WARNING فشل إرسال اشعار Telegram: {e}")
+                        # إرسال إشعار
+                        if result.get('success'):
+                            message = f"✅ تم تنفيذ إشارة على الحساب الحقيقي\n\n{converted_signal.get('action')} {converted_signal.get('symbol')}"
+                            try:
+                                from config import TELEGRAM_TOKEN
+                                import requests
+                                telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+                                requests.post(telegram_url, json={'chat_id': user_id, 'text': message}, timeout=5)
+                            except:
+                                pass
+                        else:
+                            print(f"ERROR فشل تنفيذ الإشارة: {result.get('message')}")
                     else:
-                        print(f"ERROR فشل تنفيذ الإشارة: {result.get('message')}")
+                        # حساب تجريبي - استخدام trading_bot.process_signal مباشرة
+                        print(f"🟢 تنفيذ على حساب تجريبي عبر trading_bot.process_signal")
+                        
+                        # الحصول على trading_bot
+                        from bybit_trading_bot import trading_bot
+                        
+                        # حفظ الإعدادات الأصلية
+                        original_settings = trading_bot.user_settings.copy()
+                        original_user_id = trading_bot.user_id
+                        
+                        try:
+                            # تطبيق إعدادات المستخدم مؤقتاً
+                            trading_bot.user_settings.update(user_settings_copy)
+                            trading_bot.user_id = user_id
+                            
+                            # تنفيذ الإشارة
+                            loop.run_until_complete(trading_bot.process_signal(converted_signal))
+                            
+                            print(f"✅ تم تنفيذ الإشارة على الحساب التجريبي بنجاح")
+                            
+                            # إرسال إشعار
+                            message = f"""
+✅ تم تنفيذ إشارة على الحساب التجريبي
+
+📊 الإجراء: {converted_signal.get('action')}
+💱 الرمز: {converted_signal.get('symbol')}
+💰 المبلغ: {user_settings_copy.get('trade_amount')} USDT
+🏪 السوق: {user_settings_copy.get('market_type').upper()}
+                            """
+                            
+                            try:
+                                from config import TELEGRAM_TOKEN
+                                import requests
+                                telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+                                requests.post(telegram_url, json={'chat_id': user_id, 'text': message}, timeout=5)
+                            except Exception as e:
+                                print(f"WARNING فشل إرسال إشعار Telegram: {e}")
+                                
+                        finally:
+                            # استعادة الإعدادات الأصلية
+                            trading_bot.user_settings.update(original_settings)
+                            trading_bot.user_id = original_user_id
                 else:
                     print(f"ERROR فشل تحويل الإشارة")
                     
