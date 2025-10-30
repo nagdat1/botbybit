@@ -65,21 +65,24 @@ class UserManager:
             for user_data in users_data:
                 user_id = user_data['user_id']
                 
-                # ✅ إصلاح: تحديث بيانات المستخدم فقط إذا لم يكن موجوداً
-                if user_id not in self.users:
+                # ✅ إصلاح: تحديث بيانات المستخدم من قاعدة البيانات دائماً
+                if user_id in self.users:
+                    # المستخدم موجود - تحديث بياناته من قاعدة البيانات فقط
+                    logger.info(f"🔄 تحديث بيانات المستخدم {user_id} من قاعدة البيانات: trade_amount={user_data.get('trade_amount')}")
+                    self.users[user_id].update(user_data)  # تحديث البيانات بدون إعادة إنشاء الحساب
+                else:
+                    # مستخدم جديد - تحميل كامل
                     logger.info(f"📊 تحميل مستخدم جديد {user_id}: trade_amount={user_data.get('trade_amount')}, market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
                     self.users[user_id] = user_data
                     
-                    # إنشاء حسابات تجريبية للمستخدم
+                    # إنشاء حسابات تجريبية للمستخدم الجديد فقط
                     self._create_user_accounts(user_id, user_data)
                     
                     # إنشاء API للمستخدم إذا كان لديه مفاتيح
                     if user_data.get('api_key') and user_data.get('api_secret'):
                         self._create_user_api(user_id, user_data['api_key'], user_data['api_secret'])
-                else:
-                    logger.info(f"⚠️ المستخدم {user_id} موجود بالفعل في الذاكرة، تخطي إعادة التحميل")
             
-            logger.warning(f"✅ تم تحميل {len(self.users)} مستخدم في الذاكرة (بدون إعادة تعيين الحسابات الموجودة)")
+            logger.warning(f"✅ تم تحميل/تحديث {len(self.users)} مستخدم في الذاكرة (بدون إعادة تعيين الحسابات)")
             
         except Exception as e:
             logger.error(f"خطأ في تحميل المستخدمين: {e}")
@@ -322,13 +325,14 @@ class UserManager:
             success = db_manager.update_user_settings(user_id, settings)
             
             if success:
-                # تحديث في الذاكرة
+                # ✅ إصلاح: تحديث جميع الإعدادات في الذاكرة
                 if user_id in self.users:
                     for key, value in settings.items():
-                        if key in ['partial_percents', 'tps_percents', 'notifications']:
-                            self.users[user_id][key] = value
+                        # تحديث جميع الإعدادات بما في ذلك trade_amount, market_type, leverage, account_type
+                        self.users[user_id][key] = value
+                        logger.debug(f"🔄 تحديث {key} = {value} للمستخدم {user_id} في الذاكرة")
                 
-                logger.info(f"تم تحديث إعدادات المستخدم {user_id}")
+                logger.info(f"✅ تم تحديث إعدادات المستخدم {user_id}: {settings}")
                 return True
             
             return False
