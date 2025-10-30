@@ -2781,12 +2781,16 @@ class TradingBot:
                             if success:
                                 logger.info(f"✅ تم إغلاق صفقة الفيوتشر: {pos_id}")
                                 
-                                # 💾 تحديث الصفقة في قاعدة البيانات
+                                # 💾 تحديث الصفقة والرصيد في قاعدة البيانات
                                 if self.user_id:
                                     try:
                                         from users.database import db_manager
                                         db_manager.close_order(pos_id, price, pnl)
-                                        logger.info(f"💾 تم تحديث حالة الصفقة في قاعدة البيانات: {pos_id}")
+                                        
+                                        # حفظ الرصيد الجديد
+                                        account_info = account.get_account_info()
+                                        db_manager.update_user(self.user_id, {'balance': account_info['balance']})
+                                        logger.info(f"💾 تم تحديث الصفقة والرصيد في قاعدة البيانات: {pos_id}, رصيد جديد: {account_info['balance']:.2f}")
                                     except Exception as e:
                                         logger.error(f"❌ فشل تحديث الصفقة في قاعدة البيانات: {e}")
                                 
@@ -2992,7 +2996,7 @@ class TradingBot:
                         
                         user_positions[position_id] = position_data_dict
                         
-                        # 💾 حفظ الصفقة في قاعدة البيانات
+                        # 💾 حفظ الصفقة والرصيد في قاعدة البيانات
                         if self.user_id:
                             try:
                                 from users.database import db_manager
@@ -3011,7 +3015,11 @@ class TradingBot:
                                     'signal_id': custom_position_id if custom_position_id else None
                                 }
                                 db_manager.create_order(order_data)
-                                logger.info(f"💾 تم حفظ الصفقة التجريبية في قاعدة البيانات: {position_id}")
+                                
+                                # حفظ الرصيد الجديد
+                                account_info = account.get_account_info()
+                                db_manager.update_user(self.user_id, {'balance': account_info['balance']})
+                                logger.info(f"💾 تم حفظ الصفقة التجريبية والرصيد في قاعدة البيانات: {position_id}, رصيد جديد: {account_info['balance']:.2f}")
                             except Exception as e:
                                 logger.error(f"❌ فشل حفظ الصفقة في قاعدة البيانات: {e}")
                         
@@ -3224,7 +3232,7 @@ class TradingBot:
                     logger.info(f"🔍 DEBUG: بعد الحفظ - user_positions = {user_positions}")
                     logger.info(f"🔍 DEBUG: بعد الحفظ - user_manager.user_positions.get({self.user_id}) = {user_manager.user_positions.get(self.user_id)}")
                     
-                    # 💾 حفظ الصفقة في قاعدة البيانات
+                    # 💾 حفظ الصفقة والرصيد في قاعدة البيانات
                     if self.user_id:
                         try:
                             from users.database import db_manager
@@ -3243,7 +3251,11 @@ class TradingBot:
                                 'signal_id': custom_position_id if custom_position_id else None
                             }
                             db_manager.create_order(order_data)
-                            logger.info(f"💾 تم حفظ صفقة السبوت التجريبية في قاعدة البيانات: {position_id}")
+                            
+                            # حفظ الرصيد الجديد
+                            account_info = account.get_account_info()
+                            db_manager.update_user(self.user_id, {'balance': account_info['balance']})
+                            logger.info(f"💾 تم حفظ صفقة السبوت التجريبية والرصيد في قاعدة البيانات: {position_id}, رصيد جديد: {account_info['balance']:.2f}")
                         except Exception as e:
                             logger.error(f"❌ فشل حفظ صفقة السبوت في قاعدة البيانات: {e}")
                     
