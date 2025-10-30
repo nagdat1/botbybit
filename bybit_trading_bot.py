@@ -70,11 +70,20 @@ try:
     from systems.position_fetcher import PositionFetcher
     from systems.position_display import PositionDisplayManager
     from systems.unified_position_manager import UnifiedPositionManager
+    from systems.advanced_statistics import AdvancedStatistics
     ADVANCED_POSITION_SYSTEM_AVAILABLE = True
     logger.info("✅ تم تحميل الأنظمة المطورة للصفقات بنجاح")
 except ImportError as e:
     ADVANCED_POSITION_SYSTEM_AVAILABLE = False
     logger.warning(f"⚠️ الأنظمة المطورة غير متاحة: {e}")
+
+# إنشاء مثيل من نظام الإحصائيات المتقدم
+try:
+    advanced_stats = AdvancedStatistics(db_manager)
+    logger.info("✅ تم تحميل نظام الإحصائيات المتقدم")
+except Exception as e:
+    advanced_stats = None
+    logger.warning(f"⚠️ فشل تحميل نظام الإحصائيات: {e}")
 
 class FuturesPosition:
     """فئة لإدارة صفقات الفيوتشر"""
@@ -6029,66 +6038,17 @@ async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         account_type = user_data.get('account_type', 'demo')
         
-        # حساب إحصائيات المحفظة
-        # جلب جميع الصفقات المغلقة
-        filters = {'status': 'CLOSED', 'account_type': account_type}
-        closed_trades = db_manager.get_user_trade_history(user_id, filters)
+        # حفظ لقطة يومية للمحفظة
+        if advanced_stats:
+            advanced_stats.save_daily_snapshot(user_id, account_type)
         
-        if not closed_trades:
-            await update.message.reply_text(
-                "📊 محفظتك لا تحتوي على صفقات مغلقة بعد.\n"
-                "ابدأ التداول لرؤية تطور محفظتك! 🚀"
-            )
-            return
-        
-        # حساب الإحصائيات
-        total_trades = len(closed_trades)
-        total_pnl = sum(t.get('pnl_value', t.get('pnl', 0)) for t in closed_trades)
-        winning_trades = [t for t in closed_trades if (t.get('pnl_value', t.get('pnl', 0)) > 0)]
-        losing_trades = [t for t in closed_trades if (t.get('pnl_value', t.get('pnl', 0)) < 0)]
-        
-        win_rate = (len(winning_trades) / total_trades * 100) if total_trades > 0 else 0
-        avg_win = (sum(t.get('pnl_value', t.get('pnl', 0)) for t in winning_trades) / len(winning_trades)) if winning_trades else 0
-        avg_loss = (sum(t.get('pnl_value', t.get('pnl', 0)) for t in losing_trades) / len(losing_trades)) if losing_trades else 0
-        
-        # الرصيد الحالي
-        current_balance = user_data.get('balance', 10000.0)
-        
-        # المؤشرات
-        pnl_indicator = "🟢" if total_pnl > 0 else ("🔴" if total_pnl < 0 else "⚪")
-        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
-        
-        # تنسيق الرسالة
-        message = f"""{account_indicator}
-📊 PORTFOLIO EVOLUTION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💰 الرصيد الحالي: {current_balance:,.2f} USDT
-
-📈 إحصائيات الأداء:
-• إجمالي الصفقات: {total_trades}
-• الصفقات الرابحة: {len(winning_trades)} ({win_rate:.1f}%)
-• الصفقات الخاسرة: {len(losing_trades)} ({100-win_rate:.1f}%)
-
-💵 الأرباح والخسائر:
-• إجمالي P&L: {total_pnl:+.2f} USDT {pnl_indicator}
-• متوسط الربح: {avg_win:+.2f} USDT
-• متوسط الخسارة: {avg_loss:+.2f} USDT
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 استخدم /history لرؤية سجل الصفقات الكامل"""
-        
-        # أزرار التحكم
-        keyboard = [
-            [
-                InlineKeyboardButton("📊 سجل الصفقات", callback_data="show_history"),
-                InlineKeyboardButton("🔄 تحديث", callback_data="refresh_portfolio")
-            ],
-            [
-                InlineKeyboardButton("📈 تفاصيل", callback_data="portfolio_details")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        # عرض تطور المحفظة مع رسم بياني
+        if advanced_stats:
+            message, reply_markup = advanced_stats.format_portfolio_evolution_message(user_id, account_type, days=30)
+        else:
+            # Fallback للنظام القديم
+            message = "⚠️ نظام الإحصائيات المتقدم غير متاح حالياً"
+            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]])
         
         await update.message.reply_text(
             text=message,
@@ -6216,6 +6176,47 @@ async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         import traceback
         logger.error(traceback.format_exc())
         await update.message.reply_text(f"❌ خطأ في عرض الرصيد: {str(e)}")
+
+async def statistics_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض الإحصائيات المتقدمة - أمر /statistics"""
+    try:
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if not user_id:
+            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+        
+        # جلب بيانات المستخدم
+        user_data = db_manager.get_user(user_id)
+        if not user_data:
+            await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
+            return
+        
+        account_type = user_data.get('account_type', 'demo')
+        
+        # حفظ لقطة يومية للمحفظة
+        if advanced_stats:
+            advanced_stats.save_daily_snapshot(user_id, account_type)
+        
+        # عرض الإحصائيات المتقدمة
+        if advanced_stats:
+            message, keyboard = advanced_stats.format_statistics_message(user_id, account_type, days=30)
+        else:
+            message = "⚠️ نظام الإحصائيات المتقدم غير متاح حالياً"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]])
+        
+        await update.message.reply_text(
+            text=message,
+            reply_markup=keyboard
+        )
+        
+        logger.info(f"✅ تم عرض الإحصائيات المتقدمة للمستخدم {user_id}")
+    
+    except Exception as e:
+        logger.error(f"خطأ في أمر /statistics: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        await update.message.reply_text(f"❌ خطأ في عرض الإحصائيات: {str(e)}")
 
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض سجلات البوت - أمر /logs (للأدمن فقط)"""
@@ -8177,6 +8178,44 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             from error_handlers.callback_error_handler import handle_callback_error
             await handle_callback_error(update, context, e, "exchange_menu")
             return
+    
+    # معالجة أزرار الإحصائيات المتقدمة
+    if data.startswith("stats_"):
+        try:
+            parts = data.split("_")
+            if len(parts) >= 3:
+                account_type = parts[1]
+                days = int(parts[2])
+                
+                user_data = db_manager.get_user(user_id)
+                if user_data and advanced_stats:
+                    advanced_stats.save_daily_snapshot(user_id, account_type)
+                    message, keyboard = advanced_stats.format_statistics_message(user_id, account_type, days)
+                    await query.edit_message_text(text=message, reply_markup=keyboard)
+                else:
+                    await query.edit_message_text("❌ خطأ في تحميل الإحصائيات")
+        except Exception as e:
+            logger.error(f"خطأ في معالجة stats callback: {e}")
+            await query.edit_message_text("❌ خطأ في تحميل الإحصائيات")
+        return
+    
+    # معالجة أزرار تطور المحفظة
+    if data.startswith("portfolio_evolution_"):
+        try:
+            parts = data.replace("portfolio_evolution_", "").split("_")
+            if len(parts) >= 2:
+                account_type = parts[0]
+                days = int(parts[1])
+                
+                if advanced_stats:
+                    message, keyboard = advanced_stats.format_portfolio_evolution_message(user_id, account_type, days)
+                    await query.edit_message_text(text=message, reply_markup=keyboard)
+                else:
+                    await query.edit_message_text("❌ خطأ في تحميل تطور المحفظة")
+        except Exception as e:
+            logger.error(f"خطأ في معالجة portfolio_evolution callback: {e}")
+            await query.edit_message_text("❌ خطأ في تحميل تطور المحفظة")
+        return
     
     if data == "main_menu":
         await start(update, context)
@@ -10212,9 +10251,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "📈 تاريخ التداول":
         await trade_history(update, context)
     elif text == "💰 المحفظة":
-        await wallet_overview(update, context)
+        await portfolio_command(update, context)
     elif text == "📊 إحصائيات":
-        await show_user_statistics(update, context)
+        await statistics_command(update, context)
     elif text == "▶️ تشغيل البوت":
         trading_bot.is_running = True
         if update.message is not None:
@@ -10447,6 +10486,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("history", history_command))
     application.add_handler(CommandHandler("portfolio", portfolio_command))
+    application.add_handler(CommandHandler("statistics", statistics_command))
     application.add_handler(CommandHandler("wallet", wallet_command))
     application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))

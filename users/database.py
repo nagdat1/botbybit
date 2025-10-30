@@ -106,6 +106,28 @@ class DatabaseManager:
                     )
                 """)
                 
+                # جدول تطور المحفظة اليومي (لتتبع الأداء)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        account_type TEXT NOT NULL,
+                        snapshot_date DATE NOT NULL,
+                        balance REAL NOT NULL,
+                        total_pnl REAL DEFAULT 0.0,
+                        open_positions_count INTEGER DEFAULT 0,
+                        closed_trades_count INTEGER DEFAULT 0,
+                        winning_trades INTEGER DEFAULT 0,
+                        losing_trades INTEGER DEFAULT 0,
+                        total_volume REAL DEFAULT 0.0,
+                        spot_balance REAL DEFAULT 0.0,
+                        futures_balance REAL DEFAULT 0.0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (user_id),
+                        UNIQUE(user_id, account_type, snapshot_date)
+                    )
+                """)
+                
                 # جدول المطورين
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS developers (
@@ -1719,12 +1741,196 @@ class DatabaseManager:
                 cursor.execute("DELETE FROM users")
                 
                 conn.commit()
-                logger.warning(f"🗑️ تم حذف جميع المستخدمين ({user_count} مستخدم)")
+                logger.warning(f("🗑️ تم حذف جميع المستخدمين ({user_count} مستخدم)")
                 return user_count
                 
         except Exception as e:
             logger.error(f"❌ خطأ في حذف جميع المستخدمين: {e}")
             return 0
+    
+    # ==================== دوال تطور المحفظة ====================
+    
+    def save_portfolio_snapshot(self, user_id: int, account_type: str, snapshot_data: dict) -> bool:
+        """حفظ لقطة يومية للمحفظة"""
+        try:
+            from datetime import date
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                today = date.today().isoformat()
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO portfolio_snapshots 
+                    (user_id, account_type, snapshot_date, balance, total_pnl, 
+                     open_positions_count, closed_trades_count, winning_trades, 
+                     losing_trades, total_volume, spot_balance, futures_balance)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id,
+                    account_type,
+                    today,
+                    snapshot_data.get('balance', 0.0),
+                    snapshot_data.get('total_pnl', 0.0),
+                    snapshot_data.get('open_positions_count', 0),
+                    snapshot_data.get('closed_trades_count', 0),
+                    snapshot_data.get('winning_trades', 0),
+                    snapshot_data.get('losing_trades', 0),
+                    snapshot_data.get('total_volume', 0.0),
+                    snapshot_data.get('spot_balance', 0.0),
+                    snapshot_data.get('futures_balance', 0.0)
+                ))
+                
+                conn.commit()
+                logger.debug(f"✅ تم حفظ لقطة المحفظة للمستخدم {user_id} ({account_type})")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في حفظ لقطة المحفظة: {e}")
+            return False
+    
+    def get_portfolio_evolution(self, user_id: int, account_type: str, days: int = 30) -> list:
+        """الحصول على تطور المحفظة خلال فترة محددة"""
+        try:
+            from datetime import date, timedelta
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                start_date = (date.today() - timedelta(days=days)).isoformat()
+                
+                cursor.execute("""
+                    SELECT snapshot_date, balance, total_pnl, open_positions_count,
+                           closed_trades_count, winning_trades, losing_trades,
+                           total_volume, spot_balance, futures_balance, created_at
+                    FROM portfolio_snapshots
+                    WHERE user_id = ? AND account_type = ? AND snapshot_date >= ?
+                    ORDER BY snapshot_date ASC
+                """, (user_id, account_type, start_date))
+                
+                rows = cursor.fetchall()
+                
+                snapshots = []
+                for row in rows:
+                    snapshots.append({
+                        'date': row[0],
+                        'balance': row[1],
+                        'total_pnl': row[2],
+                        'open_positions_count': row[3],
+                        'closed_trades_count': row[4],
+                        'winning_trades': row[5],
+                        'losing_trades': row[6],
+                        'total_volume': row[7],
+                        'spot_balance': row[8],
+                        'futures_balance': row[9],
+                        'created_at': row[10]
+                    })
+                
+                return snapshots
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على تطور المحفظة: {e}")
+            return []
+    
+    def get_portfolio_statistics(self, user_id: int, account_type: str, days: int = 30) -> dict:
+        """حساب إحصائيات المحفظة المتقدمة"""
+        try:
+            snapshots = self.get_portfolio_evolution(user_id, account_type, days)
+            
+            if not snapshots:
+                return {
+                    'total_return': 0.0,
+                    'total_return_percent': 0.0,
+                    'max_balance': 0.0,
+                    'min_balance': 0.0,
+                    'max_drawdown': 0.0,
+                    'avg_daily_return': 0.0,
+                    'volatility': 0.0,
+                    'sharpe_ratio': 0.0,
+                    'win_rate': 0.0,
+                    'total_trades': 0,
+                    'profitable_days': 0,
+                    'losing_days': 0
+                }
+            
+            # حساب الإحصائيات
+            balances = [s['balance'] for s in snapshots]
+            pnls = [s['total_pnl'] for s in snapshots]
+            
+            initial_balance = balances[0] if balances else 10000.0
+            current_balance = balances[-1] if balances else initial_balance
+            
+            total_return = current_balance - initial_balance
+            total_return_percent = (total_return / initial_balance * 100) if initial_balance > 0 else 0.0
+            
+            max_balance = max(balances) if balances else 0.0
+            min_balance = min(balances) if balances else 0.0
+            
+            # حساب Max Drawdown
+            max_drawdown = 0.0
+            peak = balances[0] if balances else 0.0
+            for balance in balances:
+                if balance > peak:
+                    peak = balance
+                drawdown = ((peak - balance) / peak * 100) if peak > 0 else 0.0
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
+            
+            # حساب العائد اليومي المتوسط
+            if len(balances) > 1:
+                daily_returns = []
+                for i in range(1, len(balances)):
+                    if balances[i-1] > 0:
+                        daily_return = (balances[i] - balances[i-1]) / balances[i-1] * 100
+                        daily_returns.append(daily_return)
+                
+                avg_daily_return = sum(daily_returns) / len(daily_returns) if daily_returns else 0.0
+                
+                # حساب التقلب (Volatility)
+                if len(daily_returns) > 1:
+                    mean_return = avg_daily_return
+                    variance = sum((r - mean_return) ** 2 for r in daily_returns) / len(daily_returns)
+                    volatility = variance ** 0.5
+                else:
+                    volatility = 0.0
+                
+                # حساب Sharpe Ratio (مبسط - بدون معدل خالي من المخاطر)
+                sharpe_ratio = (avg_daily_return / volatility) if volatility > 0 else 0.0
+                
+                # عدد الأيام الرابحة والخاسرة
+                profitable_days = sum(1 for r in daily_returns if r > 0)
+                losing_days = sum(1 for r in daily_returns if r < 0)
+            else:
+                avg_daily_return = 0.0
+                volatility = 0.0
+                sharpe_ratio = 0.0
+                profitable_days = 0
+                losing_days = 0
+            
+            # معدل الفوز من آخر لقطة
+            last_snapshot = snapshots[-1]
+            total_trades = last_snapshot.get('winning_trades', 0) + last_snapshot.get('losing_trades', 0)
+            win_rate = (last_snapshot.get('winning_trades', 0) / total_trades * 100) if total_trades > 0 else 0.0
+            
+            return {
+                'total_return': total_return,
+                'total_return_percent': total_return_percent,
+                'max_balance': max_balance,
+                'min_balance': min_balance,
+                'max_drawdown': max_drawdown,
+                'avg_daily_return': avg_daily_return,
+                'volatility': volatility,
+                'sharpe_ratio': sharpe_ratio,
+                'win_rate': win_rate,
+                'total_trades': total_trades,
+                'profitable_days': profitable_days,
+                'losing_days': losing_days,
+                'days_tracked': len(snapshots)
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في حساب إحصائيات المحفظة: {e}")
+            return {}
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

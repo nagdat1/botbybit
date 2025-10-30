@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-شاشة سجل الصفقات مع فلاتر وتقارير
+شاشة سجل الصفقات مع فلاتر وتقارير متقدمة
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -193,12 +193,21 @@ class TradeHistoryDisplay:
             return "خطأ في عرض السجل", None
     
     def _create_filter_keyboard(self, current_filters: Dict = None) -> InlineKeyboardMarkup:
-        """إنشاء لوحة مفاتيح الفلاتر"""
+        """إنشاء لوحة مفاتيح الفلاتر المتقدمة"""
         try:
             if not current_filters:
                 current_filters = {}
             
             keyboard = []
+            
+            # فلتر الفترة الزمنية
+            time_row = [
+                InlineKeyboardButton("📅 7د", callback_data="history_filter_days_7"),
+                InlineKeyboardButton("📅 30د", callback_data="history_filter_days_30"),
+                InlineKeyboardButton("📅 90د", callback_data="history_filter_days_90"),
+                InlineKeyboardButton("📅 الكل", callback_data="history_filter_days_all")
+            ]
+            keyboard.append(time_row)
             
             # فلتر الحالة
             status_row = [
@@ -224,13 +233,31 @@ class TradeHistoryDisplay:
             ]
             keyboard.append(market_row)
             
+            # فلتر الربح/الخسارة
+            pnl_row = [
+                InlineKeyboardButton("🟢 رابحة", callback_data="history_filter_pnl_winning"),
+                InlineKeyboardButton("🔴 خاسرة", callback_data="history_filter_pnl_losing"),
+                InlineKeyboardButton("🔀 الكل", callback_data="history_filter_pnl_all")
+            ]
+            keyboard.append(pnl_row)
+            
             # التحكم
             control_row = [
                 InlineKeyboardButton("🔄 تحديث", callback_data="history_refresh"),
-                InlineKeyboardButton("📊 تقرير", callback_data="history_report"),
-                InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main")
+                InlineKeyboardButton("📊 تقرير مفصل", callback_data="history_detailed_report")
             ]
             keyboard.append(control_row)
+            
+            # أزرار إضافية
+            extra_row = [
+                InlineKeyboardButton("📈 أفضل الصفقات", callback_data="history_best_trades"),
+                InlineKeyboardButton("📉 أسوأ الصفقات", callback_data="history_worst_trades")
+            ]
+            keyboard.append(extra_row)
+            
+            # زر الرجوع
+            back_row = [InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]
+            keyboard.append(back_row)
             
             return InlineKeyboardMarkup(keyboard)
             

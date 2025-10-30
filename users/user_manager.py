@@ -29,6 +29,8 @@ class UserManager:
         self.users: Dict[int, Dict] = {}  # تخزين مؤقت لبيانات المستخدمين
         self.user_accounts: Dict[int, Dict] = {}  # حسابات تجريبية لكل مستخدم
         self.user_apis: Dict[int, Any] = {}  # APIs لكل مستخدم
+        
+        # 🔧 إصلاح: تهيئة user_positions كـ dictionary فارغ بدلاً من None
         self.user_positions: Dict[int, Dict[str, Dict]] = {}  # صفقات كل مستخدم
         
         # تخزين الفئات للاستخدام عند الحاجة
@@ -45,6 +47,9 @@ class UserManager:
                 self.enhanced_system = None
         else:
             self.enhanced_system = None
+        
+        # 🔧 إصلاح: التأكد من أن user_positions ليس None أبداً
+        logger.info(f"✅ تم تهيئة user_positions: {self.user_positions is not None}")
         
         # تحميل المستخدمين من قاعدة البيانات
         # سيتم استدعاء load_all_users يدوياً بعد تهيئة الفئات
@@ -78,6 +83,11 @@ class UserManager:
     def _create_user_accounts(self, user_id: int, user_data: Dict):
         """إنشاء حسابات تجريبية للمستخدم"""
         try:
+            # 🔧 إصلاح: تهيئة user_positions للمستخدم أولاً (قبل أي شيء)
+            if user_id not in self.user_positions:
+                self.user_positions[user_id] = {}
+                logger.info(f"✅ تم تهيئة user_positions للمستخدم {user_id}")
+            
             if not self.TradingAccount:
                 logger.warning(f"TradingAccount class not set, skipping account creation for user {user_id}")
                 return
@@ -98,9 +108,6 @@ class UserManager:
                 'spot': spot_account,
                 'futures': futures_account
             }
-            
-            # تهيئة قائمة الصفقات للمستخدم
-            self.user_positions[user_id] = {}
             
             logger.info(f"تم إنشاء حسابات للمستخدم {user_id}")
             
@@ -373,6 +380,11 @@ class UserManager:
             if success:
                 position_id = result
                 
+                # 🔧 إصلاح: التأكد من وجود user_positions[user_id] قبل الحفظ
+                if user_id not in self.user_positions:
+                    self.user_positions[user_id] = {}
+                    logger.warning(f"⚠️ تم إنشاء user_positions[{user_id}] تلقائيًا")
+                
                 # حفظ الصفقة في قاعدة البيانات
                 order_data = {
                     'order_id': position_id,
@@ -381,7 +393,8 @@ class UserManager:
                     'side': action,
                     'entry_price': price,
                     'quantity': amount,
-                    'status': 'OPEN'
+                    'status': 'OPEN',
+                    'market_type': market_type
                 }
                 
                 db_manager.create_order(order_data)
@@ -394,10 +407,13 @@ class UserManager:
                     'account_type': market_type,
                     'quantity': amount,
                     'current_price': price,
-                    'pnl_percent': 0.0
+                    'pnl_percent': 0.0,
+                    'exchange': 'demo',
+                    'position_size': amount
                 }
                 
-                logger.info(f"تم تنفيذ صفقة للمستخدم {user_id}: {symbol} {action}")
+                logger.info(f"✅ تم تنفيذ صفقة للمستخدم {user_id}: {symbol} {action}")
+                logger.info(f"✅ تم حفظ الصفقة في user_positions: {position_id}")
                 return True, position_id
             
             return False, result
