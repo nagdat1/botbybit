@@ -62,8 +62,8 @@ class AdvancedStatistics:
             logger.error(f"خطأ في إنشاء الرسم البياني: {e}")
             return "❌ خطأ في الرسم"
     
-    def calculate_trade_statistics(self, user_id: int, account_type: str, days: int = 30) -> Dict:
-        """حساب إحصائيات الصفقات المتقدمة"""
+    def calculate_trade_statistics(self, user_id: int, account_type: str, days: int = 30, market_type: str = None) -> Dict:
+        """حساب إحصائيات الصفقات المتقدمة (مع دعم Spot/Futures)"""
         try:
             from datetime import datetime, timedelta
             
@@ -73,6 +73,10 @@ class AdvancedStatistics:
                 'account_type': account_type,
                 'days': days
             }
+            
+            # إضافة فلتر market_type إذا كان محدداً
+            if market_type:
+                filters['market_type'] = market_type
             
             trades = self.db_manager.get_user_trade_history(user_id, filters)
             
@@ -233,19 +237,26 @@ class AdvancedStatistics:
             'symbol_stats': {}
         }
     
-    def format_statistics_message(self, user_id: int, account_type: str, days: int = 30) -> Tuple[str, InlineKeyboardMarkup]:
-        """تنسيق رسالة الإحصائيات الشاملة"""
+    def format_statistics_message(self, user_id: int, account_type: str, days: int = 30, market_type: str = None) -> Tuple[str, InlineKeyboardMarkup]:
+        """تنسيق رسالة الإحصائيات الشاملة (مع دعم Spot/Futures)"""
         try:
             # جلب الإحصائيات
-            trade_stats = self.calculate_trade_statistics(user_id, account_type, days)
+            trade_stats = self.calculate_trade_statistics(user_id, account_type, days, market_type)
             portfolio_stats = self.db_manager.get_portfolio_statistics(user_id, account_type, days)
             
             # المؤشرات
             account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
             pnl_indicator = "🟢" if trade_stats['total_pnl'] > 0 else ("🔴" if trade_stats['total_pnl'] < 0 else "⚪")
             
+            # مؤشر نوع السوق
+            market_indicator = ""
+            if market_type == 'spot':
+                market_indicator = " | 💱 SPOT"
+            elif market_type == 'futures':
+                market_indicator = " | ⚡ FUTURES"
+            
             # بناء الرسالة
-            message = f"""{account_indicator}
+            message = f"""{account_indicator}{market_indicator}
 📊 ADVANCED STATISTICS ({days} يوم)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -291,18 +302,29 @@ class AdvancedStatistics:
             
             message += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
+            # تحديد market_suffix للأزرار
+            market_suffix = f"_{market_type}" if market_type else ""
+            
             # الأزرار
             keyboard = [
+                # اختيار نوع السوق
                 [
-                    InlineKeyboardButton("📅 7 أيام", callback_data=f"stats_{account_type}_7"),
-                    InlineKeyboardButton("📅 30 يوم", callback_data=f"stats_{account_type}_30"),
-                    InlineKeyboardButton("📅 90 يوم", callback_data=f"stats_{account_type}_90")
+                    InlineKeyboardButton("📊 الكل", callback_data=f"stats_{account_type}_{days}"),
+                    InlineKeyboardButton("💱 Spot", callback_data=f"stats_{account_type}_{days}_spot"),
+                    InlineKeyboardButton("⚡ Futures", callback_data=f"stats_{account_type}_{days}_futures")
+                ],
+                # اختيار الفترة الزمنية
+                [
+                    InlineKeyboardButton("📅 7د", callback_data=f"stats_{account_type}_7{market_suffix}"),
+                    InlineKeyboardButton("📅 30د", callback_data=f"stats_{account_type}_30{market_suffix}"),
+                    InlineKeyboardButton("📅 90د", callback_data=f"stats_{account_type}_90{market_suffix}")
+                ],
+                # أزرار إضافية
+                [
+                    InlineKeyboardButton("📊 تطور المحفظة", callback_data=f"portfolio_evolution_{account_type}_{days}{market_suffix}"),
                 ],
                 [
-                    InlineKeyboardButton("📊 تطور المحفظة", callback_data=f"portfolio_evolution_{account_type}_{days}"),
-                ],
-                [
-                    InlineKeyboardButton("🔄 تحديث", callback_data=f"stats_{account_type}_{days}"),
+                    InlineKeyboardButton("🔄 تحديث", callback_data=f"stats_{account_type}_{days}{market_suffix}"),
                     InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")
                 ]
             ]
@@ -315,11 +337,16 @@ class AdvancedStatistics:
             logger.error(traceback.format_exc())
             return "❌ خطأ في تحميل الإحصائيات", InlineKeyboardMarkup([[]])
     
-    def format_portfolio_evolution_message(self, user_id: int, account_type: str, days: int = 30) -> Tuple[str, InlineKeyboardMarkup]:
-        """تنسيق رسالة تطور المحفظة مع رسم بياني"""
+    def format_portfolio_evolution_message(self, user_id: int, account_type: str, days: int = 30, market_type: str = None) -> Tuple[str, InlineKeyboardMarkup]:
+        """تنسيق رسالة تطور المحفظة مع رسم بياني (مع دعم Spot/Futures)"""
         try:
             # جلب تطور المحفظة
-            snapshots = self.db_manager.get_portfolio_evolution(user_id, account_type, days)
+            if market_type:
+                # جلب بيانات سوق محدد (Spot أو Futures)
+                snapshots = self.db_manager.get_portfolio_evolution_by_market(user_id, account_type, market_type, days)
+            else:
+                # جلب البيانات الإجمالية
+                snapshots = self.db_manager.get_portfolio_evolution(user_id, account_type, days)
             
             if not snapshots:
                 return "📊 لا توجد بيانات لتطور المحفظة بعد", InlineKeyboardMarkup([[]])
@@ -342,8 +369,17 @@ class AdvancedStatistics:
             # إنشاء الرسم البياني
             chart = self.generate_ascii_chart(balances, width=25, height=5)
             
+            # مؤشر نوع السوق
+            market_indicator = ""
+            if market_type == 'spot':
+                market_indicator = "💱 SPOT"
+            elif market_type == 'futures':
+                market_indicator = "⚡ FUTURES"
+            else:
+                market_indicator = "📊 TOTAL"
+            
             # بناء الرسالة
-            message = f"""{account_indicator}
+            message = f"""{account_indicator} | {market_indicator}
 📊 PORTFOLIO EVOLUTION ({days} يوم)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -372,19 +408,30 @@ class AdvancedStatistics:
                     day_date = snapshot['date']
                     message += f"• {day_date}: {day_balance:,.2f} USDT\n"
             
+            # تحديد market_suffix للأزرار
+            market_suffix = f"_{market_type}" if market_type else ""
+            
             # الأزرار
             keyboard = [
+                # اختيار نوع السوق
                 [
-                    InlineKeyboardButton("📅 7 أيام", callback_data=f"portfolio_evolution_{account_type}_7"),
-                    InlineKeyboardButton("📅 30 يوم", callback_data=f"portfolio_evolution_{account_type}_30"),
+                    InlineKeyboardButton("📊 الكل", callback_data=f"portfolio_evolution_{account_type}_{days}"),
+                    InlineKeyboardButton("💱 Spot", callback_data=f"portfolio_evolution_{account_type}_{days}_spot"),
+                    InlineKeyboardButton("⚡ Futures", callback_data=f"portfolio_evolution_{account_type}_{days}_futures")
+                ],
+                # اختيار الفترة الزمنية
+                [
+                    InlineKeyboardButton("📅 7د", callback_data=f"portfolio_evolution_{account_type}_7{market_suffix}"),
+                    InlineKeyboardButton("📅 30د", callback_data=f"portfolio_evolution_{account_type}_30{market_suffix}"),
+                    InlineKeyboardButton("📅 90د", callback_data=f"portfolio_evolution_{account_type}_90{market_suffix}"),
                 ],
                 [
-                    InlineKeyboardButton("📅 90 يوم", callback_data=f"portfolio_evolution_{account_type}_90"),
-                    InlineKeyboardButton("📅 365 يوم", callback_data=f"portfolio_evolution_{account_type}_365")
+                    InlineKeyboardButton("📅 365د", callback_data=f"portfolio_evolution_{account_type}_365{market_suffix}")
                 ],
+                # أزرار إضافية
                 [
-                    InlineKeyboardButton("📊 الإحصائيات", callback_data=f"stats_{account_type}_{days}"),
-                    InlineKeyboardButton("🔄 تحديث", callback_data=f"portfolio_evolution_{account_type}_{days}")
+                    InlineKeyboardButton("📊 الإحصائيات", callback_data=f"stats_{account_type}_{days}{market_suffix}"),
+                    InlineKeyboardButton("🔄 تحديث", callback_data=f"portfolio_evolution_{account_type}_{days}{market_suffix}")
                 ],
                 [
                     InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")

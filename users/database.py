@@ -20,27 +20,7 @@ class DatabaseManager:
     
     def __init__(self, db_path: str = "trading_bot.db"):
         self.db_path = db_path
-        
-        # 🔥 فحص ملف إعادة التعيين الإجباري
-        reset_file = "FORCE_RESET.flag"
-        if os.path.exists(reset_file):
-            logger.warning("🔥 تم العثور على ملف إعادة التعيين الإجباري!")
-            logger.warning("🗑️ حذف قاعدة البيانات الحالية...")
-            
-            # حذف قاعدة البيانات الحالية
-            if os.path.exists(self.db_path):
-                try:
-                    os.remove(self.db_path)
-                    logger.warning(f"✅ تم حذف {self.db_path}")
-                except Exception as e:
-                    logger.error(f"❌ فشل حذف {self.db_path}: {e}")
-            
-            # حذف ملف الإعادة التعيين
-            try:
-                os.remove(reset_file)
-                logger.warning(f"✅ تم حذف ملف الإعادة التعيين: {reset_file}")
-            except Exception as e:
-                logger.error(f"❌ فشل حذف ملف الإعادة التعيين: {e}")
+        logger.info(f"📁 مسار قاعدة البيانات: {self.db_path}")
         
         self.init_database()
     
@@ -1594,7 +1574,6 @@ class DatabaseManager:
                 f"{self.db_path}-wal",  # trading_bot.db-wal
                 f"{self.db_path}-shm",  # trading_bot.db-shm
                 "trading_bot.log",  # ملف السجلات
-                "FORCE_RESET.flag",  # ملف إعادة التعيين
             ]
             
             # حذف جميع النسخ الاحتياطية
@@ -1789,8 +1768,8 @@ class DatabaseManager:
             logger.error(f"❌ خطأ في حفظ لقطة المحفظة: {e}")
             return False
     
-    def get_portfolio_evolution(self, user_id: int, account_type: str, days: int = 30) -> list:
-        """الحصول على تطور المحفظة خلال فترة محددة"""
+    def get_portfolio_evolution(self, user_id: int, account_type: str, days: int = 30, market_type: str = None) -> list:
+        """الحصول على تطور المحفظة خلال فترة محددة (مع دعم Spot/Futures)"""
         try:
             from datetime import date, timedelta
             
@@ -1812,7 +1791,7 @@ class DatabaseManager:
                 
                 snapshots = []
                 for row in rows:
-                    snapshots.append({
+                    snapshot = {
                         'date': row[0],
                         'balance': row[1],
                         'total_pnl': row[2],
@@ -1824,12 +1803,55 @@ class DatabaseManager:
                         'spot_balance': row[8],
                         'futures_balance': row[9],
                         'created_at': row[10]
-                    })
+                    }
+                    
+                    # إذا كان market_type محدد، استخدم الرصيد المناسب
+                    if market_type == 'spot':
+                        snapshot['balance'] = row[8]  # spot_balance
+                    elif market_type == 'futures':
+                        snapshot['balance'] = row[9]  # futures_balance
+                    
+                    snapshots.append(snapshot)
                 
                 return snapshots
                 
         except Exception as e:
             logger.error(f"❌ خطأ في الحصول على تطور المحفظة: {e}")
+            return []
+    
+    def get_portfolio_evolution_by_market(self, user_id: int, account_type: str, market_type: str, days: int = 30) -> list:
+        """الحصول على تطور المحفظة حسب نوع السوق (Spot أو Futures)"""
+        try:
+            from datetime import date, timedelta
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                start_date = (date.today() - timedelta(days=days)).isoformat()
+                
+                # جلب اللقطات اليومية
+                cursor.execute("""
+                    SELECT snapshot_date, spot_balance, futures_balance, created_at
+                    FROM portfolio_snapshots
+                    WHERE user_id = ? AND account_type = ? AND snapshot_date >= ?
+                    ORDER BY snapshot_date ASC
+                """, (user_id, account_type, start_date))
+                
+                rows = cursor.fetchall()
+                
+                snapshots = []
+                for row in rows:
+                    balance = row[1] if market_type == 'spot' else row[2]
+                    snapshots.append({
+                        'date': row[0],
+                        'balance': balance,
+                        'created_at': row[3]
+                    })
+                
+                return snapshots
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على تطور المحفظة حسب السوق: {e}")
             return []
     
     def get_portfolio_statistics(self, user_id: int, account_type: str, days: int = 30) -> dict:

@@ -376,16 +376,6 @@ class DeveloperManager:
                     'message': 'حساب المطور غير نشط'
                 }
             
-            # إنشاء ملف إعادة التعيين الإجباري
-            import os
-            reset_file = "FORCE_RESET.flag"
-            try:
-                with open(reset_file, 'w') as f:
-                    f.write(f"FORCE_RESET_DATABASE_ON_STARTUP\nCreated by developer {developer_id} at {datetime.now()}")
-                logger.warning(f"🔥 تم إنشاء ملف إعادة التعيين الإجباري: {reset_file}")
-            except Exception as e:
-                logger.error(f"❌ فشل إنشاء ملف إعادة التعيين: {e}")
-            
             try:
                 # 🔥 حذف شامل لجميع البيانات من الذاكرة (cache)
                 logger.warning("🔥 بدء الحذف الشامل لجميع البيانات من الذاكرة...")

@@ -8193,42 +8193,70 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_callback_error(update, context, e, "exchange_menu")
             return
     
-    # معالجة أزرار الإحصائيات المتقدمة
+    # معالجة أزرار الإحصائيات المتقدمة (مع دعم Spot/Futures)
     if data.startswith("stats_"):
         try:
             parts = data.split("_")
             if len(parts) >= 3:
                 account_type = parts[1]
                 days = int(parts[2])
+                market_type = parts[3] if len(parts) >= 4 else None
                 
                 user_data = db_manager.get_user(user_id)
                 if user_data and advanced_stats:
                     advanced_stats.save_daily_snapshot(user_id, account_type)
-                    message, keyboard = advanced_stats.format_statistics_message(user_id, account_type, days)
-                    await query.edit_message_text(text=message, reply_markup=keyboard)
+                    message, keyboard = advanced_stats.format_statistics_message(
+                        user_id, account_type, days, market_type
+                    )
+                    try:
+                        await query.edit_message_text(text=message, reply_markup=keyboard)
+                    except Exception as edit_error:
+                        # إذا كانت الرسالة نفسها، لا نفعل شيء
+                        if "Message is not modified" in str(edit_error):
+                            await query.answer("🔄 تم التحديث")
+                        else:
+                            raise edit_error
                 else:
                     await query.edit_message_text("❌ خطأ في تحميل الإحصائيات")
         except Exception as e:
-            logger.error(f"خطأ في معالجة stats callback: {e}")
-            await query.edit_message_text("❌ خطأ في تحميل الإحصائيات")
+            if "Message is not modified" not in str(e):
+                logger.error(f"خطأ في معالجة stats callback: {e}")
+                try:
+                    await query.edit_message_text("❌ خطأ في تحميل الإحصائيات")
+                except:
+                    await query.answer("❌ خطأ في تحميل الإحصائيات")
         return
     
-    # معالجة أزرار تطور المحفظة
+    # معالجة أزرار تطور المحفظة (مع دعم Spot/Futures)
     if data.startswith("portfolio_evolution_"):
         try:
             parts = data.replace("portfolio_evolution_", "").split("_")
             if len(parts) >= 2:
                 account_type = parts[0]
                 days = int(parts[1])
+                market_type = parts[2] if len(parts) >= 3 else None
                 
                 if advanced_stats:
-                    message, keyboard = advanced_stats.format_portfolio_evolution_message(user_id, account_type, days)
-                    await query.edit_message_text(text=message, reply_markup=keyboard)
+                    message, keyboard = advanced_stats.format_portfolio_evolution_message(
+                        user_id, account_type, days, market_type
+                    )
+                    try:
+                        await query.edit_message_text(text=message, reply_markup=keyboard)
+                    except Exception as edit_error:
+                        # إذا كانت الرسالة نفسها، لا نفعل شيء
+                        if "Message is not modified" in str(edit_error):
+                            await query.answer("🔄 تم التحديث")
+                        else:
+                            raise edit_error
                 else:
                     await query.edit_message_text("❌ خطأ في تحميل تطور المحفظة")
         except Exception as e:
-            logger.error(f"خطأ في معالجة portfolio_evolution callback: {e}")
-            await query.edit_message_text("❌ خطأ في تحميل تطور المحفظة")
+            if "Message is not modified" not in str(e):
+                logger.error(f"خطأ في معالجة portfolio_evolution callback: {e}")
+                try:
+                    await query.edit_message_text("❌ خطأ في تحميل تطور المحفظة")
+                except:
+                    await query.answer("❌ خطأ في تحميل تطور المحفظة")
         return
     
     if data == "main_menu":
@@ -9076,7 +9104,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.error(f"خطأ في إرسال الإشارة: {e}")
                 await update.callback_query.answer("❌ خطأ في الإرسال")
-    if data == "dev_toggle_active":
+    
+    elif data == "dev_toggle_active":
         if user_id:
             success = developer_manager.toggle_developer_active(user_id)
             if success:
@@ -9111,7 +9140,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.callback_query.answer("❌ فشل في الإزالة")
         except ValueError:
             await update.callback_query.answer("❌ خطأ في ID المتابع")
-    if data == "dev_toggle_auto_broadcast":
+    
+    elif data == "dev_toggle_auto_broadcast":
         # تبديل حالة التوزيع التلقائي
         if user_id:
             # تبديل الحالة في قاعدة البيانات
@@ -9148,7 +9178,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.callback_query.answer(f"✅ التوزيع التلقائي: {'مُفعّل' if new_state else 'مُعطّل'}")
             else:
                 await update.callback_query.answer("❌ فشل في تبديل الحالة")
-    if data == "dev_refresh_users":
+    
+    elif data == "dev_refresh_users":
         # تحديث قائمة المستخدمين
         if user_id:
             all_users_data = db_manager.get_all_developers() + user_manager.get_all_active_users()
