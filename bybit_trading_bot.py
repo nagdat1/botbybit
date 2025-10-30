@@ -4221,6 +4221,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_id = update.effective_user.id
     
+    # التأكد من وجود المستخدم وإنشاؤه إذا لم يكن موجوداً
+    user_data = await ensure_user_exists(user_id)
+    if not user_data:
+        logger.error(f"❌ فشل إنشاء/جلب بيانات المستخدم {user_id}")
+        await update.message.reply_text("❌ حدث خطأ في تهيئة حسابك. يرجى المحاولة مرة أخرى.")
+        return
+    
+    logger.info(f"✅ المستخدم {user_id} جاهز - البيانات متوفرة")
+    
     # التحقق من أن المستخدم هو المطور
     # استخدام ADMIN_USER_ID مباشرة من config.py
     is_admin = (user_id == ADMIN_USER_ID)
@@ -4268,55 +4277,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
         return
     
-    # التحقق من وجود المستخدم في قاعدة البيانات
-    # التحقق من أن user_manager متوفر
-    if user_manager is None:
-        logger.error("❌ user_manager غير متوفر!")
-        await update.message.reply_text(
-            "❌ خطأ: البوت لم يتم تهيئته بشكل صحيح. يرجى المحاولة لاحقاً."
-        )
-        return
+    # إعادة تحميل الحساب الحقيقي إذا كان مفعّلاً
+    account_type = user_data.get('account_type', 'demo')
+    exchange = user_data.get('exchange', '')
     
-    user_data = user_manager.get_user(user_id)
-    
-    if not user_data:
-        # مستخدم جديد - إنشاء حساب
-        logger.warning(f"🆕 إنشاء مستخدم جديد: {user_id}")
-        try:
-            user_manager.create_user(user_id)
-            user_data = user_manager.get_user(user_id)
-            logger.info(f"✅ تم إنشاء المستخدم {user_id} بنجاح")
-        except Exception as e:
-            logger.error(f"خطأ في إنشاء المستخدم {user_id}: {e}")
-            await update.message.reply_text(
-                "❌ حدث خطأ في إنشاء حسابك. يرجى المحاولة مرة أخرى."
-            )
-            return
-    else:
-        # مستخدم موجود - إعادة تحميل الحساب الحقيقي إذا كان مفعّلاً
-        account_type = user_data.get('account_type', 'demo')
-        exchange = user_data.get('exchange', '')
+    if account_type == 'real' and exchange:
+        from api.bybit_api import real_account_manager
         
-        if account_type == 'real' and exchange:
-            from api.bybit_api import real_account_manager
-            
-            # التحقق من وجود المفاتيح
-            if exchange == 'bybit':
-                api_key = user_data.get('bybit_api_key', '')
-                api_secret = user_data.get('bybit_api_secret', '')
-            else:
-                api_key = ''
-                api_secret = ''
-            
-            # إعادة تهيئة الحساب إذا كانت المفاتيح موجودة
-            if api_key and api_secret and len(api_key) > 10:
-                try:
-                    real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
-                    logger.info(f"✅ تم إعادة تحميل حساب {exchange} للمستخدم {user_id}")
-                except Exception as e:
-                    logger.error(f"⚠️ خطأ في إعادة تحميل الحساب: {e}")
+        # التحقق من وجود المفاتيح
+        if exchange == 'bybit':
+            api_key = user_data.get('bybit_api_key', '')
+            api_secret = user_data.get('bybit_api_secret', '')
+        else:
+            api_key = ''
+            api_secret = ''
         
-        # مستخدم موجود - يتم تنفيذ باقي الكود لعرض الأزرار
+        # إعادة تهيئة الحساب إذا كانت المفاتيح موجودة
+        if api_key and api_secret and len(api_key) > 10:
+            try:
+                real_account_manager.initialize_account(user_id, exchange, api_key, api_secret)
+                logger.info(f"✅ تم إعادة تحميل حساب {exchange} للمستخدم {user_id}")
+            except Exception as e:
+                logger.error(f"⚠️ خطأ في إعادة تحميل الحساب: {e}")
     
     # عرض القائمة الرئيسية
     keyboard = [
@@ -5918,23 +5900,32 @@ async def clear_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
         if update.callback_query:
             await update.callback_query.edit_message_text(f"❌ خطأ: {e}")
 
+async def ensure_user_exists(user_id: int) -> Optional[Dict]:
+    """التأكد من وجود المستخدم وإنشاؤه إذا لم يكن موجوداً"""
+    user_data = db_manager.get_user(user_id)
+    if not user_data:
+        logger.warning(f"🆕 المستخدم {user_id} غير موجود، سيتم إنشاؤه تلقائياً")
+        try:
+            user_manager.create_user(user_id)
+            user_data = db_manager.get_user(user_id)
+            logger.info(f"✅ تم إنشاء المستخدم {user_id} تلقائياً")
+        except Exception as e:
+            logger.error(f"❌ فشل إنشاء المستخدم {user_id}: {e}")
+            return None
+    return user_data
+
 async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """قائمة الإعدادات لكل مستخدم"""
     if update.effective_user is None:
         return
     
     user_id = update.effective_user.id
-    user_data = user_manager.get_user(user_id)
+    user_data = await ensure_user_exists(user_id)
     
     if not user_data:
-        # إذا لم يكن لدى المستخدم حساب، ننشئه تلقائياً ثم نكمل
-        try:
-            user_manager.create_user(user_id)
-            user_data = user_manager.get_user(user_id)
-        except Exception:
-            if update.message is not None:
-                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
-            return
+        if update.message is not None:
+            await update.message.reply_text("❌ يرجى استخدام /start أولاً")
+        return
     
     auto_status = "✅" if trade_tools_manager.auto_apply_enabled else "⏸️"
     
@@ -6288,8 +6279,8 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ خطأ في تحديد المستخدم")
             return
         
-        # جلب بيانات المستخدم
-        user_data = db_manager.get_user(user_id)
+        # جلب بيانات المستخدم أو إنشاؤه إذا لم يكن موجوداً
+        user_data = await ensure_user_exists(user_id)
         if not user_data:
             await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
             return
@@ -6488,8 +6479,8 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ خطأ في تحديد المستخدم")
             return
         
-        # جلب بيانات المستخدم
-        user_data = db_manager.get_user(user_id)
+        # جلب بيانات المستخدم أو إنشاؤه إذا لم يكن موجوداً
+        user_data = await ensure_user_exists(user_id)
         if not user_data:
             await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
             return
@@ -6677,8 +6668,8 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text("❌ خطأ في تحديد المستخدم")
             return
         
-        # جلب بيانات المستخدم
-        user_data = db_manager.get_user(user_id)
+        # جلب بيانات المستخدم أو إنشاؤه إذا لم يكن موجوداً
+        user_data = await ensure_user_exists(user_id)
         if not user_data:
             await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
             return
