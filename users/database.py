@@ -590,14 +590,19 @@ class DatabaseManager:
     def create_order(self, order_data: Dict) -> bool:
         """إنشاء صفقة جديدة"""
         try:
+            logger.info(f"🔍 DEBUG: create_order استلم البيانات: {order_data}")
+            
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
                 # التحقق من وجود الصفقة مسبقاً
                 cursor.execute("SELECT order_id FROM orders WHERE order_id = ?", (order_data['order_id'],))
-                if cursor.fetchone():
+                existing = cursor.fetchone()
+                if existing:
                     logger.warning(f"الصفقة {order_data['order_id']} موجودة بالفعل")
                     return True
+                
+                logger.info(f"🔍 DEBUG: الصفقة غير موجودة مسبقاً، سيتم إدراجها...")
                 
                 cursor.execute("""
                     INSERT INTO orders (
@@ -631,7 +636,17 @@ class DatabaseManager:
                 ))
                 
                 conn.commit()
-                logger.info(f"تم إنشاء صفقة جديدة: {order_data['order_id']} - {order_data['symbol']}")
+                logger.info(f"✅ تم إنشاء صفقة جديدة بنجاح: {order_data['order_id']} - {order_data['symbol']} - market_type={order_data.get('market_type')} - account_type={order_data.get('account_type')}")
+                
+                # التحقق من الحفظ
+                cursor.execute("SELECT * FROM orders WHERE order_id = ?", (order_data['order_id'],))
+                saved_order = cursor.fetchone()
+                if saved_order:
+                    saved_dict = dict(saved_order)
+                    logger.info(f"🔍 DEBUG: تم التحقق من حفظ الصفقة: order_id={saved_dict['order_id']}, market_type={saved_dict['market_type']}, account_type={saved_dict['account_type']}, status={saved_dict['status']}")
+                else:
+                    logger.error(f"❌ فشل التحقق من حفظ الصفقة {order_data['order_id']}")
+                
                 return True
                 
         except Exception as e:
@@ -1462,6 +1477,8 @@ class DatabaseManager:
     def get_user_trade_history(self, user_id: int, filters: Dict = None) -> List[Dict]:
         """الحصول على سجل الصفقات مع فلاتر"""
         try:
+            logger.info(f"🔍 DEBUG: get_user_trade_history - user_id={user_id}, filters={filters}")
+            
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
@@ -1507,8 +1524,17 @@ class DatabaseManager:
                     query += " LIMIT ?"
                     params.append(filters['limit'])
                 
+                logger.info(f"🔍 DEBUG: SQL Query: {query}")
+                logger.info(f"🔍 DEBUG: SQL Params: {params}")
+                
                 cursor.execute(query, params)
                 rows = cursor.fetchall()
+                
+                logger.info(f"🔍 DEBUG: عدد الصفوف المسترجعة: {len(rows)}")
+                
+                if rows:
+                    first_row = dict(rows[0])
+                    logger.info(f"🔍 DEBUG: أول صفقة مسترجعة: order_id={first_row.get('order_id')}, symbol={first_row.get('symbol')}, market_type={first_row.get('market_type')}, account_type={first_row.get('account_type')}, status={first_row.get('status')}")
                 
                 trades = []
                 for row in rows:
@@ -1526,6 +1552,7 @@ class DatabaseManager:
                     
                     trades.append(trade)
                 
+                logger.info(f"🔍 DEBUG: عدد الصفقات المعالجة والمُرجعة: {len(trades)}")
                 return trades
                 
         except Exception as e:
@@ -1789,8 +1816,8 @@ class DatabaseManager:
             logger.error(f"❌ خطأ في حفظ لقطة المحفظة: {e}")
             return False
     
-    def get_portfolio_evolution(self, user_id: int, account_type: str, days: int = 30) -> list:
-        """الحصول على تطور المحفظة خلال فترة محددة"""
+    def get_portfolio_evolution(self, user_id: int, account_type: str, days: int = 30, market_type: str = None) -> list:
+        """الحصول على تطور المحفظة خلال فترة محددة (مع دعم Spot/Futures)"""
         try:
             from datetime import date, timedelta
             
@@ -1812,7 +1839,7 @@ class DatabaseManager:
                 
                 snapshots = []
                 for row in rows:
-                    snapshots.append({
+                    snapshot = {
                         'date': row[0],
                         'balance': row[1],
                         'total_pnl': row[2],
@@ -1824,12 +1851,55 @@ class DatabaseManager:
                         'spot_balance': row[8],
                         'futures_balance': row[9],
                         'created_at': row[10]
-                    })
+                    }
+                    
+                    # إذا كان market_type محدد، استخدم الرصيد المناسب
+                    if market_type == 'spot':
+                        snapshot['balance'] = row[8]  # spot_balance
+                    elif market_type == 'futures':
+                        snapshot['balance'] = row[9]  # futures_balance
+                    
+                    snapshots.append(snapshot)
                 
                 return snapshots
                 
         except Exception as e:
             logger.error(f"❌ خطأ في الحصول على تطور المحفظة: {e}")
+            return []
+    
+    def get_portfolio_evolution_by_market(self, user_id: int, account_type: str, market_type: str, days: int = 30) -> list:
+        """الحصول على تطور المحفظة حسب نوع السوق (Spot أو Futures)"""
+        try:
+            from datetime import date, timedelta
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                start_date = (date.today() - timedelta(days=days)).isoformat()
+                
+                # جلب اللقطات اليومية
+                cursor.execute("""
+                    SELECT snapshot_date, spot_balance, futures_balance, created_at
+                    FROM portfolio_snapshots
+                    WHERE user_id = ? AND account_type = ? AND snapshot_date >= ?
+                    ORDER BY snapshot_date ASC
+                """, (user_id, account_type, start_date))
+                
+                rows = cursor.fetchall()
+                
+                snapshots = []
+                for row in rows:
+                    balance = row[1] if market_type == 'spot' else row[2]
+                    snapshots.append({
+                        'date': row[0],
+                        'balance': balance,
+                        'created_at': row[3]
+                    })
+                
+                return snapshots
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على تطور المحفظة حسب السوق: {e}")
             return []
     
     def get_portfolio_statistics(self, user_id: int, account_type: str, days: int = 30) -> dict:

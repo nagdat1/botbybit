@@ -3023,6 +3023,7 @@ class TradingBot:
                                     'status': 'OPEN',
                                     'signal_id': custom_position_id if custom_position_id else None
                                 }
+                                logger.info(f"🔍 DEBUG: حفظ صفقة فيوتشر في قاعدة البيانات: {order_data}")
                                 db_manager.create_order(order_data)
                                 
                                 # حفظ الرصيد الجديد
@@ -3259,6 +3260,7 @@ class TradingBot:
                                 'status': 'OPEN',
                                 'signal_id': custom_position_id if custom_position_id else None
                             }
+                            logger.info(f"🔍 DEBUG: حفظ صفقة سبوت في قاعدة البيانات: {order_data}")
                             db_manager.create_order(order_data)
                             
                             # حفظ الرصيد الجديد
@@ -9245,9 +9247,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == "👥 المتابعين":
             await handle_show_followers(update, context)
             return
-        elif text == "📊 إحصائيات المطور":
-            await handle_developer_stats(update, context)
-            return
         elif text == "👥 إدارة المستخدمين":
             # عرض قائمة المستخدمين
             all_users_data = db_manager.get_all_developers() + user_manager.get_all_active_users()
@@ -9348,9 +9347,6 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
-            return
-        elif text == "🔄 تحديث":
-            await show_developer_panel(update, context)
             return
         elif text == "👤 الوضع العادي":
             # إزالة مؤقتاً حالة المطور للاطلاع على واجهة المستخدم العادي

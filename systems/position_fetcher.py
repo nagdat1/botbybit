@@ -46,7 +46,12 @@ class PositionFetcher:
             if market_type:
                 filters['market_type'] = market_type
             
+            logger.info(f"🔍 DEBUG: filters = {filters}")
             orders = self.db_manager.get_user_trade_history(user_id, filters)
+            logger.info(f"🔍 DEBUG: عدد الصفقات المسترجعة من قاعدة البيانات = {len(orders)}")
+            
+            if orders:
+                logger.info(f"🔍 DEBUG: أول صفقة: {orders[0]}")
             
             positions = {}
             for order in orders:
