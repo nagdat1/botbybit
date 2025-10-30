@@ -1873,7 +1873,8 @@ class TradeToolsManager:
     
     def save_auto_settings(self, tp_percentages: List[float], tp_close_percentages: List[float],
                           sl_percentage: float, trailing_enabled: bool = False, 
-                          trailing_distance: float = 2.0, breakeven_on_tp1: bool = True) -> bool:
+                          trailing_distance: float = 2.0, breakeven_on_tp1: bool = True,
+                          user_id: int = None) -> bool:
         """حفظ الإعدادات الافتراضية للتطبيق التلقائي"""
         try:
             self.default_tp_percentages = tp_percentages.copy()
@@ -1883,21 +1884,84 @@ class TradeToolsManager:
             self.default_trailing_distance = trailing_distance
             self.auto_breakeven_on_tp1 = breakeven_on_tp1
             
+            # حفظ في قاعدة البيانات إذا تم توفير user_id
+            if user_id:
+                from users.database import db_manager
+                auto_apply_settings = {
+                    'tp_percentages': tp_percentages,
+                    'tp_close_percentages': tp_close_percentages,
+                    'sl_percentage': sl_percentage,
+                    'trailing_enabled': trailing_enabled,
+                    'trailing_distance': trailing_distance,
+                    'breakeven_on_tp1': breakeven_on_tp1
+                }
+                db_manager.update_user_data(user_id, {
+                    'auto_apply_settings': auto_apply_settings
+                })
+                logger.info(f"✅ تم حفظ إعدادات التطبيق التلقائي للمستخدم {user_id} في قاعدة البيانات")
+            
             logger.info(f"✅ تم حفظ الإعدادات التلقائية: TP={tp_percentages}, SL={sl_percentage}%")
             return True
         except Exception as e:
             logger.error(f"خطأ في حفظ الإعدادات التلقائية: {e}")
             return False
     
-    def enable_auto_apply(self):
+    def enable_auto_apply(self, user_id: int = None):
         """تفعيل التطبيق التلقائي"""
         self.auto_apply_enabled = True
-        logger.info("✅ تم تفعيل التطبيق التلقائي للإعدادات")
+        
+        # حفظ الحالة في قاعدة البيانات
+        if user_id:
+            from users.database import db_manager
+            db_manager.update_user_data(user_id, {'auto_apply_enabled': True})
+            logger.info(f"✅ تم تفعيل التطبيق التلقائي للمستخدم {user_id} وحفظه في قاعدة البيانات")
+        else:
+            logger.info("✅ تم تفعيل التطبيق التلقائي للإعدادات")
     
-    def disable_auto_apply(self):
+    def disable_auto_apply(self, user_id: int = None):
         """تعطيل التطبيق التلقائي"""
         self.auto_apply_enabled = False
-        logger.info("⏸️ تم تعطيل التطبيق التلقائي للإعدادات")
+        
+        # حفظ الحالة في قاعدة البيانات
+        if user_id:
+            from users.database import db_manager
+            db_manager.update_user_data(user_id, {'auto_apply_enabled': False})
+            logger.info(f"⏸️ تم تعطيل التطبيق التلقائي للمستخدم {user_id} وحفظه في قاعدة البيانات")
+        else:
+            logger.info("⏸️ تم تعطيل التطبيق التلقائي للإعدادات")
+    
+    def load_auto_settings(self, user_id: int) -> bool:
+        """تحميل إعدادات التطبيق التلقائي من قاعدة البيانات"""
+        try:
+            from users.database import db_manager
+            user_data = db_manager.get_user(user_id)
+            
+            if not user_data:
+                logger.warning(f"⚠️ لم يتم العثور على بيانات المستخدم {user_id}")
+                return False
+            
+            # تحميل حالة التفعيل
+            self.auto_apply_enabled = user_data.get('auto_apply_enabled', False)
+            
+            # تحميل الإعدادات
+            auto_apply_settings = user_data.get('auto_apply_settings', {})
+            if auto_apply_settings:
+                self.default_tp_percentages = auto_apply_settings.get('tp_percentages', [])
+                self.default_tp_close_percentages = auto_apply_settings.get('tp_close_percentages', [])
+                self.default_sl_percentage = auto_apply_settings.get('sl_percentage', 0)
+                self.default_trailing_enabled = auto_apply_settings.get('trailing_enabled', False)
+                self.default_trailing_distance = auto_apply_settings.get('trailing_distance', 2.0)
+                self.auto_breakeven_on_tp1 = auto_apply_settings.get('breakeven_on_tp1', True)
+                
+                logger.info(f"✅ تم تحميل إعدادات التطبيق التلقائي للمستخدم {user_id}: enabled={self.auto_apply_enabled}, TP={self.default_tp_percentages}, SL={self.default_sl_percentage}%")
+                return True
+            else:
+                logger.info(f"ℹ️ لا توجد إعدادات تطبيق تلقائي محفوظة للمستخدم {user_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"خطأ في تحميل إعدادات التطبيق التلقائي للمستخدم {user_id}: {e}")
+            return False
     
     def apply_auto_settings_to_position(self, position_id: str, symbol: str, side: str,
                                        entry_price: float, quantity: float, 
@@ -4152,6 +4216,11 @@ async def auto_apply_settings_menu(update: Update, context: ContextTypes.DEFAULT
         if query:
             await query.answer()
         
+        user_id = update.effective_user.id
+        
+        # تحميل إعدادات المستخدم
+        trade_tools_manager.load_auto_settings(user_id)
+        
         summary = trade_tools_manager.get_auto_settings_summary()
         
         message = f"""
@@ -4198,8 +4267,13 @@ async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
         
+        user_id = update.effective_user.id
+        
+        # تحميل إعدادات المستخدم أولاً
+        trade_tools_manager.load_auto_settings(user_id)
+        
         if trade_tools_manager.auto_apply_enabled:
-            trade_tools_manager.disable_auto_apply()
+            trade_tools_manager.disable_auto_apply(user_id)
             message = "⏸️ تم تعطيل التطبيق التلقائي"
         else:
             # التحقق من وجود إعدادات محفوظة
@@ -4214,7 +4288,7 @@ async def toggle_auto_apply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
             
-            trade_tools_manager.enable_auto_apply()
+            trade_tools_manager.enable_auto_apply(user_id)
             message = "✅ تم تفعيل التطبيق التلقائي!\n\nالآن كل صفقة جديدة ستحصل على الإعدادات المحفوظة"
         
         keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="auto_apply_menu")]]
@@ -4989,6 +5063,8 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer("⏳ جاري تطبيق الإعداد السريع...")
         
+        user_id = update.effective_user.id
+        
         # إعدادات ذكية افتراضية
         success = trade_tools_manager.save_auto_settings(
             tp_percentages=[1.5, 3.0, 5.0],
@@ -4996,11 +5072,12 @@ async def quick_auto_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sl_percentage=2.0,
             trailing_enabled=False,
             trailing_distance=2.0,
-            breakeven_on_tp1=True
+            breakeven_on_tp1=True,
+            user_id=user_id
         )
         
         if success:
-            trade_tools_manager.enable_auto_apply()
+            trade_tools_manager.enable_auto_apply(user_id)
             
             message = """
 ✅ **تم تطبيق الإعداد السريع بنجاح!**
@@ -5315,13 +5392,16 @@ async def finalize_tp_target(update: Update, context: ContextTypes.DEFAULT_TYPE,
             tp_percentages = [t['tp'] for t in builder['targets']]
             tp_close_percentages = [t['close'] for t in builder['targets']]
             
+            user_id = update.effective_user.id
+            
             success = trade_tools_manager.save_auto_settings(
                 tp_percentages=tp_percentages,
                 tp_close_percentages=tp_close_percentages,
                 sl_percentage=trade_tools_manager.default_sl_percentage,
                 trailing_enabled=trade_tools_manager.default_trailing_enabled,
                 trailing_distance=trade_tools_manager.default_trailing_distance,
-                breakeven_on_tp1=True
+                breakeven_on_tp1=True,
+                user_id=user_id
             )
             
             if success:
@@ -5453,12 +5533,28 @@ async def clear_auto_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
         query = update.callback_query
         await query.answer()
         
+        user_id = update.effective_user.id
+        
         # حذف جميع الإعدادات
         trade_tools_manager.default_tp_percentages = []
         trade_tools_manager.default_tp_close_percentages = []
         trade_tools_manager.default_sl_percentage = 0
         trade_tools_manager.default_trailing_enabled = False
-        trade_tools_manager.disable_auto_apply()
+        trade_tools_manager.disable_auto_apply(user_id)
+        
+        # حذف من قاعدة البيانات
+        from users.database import db_manager
+        db_manager.update_user_data(user_id, {
+            'auto_apply_enabled': False,
+            'auto_apply_settings': {
+                'tp_percentages': [],
+                'tp_close_percentages': [],
+                'sl_percentage': 0,
+                'trailing_enabled': False,
+                'trailing_distance': 2.0,
+                'breakeven_on_tp1': True
+            }
+        })
         
         message = """
 ✅ **تم حذف جميع الإعدادات التلقائية**
@@ -8902,7 +8998,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         
         keyboard = [
-            [InlineKeyboardButton("📖 شرح مفصل", callback_data="webhook_help")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_settings")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)

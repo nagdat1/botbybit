@@ -20,28 +20,6 @@ class DatabaseManager:
     
     def __init__(self, db_path: str = "trading_bot.db"):
         self.db_path = db_path
-        
-        # 🔥 فحص ملف إعادة التعيين الإجباري
-        reset_file = "FORCE_RESET.flag"
-        if os.path.exists(reset_file):
-            logger.warning("🔥 تم العثور على ملف إعادة التعيين الإجباري!")
-            logger.warning("🗑️ حذف قاعدة البيانات الحالية...")
-            
-            # حذف قاعدة البيانات الحالية
-            if os.path.exists(self.db_path):
-                try:
-                    os.remove(self.db_path)
-                    logger.warning(f"✅ تم حذف {self.db_path}")
-                except Exception as e:
-                    logger.error(f"❌ فشل حذف {self.db_path}: {e}")
-            
-            # حذف ملف الإعادة التعيين
-            try:
-                os.remove(reset_file)
-                logger.warning(f"✅ تم حذف ملف الإعادة التعيين: {reset_file}")
-            except Exception as e:
-                logger.error(f"❌ فشل حذف ملف الإعادة التعيين: {e}")
-        
         self.init_database()
     
     def init_database(self):
@@ -224,7 +202,9 @@ class DatabaseManager:
                     ("bybit_api_key", "TEXT"),
                     ("bybit_api_secret", "TEXT"),
                     ("bitget_api_key", "TEXT"),
-                    ("bitget_api_secret", "TEXT")
+                    ("bitget_api_secret", "TEXT"),
+                    ("auto_apply_enabled", "BOOLEAN DEFAULT 0"),
+                    ("auto_apply_settings", "TEXT DEFAULT '{\"tp_percentages\": [], \"tp_close_percentages\": [], \"sl_percentage\": 0, \"trailing_enabled\": false, \"trailing_distance\": 2.0, \"breakeven_on_tp1\": true}'")
                 ]
                 
                 for column_name, column_def in columns_to_add:
@@ -237,6 +217,23 @@ class DatabaseManager:
                             logger.debug(f"العمود {column_name} موجود بالفعل")
                         else:
                             logger.error(f"خطأ في إضافة العمود {column_name}: {e}")
+                
+                # إضافة حقول جديدة لجدول user_settings
+                user_settings_columns_to_add = [
+                    ("exchange", "TEXT DEFAULT 'bybit'"),
+                    ("is_active", "INTEGER DEFAULT 1")
+                ]
+                
+                for column_name, column_def in user_settings_columns_to_add:
+                    try:
+                        cursor.execute(f"ALTER TABLE user_settings ADD COLUMN {column_name} {column_def}")
+                        logger.info(f"تم إضافة العمود {column_name} لجدول user_settings")
+                    except Exception as e:
+                        # العمود موجود بالفعل
+                        if "duplicate column name" in str(e).lower():
+                            logger.debug(f"العمود {column_name} موجود بالفعل في user_settings")
+                        else:
+                            logger.error(f"خطأ في إضافة العمود {column_name} لـ user_settings: {e}")
                 
                 # إضافة حقول جديدة لجدول orders
                 orders_columns_to_add = [
@@ -307,11 +304,19 @@ class DatabaseManager:
                     VALUES (?, ?, ?)
                 """, (user_id, api_key, api_secret))
                 
-                # إنشاء إعدادات افتراضية للمستخدم
+                # إنشاء إعدادات افتراضية للمستخدم مع القيم الأساسية
                 cursor.execute("""
-                    INSERT INTO user_settings (user_id)
-                    VALUES (?)
-                """, (user_id,))
+                    INSERT INTO user_settings (
+                        user_id, 
+                        market_type, 
+                        trade_amount, 
+                        leverage,
+                        account_type,
+                        exchange,
+                        is_active
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (user_id, 'spot', 100.0, 10, 'demo', 'bybit', 1))
                 
                 conn.commit()
                 
@@ -378,6 +383,35 @@ class DatabaseManager:
                             'daily_loss_limit': 500.0,
                             'weekly_loss_limit': 2000.0
                         }
+                    
+                    # تحويل auto_apply_settings من JSON
+                    try:
+                        if user_data.get('auto_apply_settings'):
+                            user_data['auto_apply_settings'] = json.loads(user_data['auto_apply_settings'])
+                        else:
+                            user_data['auto_apply_settings'] = {
+                                'tp_percentages': [],
+                                'tp_close_percentages': [],
+                                'sl_percentage': 0,
+                                'trailing_enabled': False,
+                                'trailing_distance': 2.0,
+                                'breakeven_on_tp1': True
+                            }
+                    except (json.JSONDecodeError, TypeError):
+                        user_data['auto_apply_settings'] = {
+                            'tp_percentages': [],
+                            'tp_close_percentages': [],
+                            'sl_percentage': 0,
+                            'trailing_enabled': False,
+                            'trailing_distance': 2.0,
+                            'breakeven_on_tp1': True
+                        }
+                    
+                    # تحويل auto_apply_enabled إلى boolean
+                    if 'auto_apply_enabled' in user_data:
+                        user_data['auto_apply_enabled'] = bool(user_data.get('auto_apply_enabled', 0))
+                    else:
+                        user_data['auto_apply_enabled'] = False
                     
                     return user_data
                 return None
@@ -544,9 +578,13 @@ class DatabaseManager:
                 logger.debug(f"🔍 update_user_data: معالجة {len(data)} حقل للمستخدم {user_id}")
                 
                 for key, value in data.items():
-                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'bybit_api_key', 'bybit_api_secret', 'bitget_api_key', 'bitget_api_secret', 'balance', 'partial_percents', 'tps_percents', 'notifications', 'preferred_symbols']:
+                    if key in ['daily_loss', 'weekly_loss', 'total_loss', 'last_reset_date', 'last_reset_week', 'last_loss_update', 'is_active', 'risk_management', 'exchange', 'bybit_api_key', 'bybit_api_secret', 'bitget_api_key', 'bitget_api_secret', 'balance', 'partial_percents', 'tps_percents', 'notifications', 'preferred_symbols', 'auto_apply_enabled', 'auto_apply_settings']:
                         if key == 'risk_management':
                             # تحويل risk_management إلى JSON string
+                            set_clauses.append(f"{key} = ?")
+                            values.append(json.dumps(value))
+                        elif key == 'auto_apply_settings':
+                            # تحويل auto_apply_settings إلى JSON string
                             set_clauses.append(f"{key} = ?")
                             values.append(json.dumps(value))
                         elif key in ['partial_percents', 'tps_percents', 'preferred_symbols']:
