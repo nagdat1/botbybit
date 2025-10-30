@@ -13,12 +13,19 @@ load_dotenv()
 # إعدادات تلغرام
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 if not TELEGRAM_TOKEN:
-    raise ValueError("❌ TELEGRAM_TOKEN غير موجود في متغيرات البيئة! يرجى إضافته في ملف .env")
+    # في حالة عدم وجود المتغير، استخدم قيمة افتراضية مؤقتة مع تحذير
+    import logging
+    logging.warning("⚠️ TELEGRAM_TOKEN غير موجود في متغيرات البيئة! استخدام قيمة افتراضية.")
+    logging.warning("⚠️ يُرجى إضافة TELEGRAM_TOKEN في إعدادات Railway/Render أو ملف .env")
+    TELEGRAM_TOKEN = "7660340203:AAFSdms8_nVpHF7w6OyC0kWsNc4GJ_aIevw"  # قيمة افتراضية مؤقتة
 
 ADMIN_USER_ID = os.getenv('ADMIN_USER_ID')
 if not ADMIN_USER_ID:
-    raise ValueError("❌ ADMIN_USER_ID غير موجود في متغيرات البيئة! يرجى إضافته في ملف .env")
-ADMIN_USER_ID = int(ADMIN_USER_ID)
+    import logging
+    logging.warning("⚠️ ADMIN_USER_ID غير موجود في متغيرات البيئة! استخدام قيمة افتراضية.")
+    ADMIN_USER_ID = 8169000394  # قيمة افتراضية مؤقتة
+else:
+    ADMIN_USER_ID = int(ADMIN_USER_ID)
 
 # إعدادات Bybit API
 BYBIT_API_KEY = os.getenv('BYBIT_API_KEY', "")
