@@ -283,8 +283,16 @@ class DatabaseManager:
             conn.close()
     
     # إدارة المستخدمين
-    def create_user(self, user_id: int, api_key: str = None, api_secret: str = None) -> bool:
-        """إنشاء مستخدم جديد"""
+    def create_user(self, user_id: int, api_key: str = None, api_secret: str = None, 
+                   initial_settings: dict = None) -> bool:
+        """إنشاء مستخدم جديد
+        
+        Args:
+            user_id: معرف المستخدم
+            api_key: مفتاح API (اختياري)
+            api_secret: سر API (اختياري)
+            initial_settings: إعدادات أولية مخصصة (اختياري). إذا لم يتم توفيرها، سيتم استخدام القيم الافتراضية من config.py
+        """
         logger.warning(f"🔍 محاولة إنشاء المستخدم {user_id}")
         try:
             with self.get_connection() as conn:
@@ -304,7 +312,19 @@ class DatabaseManager:
                     VALUES (?, ?, ?)
                 """, (user_id, api_key, api_secret))
                 
-                # إنشاء إعدادات افتراضية للمستخدم مع القيم الأساسية
+                # استخدام الإعدادات المخصصة أو القيم الافتراضية من config.py
+                if initial_settings is None:
+                    # استيراد القيم الافتراضية من config.py
+                    from config import DEFAULT_SETTINGS
+                    initial_settings = DEFAULT_SETTINGS.copy()
+                
+                # إنشاء إعدادات للمستخدم (ستستخدم القيم الافتراضية من config.py فقط للمستخدمين الجدد)
+                market_type = initial_settings.get('market_type', 'spot')
+                trade_amount = initial_settings.get('trade_amount', 100.0)
+                leverage = initial_settings.get('leverage', 10)
+                account_type = initial_settings.get('account_type', 'demo')
+                exchange = initial_settings.get('exchange', 'bybit')
+                
                 cursor.execute("""
                     INSERT INTO user_settings (
                         user_id, 
@@ -316,14 +336,14 @@ class DatabaseManager:
                         is_active
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (user_id, 'spot', 100.0, 10, 'demo', 'bybit', 1))
+                """, (user_id, market_type, trade_amount, leverage, account_type, exchange, 1))
                 
                 conn.commit()
                 
                 # التحقق من الإنشاء
                 cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
                 if cursor.fetchone():
-                    logger.info(f"✅ تم إنشاء مستخدم جديد بنجاح: {user_id}")
+                    logger.info(f"✅ تم إنشاء مستخدم جديد بنجاح: {user_id} مع الإعدادات: market_type={market_type}, trade_amount={trade_amount}, account_type={account_type}")
                     return True
                 else:
                     logger.error(f"❌ فشل التحقق من إنشاء المستخدم {user_id}")
@@ -541,6 +561,66 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"خطأ في تحديث إعدادات المستخدم {user_id}: {e}")
+            return False
+    
+    def reset_user_settings_to_default(self, user_id: int) -> bool:
+        """إعادة تعيين إعدادات المستخدم إلى القيم الافتراضية
+        
+        هذه الدالة تُستخدم فقط عند الضغط على زر "إعادة تعيين الإعدادات"
+        ولا يتم استدعاؤها تلقائياً عند بدء التشغيل
+        """
+        try:
+            # استيراد القيم الافتراضية من config.py
+            from config import DEFAULT_SETTINGS
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # التحقق من وجود المستخدم
+                cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+                if not cursor.fetchone():
+                    logger.error(f"❌ المستخدم {user_id} غير موجود")
+                    return False
+                
+                # إعادة تعيين إعدادات التداول إلى القيم الافتراضية
+                cursor.execute("""
+                    UPDATE user_settings 
+                    SET market_type = ?, 
+                        trade_amount = ?, 
+                        leverage = ?,
+                        account_type = ?,
+                        exchange = ?
+                    WHERE user_id = ?
+                """, (
+                    DEFAULT_SETTINGS.get('market_type', 'spot'),
+                    DEFAULT_SETTINGS.get('trade_amount', 100.0),
+                    DEFAULT_SETTINGS.get('leverage', 10),
+                    DEFAULT_SETTINGS.get('account_type', 'demo'),
+                    DEFAULT_SETTINGS.get('exchange', 'bybit'),
+                    user_id
+                ))
+                
+                # إعادة تعيين إعدادات المستخدم الأخرى
+                cursor.execute("""
+                    UPDATE users 
+                    SET partial_percents = ?,
+                        tps_percents = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (
+                    json.dumps([25, 50, 25]),
+                    json.dumps([1.5, 3.0, 5.0]),
+                    user_id
+                ))
+                
+                conn.commit()
+                logger.info(f"✅ تم إعادة تعيين إعدادات المستخدم {user_id} إلى القيم الافتراضية")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في إعادة تعيين إعدادات المستخدم {user_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     def update_user_data(self, user_id: int, data: Dict) -> bool:
@@ -2039,6 +2119,306 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ خطأ في حساب إحصائيات المحفظة: {e}")
             return {}
+    
+    def calculate_real_balance_with_open_positions(self, user_id: int, account_type: str = 'demo') -> dict:
+        """حساب الرصيد الفعلي مع احتساب الخسائر/الأرباح غير المحققة من الصفقات المفتوحة
+        
+        Args:
+            user_id: معرف المستخدم
+            account_type: نوع الحساب (demo أو real)
+            
+        Returns:
+            dict: {
+                'initial_balance': الرصيد الأولي,
+                'current_balance': الرصيد الحالي (من قاعدة البيانات),
+                'open_positions_count': عدد الصفقات المفتوحة,
+                'unrealized_pnl': الربح/الخسارة غير المحققة,
+                'realized_pnl': الربح/الخسارة المحققة,
+                'real_balance': الرصيد الفعلي (مع الصفقات المفتوحة),
+                'locked_in_trades': الأموال المحجوزة في الصفقات
+            }
+        """
+        try:
+            # الحصول على بيانات المستخدم
+            user_data = self.get_user(user_id)
+            if not user_data:
+                return {
+                    'initial_balance': 0.0,
+                    'current_balance': 0.0,
+                    'open_positions_count': 0,
+                    'unrealized_pnl': 0.0,
+                    'realized_pnl': 0.0,
+                    'real_balance': 0.0,
+                    'locked_in_trades': 0.0
+                }
+            
+            current_balance = user_data.get('balance', 10000.0)
+            
+            # الحصول على الصفقات المفتوحة
+            open_positions = self.get_user_orders(user_id, status='OPEN')
+            
+            # حساب الأموال المحجوزة والخسائر غير المحققة
+            locked_in_trades = 0.0
+            unrealized_pnl = 0.0
+            
+            for position in open_positions:
+                entry_price = position.get('entry_price', 0)
+                quantity = position.get('quantity', 0)
+                current_price = position.get('current_price', entry_price)  # سيتم تحديثه من السوق
+                side = position.get('side', 'buy').lower()
+                
+                # حساب القيمة المحجوزة
+                locked_in_trades += quantity * entry_price
+                
+                # حساب الربح/الخسارة غير المحققة
+                if side == 'buy':
+                    unrealized_pnl += (current_price - entry_price) * quantity
+                else:  # sell
+                    unrealized_pnl += (entry_price - current_price) * quantity
+            
+            # حساب الربح/الخسارة المحققة من الصفقات المغلقة
+            closed_trades = self.get_user_trade_history(user_id, filters={'status': 'CLOSED'})
+            realized_pnl = sum(trade.get('pnl', 0) for trade in closed_trades)
+            
+            # الرصيد الفعلي = الرصيد الحالي + الخسائر غير المحققة
+            # (الخسائر غير المحققة سالبة، الأرباح موجبة)
+            real_balance = current_balance + unrealized_pnl
+            
+            # الرصيد الأولي (افتراضي 10000)
+            initial_balance = 10000.0
+            
+            return {
+                'initial_balance': initial_balance,
+                'current_balance': current_balance,
+                'open_positions_count': len(open_positions),
+                'unrealized_pnl': unrealized_pnl,
+                'realized_pnl': realized_pnl,
+                'real_balance': real_balance,
+                'locked_in_trades': locked_in_trades
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في حساب الرصيد الفعلي للمستخدم {user_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                'initial_balance': 0.0,
+                'current_balance': 0.0,
+                'open_positions_count': 0,
+                'unrealized_pnl': 0.0,
+                'realized_pnl': 0.0,
+                'real_balance': 0.0,
+                'locked_in_trades': 0.0
+            }
+    
+    def check_risk_limits_before_trade(self, user_id: int, account_type: str = 'demo') -> dict:
+        """فحص حدود المخاطر قبل فتح صفقة جديدة
+        
+        Args:
+            user_id: معرف المستخدم
+            account_type: نوع الحساب
+            
+        Returns:
+            dict: {
+                'can_trade': bool - هل يمكن فتح صفقة جديدة,
+                'reason': str - سبب المنع (إن وجد),
+                'risk_status': str - حالة المخاطر (safe, warning, danger),
+                'current_loss': float - الخسارة الحالية,
+                'max_loss_allowed': float - الحد الأقصى المسموح,
+                'remaining_margin': float - الهامش المتبقي
+            }
+        """
+        try:
+            # الحصول على بيانات المستخدم
+            user_data = self.get_user(user_id)
+            if not user_data:
+                return {
+                    'can_trade': False,
+                    'reason': 'المستخدم غير موجود',
+                    'risk_status': 'danger',
+                    'current_loss': 0.0,
+                    'max_loss_allowed': 0.0,
+                    'remaining_margin': 0.0
+                }
+            
+            # التحقق من تفعيل إدارة المخاطر
+            risk_management_raw = user_data.get('risk_management', '{}')
+            if isinstance(risk_management_raw, str):
+                risk_settings = json.loads(risk_management_raw)
+            else:
+                risk_settings = risk_management_raw
+            
+            # إذا كانت إدارة المخاطر معطلة، السماح بالتداول
+            if not risk_settings.get('enabled', True):
+                return {
+                    'can_trade': True,
+                    'reason': 'إدارة المخاطر معطلة',
+                    'risk_status': 'safe',
+                    'current_loss': 0.0,
+                    'max_loss_allowed': 0.0,
+                    'remaining_margin': 0.0
+                }
+            
+            # حساب الرصيد الفعلي مع الصفقات المفتوحة
+            balance_info = self.calculate_real_balance_with_open_positions(user_id, account_type)
+            
+            initial_balance = balance_info['initial_balance']
+            real_balance = balance_info['real_balance']
+            unrealized_pnl = balance_info['unrealized_pnl']
+            realized_pnl = balance_info['realized_pnl']
+            
+            # حساب الخسارة الكلية
+            total_loss = initial_balance - real_balance
+            
+            # الحصول على حدود المخاطر
+            max_loss_percent = risk_settings.get('max_loss_percent', 10.0)
+            max_loss_amount = risk_settings.get('max_loss_amount', 1000.0)
+            daily_loss_limit = risk_settings.get('daily_loss_limit', 500.0)
+            weekly_loss_limit = risk_settings.get('weekly_loss_limit', 2000.0)
+            stop_trading_on_loss = risk_settings.get('stop_trading_on_loss', True)
+            
+            # حساب الحد الأقصى المسموح بناءً على النسبة المئوية
+            max_loss_by_percent = (max_loss_percent / 100) * initial_balance
+            
+            # استخدام الحد الأصغر
+            effective_max_loss = min(max_loss_by_percent, max_loss_amount)
+            
+            # الحصول على الخسائر اليومية والأسبوعية
+            daily_loss = user_data.get('daily_loss', 0.0)
+            weekly_loss = user_data.get('weekly_loss', 0.0)
+            
+            # فحص الحدود
+            reasons = []
+            risk_status = 'safe'
+            
+            # فحص الخسارة الكلية
+            if total_loss >= effective_max_loss:
+                reasons.append(f'تجاوز الحد الأقصى للخسارة ({total_loss:.2f} >= {effective_max_loss:.2f})')
+                risk_status = 'danger'
+            elif total_loss >= effective_max_loss * 0.8:
+                risk_status = 'warning'
+            
+            # فحص الخسارة اليومية
+            if daily_loss >= daily_loss_limit:
+                reasons.append(f'تجاوز الحد اليومي ({daily_loss:.2f} >= {daily_loss_limit:.2f})')
+                risk_status = 'danger'
+            elif daily_loss >= daily_loss_limit * 0.8:
+                risk_status = 'warning'
+            
+            # فحص الخسارة الأسبوعية
+            if weekly_loss >= weekly_loss_limit:
+                reasons.append(f'تجاوز الحد الأسبوعي ({weekly_loss:.2f} >= {weekly_loss_limit:.2f})')
+                risk_status = 'danger'
+            elif weekly_loss >= weekly_loss_limit * 0.8:
+                risk_status = 'warning'
+            
+            # القرار النهائي
+            can_trade = True
+            if risk_status == 'danger' and stop_trading_on_loss:
+                can_trade = False
+            
+            return {
+                'can_trade': can_trade,
+                'reason': '; '.join(reasons) if reasons else 'آمن للتداول',
+                'risk_status': risk_status,
+                'current_loss': total_loss,
+                'max_loss_allowed': effective_max_loss,
+                'remaining_margin': effective_max_loss - total_loss,
+                'daily_loss': daily_loss,
+                'weekly_loss': weekly_loss,
+                'real_balance': real_balance,
+                'unrealized_pnl': unrealized_pnl
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في فحص حدود المخاطر للمستخدم {user_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                'can_trade': False,
+                'reason': f'خطأ في النظام: {str(e)}',
+                'risk_status': 'danger',
+                'current_loss': 0.0,
+                'max_loss_allowed': 0.0,
+                'remaining_margin': 0.0
+            }
+    
+    def update_loss_after_trade_close(self, user_id: int, pnl: float) -> bool:
+        """تحديث الخسائر اليومية والأسبوعية بعد إغلاق صفقة
+        
+        Args:
+            user_id: معرف المستخدم
+            pnl: الربح/الخسارة من الصفقة (سالب للخسارة، موجب للربح)
+            
+        Returns:
+            bool: نجاح التحديث
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # الحصول على البيانات الحالية
+                cursor.execute("""
+                    SELECT daily_loss, weekly_loss, total_loss, 
+                           last_reset_date, last_reset_week
+                    FROM users 
+                    WHERE user_id = ?
+                """, (user_id,))
+                
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                
+                daily_loss = row['daily_loss'] or 0.0
+                weekly_loss = row['weekly_loss'] or 0.0
+                total_loss = row['total_loss'] or 0.0
+                last_reset_date = row['last_reset_date']
+                last_reset_week = row['last_reset_week']
+                
+                # التحقق من إعادة تعيين اليومي
+                today = datetime.now().strftime('%Y-%m-%d')
+                if last_reset_date != today:
+                    daily_loss = 0.0
+                    last_reset_date = today
+                
+                # التحقق من إعادة تعيين الأسبوعي
+                current_week = datetime.now().strftime('%Y-W%W')
+                if last_reset_week != current_week:
+                    weekly_loss = 0.0
+                    last_reset_week = current_week
+                
+                # تحديث الخسائر (فقط إذا كانت خسارة)
+                if pnl < 0:
+                    loss_amount = abs(pnl)
+                    daily_loss += loss_amount
+                    weekly_loss += loss_amount
+                    total_loss += loss_amount
+                
+                # تحديث قاعدة البيانات
+                cursor.execute("""
+                    UPDATE users 
+                    SET daily_loss = ?,
+                        weekly_loss = ?,
+                        total_loss = ?,
+                        last_reset_date = ?,
+                        last_reset_week = ?,
+                        last_loss_update = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (daily_loss, weekly_loss, total_loss, 
+                      last_reset_date, last_reset_week, 
+                      datetime.now().isoformat(), user_id))
+                
+                conn.commit()
+                
+                logger.info(f"✅ تم تحديث خسائر المستخدم {user_id}: يومي={daily_loss:.2f}, أسبوعي={weekly_loss:.2f}, كلي={total_loss:.2f}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في تحديث الخسائر للمستخدم {user_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False
 
 # إنشاء مثيل عام لقاعدة البيانات
 db_manager = DatabaseManager()

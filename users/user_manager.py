@@ -334,6 +334,28 @@ class UserManager:
             logger.error(f"خطأ في تحديث بيانات المستخدم {user_id}: {e}")
             return False
     
+    def reset_user_settings_to_default(self, user_id: int) -> bool:
+        """إعادة تعيين إعدادات المستخدم إلى القيم الافتراضية
+        
+        هذه الدالة تُستخدم فقط عند الضغط على زر "إعادة تعيين الإعدادات"
+        ولا يتم استدعاؤها تلقائياً عند بدء التشغيل
+        """
+        try:
+            # إعادة التعيين في قاعدة البيانات
+            success = db_manager.reset_user_settings_to_default(user_id)
+            
+            if success:
+                # إعادة تحميل بيانات المستخدم من قاعدة البيانات
+                self.reload_user_data(user_id)
+                logger.info(f"✅ تم إعادة تعيين إعدادات المستخدم {user_id} إلى القيم الافتراضية")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في إعادة تعيين إعدادات المستخدم {user_id}: {e}")
+            return False
+    
     def is_user_active(self, user_id: int) -> bool:
         """التحقق من حالة المستخدم النشط"""
         user_data = self.get_user(user_id)

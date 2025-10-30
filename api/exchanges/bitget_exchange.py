@@ -126,6 +126,40 @@ class BitgetExchange(ExchangeBase):
             logger.error(f"❌ خطأ في اختبار الاتصال: {e}")
             return False
     
+    def check_symbol_exists(self, symbol: str, market_type: str) -> bool:
+        """التحقق من وجود رمز معين في منصة Bitget"""
+        try:
+            # تحديد نوع السوق
+            if market_type.lower() == 'spot':
+                endpoint = '/api/spot/v1/public/products'
+            else:  # futures
+                endpoint = '/api/mix/v1/market/contracts'
+                # Bitget تستخدم صيغة مختلفة للفيوتشر (مثل BTCUSDT_UMCBL)
+                if not symbol.endswith('_UMCBL'):
+                    symbol = f"{symbol}_UMCBL"
+            
+            result = self._make_request('GET', endpoint)
+            
+            if result and 'data' in result:
+                # البحث عن الرمز في القائمة
+                for item in result['data']:
+                    if market_type.lower() == 'spot':
+                        if item.get('symbolName') == symbol or item.get('symbol') == symbol:
+                            logger.info(f"✅ الرمز {symbol} موجود في Bitget {market_type}")
+                            return True
+                    else:  # futures
+                        if item.get('symbol') == symbol:
+                            logger.info(f"✅ الرمز {symbol} موجود في Bitget {market_type}")
+                            return True
+            
+            logger.warning(f"⚠️ الرمز {symbol} غير موجود في Bitget {market_type}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في التحقق من وجود الرمز {symbol}: {e}")
+            # في حالة الخطأ، نعيد True لتجنب حظر الإشارات
+            return True
+    
     def get_wallet_balance(self, market_type: str = 'spot') -> Optional[Dict]:
         """
         جلب رصيد المحفظة

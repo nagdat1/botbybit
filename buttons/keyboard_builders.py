@@ -12,10 +12,18 @@ from .buttons_definition import *
 # 🏠 القوائم الرئيسية
 # ===========================================
 
-def build_settings_menu(market_type: str = 'spot', account_type: str = 'demo', auto_status: str = "⏸️"):
+def build_settings_menu(market_type: str = 'spot', account_type: str = 'demo', auto_status: str = "⏸️", exchange: str = 'bybit'):
     """بناء قائمة الإعدادات"""
+    # تحديد emoji المنصة
+    exchange_emoji = {
+        'bybit': '🟡',
+        'bitget': '🔵',
+        'binance': '🟠',
+        'okx': '⚫'
+    }.get(exchange.lower(), '🏦')
+    
     keyboard = [
-        [InlineKeyboardButton("🏦 اختيار المنصة (Bybit)", callback_data="select_exchange")],
+        [InlineKeyboardButton(f"{exchange_emoji} اختيار المنصة ({exchange.upper()})", callback_data="select_exchange")],
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]

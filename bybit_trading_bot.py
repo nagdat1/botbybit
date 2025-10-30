@@ -1134,6 +1134,43 @@ class BybitAPI:
             logger.error(f"خطأ في الحصول على السعر: {e}")
             return None
     
+    def check_symbol_exists(self, symbol: str, category: str) -> bool:
+        """التحقق من وجود رمز معين في منصة Bybit"""
+        try:
+            api_category = "linear" if category == "futures" else category
+            
+            # محاولة الحصول على معلومات الرمز
+            endpoint = "/v5/market/instruments-info"
+            params = {"category": api_category, "symbol": symbol}
+            
+            response = self._make_request("GET", endpoint, params)
+            
+            # إذا كانت الاستجابة تحتوي على معلومات الرمز، فهو موجود
+            if response.get("retCode") == 0:
+                result = response.get("result", {})
+                instruments = result.get("list", [])
+                
+                if len(instruments) > 0:
+                    instrument = instruments[0]
+                    status = instrument.get('status', '')
+                    
+                    # التحقق من أن الرمز في حالة Trading
+                    if status == 'Trading':
+                        logger.info(f"✅ الرمز {symbol} موجود ونشط في Bybit {category}")
+                        return True
+                    else:
+                        logger.warning(f"⚠️ الرمز {symbol} موجود لكن حالته: {status}")
+                        return False
+            
+            logger.warning(f"⚠️ الرمز {symbol} غير موجود في Bybit {category}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في التحقق من وجود الرمز {symbol}: {e}")
+            # في حالة الخطأ، نعيد True لتجنب حظر الإشارات بسبب مشاكل الاتصال
+            logger.warning(f"⚠️ سيتم السماح بالإشارة بسبب خطأ في الفحص")
+            return True
+    
     def convert_amount_to_quantity(self, symbol: str, amount_usdt: float, category: str = "spot") -> Optional[str]:
         """
         تحويل المبلغ بالدولار إلى عدد العملات بناءً على السعر الحالي
@@ -2505,40 +2542,110 @@ class TradingBot:
             bybit_category = "spot" if user_market_type == "spot" else "linear"
             market_type = user_market_type
             
-            # 🔍 التحقق من وجود الرمز في منصة Bybit
-            logger.info(f"🔍 التحقق من وجود الرمز {symbol} في Bybit {user_market_type.upper()}")
+            # 🔍 التحقق من وجود الرمز في المنصة المختارة
+            user_exchange = self.user_settings.get('exchange', 'bybit').lower()
+            logger.info(f"🔍 التحقق من وجود الرمز {symbol} في {user_exchange.upper()} {user_market_type.upper()}")
             
-            symbol_exists_in_bybit = False
+            # قائمة المنصات المدعومة بالكامل (التي لديها API مربوط)
+            fully_supported_exchanges = ['bybit', 'bitget']
             
-            if self.bybit_api:
-                # التحقق المباشر من Bybit API
-                symbol_exists_in_bybit = self.bybit_api.check_symbol_exists(symbol, bybit_category)
-                logger.info(f"نتيجة التحقق من Bybit API: {symbol_exists_in_bybit}")
+            # التحقق من أن المنصة مدعومة
+            if user_exchange not in fully_supported_exchanges:
+                logger.warning(f"⚠️ المنصة {user_exchange} غير مدعومة بالكامل حالياً")
+                await self.send_message_to_admin(
+                    f"⚠️ تحذير: المنصة {user_exchange.upper()} غير مدعومة بالكامل حالياً\n\n"
+                    f"📋 المنصات المدعومة:\n"
+                    f"• Bybit ✅\n"
+                    f"• Bitget ✅\n\n"
+                    f"💡 يرجى اختيار إحدى المنصات المدعومة من الإعدادات"
+                )
+                # نسمح بالإشارة لكن مع تحذير
+            
+            symbol_exists = False
+            
+            # التحقق حسب المنصة المختارة
+            if user_exchange == 'bybit':
+                if self.bybit_api:
+                    # التحقق المباشر من Bybit API
+                    symbol_exists = self.bybit_api.check_symbol_exists(symbol, bybit_category)
+                    logger.info(f"نتيجة التحقق من Bybit API: {symbol_exists}")
+                else:
+                    # إذا لم يكن API متاحاً، استخدم القائمة المحلية
+                    if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
+                        symbol_exists = True
+                    elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
+                        symbol_exists = True
+                        if symbol in self.available_pairs.get('inverse', []):
+                            bybit_category = "inverse"
+            
+            elif user_exchange == 'bitget':
+                # التحقق من Bitget
+                try:
+                    from api.exchanges.bitget_exchange import BitgetExchange
+                    user_data = user_manager.get_user(self.user_id)
+                    if user_data and user_data.get('bitget_api_key') and user_data.get('bitget_api_secret'):
+                        bitget_api = BitgetExchange('bitget', user_data['bitget_api_key'], user_data['bitget_api_secret'])
+                        symbol_exists = bitget_api.check_symbol_exists(symbol, user_market_type)
+                        logger.info(f"نتيجة التحقق من Bitget API: {symbol_exists}")
+                    else:
+                        logger.warning("⚠️ لم يتم ربط Bitget API - سيتم السماح بالإشارة")
+                        symbol_exists = True
+                except Exception as e:
+                    logger.error(f"❌ خطأ في التحقق من Bitget: {e}")
+                    symbol_exists = True  # السماح بالإشارة في حالة الخطأ
+            
+            elif user_exchange == 'binance':
+                # التحقق من Binance
+                try:
+                    from api.exchanges.binance_exchange import BinanceExchange
+                    user_data = user_manager.get_user(self.user_id)
+                    if user_data and user_data.get('binance_api_key') and user_data.get('binance_api_secret'):
+                        binance_api = BinanceExchange('binance', user_data['binance_api_key'], user_data['binance_api_secret'])
+                        symbol_exists = binance_api.check_symbol_exists(symbol, user_market_type)
+                        logger.info(f"نتيجة التحقق من Binance API: {symbol_exists}")
+                    else:
+                        logger.warning("⚠️ لم يتم ربط Binance API - سيتم السماح بالإشارة")
+                        symbol_exists = True
+                except Exception as e:
+                    logger.error(f"❌ خطأ في التحقق من Binance: {e}")
+                    symbol_exists = True  # السماح بالإشارة في حالة الخطأ
+            
+            elif user_exchange == 'okx':
+                # التحقق من OKX
+                try:
+                    from api.exchanges.okx_exchange import OkxExchange
+                    user_data = user_manager.get_user(self.user_id)
+                    if user_data and user_data.get('okx_api_key') and user_data.get('okx_api_secret'):
+                        okx_api = OkxExchange('okx', user_data['okx_api_key'], user_data['okx_api_secret'], user_data.get('okx_passphrase', ''))
+                        symbol_exists = okx_api.check_symbol_exists(symbol, user_market_type)
+                        logger.info(f"نتيجة التحقق من OKX API: {symbol_exists}")
+                    else:
+                        logger.warning("⚠️ لم يتم ربط OKX API - سيتم السماح بالإشارة")
+                        symbol_exists = True
+                except Exception as e:
+                    logger.error(f"❌ خطأ في التحقق من OKX: {e}")
+                    symbol_exists = True  # السماح بالإشارة في حالة الخطأ
+            
             else:
-                # إذا لم يكن API متاحاً، استخدم القائمة المحلية
-                if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
-                    symbol_exists_in_bybit = True
-                elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
-                    symbol_exists_in_bybit = True
-                    if symbol in self.available_pairs.get('inverse', []):
-                        bybit_category = "inverse"
+                logger.warning(f"⚠️ منصة غير مدعومة: {user_exchange} - سيتم السماح بالإشارة")
+                symbol_exists = True
             
-            # إذا لم يكن الرمز موجوداً في Bybit
-            if not symbol_exists_in_bybit:
+            # إذا لم يكن الرمز موجوداً في المنصة
+            if not symbol_exists:
                 # جمع الأزواج المتاحة للنوع المحدد
                 available_pairs = self.available_pairs.get(user_market_type, [])
                 if user_market_type == "futures":
                     available_pairs = self.available_pairs.get('futures', []) + self.available_pairs.get('inverse', [])
                 
-                pairs_list = ", ".join(available_pairs[:20])
-                error_message = f"❌ الرمز {symbol} غير موجود في منصة Bybit!\n\n"
+                pairs_list = ", ".join(available_pairs[:20]) if available_pairs else "لا توجد أزواج متاحة"
+                error_message = f"❌ الرمز {symbol} غير موجود في منصة {user_exchange.upper()}!\n\n"
                 error_message += f"🏪 نوع السوق: {user_market_type.upper()}\n"
                 error_message += f"📋 أمثلة للأزواج المتاحة:\n{pairs_list}..."
                 await self.send_message_to_admin(error_message)
-                logger.warning(f"الرمز {symbol} غير موجود في Bybit {user_market_type}")
+                logger.warning(f"الرمز {symbol} غير موجود في {user_exchange} {user_market_type}")
                 return
             
-            logger.info(f"✅ الرمز {symbol} موجود في Bybit {user_market_type.upper()}")
+            logger.info(f"✅ الرمز {symbol} موجود في {user_exchange.upper()} {user_market_type.upper()}")
             
             # الحصول على السعر الحالي
             if self.bybit_api:
@@ -3903,7 +4010,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
             [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-            [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")],
+            [KeyboardButton("💼 حسابي")],
             [KeyboardButton("🔙 الرجوع لحساب المطور")]
         ]
         
@@ -3994,14 +4101,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
         [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-        [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+        [KeyboardButton("💼 حسابي")]
     ]
     
     # إضافة زر متابعة Nagdat
     try:
         is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
         if is_following:
-            keyboard.append([KeyboardButton("⚡ متابع لـ Nagdat ✅")])
+            keyboard.append([KeyboardButton("❌ إلغاء متابعة Nagdat")])
         else:
             keyboard.append([KeyboardButton("⚡ متابعة Nagdat")])
     except Exception as e:
@@ -4074,9 +4181,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 3. استخدم الرابط في TradingView لإرسال الإشارات
 4. استمتع بالتداول التلقائي الذكي!
 
-⚡ **زر متابعة Nagdat:**
-يمكنك متابعة المطور Nagdat للحصول على إشارات تداول احترافية مباشرة! 
-عند المتابعة، ستستقبل جميع إشاراته التداولية تلقائياً على حسابك.
+⚡ **زر متابعة Nagdat - مطور محترف:**
+🎯 المطور Nagdat خبير تداول محترف بخبرة 5 سنوات في الأسواق المالية!
+
+💎 **لماذا تتابع Nagdat؟**
+• ✅ نسبة نجاح 80% في الإشارات
+• 🤖 يبرمج استراتيجيات تداول احترافية ومتقدمة
+• 📊 تحليلات دقيقة مبنية على خبرة عملية
+• 🚀 إشارات قوية جداً ومدروسة بعناية
+• ⚡ تنفيذ تلقائي فوري لجميع إشاراته
+
+عند المتابعة، ستستقبل جميع إشاراته التداولية تلقائياً على حسابك!
 
 استخدم الأزرار أدناه للتنقل في البوت
     """
@@ -4968,6 +5083,11 @@ def check_risk_management(user_id: int, trade_result: dict) -> dict:
         if should_stop:
             user_manager.update_user(user_id, {'is_active': False})
             
+            # إعادة تحميل بيانات المستخدم من قاعدة البيانات لضمان التحديث
+            logger.warning(f"🔄 إعادة تحميل بيانات المستخدم {user_id} بعد الإيقاف...")
+            user_manager.reload_user_data(user_id)
+            logger.info(f"✅ تم إعادة تحميل بيانات المستخدم {user_id} - is_active={user_manager.get_user(user_id).get('is_active', 'unknown')}")
+            
             # إرسال إشعار للمستخدم
             try:
                 from config import TELEGRAM_TOKEN, ADMIN_USER_ID
@@ -5597,13 +5717,22 @@ async def settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     auto_status = "✅" if trade_tools_manager.auto_apply_enabled else "⏸️"
     
-    # الحصول على نوع السوق ونوع الحساب الحالي
+    # الحصول على نوع السوق ونوع الحساب والمنصة الحالية
     market_type = user_data.get('market_type', 'spot')
     account_type = user_data.get('account_type', 'demo')
+    exchange = user_data.get('exchange', 'bybit')
+    
+    # تحديد emoji المنصة
+    exchange_emoji = {
+        'bybit': '🟡',
+        'bitget': '🔵',
+        'binance': '🟠',
+        'okx': '⚫'
+    }.get(exchange.lower(), '🏦')
     
     # بناء القائمة الأساسية
     keyboard = [
-        [InlineKeyboardButton("🏦 اختيار المنصة (Bybit)", callback_data="select_exchange")],
+        [InlineKeyboardButton(f"{exchange_emoji} اختيار المنصة ({exchange.upper()})", callback_data="select_exchange")],
         [InlineKeyboardButton("💰 مبلغ التداول", callback_data="set_amount")],
         [InlineKeyboardButton("🏪 نوع السوق", callback_data="set_market")],
         [InlineKeyboardButton("👤 نوع الحساب", callback_data="set_account")]
@@ -6132,8 +6261,8 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"خطأ في أمر /history: {e}")
         await update.message.reply_text(f"❌ خطأ: {str(e)}")
 
-async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض تطور المحفظة - أمر /portfolio"""
+async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض نظرة عامة شاملة على الحساب - دمج المحفظة والإحصائيات"""
     try:
         user_id = update.effective_user.id if update.effective_user else None
         
@@ -6148,31 +6277,286 @@ async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         account_type = user_data.get('account_type', 'demo')
+        market_type = user_data.get('market_type', 'spot')
+        balance = user_data.get('balance', 10000.0)
         
         # حفظ لقطة يومية للمحفظة
         if advanced_stats:
             advanced_stats.save_daily_snapshot(user_id, account_type)
         
-        # عرض تطور المحفظة مع رسم بياني
-        if advanced_stats:
-            message, reply_markup = advanced_stats.format_portfolio_evolution_message(user_id, account_type, days=30)
-        else:
-            # Fallback للنظام القديم
-            message = "⚠️ نظام الإحصائيات المتقدم غير متاح حالياً"
-            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]])
+        # مؤشر نوع الحساب
+        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
+        market_indicator = "📈 Spot" if market_type == 'spot' else "🚀 Futures"
+        
+        # حساب الرصيد الفعلي مع الصفقات المفتوحة
+        balance_info = db_manager.calculate_real_balance_with_open_positions(user_id, account_type)
+        
+        real_balance = balance_info['real_balance']
+        unrealized_pnl = balance_info['unrealized_pnl']
+        locked_balance = balance_info['locked_in_trades']
+        available_balance = balance - locked_balance
+        
+        # جلب الصفقات المفتوحة والمغلقة
+        open_positions = db_manager.get_user_orders(user_id, status='OPEN')
+        closed_positions = db_manager.get_user_trade_history(user_id, filters={'status': 'CLOSED', 'limit': 100})
+        
+        # حساب الإحصائيات
+        total_open = len(open_positions)
+        total_closed = len(closed_positions)
+        
+        # حساب إحصائيات الصفقات المغلقة
+        winning_trades = 0
+        losing_trades = 0
+        total_pnl = 0.0
+        best_trade = 0.0
+        worst_trade = 0.0
+        
+        for trade in closed_positions:
+            pnl = trade.get('pnl', 0.0)
+            total_pnl += pnl
+            
+            if pnl > 0:
+                winning_trades += 1
+                if pnl > best_trade:
+                    best_trade = pnl
+            elif pnl < 0:
+                losing_trades += 1
+                if pnl < worst_trade:
+                    worst_trade = pnl
+        
+        win_rate = (winning_trades / total_closed * 100) if total_closed > 0 else 0.0
+        
+        # فحص حدود المخاطر
+        risk_check = db_manager.check_risk_limits_before_trade(user_id, account_type)
+        risk_indicator = "🟢 آمن" if risk_check['risk_status'] == 'safe' else ("🟡 تحذير" if risk_check['risk_status'] == 'warning' else "🔴 خطر")
+        
+        # بناء الرسالة الشاملة
+        message = f"""
+💼 **نظرة عامة على حسابك**
+
+{account_indicator} | {market_indicator} | {risk_indicator}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 **الرصيد والأموال**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💵 الرصيد في قاعدة البيانات: {balance:,.2f} USDT
+💎 الرصيد الفعلي (مع الصفقات): {real_balance:,.2f} USDT
+💚 الرصيد المتاح: {available_balance:,.2f} USDT
+🔒 محجوز في الصفقات: {locked_balance:,.2f} USDT
+📊 ربح/خسارة غير محققة: {unrealized_pnl:+,.2f} USDT
+📈 ربح/خسارة محققة: {total_pnl:+,.2f} USDT ({(total_pnl/10000*100):+.2f}%)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **إحصائيات التداول**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 الصفقات المفتوحة: {total_open}
+📈 إجمالي الصفقات: {total_closed}
+✅ صفقات رابحة: {winning_trades} ({win_rate:.1f}%)
+❌ صفقات خاسرة: {losing_trades}
+💰 أفضل صفقة: {best_trade:+,.2f} USDT
+📉 أسوأ صفقة: {worst_trade:+,.2f} USDT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛡️ **إدارة المخاطر**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 الحالة: {risk_indicator}
+📉 الخسارة الحالية: {risk_check.get('current_loss', 0):,.2f} USDT
+🎯 الحد الأقصى: {risk_check.get('max_loss_allowed', 0):,.2f} USDT
+📏 الهامش المتبقي: {risk_check.get('remaining_margin', 0):,.2f} USDT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 **معلومات إضافية**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 البيانات: آخر 30 يوم
+🔄 آخر تحديث: الآن
+        """
+        
+        # إنشاء الأزرار الفرعية
+        keyboard = [
+            [
+                InlineKeyboardButton("📈 تطور المحفظة", callback_data="view_portfolio_chart"),
+                InlineKeyboardButton("📊 إحصائيات متقدمة", callback_data="view_advanced_stats")
+            ],
+            [
+                InlineKeyboardButton("💰 تفاصيل الرصيد", callback_data="view_balance_details"),
+                InlineKeyboardButton("📋 سجل الصفقات", callback_data="view_trade_history")
+            ],
+            [
+                InlineKeyboardButton("📅 تغيير الفترة الزمنية", callback_data="change_stats_period")
+            ],
+            [InlineKeyboardButton("🔄 تحديث", callback_data="refresh_my_account")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
             text=message,
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
         
-        logger.info(f"✅ تم عرض محفظة المستخدم {user_id}")
+        logger.info(f"✅ تم عرض نظرة عامة على حساب المستخدم {user_id}")
     
     except Exception as e:
-        logger.error(f"خطأ في أمر /portfolio: {e}")
+        logger.error(f"خطأ في أمر my_account: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {str(e)}")
+        await update.message.reply_text(f"❌ خطأ في عرض الحساب: {str(e)}")
+
+async def my_account_with_period(update: Update, context: ContextTypes.DEFAULT_TYPE, days: int = 30):
+    """عرض نظرة عامة على الحساب مع فترة زمنية مخصصة"""
+    try:
+        user_id = update.effective_user.id if update.effective_user else None
+        query = update.callback_query if update.callback_query else None
+        
+        if not user_id:
+            if update.message:
+                await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+        
+        # جلب بيانات المستخدم
+        user_data = db_manager.get_user(user_id)
+        if not user_data:
+            message_text = "❌ لم يتم العثور على حسابك. استخدم /start للبدء"
+            if query:
+                await query.edit_message_text(message_text)
+            elif update.message:
+                await update.message.reply_text(message_text)
+            return
+        
+        account_type = user_data.get('account_type', 'demo')
+        market_type = user_data.get('market_type', 'spot')
+        balance = user_data.get('balance', 10000.0)
+        
+        # حفظ لقطة يومية للمحفظة
+        if advanced_stats:
+            advanced_stats.save_daily_snapshot(user_id, account_type)
+        
+        # مؤشر نوع الحساب
+        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
+        market_indicator = "📈 Spot" if market_type == 'spot' else "🚀 Futures"
+        
+        # جلب الصفقات المفتوحة والمغلقة
+        open_positions = db_manager.get_user_orders(user_id, status='OPEN')
+        
+        # حساب تاريخ البداية للفترة المحددة
+        from datetime import datetime, timedelta
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        
+        closed_positions = db_manager.get_user_trade_history(
+            user_id, 
+            filters={'status': 'CLOSED', 'date_from': start_date}
+        )
+        
+        # حساب الإحصائيات
+        total_open = len(open_positions)
+        total_closed = len(closed_positions)
+        
+        # حساب الأموال المحجوزة في الصفقات
+        locked_balance = 0.0
+        for pos in open_positions:
+            locked_balance += pos.get('quantity', 0) * pos.get('entry_price', 0)
+        
+        available_balance = balance - locked_balance
+        
+        # حساب إحصائيات الصفقات المغلقة
+        winning_trades = 0
+        losing_trades = 0
+        total_pnl = 0.0
+        best_trade = 0.0
+        worst_trade = 0.0
+        
+        for trade in closed_positions:
+            pnl = trade.get('pnl', 0.0)
+            total_pnl += pnl
+            
+            if pnl > 0:
+                winning_trades += 1
+                if pnl > best_trade:
+                    best_trade = pnl
+            elif pnl < 0:
+                losing_trades += 1
+                if pnl < worst_trade:
+                    worst_trade = pnl
+        
+        win_rate = (winning_trades / total_closed * 100) if total_closed > 0 else 0.0
+        
+        # بناء الرسالة الشاملة
+        message = f"""
+💼 **نظرة عامة على حسابك**
+
+{account_indicator} | {market_indicator}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 **الرصيد والأموال**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💵 الرصيد الكلي: {balance:,.2f} USDT
+💚 الرصيد المتاح: {available_balance:,.2f} USDT
+🔒 في الصفقات: {locked_balance:,.2f} USDT
+📊 الربح/الخسارة: {total_pnl:+,.2f} USDT ({(total_pnl/10000*100):+.2f}%)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **إحصائيات التداول**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 الصفقات المفتوحة: {total_open}
+📈 إجمالي الصفقات: {total_closed}
+✅ صفقات رابحة: {winning_trades} ({win_rate:.1f}%)
+❌ صفقات خاسرة: {losing_trades}
+💰 أفضل صفقة: {best_trade:+,.2f} USDT
+📉 أسوأ صفقة: {worst_trade:+,.2f} USDT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 **معلومات إضافية**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 البيانات: آخر {days} يوم
+🔄 آخر تحديث: الآن
+        """
+        
+        # إنشاء الأزرار الفرعية
+        keyboard = [
+            [
+                InlineKeyboardButton("📈 تطور المحفظة", callback_data=f"view_portfolio_chart_{days}"),
+                InlineKeyboardButton("📊 إحصائيات متقدمة", callback_data=f"view_advanced_stats_{days}")
+            ],
+            [
+                InlineKeyboardButton("💰 تفاصيل الرصيد", callback_data="view_balance_details"),
+                InlineKeyboardButton("📋 سجل الصفقات", callback_data="view_trade_history")
+            ],
+            [
+                InlineKeyboardButton("📅 تغيير الفترة الزمنية", callback_data="change_stats_period")
+            ],
+            [InlineKeyboardButton("🔄 تحديث", callback_data=f"refresh_my_account_{days}")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if query:
+            await query.edit_message_text(
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        elif update.message:
+            await update.message.reply_text(
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        
+        logger.info(f"✅ تم عرض نظرة عامة على حساب المستخدم {user_id} (آخر {days} يوم)")
+    
+    except Exception as e:
+        logger.error(f"خطأ في أمر my_account_with_period: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        error_message = f"❌ خطأ في عرض الحساب: {str(e)}"
+        if query:
+            await query.edit_message_text(error_message)
+        elif update.message:
+            await update.message.reply_text(error_message)
+
+# الاحتفاظ بالدالة القديمة للتوافق مع الأوامر القديمة
+async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض تطور المحفظة - أمر /portfolio (إعادة توجيه للدالة الجديدة)"""
+    await my_account_command(update, context)
 
 async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض الرصيد Spot/Futures - أمر /wallet"""
@@ -6289,45 +6673,8 @@ async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ خطأ في عرض الرصيد: {str(e)}")
 
 async def statistics_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الإحصائيات المتقدمة - أمر /statistics"""
-    try:
-        user_id = update.effective_user.id if update.effective_user else None
-        
-        if not user_id:
-            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
-            return
-        
-        # جلب بيانات المستخدم
-        user_data = db_manager.get_user(user_id)
-        if not user_data:
-            await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
-            return
-        
-        account_type = user_data.get('account_type', 'demo')
-        
-        # حفظ لقطة يومية للمحفظة
-        if advanced_stats:
-            advanced_stats.save_daily_snapshot(user_id, account_type)
-        
-        # عرض الإحصائيات المتقدمة
-        if advanced_stats:
-            message, keyboard = advanced_stats.format_statistics_message(user_id, account_type, days=30)
-        else:
-            message = "⚠️ نظام الإحصائيات المتقدم غير متاح حالياً"
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]])
-        
-        await update.message.reply_text(
-            text=message,
-            reply_markup=keyboard
-        )
-        
-        logger.info(f"✅ تم عرض الإحصائيات المتقدمة للمستخدم {user_id}")
-    
-    except Exception as e:
-        logger.error(f"خطأ في أمر /statistics: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        await update.message.reply_text(f"❌ خطأ في عرض الإحصائيات: {str(e)}")
+    """عرض الإحصائيات المتقدمة - أمر /statistics (إعادة توجيه للدالة الجديدة)"""
+    await my_account_command(update, context)
 
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض سجلات البوت - أمر /logs (للأدمن فقط)"""
@@ -8865,6 +9212,163 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del user_input_state[user_id]
         await settings_menu(update, context)
         return
+    # معالجات أزرار "حسابي"
+    if data == "refresh_my_account":
+        # إعادة عرض نظرة عامة على الحساب
+        await my_account_command(update, context)
+        return
+    
+    if data.startswith("refresh_my_account_"):
+        # إعادة عرض نظرة عامة مع فترة زمنية محددة
+        try:
+            days = int(data.replace("refresh_my_account_", ""))
+            await my_account_with_period(update, context, days)
+        except:
+            await my_account_command(update, context)
+        return
+    
+    if data == "change_stats_period":
+        # عرض خيارات الفترة الزمنية
+        try:
+            message = """
+📅 **اختر الفترة الزمنية للإحصائيات**
+
+اختر من الفترات السريعة أو أدخل عدد أيام مخصص:
+
+💡 **ملاحظة:** كلما زادت الفترة، زادت دقة التحليل
+            """
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton("7 أيام", callback_data="set_period_7"),
+                    InlineKeyboardButton("14 يوم", callback_data="set_period_14"),
+                    InlineKeyboardButton("30 يوم", callback_data="set_period_30")
+                ],
+                [
+                    InlineKeyboardButton("60 يوم", callback_data="set_period_60"),
+                    InlineKeyboardButton("90 يوم", callback_data="set_period_90"),
+                    InlineKeyboardButton("180 يوم", callback_data="set_period_180")
+                ],
+                [
+                    InlineKeyboardButton("365 يوم (سنة)", callback_data="set_period_365"),
+                    InlineKeyboardButton("✏️ إدخال مخصص", callback_data="set_period_custom")
+                ],
+                [InlineKeyboardButton("🔙 رجوع", callback_data="refresh_my_account")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logger.error(f"خطأ في عرض خيارات الفترة الزمنية: {e}")
+            await query.edit_message_text(f"❌ خطأ: {e}")
+        return
+    
+    if data.startswith("set_period_") and data != "set_period_custom":
+        # تعيين فترة زمنية محددة
+        try:
+            days = int(data.replace("set_period_", ""))
+            await my_account_with_period(update, context, days)
+        except Exception as e:
+            logger.error(f"خطأ في تعيين الفترة الزمنية: {e}")
+            await query.edit_message_text(f"❌ خطأ: {e}")
+        return
+    
+    if data == "set_period_custom":
+        # طلب إدخال مخصص للفترة الزمنية
+        try:
+            if user_id:
+                user_input_state[user_id] = "waiting_for_custom_period"
+            
+            message = """
+✏️ **إدخال فترة زمنية مخصصة**
+
+أدخل عدد الأيام التي تريد عرض إحصائياتها:
+
+💡 **أمثلة:**
+• `20` → آخر 20 يوم
+• `234` → آخر 234 يوم
+• `500` → آخر 500 يوم
+
+⚠️ **ملاحظة:** الحد الأدنى 1 يوم، الحد الأقصى 3650 يوم (10 سنوات)
+
+أرسل العدد الآن 👇
+            """
+            
+            keyboard = [[InlineKeyboardButton("❌ إلغاء", callback_data="change_stats_period")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logger.error(f"خطأ في طلب إدخال مخصص: {e}")
+            await query.edit_message_text(f"❌ خطأ: {e}")
+        return
+    
+    if data == "view_portfolio_chart" or data.startswith("view_portfolio_chart_"):
+        # عرض تطور المحفظة بالرسم البياني
+        try:
+            # استخراج عدد الأيام من callback_data
+            days = 30
+            if data.startswith("view_portfolio_chart_"):
+                try:
+                    days = int(data.replace("view_portfolio_chart_", ""))
+                except:
+                    days = 30
+            
+            if advanced_stats:
+                message, reply_markup = advanced_stats.format_portfolio_evolution_message(user_id, user_data.get('account_type', 'demo'), days=days)
+                await query.edit_message_text(text=message, reply_markup=reply_markup)
+            else:
+                await query.edit_message_text(
+                    "⚠️ نظام الرسوم البيانية غير متاح حالياً",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data=f"refresh_my_account_{days}")]])
+                )
+        except Exception as e:
+            logger.error(f"خطأ في عرض تطور المحفظة: {e}")
+            await query.edit_message_text(f"❌ خطأ: {e}")
+        return
+    
+    if data == "view_advanced_stats" or data.startswith("view_advanced_stats_"):
+        # عرض إحصائيات متقدمة
+        try:
+            # استخراج عدد الأيام من callback_data
+            days = 30
+            if data.startswith("view_advanced_stats_"):
+                try:
+                    days = int(data.replace("view_advanced_stats_", ""))
+                except:
+                    days = 30
+            
+            if advanced_stats:
+                message, keyboard = advanced_stats.format_statistics_message(user_id, user_data.get('account_type', 'demo'), days=days)
+                await query.edit_message_text(text=message, reply_markup=keyboard)
+            else:
+                await query.edit_message_text(
+                    "⚠️ نظام الإحصائيات المتقدم غير متاح حالياً",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data=f"refresh_my_account_{days}")]])
+                )
+        except Exception as e:
+            logger.error(f"خطأ في عرض الإحصائيات المتقدمة: {e}")
+            await query.edit_message_text(f"❌ خطأ: {e}")
+        return
+    
+    if data == "view_balance_details":
+        # عرض تفاصيل الرصيد
+        await wallet_command(update, context)
+        return
+    
+    if data == "view_trade_history":
+        # عرض سجل الصفقات
+        await trade_history(update, context)
+        return
+    
     if data == "webhook_url":
         # الحصول على بيانات المستخدم
         user_data = user_manager.get_user(user_id)
@@ -9457,7 +9961,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [
                 [KeyboardButton("⚙️ الإعدادات"), KeyboardButton("📊 حالة الحساب")],
                 [KeyboardButton("🔄 الصفقات المفتوحة"), KeyboardButton("📈 تاريخ التداول")],
-                [KeyboardButton("💰 المحفظة"), KeyboardButton("📊 إحصائيات")]
+                [KeyboardButton("💼 حسابي")]
             ]
             
             # إضافة زر مخفي للمطور للعودة لوضع المطور (يظهر فقط للمطورين)
@@ -9478,7 +9982,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # معالجة أزرار المستخدمين العاديين
     if user_id and not developer_manager.is_developer(user_id):
-        if text == "⚡ متابعة Nagdat" or text == "⚡ متابع لـ Nagdat ✅":
+        if text == "⚡ متابعة Nagdat" or text == "❌ إلغاء متابعة Nagdat":
             # تبديل حالة المتابعة
             is_following = developer_manager.is_following(ADMIN_USER_ID, user_id)
             
@@ -9487,10 +9991,16 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 success = developer_manager.remove_follower(ADMIN_USER_ID, user_id)
                 if success:
                     message = """
-❌ تم إلغاء متابعة Nagdat
+❌ تم إلغاء متابعة المطور Nagdat
 
-لن تستقبل إشاراته بعد الآن.
-للمتابعة مرة أخرى، اضغط على الزر في القائمة الرئيسية.
+😔 لن تستقبل إشاراته الاحترافية بعد الآن.
+
+💡 للمتابعة مرة أخرى والاستفادة من:
+• إشارات بنسبة نجاح 80%
+• استراتيجيات احترافية مبرمجة
+• خبرة 5 سنوات في التداول
+
+اضغط على زر "⚡ متابعة Nagdat" في القائمة الرئيسية
                     """
                     await update.message.reply_text(message)
                     # تحديث القائمة
@@ -9502,13 +10012,25 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 success = developer_manager.add_follower(ADMIN_USER_ID, user_id)
                 if success:
                     message = """
-✅ تم متابعة Nagdat بنجاح!
+✅ مبروك! تم متابعة المطور Nagdat بنجاح!
 
-الآن ستستقبل جميع إشارات التداول التي يرسلها Nagdat تلقائياً!
+🎉 الآن أنت ضمن المتابعين المميزين!
 
-📡 ستصلك الإشارات فور إرسالها
-🔔 تأكد من تفعيل الإشعارات
-⚙️ يمكنك إلغاء المتابعة في أي وقت
+💎 **ما الذي ستحصل عليه:**
+• 📡 إشارات تداول احترافية فورية
+• 🎯 نسبة نجاح 80% مثبتة
+• 🤖 استراتيجيات مبرمجة بخبرة 5 سنوات
+• ⚡ تنفيذ تلقائي لجميع الإشارات
+• 📊 تحليلات دقيقة ومدروسة
+
+🔔 **تأكد من:**
+• تفعيل الإشعارات لاستقبال الإشارات فوراً
+• ضبط إعداداتك من قائمة الإعدادات
+• متابعة أدائك من لوحة الإحصائيات
+
+⚙️ يمكنك إلغاء المتابعة في أي وقت من القائمة الرئيسية
+
+🚀 استعد لتجربة تداول احترافية!
                     """
                     await update.message.reply_text(message)
                     # تحديث القائمة
@@ -9725,6 +10247,32 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     del user_input_state[user_id]
                     await update.message.reply_text(f"❌ خطأ: {str(e)}")
+            return
+        
+        # معالجة إدخال فترة زمنية مخصصة
+        elif state == "waiting_for_custom_period":
+            try:
+                days = int(text)
+                
+                # التحقق من صحة العدد
+                if days < 1:
+                    await update.message.reply_text("❌ عدد الأيام يجب أن يكون على الأقل 1")
+                    return
+                elif days > 3650:
+                    await update.message.reply_text("❌ عدد الأيام يجب أن لا يتجاوز 3650 يوم (10 سنوات)")
+                    return
+                
+                # مسح الحالة
+                del user_input_state[user_id]
+                
+                # عرض النظرة العامة مع الفترة المخصصة
+                await my_account_with_period(update, context, days)
+                
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ يرجى إدخال رقم صحيح\n\n"
+                    "مثال: 20 أو 234 أو 500"
+                )
             return
         
         # معالجة إعادة تعيين بيانات مستخدم
@@ -10385,10 +10933,13 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await open_positions(update, context)
     elif text == "📈 تاريخ التداول":
         await trade_history(update, context)
+    elif text == "💼 حسابي":
+        await my_account_command(update, context)
+    # الاحتفاظ بالأزرار القديمة للتوافق
     elif text == "💰 المحفظة":
-        await portfolio_command(update, context)
+        await my_account_command(update, context)
     elif text == "📊 إحصائيات":
-        await statistics_command(update, context)
+        await my_account_command(update, context)
     elif text == "▶️ تشغيل البوت":
         trading_bot.is_running = True
         if update.message is not None:

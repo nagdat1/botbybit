@@ -61,6 +61,12 @@ class OKXExchange(ExchangeBase):
         logger.warning("⚠️ OKX: set_leverage غير مطبق بعد")
         return False
     
+    def check_symbol_exists(self, symbol: str, market_type: str) -> bool:
+        """التحقق من وجود رمز معين في منصة OKX"""
+        logger.warning("⚠️ OKX: check_symbol_exists غير مطبق بعد - المنصة غير مدعومة حالياً")
+        # نعيد True لتجنب حظر الإشارات حتى يتم تطبيق المنصة
+        return True
+    
     # معلومات المنصة
     def supports_spot(self) -> bool:
         return True

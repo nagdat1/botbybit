@@ -582,6 +582,56 @@ class BybitRealAccount:
             return round(qty, 6)
         
         return round(qty / step) * step
+    
+    def get_all_symbols(self, category: str) -> List[Dict]:
+        """الحصول على جميع الرموز المتاحة في فئة معينة"""
+        try:
+            api_category = "linear" if category == "futures" else category
+            result = self._make_request('GET', '/v5/market/instruments-info', {
+                'category': api_category
+            })
+            
+            if result and 'list' in result:
+                return result['list']
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في الحصول على قائمة الرموز: {e}")
+            return []
+    
+    def check_symbol_exists(self, symbol: str, category: str) -> bool:
+        """التحقق من وجود رمز معين في منصة Bybit"""
+        try:
+            api_category = "linear" if category == "futures" else category
+            
+            # محاولة الحصول على معلومات الرمز
+            result = self._make_request('GET', '/v5/market/instruments-info', {
+                'category': api_category,
+                'symbol': symbol
+            })
+            
+            # إذا كانت الاستجابة تحتوي على معلومات الرمز، فهو موجود
+            if result and 'list' in result and len(result['list']) > 0:
+                instrument = result['list'][0]
+                status = instrument.get('status', '')
+                
+                # التحقق من أن الرمز في حالة Trading
+                if status == 'Trading':
+                    logger.info(f"✅ الرمز {symbol} موجود ونشط في Bybit {category}")
+                    return True
+                else:
+                    logger.warning(f"⚠️ الرمز {symbol} موجود لكن حالته: {status}")
+                    return False
+            
+            logger.warning(f"⚠️ الرمز {symbol} غير موجود في Bybit {category}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في التحقق من وجود الرمز {symbol}: {e}")
+            # في حالة الخطأ، نعيد True لتجنب حظر الإشارات بسبب مشاكل الاتصال
+            logger.warning(f"⚠️ سيتم السماح بالإشارة بسبب خطأ في الفحص")
+            return True
 
 
 
