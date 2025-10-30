@@ -64,18 +64,22 @@ class UserManager:
             
             for user_data in users_data:
                 user_id = user_data['user_id']
-                logger.info(f"📊 تحميل المستخدم {user_id}: trade_amount={user_data.get('trade_amount')}, market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
                 
-                self.users[user_id] = user_data
-                
-                # إنشاء حسابات تجريبية للمستخدم
-                self._create_user_accounts(user_id, user_data)
-                
-                # إنشاء API للمستخدم إذا كان لديه مفاتيح
-                if user_data.get('api_key') and user_data.get('api_secret'):
-                    self._create_user_api(user_id, user_data['api_key'], user_data['api_secret'])
+                # ✅ إصلاح: تحديث بيانات المستخدم فقط إذا لم يكن موجوداً
+                if user_id not in self.users:
+                    logger.info(f"📊 تحميل مستخدم جديد {user_id}: trade_amount={user_data.get('trade_amount')}, market_type={user_data.get('market_type')}, account_type={user_data.get('account_type')}")
+                    self.users[user_id] = user_data
+                    
+                    # إنشاء حسابات تجريبية للمستخدم
+                    self._create_user_accounts(user_id, user_data)
+                    
+                    # إنشاء API للمستخدم إذا كان لديه مفاتيح
+                    if user_data.get('api_key') and user_data.get('api_secret'):
+                        self._create_user_api(user_id, user_data['api_key'], user_data['api_secret'])
+                else:
+                    logger.info(f"⚠️ المستخدم {user_id} موجود بالفعل في الذاكرة، تخطي إعادة التحميل")
             
-            logger.warning(f"🔄 تم تحميل {len(self.users)} مستخدم في الذاكرة")
+            logger.warning(f"✅ تم تحميل {len(self.users)} مستخدم في الذاكرة (بدون إعادة تعيين الحسابات الموجودة)")
             
         except Exception as e:
             logger.error(f"خطأ في تحميل المستخدمين: {e}")
@@ -90,6 +94,11 @@ class UserManager:
             
             if not self.TradingAccount:
                 logger.warning(f"TradingAccount class not set, skipping account creation for user {user_id}")
+                return
+            
+            # ✅ إصلاح: عدم إعادة إنشاء الحسابات إذا كانت موجودة بالفعل
+            if user_id in self.user_accounts:
+                logger.info(f"⚠️ الحسابات موجودة بالفعل للمستخدم {user_id}، تخطي إعادة الإنشاء")
                 return
                 
             # حساب سبوت
@@ -109,7 +118,7 @@ class UserManager:
                 'futures': futures_account
             }
             
-            logger.info(f"تم إنشاء حسابات للمستخدم {user_id}")
+            logger.info(f"✅ تم إنشاء حسابات جديدة للمستخدم {user_id}")
             
         except Exception as e:
             logger.error(f"خطأ في إنشاء حسابات المستخدم {user_id}: {e}")
@@ -120,9 +129,14 @@ class UserManager:
             if not self.BybitAPI:
                 logger.warning(f"BybitAPI class not set, skipping API creation for user {user_id}")
                 return
+            
+            # ✅ إصلاح: عدم إعادة إنشاء API إذا كان موجوداً بالفعل
+            if user_id in self.user_apis:
+                logger.info(f"⚠️ API موجود بالفعل للمستخدم {user_id}، تخطي إعادة الإنشاء")
+                return
                 
             self.user_apis[user_id] = self.BybitAPI(api_key, api_secret)
-            logger.info(f"تم إنشاء API للمستخدم {user_id}")
+            logger.info(f"✅ تم إنشاء API جديد للمستخدم {user_id}")
             
         except Exception as e:
             logger.error(f"خطأ في إنشاء API للمستخدم {user_id}: {e}")
@@ -240,10 +254,15 @@ class UserManager:
                     self.users[user_id]['api_key'] = api_key
                     self.users[user_id]['api_secret'] = api_secret
                 
+                # ✅ إصلاح: حذف API القديم قبل إنشاء الجديد
+                if user_id in self.user_apis:
+                    del self.user_apis[user_id]
+                    logger.info(f"🗑️ تم حذف API القديم للمستخدم {user_id}")
+                
                 # إنشاء API جديد
                 self._create_user_api(user_id, api_key, api_secret)
                 
-                logger.info(f"تم تحديث API للمستخدم {user_id}")
+                logger.info(f"✅ تم تحديث API للمستخدم {user_id}")
                 return True
             
             return False
