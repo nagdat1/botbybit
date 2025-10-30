@@ -90,7 +90,7 @@ class PositionDisplayFormatter:
             size_line = f"Size: {PositionDisplayFormatter.format_number(quantity, 4)} • Amount: {PositionDisplayFormatter.format_number(amount, 2)} USDT"
             
             # PnL
-            pnl_line = f"P&L: {PositionDisplayFormatter.format_number(pnl_value, 2):+} USDT ({pnl_percent:+.2f}%) {pnl_indicator}"
+            pnl_line = f"P&L: {pnl_value:+,.2f} USDT ({pnl_percent:+.2f}%) {pnl_indicator}"
             
             # التجميع
             formatted = f"{header}\n{price_line}\n{size_line}\n{pnl_line}"
@@ -158,7 +158,7 @@ class PositionDisplayFormatter:
             liq_line = f"Liq: {PositionDisplayFormatter.format_price(liquidation_price)} ({liq_distance:.2f}% away){liq_warning}"
             
             # PnL
-            pnl_line = f"P&L: {PositionDisplayFormatter.format_number(pnl_value, 2):+} USDT ({pnl_percent:+.2f}%) {pnl_indicator}"
+            pnl_line = f"P&L: {pnl_value:+,.2f} USDT ({pnl_percent:+.2f}%) {pnl_indicator}"
             
             # التجميع
             formatted = f"{header}\n{price_line}\n{size_line}\n{liq_line}\n{pnl_line}"
@@ -238,7 +238,7 @@ class PositionDisplayManager:
                 keyboard.extend(position_keyboard)
             
             # إجمالي PnL
-            message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTotal P&L: {self.formatter.format_number(total_pnl, 2):+} USDT {total_pnl_indicator}"
+            message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTotal P&L: {total_pnl:+,.2f} USDT {total_pnl_indicator}"
             
             # أزرار التحكم
             control_row = [
@@ -284,7 +284,7 @@ class PositionDisplayManager:
                 keyboard.extend(position_keyboard)
             
             # إجمالي PnL
-            message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTotal P&L: {self.formatter.format_number(total_pnl, 2):+} USDT {total_pnl_indicator}"
+            message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTotal P&L: {total_pnl:+,.2f} USDT {total_pnl_indicator}"
             
             # أزرار التحكم
             control_row = [
@@ -342,7 +342,7 @@ class PositionDisplayManager:
             total_pnl += sum(pos.get('pnl_value', 0) for pos in futures_positions.values())
             total_pnl_indicator = self.formatter.get_pnl_indicator(total_pnl)
             
-            message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTotal P&L: {self.formatter.format_number(total_pnl, 2):+} USDT {total_pnl_indicator}"
+            message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nTotal P&L: {total_pnl:+,.2f} USDT {total_pnl_indicator}"
             
             # أزرار التحكم
             control_row = [

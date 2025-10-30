@@ -114,10 +114,18 @@ class BybitRealAccount:
                         # للطلبات الأخرى، إرجاع result فقط
                         return result.get('result')
                 else:
-                    logger.error(f"❌ خطأ من Bybit API: {result.get('retMsg')}")
-                    logger.error(f"   retCode: {result.get('retCode')}")
+                    ret_msg = result.get('retMsg', '')
+                    ret_code = result.get('retCode', 0)
+                    
+                    # التعامل مع الأخطاء المقبولة (مثل leverage not modified)
+                    if ret_code == 110043 or 'leverage not modified' in ret_msg.lower():
+                        logger.info(f"ℹ️ Bybit: {ret_msg} (retCode: {ret_code}) - يُعتبر نجاحاً")
+                        return {'error': ret_msg, 'retCode': ret_code, 'acceptable': True}
+                    
+                    logger.error(f"❌ خطأ من Bybit API: {ret_msg}")
+                    logger.error(f"   retCode: {ret_code}")
                     # إرجاع الاستجابة الكاملة لمعالجة الأخطاء بشكل أفضل
-                    return {'error': result.get('retMsg'), 'retCode': result.get('retCode')}
+                    return {'error': ret_msg, 'retCode': ret_code}
             else:
                 logger.error(f"❌ Bybit API Error (HTTP {response.status_code}): {response.text}")
                 return {'error': f'HTTP {response.status_code}', 'details': response.text}
