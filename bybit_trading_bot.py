@@ -2133,6 +2133,99 @@ class TradingBot:
         else:
             return self.demo_account_futures
     
+    async def _get_demo_price_from_exchange(self, exchange: str, symbol: str, market_type: str) -> Optional[float]:
+        """
+        جلب السعر من Public API للمنصة المختارة (بدون الحاجة لربط API)
+        
+        Args:
+            exchange: اسم المنصة (bybit, binance, bitget, okx)
+            symbol: رمز العملة (مثل BTCUSDT)
+            market_type: نوع السوق (spot, futures)
+            
+        Returns:
+            السعر الحالي أو None في حالة الفشل
+        """
+        try:
+            exchange = exchange.lower()
+            
+            if exchange == 'bybit':
+                # Bybit Public API - لا يحتاج authentication
+                api_category = 'linear' if market_type == 'futures' else 'spot'
+                url = f"https://api.bybit.com/v5/market/tickers"
+                params = {"category": api_category, "symbol": symbol}
+                
+                response = requests.get(url, params=params, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('retCode') == 0:
+                        result = data.get('result', {})
+                        ticker_list = result.get('list', [])
+                        if ticker_list:
+                            price = float(ticker_list[0].get('lastPrice', 0))
+                            logger.info(f"✅ تم جلب السعر من Bybit Public API: {price}")
+                            return price
+                
+            elif exchange == 'binance':
+                # Binance Public API
+                if market_type == 'futures':
+                    url = f"https://fapi.binance.com/fapi/v1/ticker/price"
+                else:
+                    url = f"https://api.binance.com/api/v3/ticker/price"
+                
+                params = {"symbol": symbol}
+                response = requests.get(url, params=params, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data and 'price' in data:
+                        price = float(data.get('price', 0))
+                        logger.info(f"✅ تم جلب السعر من Binance Public API: {price}")
+                        return price
+                
+            elif exchange == 'bitget':
+                # Bitget Public API
+                if market_type == 'futures':
+                    url = "https://api.bitget.com/api/mix/v1/market/ticker"
+                    params = {"symbol": symbol, "productType": "USDT-FUTURES"}
+                else:
+                    url = "https://api.bitget.com/api/spot/v1/market/ticker"
+                    params = {"symbol": symbol}
+                
+                response = requests.get(url, params=params, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('code') == '00000':
+                        result = data.get('data', {})
+                        price = float(result.get('last', 0))
+                        logger.info(f"✅ تم جلب السعر من Bitget Public API: {price}")
+                        return price
+                
+            elif exchange == 'okx':
+                # OKX Public API
+                if market_type == 'futures':
+                    url = f"https://www.okx.com/api/v5/market/ticker"
+                    symbol_part = symbol.replace('USDT', '-USDT-SWAP')
+                    params = {"instId": symbol_part}
+                else:
+                    url = f"https://www.okx.com/api/v5/market/ticker"
+                    params = {"instId": symbol + '-USDT'}
+                
+                response = requests.get(url, params=params, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('code') == '0':
+                        result_list = data.get('data', [])
+                        if result_list:
+                            price = float(result_list[0].get('last', 0))
+                            logger.info(f"✅ تم جلب السعر من OKX Public API: {price}")
+                            return price
+            
+            logger.warning(f"⚠️ فشل جلب السعر من {exchange} Public API")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب السعر من {exchange} Public API: {e}")
+            return None
+    
     async def update_available_pairs(self, force_update=False):
         """تحديث قائمة الأزواج المتاحة"""
         try:
@@ -2545,12 +2638,26 @@ class TradingBot:
             # 🎯 التحقق من نوع الحساب أولاً
             account_type = self.user_settings['account_type']
             
-            # 🔍 التحقق من وجود الرمز فقط للحساب الحقيقي
+            # 🔍 التحقق من وجود الرمز (للحساب الحقيقي والتجريبي إذا كان API مربوط)
             symbol_exists = True  # افتراضياً نسمح بالرمز
+            user_exchange = self.user_settings.get('exchange', 'bybit').lower()
             
-            if account_type == 'real':
-                # للحساب الحقيقي: التحقق من وجود الرمز في المنصة
-                user_exchange = self.user_settings.get('exchange', 'bybit').lower()
+            # جلب بيانات المستخدم للتحقق من وجود API مربوط
+            user_data = user_manager.get_user(self.user_id)
+            has_api_connected = False
+            
+            # التحقق من وجود API حسب المنصة المختارة
+            if user_exchange == 'bybit' and user_data and user_data.get('api_key') and user_data.get('api_secret'):
+                has_api_connected = True
+            elif user_exchange == 'bitget' and user_data and user_data.get('bitget_api_key') and user_data.get('bitget_api_secret'):
+                has_api_connected = True
+            elif user_exchange == 'binance' and user_data and user_data.get('binance_api_key') and user_data.get('binance_api_secret'):
+                has_api_connected = True
+            elif user_exchange == 'okx' and user_data and user_data.get('okx_api_key') and user_data.get('okx_api_secret'):
+                has_api_connected = True
+            
+            # التحقق من الرمز إذا كان API مربوط (حتى للحساب التجريبي)
+            if has_api_connected or account_type == 'real':
                 logger.info(f"🔍 التحقق من وجود الرمز {symbol} في {user_exchange.upper()} {user_market_type.upper()}")
                 
                 # قائمة المنصات المدعومة بالكامل (التي لديها API مربوط)
@@ -2654,8 +2761,8 @@ class TradingBot:
                 
                 logger.info(f"✅ الرمز {symbol} موجود في {user_exchange.upper()} {user_market_type.upper()}")
             else:
-                # للحساب التجريبي: لا نحتاج للتحقق من الرمز
-                logger.info(f"🟢 حساب تجريبي - تخطي التحقق من الرمز {symbol}")
+                # للحساب التجريبي بدون API مربوط: تخطي التحقق
+                logger.info(f"🟢 حساب تجريبي بدون API مربوط - تخطي التحقق من الرمز {symbol}")
             
             # الحصول على السعر الحالي
             current_price = signal_data.get('price')  # محاولة الحصول على السعر من الإشارة أولاً
@@ -2663,17 +2770,65 @@ class TradingBot:
             if current_price:
                 current_price = float(current_price)
                 logger.info(f"💲 استخدام السعر من الإشارة: {current_price}")
-            elif account_type == 'real' and self.bybit_api:
-                # للحساب الحقيقي: جلب السعر من API
-                current_price = self.bybit_api.get_ticker_price(symbol, bybit_category)
+            elif has_api_connected:
+                # إذا كان API مربوط (حساب حقيقي أو تجريبي): جلب السعر من API المربوط
+                logger.info(f"🔗 API مربوط - جلب السعر من {user_exchange.upper()} API")
+                
+                if user_exchange == 'bybit' and self.bybit_api:
+                    current_price = self.bybit_api.get_ticker_price(symbol, bybit_category)
+                    if current_price:
+                        logger.info(f"💲 سعر {symbol} من Bybit API: {current_price}")
+                
+                elif user_exchange == 'bitget':
+                    try:
+                        from api.exchanges.bitget_exchange import BitgetExchange
+                        bitget_api = BitgetExchange('bitget', user_data['bitget_api_key'], user_data['bitget_api_secret'])
+                        current_price = bitget_api.get_ticker_price(symbol, user_market_type)
+                        if current_price:
+                            logger.info(f"💲 سعر {symbol} من Bitget API: {current_price}")
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في جلب السعر من Bitget: {e}")
+                
+                elif user_exchange == 'binance':
+                    try:
+                        from api.exchanges.binance_exchange import BinanceExchange
+                        binance_api = BinanceExchange('binance', user_data['binance_api_key'], user_data['binance_api_secret'])
+                        current_price = binance_api.get_ticker_price(symbol, user_market_type)
+                        if current_price:
+                            logger.info(f"💲 سعر {symbol} من Binance API: {current_price}")
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في جلب السعر من Binance: {e}")
+                
+                elif user_exchange == 'okx':
+                    try:
+                        from api.exchanges.okx_exchange import OkxExchange
+                        okx_api = OkxExchange('okx', user_data['okx_api_key'], user_data['okx_api_secret'], user_data.get('okx_passphrase', ''))
+                        current_price = okx_api.get_ticker_price(symbol, user_market_type)
+                        if current_price:
+                            logger.info(f"💲 سعر {symbol} من OKX API: {current_price}")
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في جلب السعر من OKX: {e}")
+                
+                # إذا فشل جلب السعر من API المربوط
                 if current_price is None:
-                    await self.send_message_to_admin(f"❌ فشل في الحصول على سعر {symbol} من Bybit")
-                    return
-                logger.info(f"💲 سعر {symbol} الحالي من API: {current_price}")
+                    if account_type == 'real':
+                        await self.send_message_to_admin(f"❌ فشل في الحصول على سعر {symbol} من {user_exchange.upper()}")
+                        return
+                    else:
+                        # للحساب التجريبي: محاولة Public API كحل احتياطي
+                        logger.warning(f"⚠️ فشل جلب السعر من API المربوط - محاولة Public API")
+                        current_price = await self._get_demo_price_from_exchange(user_exchange, symbol, user_market_type)
             else:
-                # للحساب التجريبي: استخدام سعر افتراضي
+                # للحساب التجريبي بدون API مربوط: جلب السعر من Public API
+                logger.info(f"🌐 حساب تجريبي بدون API - جلب السعر من Public API")
+                current_price = await self._get_demo_price_from_exchange(user_exchange, symbol, user_market_type)
+                if current_price:
+                    logger.info(f"💲 سعر {symbol} من {user_exchange.upper()} Public API: {current_price}")
+            
+            # إذا فشل كل شيء: استخدام سعر افتراضي
+            if current_price is None:
                 current_price = 50000.0 if 'BTC' in symbol else 3000.0 if 'ETH' in symbol else 100.0
-                logger.info(f"💲 استخدام سعر افتراضي للحساب التجريبي: {current_price}")
+                logger.warning(f"⚠️ فشل جلب السعر - استخدام سعر افتراضي: {current_price}")
             
             # 🎯 تنفيذ الصفقة بناءً على نوع الحساب
             
@@ -2946,19 +3101,35 @@ class TradingBot:
             if action == 'close':
                 logger.info(f"🔄 معالجة إشارة إغلاق للرمز {symbol}")
                 
-                # البحث عن الصفقات المفتوحة لهذا الرمز
+                # استخراج signal_id من الإشارة الحالية
+                close_signal_id = None
+                if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                    close_signal_id = self._current_signal_id
+                    logger.info(f"🆔 إشارة الإغلاق تحتوي على signal_id: {close_signal_id}")
+                
+                # البحث عن الصفقات المفتوحة بناءً على signal_id أو symbol
                 positions_to_close = []
                 for pos_id, pos_info in user_positions.items():
-                    if pos_info.get('symbol') == symbol:
-                        # إغلاق جميع الصفقات على هذا الرمز
+                    # إذا كان هناك signal_id في إشارة الإغلاق، نبحث عن الصفقات التي تطابقه
+                    if close_signal_id:
+                        pos_signal_id = pos_info.get('signal_id')
+                        if pos_signal_id == close_signal_id:
+                            logger.info(f"✅ تم العثور على صفقة بنفس signal_id: {pos_id} (signal_id: {pos_signal_id})")
+                            positions_to_close.append(pos_id)
+                    # إذا لم يكن هناك signal_id، نغلق جميع الصفقات على هذا الرمز (السلوك القديم)
+                    elif pos_info.get('symbol') == symbol:
+                        logger.info(f"✅ تم العثور على صفقة بنفس الرمز: {pos_id} (symbol: {symbol})")
                         positions_to_close.append(pos_id)
                 
                 if not positions_to_close:
-                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
+                    search_criteria = f"signal_id: {close_signal_id}" if close_signal_id else f"symbol: {symbol}"
+                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة تطابق {search_criteria}")
                     await self.send_message_to_admin(
                         f"⚠️ لا توجد صفقات مفتوحة للإغلاق\n\n"
                         f"📊 الرمز: {symbol}\n"
-                        f"🏪 السوق: {user_market_type.upper()}"
+                        f"🆔 Signal ID: {close_signal_id if close_signal_id else 'غير محدد'}\n"
+                        f"🏪 السوق: {user_market_type.upper()}\n\n"
+                        f"🔍 البحث: {'بناءً على Signal ID' if close_signal_id else 'بناءً على الرمز فقط'}"
                     )
                     return
                 
@@ -3002,6 +3173,10 @@ class TradingBot:
                                 message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
                                 message += f"💲 سعر الإغلاق: {price:.6f}\n"
                                 message += f"🆔 رقم الصفقة: {pos_id}\n"
+                                if pos_info.get('signal_id'):
+                                    message += f"🎯 Signal ID: {pos_info.get('signal_id')}\n"
+                                if close_signal_id:
+                                    message += f"🔍 تم الإغلاق بناءً على Signal ID المطابق\n"
                                 
                                 # معلومات الحساب
                                 account_info = account.get_account_info()
@@ -3033,6 +3208,10 @@ class TradingBot:
                             message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
                             message += f"💲 سعر الإغلاق: {price:.6f}\n"
                             message += f"🆔 رقم الصفقة: {pos_id}\n"
+                            if pos_info.get('signal_id'):
+                                message += f"🎯 Signal ID: {pos_info.get('signal_id')}\n"
+                            if close_signal_id:
+                                message += f"🔍 تم الإغلاق بناءً على Signal ID المطابق\n"
                             
                             # معلومات الحساب
                             account_info = account.get_account_info()
@@ -3062,19 +3241,36 @@ class TradingBot:
                     )
                     return
                 
-                # البحث عن الصفقات المفتوحة لهذا الرمز
+                # استخراج signal_id من الإشارة الحالية
+                close_signal_id = None
+                if hasattr(self, '_current_signal_id') and self._current_signal_id:
+                    close_signal_id = self._current_signal_id
+                    logger.info(f"🆔 إشارة الإغلاق الجزئي تحتوي على signal_id: {close_signal_id}")
+                
+                # البحث عن الصفقات المفتوحة بناءً على signal_id أو symbol
                 positions_to_partial_close = []
                 for pos_id, pos_info in user_positions.items():
-                    if pos_info.get('symbol') == symbol:
-                        # إغلاق جزئي لجميع الصفقات على هذا الرمز
+                    # إذا كان هناك signal_id في إشارة الإغلاق، نبحث عن الصفقات التي تطابقه
+                    if close_signal_id:
+                        pos_signal_id = pos_info.get('signal_id')
+                        if pos_signal_id == close_signal_id:
+                            logger.info(f"✅ تم العثور على صفقة للإغلاق الجزئي بنفس signal_id: {pos_id} (signal_id: {pos_signal_id})")
+                            positions_to_partial_close.append(pos_id)
+                    # إذا لم يكن هناك signal_id، نغلق جزئياً جميع الصفقات على هذا الرمز (السلوك القديم)
+                    elif pos_info.get('symbol') == symbol:
+                        logger.info(f"✅ تم العثور على صفقة للإغلاق الجزئي بنفس الرمز: {pos_id} (symbol: {symbol})")
                         positions_to_partial_close.append(pos_id)
                 
                 if not positions_to_partial_close:
-                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة للرمز {symbol}")
+                    search_criteria = f"signal_id: {close_signal_id}" if close_signal_id else f"symbol: {symbol}"
+                    logger.warning(f"⚠️ لا توجد صفقات مفتوحة تطابق {search_criteria}")
                     await self.send_message_to_admin(
                         f"⚠️ لا توجد صفقات للإغلاق الجزئي\n\n"
                         f"📊 الرمز: {symbol}\n"
-                        f"🏪 السوق: {user_market_type.upper()}"
+                        f"🆔 Signal ID: {close_signal_id if close_signal_id else 'غير محدد'}\n"
+                        f"📈 النسبة: {percentage}%\n"
+                        f"🏪 السوق: {user_market_type.upper()}\n\n"
+                        f"🔍 البحث: {'بناءً على Signal ID' if close_signal_id else 'بناءً على الرمز فقط'}"
                     )
                     return
                 
@@ -3123,6 +3319,10 @@ class TradingBot:
                             message += f"💰 الربح/الخسارة الجزئي: {partial_pnl:.2f}\n"
                             message += f"💲 سعر الدخول: {pos_info.get('entry_price', 0):.6f}\n"
                             message += f"💲 سعر الإغلاق: {price:.6f}\n"
+                            if pos_info.get('signal_id'):
+                                message += f"🎯 Signal ID: {pos_info.get('signal_id')}\n"
+                            if close_signal_id:
+                                message += f"🔍 تم الإغلاق بناءً على Signal ID المطابق\n"
                             message += f"\n📊 **الصفقة المتبقية:**\n"
                             message += f"📈 الحجم المتبقي: {new_position_size:.2f} USDT ({100-percentage}%)\n"
                             message += f"🔒 الهامش المتبقي: {new_margin:.2f} USDT\n"
@@ -3186,7 +3386,10 @@ class TradingBot:
                             'liquidation_price': position.liquidation_price,
                             'contracts': position.contracts,
                             'current_price': price,
-                            'pnl_percent': 0.0
+                            'pnl_percent': 0.0,
+                            'signal_id': custom_position_id if custom_position_id else position_id,  # إضافة signal_id
+                            'market_type': 'futures',
+                            'quantity': position.contracts
                         }
                         
                         user_positions[position_id] = position_data_dict
@@ -3418,10 +3621,13 @@ class TradingBot:
                                     'amount': amount,
                                     'current_price': price,
                                     'pnl_percent': 0.0,
+                                    'signal_id': custom_position_id if custom_position_id else position_id,  # إضافة signal_id
+                                    'market_type': 'spot',
+                                    'quantity': amount / price,  # عدد العملات
                                     'created_at': datetime.now().isoformat(),
                                     'last_update': datetime.now().isoformat()
                                 }
-                                logger.info(f"✅ تم إنشاء مركز موحد جديد {unified_position_id}: كمية={amount}, سعر={price:.6f}")
+                                logger.info(f"✅ تم إنشاء مركز موحد جديد {unified_position_id}: كمية={amount}, سعر={price:.6f}, signal_id={custom_position_id if custom_position_id else position_id}")
                             else:
                                 logger.warning(f"⚠️ محاولة بيع {symbol} بدون رصيد متاح")
                     
@@ -6099,13 +6305,54 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 position_fetcher = PositionFetcher(db_manager, signal_id_manager)
                 position_display = PositionDisplayManager()
                 
-                # الحصول على API client للحساب الحقيقي
+                # الحصول على API client (للحساب الحقيقي والتجريبي)
                 api_client = None
                 if account_type == 'real':
                     from api.bybit_api import real_account_manager
                     api_client = real_account_manager.get_account(user_id)
-                elif trading_bot.bybit_api:
-                    api_client = trading_bot.bybit_api
+                else:  # demo account
+                    # محاولة الحصول على API المربوط للحساب التجريبي
+                    user_data = db_manager.get_user(user_id)
+                    if user_data:
+                        user_exchange = user_data.get('exchange', 'bybit').lower()
+                        
+                        # التحقق من وجود API مربوط حسب المنصة
+                        if user_exchange == 'bybit' and user_data.get('api_key') and user_data.get('api_secret'):
+                            try:
+                                from api.bybit_api import BybitAPI
+                                api_client = BybitAPI(user_data['api_key'], user_data['api_secret'])
+                                logger.info(f"✅ استخدام Bybit API المربوط للحساب التجريبي للمستخدم {user_id}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ فشل إنشاء Bybit API للحساب التجريبي: {e}")
+                        
+                        elif user_exchange == 'bitget' and user_data.get('bitget_api_key') and user_data.get('bitget_api_secret'):
+                            try:
+                                from api.exchanges.bitget_exchange import BitgetExchange
+                                api_client = BitgetExchange('bitget', user_data['bitget_api_key'], user_data['bitget_api_secret'])
+                                logger.info(f"✅ استخدام Bitget API المربوط للحساب التجريبي للمستخدم {user_id}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ فشل إنشاء Bitget API للحساب التجريبي: {e}")
+                        
+                        elif user_exchange == 'binance' and user_data.get('binance_api_key') and user_data.get('binance_api_secret'):
+                            try:
+                                from api.exchanges.binance_exchange import BinanceExchange
+                                api_client = BinanceExchange('binance', user_data['binance_api_key'], user_data['binance_api_secret'])
+                                logger.info(f"✅ استخدام Binance API المربوط للحساب التجريبي للمستخدم {user_id}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ فشل إنشاء Binance API للحساب التجريبي: {e}")
+                        
+                        elif user_exchange == 'okx' and user_data.get('okx_api_key') and user_data.get('okx_api_secret'):
+                            try:
+                                from api.exchanges.okx_exchange import OkxExchange
+                                api_client = OkxExchange('okx', user_data['okx_api_key'], user_data['okx_api_secret'], user_data.get('okx_passphrase', ''))
+                                logger.info(f"✅ استخدام OKX API المربوط للحساب التجريبي للمستخدم {user_id}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ فشل إنشاء OKX API للحساب التجريبي: {e}")
+                    
+                    # إذا لم يكن هناك API مربوط، استخدام API العام
+                    if not api_client and trading_bot.bybit_api:
+                        api_client = trading_bot.bybit_api
+                        logger.info(f"⚠️ استخدام Bybit API العام للحساب التجريبي (لا يوجد API مربوط)")
                 
                 # جلب جميع الصفقات المفتوحة
                 all_positions = position_fetcher.get_all_open_positions(
@@ -6233,7 +6480,7 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(error_message)
 
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض سجل الصفقات مع فلاتر - أمر /history"""
+    """عرض سجل الصفقات مع فلاتر محسّنة - أمر /history"""
     try:
         user_id = update.effective_user.id if update.effective_user else None
         
@@ -6241,40 +6488,185 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ خطأ في تحديد المستخدم")
             return
         
-        # التحقق من توفر النظام الجديد
-        if not ADVANCED_POSITION_SYSTEM_AVAILABLE:
-            await update.message.reply_text("⚠️ هذه الميزة غير متاحة حالياً")
+        # جلب بيانات المستخدم
+        user_data = db_manager.get_user(user_id)
+        if not user_data:
+            await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
             return
         
-        try:
-            from systems.trade_history_display import TradeHistoryDisplay
-            
-            # إنشاء مثيل من عارض السجل
-            history_display = TradeHistoryDisplay(db_manager)
-            
-            # جلب السجل (آخر 20 صفقة افتراضياً)
-            filters = {'limit': 20}
-            trades = db_manager.get_user_trade_history(user_id, filters)
-            
-            # تنسيق وعرض الرسالة
-            message, keyboard = history_display.format_trade_history_message(trades, filters)
-            
-            await update.message.reply_text(
-                text=message,
-                reply_markup=keyboard
-            )
-            
-            logger.info(f"✅ تم عرض سجل الصفقات للمستخدم {user_id}")
-            
-        except Exception as e:
-            logger.error(f"خطأ في نظام سجل الصفقات: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            await update.message.reply_text("❌ خطأ في عرض سجل الصفقات")
-    
+        account_type = user_data.get('account_type', 'demo')
+        
+        # عرض قائمة الفلاتر
+        await show_history_filters(update, context, user_id, account_type)
+        
     except Exception as e:
         logger.error(f"خطأ في أمر /history: {e}")
         await update.message.reply_text(f"❌ خطأ: {str(e)}")
+
+async def show_history_filters(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, account_type: str):
+    """عرض قائمة فلاتر تاريخ التداول"""
+    try:
+        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
+        
+        message = f"""
+📊 **تاريخ التداول**
+{account_indicator}
+
+اختر الفلاتر لعرض سجل الصفقات:
+"""
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("📈 Spot", callback_data=f"history_spot_{account_type}"),
+                InlineKeyboardButton("🚀 Futures", callback_data=f"history_futures_{account_type}")
+            ],
+            [
+                InlineKeyboardButton("📊 الكل", callback_data=f"history_all_{account_type}")
+            ],
+            [
+                InlineKeyboardButton("🔢 10 صفقات", callback_data=f"history_limit_10_{account_type}"),
+                InlineKeyboardButton("🔢 20 صفقة", callback_data=f"history_limit_20_{account_type}")
+            ],
+            [
+                InlineKeyboardButton("🔢 50 صفقة", callback_data=f"history_limit_50_{account_type}"),
+                InlineKeyboardButton("🔢 100 صفقة", callback_data=f"history_limit_100_{account_type}")
+            ],
+            [
+                InlineKeyboardButton("✏️ عدد مخصص", callback_data=f"history_custom_{account_type}")
+            ],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="settings")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض فلاتر التاريخ: {e}")
+
+async def show_trade_history(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, account_type: str, market_type: str = None, limit: int = 20):
+    """عرض تاريخ التداول مع الفلاتر"""
+    try:
+        # بناء الفلاتر
+        filters = {
+            'account_type': account_type,
+            'status': 'CLOSED',
+            'limit': limit
+        }
+        
+        if market_type and market_type != 'all':
+            filters['market_type'] = market_type
+        
+        # جلب الصفقات من قاعدة البيانات
+        trades = db_manager.get_user_trade_history(user_id, filters)
+        
+        # إذا كان العدد المطلوب أكبر من المتاح، نعرض ما هو متاح
+        actual_count = len(trades)
+        
+        if actual_count == 0:
+            message = f"""
+📊 **تاريخ التداول**
+{'💼 حساب حقيقي' if account_type == 'real' else '🎮 حساب تجريبي'}
+
+⚠️ لا توجد صفقات مغلقة حتى الآن
+
+🔍 الفلاتر المطبقة:
+• نوع السوق: {market_type.upper() if market_type and market_type != 'all' else 'الكل'}
+• العدد المطلوب: {limit}
+"""
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="history_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.callback_query.edit_message_text(
+                text=message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            return
+        
+        # حساب الإحصائيات
+        total_pnl = sum(trade.get('pnl', 0) for trade in trades)
+        winning_trades = sum(1 for trade in trades if trade.get('pnl', 0) > 0)
+        losing_trades = sum(1 for trade in trades if trade.get('pnl', 0) < 0)
+        win_rate = (winning_trades / actual_count * 100) if actual_count > 0 else 0
+        
+        # بناء الرسالة
+        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
+        market_filter = market_type.upper() if market_type and market_type != 'all' else 'الكل'
+        
+        message = f"""
+📊 **تاريخ التداول**
+{account_indicator}
+
+📋 **الإحصائيات:**
+• إجمالي الصفقات: {actual_count} {f'من {limit}' if actual_count < limit else ''}
+• نوع السوق: {market_filter}
+• الصفقات الرابحة: {winning_trades} ✅
+• الصفقات الخاسرة: {losing_trades} ❌
+• معدل النجاح: {win_rate:.1f}%
+• إجمالي الربح/الخسارة: {total_pnl:+.2f} USDT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📜 **آخر {actual_count} صفقة:**
+
+"""
+        
+        # عرض الصفقات
+        for idx, trade in enumerate(trades[:10], 1):  # نعرض أول 10 فقط في الرسالة
+            symbol = trade.get('symbol', 'UNKNOWN')
+            side = trade.get('side', 'BUY').upper()
+            pnl = trade.get('pnl', 0)
+            entry_price = trade.get('entry_price', 0)
+            exit_price = trade.get('exit_price', 0)
+            market = trade.get('market_type', 'spot').upper()
+            
+            pnl_emoji = "✅" if pnl > 0 else "❌"
+            
+            message += f"{idx}. {symbol} • {side} • {market}\n"
+            message += f"   Entry: {entry_price:.6f} → Exit: {exit_price:.6f}\n"
+            message += f"   P&L: {pnl:+.2f} USDT {pnl_emoji}\n\n"
+        
+        if actual_count > 10:
+            message += f"... و {actual_count - 10} صفقة أخرى\n\n"
+        
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        # الأزرار
+        keyboard = [
+            [
+                InlineKeyboardButton("🔄 تحديث", callback_data=f"history_refresh_{market_type or 'all'}_{limit}_{account_type}"),
+                InlineKeyboardButton("📊 تفاصيل", callback_data=f"history_details_{market_type or 'all'}_{limit}_{account_type}")
+            ],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="history_menu")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.callback_query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        logger.info(f"✅ تم عرض {actual_count} صفقة للمستخدم {user_id}")
+        
+    except Exception as e:
+        logger.error(f"خطأ في عرض تاريخ التداول: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        await update.callback_query.edit_message_text("❌ خطأ في عرض تاريخ التداول")
 
 async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """عرض نظرة عامة شاملة على الحساب - دمج المحفظة والإحصائيات"""
@@ -7120,22 +7512,75 @@ async def manage_position_tools(update: Update, context: ContextTypes.DEFAULT_TY
         query = update.callback_query
         await query.answer()
         
-        # استخراج position_id من callback_data
+        # استخراج position_id من callback_data (قد يكون signal_id مثل STRATEGY_001)
         position_id = query.data.replace("manage_", "")
+        logger.info(f"🔍 البحث عن الصفقة باستخدام ID: {position_id}")
         
         # الحصول على معرف المستخدم
         user_id = update.effective_user.id if update.effective_user else None
         
-        # البحث عن الصفقة
+        # البحث عن الصفقة في عدة مصادر
         position_info = None
+        
+        # 1. البحث في صفقات المستخدم (user_positions)
         if user_id and user_id in user_manager.user_positions:
             position_info = user_manager.user_positions[user_id].get(position_id)
         
+        # 2. البحث في الصفقات العامة (trading_bot.open_positions)
         if not position_info:
             position_info = trading_bot.open_positions.get(position_id)
         
+        # 3. البحث في قاعدة البيانات باستخدام signal_id (إذا كان position_id هو signal_id)
         if not position_info:
-            await query.edit_message_text("❌ الصفقة غير موجودة")
+            try:
+                from signals.signal_position_manager import signal_position_manager
+                # البحث عن الصفقة بواسطة signal_id
+                signal_positions = signal_position_manager.get_signal_positions(position_id, user_id)
+                if signal_positions:
+                    # استخدام أول صفقة موجودة
+                    signal_pos = signal_positions[0]
+                    position_info = {
+                        'position_id': position_id,
+                        'symbol': signal_pos.get('symbol', 'UNKNOWN'),
+                        'side': signal_pos.get('side', 'buy'),
+                        'entry_price': signal_pos.get('entry_price', 0),
+                        'quantity': signal_pos.get('quantity', 0),
+                        'market_type': signal_pos.get('market_type', 'spot'),
+                        'signal_id': position_id,
+                        'is_real_position': signal_pos.get('exchange') == 'bybit'
+                    }
+                    logger.info(f"✅ تم العثور على الصفقة باستخدام signal_id: {position_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ فشل البحث في signal_positions: {e}")
+        
+        # 4. البحث في قاعدة البيانات باستخدام order_id أو position_id
+        if not position_info:
+            try:
+                from users.database import db_manager
+                orders = db_manager.get_user_orders(user_id, status='OPEN')
+                for order in orders:
+                    # البحث عن الصفقة التي تطابق position_id أو signal_id
+                    order_position_id = order.get('order_id', '')
+                    order_signal_id = order.get('notes', '').split('signal_id:')[-1].split()[0] if 'signal_id:' in order.get('notes', '') else ''
+                    
+                    if order_position_id == position_id or order_signal_id == position_id:
+                        position_info = {
+                            'position_id': order_position_id or position_id,
+                            'symbol': order.get('symbol', 'UNKNOWN'),
+                            'side': order.get('side', 'buy'),
+                            'entry_price': order.get('entry_price', 0),
+                            'quantity': order.get('quantity', 0),
+                            'market_type': order.get('market_type', 'spot'),
+                            'signal_id': order_signal_id or position_id
+                        }
+                        logger.info(f"✅ تم العثور على الصفقة في قاعدة البيانات: {position_id}")
+                        break
+            except Exception as e:
+                logger.warning(f"⚠️ فشل البحث في قاعدة البيانات: {e}")
+        
+        if not position_info:
+            logger.error(f"❌ لم يتم العثور على الصفقة: {position_id}")
+            await query.edit_message_text(f"❌ الصفقة غير موجودة\n\nPosition ID: {position_id}")
             return
         
         # التحقق من نوع الصفقة
@@ -7960,24 +8405,73 @@ async def close_position(position_id: str, update: Update, context: ContextTypes
     try:
         # الحصول على معرف المستخدم
         user_id = update.effective_user.id if update.effective_user else None
+        logger.info(f"🔍 محاولة إغلاق الصفقة: {position_id} للمستخدم {user_id}")
         
-        # البحث عن الصفقة في صفقات المستخدم أو الصفقات العامة
+        # البحث عن الصفقة في عدة مصادر
         position_info = None
         is_user_position = False
         
+        # 1. البحث في صفقات المستخدم (user_positions)
         if user_id and user_id in user_manager.user_positions:
             if position_id in user_manager.user_positions[user_id]:
                 position_info = user_manager.user_positions[user_id][position_id]
                 is_user_position = True
-                logger.info(f"تم العثور على الصفقة {position_id} في صفقات المستخدم {user_id}")
+                logger.info(f"✅ تم العثور على الصفقة {position_id} في صفقات المستخدم {user_id}")
         
+        # 2. البحث في الصفقات العامة (trading_bot.open_positions)
         if not position_info and position_id in trading_bot.open_positions:
             position_info = trading_bot.open_positions[position_id]
-            logger.info(f"تم العثور على الصفقة {position_id} في الصفقات العامة")
+            logger.info(f"✅ تم العثور على الصفقة {position_id} في الصفقات العامة")
+        
+        # 3. البحث في قاعدة البيانات باستخدام signal_id
+        if not position_info:
+            try:
+                from signals.signal_position_manager import signal_position_manager
+                signal_positions = signal_position_manager.find_positions_by_signal_id(position_id, user_id)
+                if signal_positions:
+                    signal_pos = signal_positions[0]
+                    position_info = {
+                        'position_id': position_id,
+                        'symbol': signal_pos.get('symbol', 'UNKNOWN'),
+                        'side': signal_pos.get('side', 'buy'),
+                        'entry_price': signal_pos.get('entry_price', 0),
+                        'quantity': signal_pos.get('quantity', 0),
+                        'market_type': signal_pos.get('market_type', 'spot'),
+                        'signal_id': position_id,
+                        'is_real_position': signal_pos.get('exchange') == 'bybit'
+                    }
+                    logger.info(f"✅ تم العثور على الصفقة باستخدام signal_id: {position_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ فشل البحث في signal_positions: {e}")
+        
+        # 4. البحث في قاعدة البيانات
+        if not position_info:
+            try:
+                from users.database import db_manager
+                orders = db_manager.get_user_orders(user_id, status='OPEN')
+                for order in orders:
+                    order_position_id = order.get('order_id', '')
+                    order_signal_id = order.get('notes', '').split('signal_id:')[-1].split()[0] if 'signal_id:' in order.get('notes', '') else ''
+                    
+                    if order_position_id == position_id or order_signal_id == position_id:
+                        position_info = {
+                            'position_id': order_position_id or position_id,
+                            'symbol': order.get('symbol', 'UNKNOWN'),
+                            'side': order.get('side', 'buy'),
+                            'entry_price': order.get('entry_price', 0),
+                            'quantity': order.get('quantity', 0),
+                            'market_type': order.get('market_type', 'spot'),
+                            'signal_id': order_signal_id or position_id
+                        }
+                        logger.info(f"✅ تم العثور على الصفقة في قاعدة البيانات: {position_id}")
+                        break
+            except Exception as e:
+                logger.warning(f"⚠️ فشل البحث في قاعدة البيانات: {e}")
         
         if not position_info:
+            logger.error(f"❌ لم يتم العثور على الصفقة: {position_id}")
             if update.callback_query is not None:
-                await update.callback_query.edit_message_text("❌ الصفقة غير موجودة")
+                await update.callback_query.edit_message_text(f"❌ الصفقة غير موجودة\n\nPosition ID: {position_id}")
             return
         
         symbol = position_info['symbol']
@@ -8918,12 +9412,69 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await settings_menu(update, context)
         return
     
+    # معالجة أزرار الصفقات المفتوحة
     if data.startswith("close_"):
+        # استخراج position_id (يمكن أن يكون signal_id أيضاً مثل STRATEGY_001)
         position_id = data.replace("close_", "")
+        logger.info(f"🔧 معالجة زر إغلاق الصفقة: {position_id}")
         await close_position(position_id, update, context)
+        return
+    
+    if data.startswith("manage_"):
+        # استخراج position_id (يمكن أن يكون signal_id أيضاً مثل STRATEGY_001)
+        logger.info(f"🔧 معالجة زر إدارة الصفقة: {data}")
+        await manage_position_tools(update, context)
+        return
+    
     if data == "refresh_positions" or data == "show_positions" or data == "open_positions":
         await open_positions(update, context)
         return
+    
+    # معالجة أزرار تاريخ التداول
+    if data == "history_menu":
+        user_data = db_manager.get_user(user_id)
+        account_type = user_data.get('account_type', 'demo') if user_data else 'demo'
+        await show_history_filters(update, context, user_id, account_type)
+        return
+    
+    if data.startswith("history_spot_") or data.startswith("history_futures_") or data.startswith("history_all_"):
+        # استخراج نوع السوق ونوع الحساب
+        parts = data.split('_')
+        market_type = parts[1]  # spot, futures, all
+        account_type = parts[2]  # demo, real
+        await show_trade_history(update, context, user_id, account_type, market_type, 20)
+        return
+    
+    if data.startswith("history_limit_"):
+        # استخراج العدد ونوع الحساب
+        parts = data.split('_')
+        limit = int(parts[2])  # 10, 20, 50, 100
+        account_type = parts[3]  # demo, real
+        await show_trade_history(update, context, user_id, account_type, 'all', limit)
+        return
+    
+    if data.startswith("history_custom_"):
+        # طلب إدخال عدد مخصص
+        account_type = data.split('_')[2]
+        if user_id:
+            user_input_state[user_id] = f"waiting_for_history_limit_{account_type}"
+        await query.edit_message_text(
+            "🔢 أدخل عدد الصفقات التي تريد عرضها:\n\n"
+            "مثال: 30\n\n"
+            "💡 سيتم عرض العدد المتاح إذا كان أقل من المطلوب",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data="history_menu")]])
+        )
+        return
+    
+    if data.startswith("history_refresh_"):
+        # تحديث التاريخ
+        parts = data.split('_')
+        market_type = parts[2]  # spot, futures, all
+        limit = int(parts[3])
+        account_type = parts[4]
+        await show_trade_history(update, context, user_id, account_type, market_type, limit)
+        return
+    
     if data == "webhook_help":
         await show_webhook_help(update, context)
         return
@@ -9086,8 +9637,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data="edit_auto_tp")]]),
             parse_mode='Markdown'
         )
-    elif data.startswith("manage_"):
-        await manage_position_tools(update, context)
     elif data.startswith("tools_guide_"):
         await show_tools_guide(update, context)
     elif data.startswith("setTP_menu_"):
@@ -10118,6 +10667,39 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # التحقق مما إذا كنا ننتظر إدخال المستخدم للإعدادات
     if user_id is not None and user_id in user_input_state:
         state = user_input_state[user_id]
+        
+        # معالجة إدخال عدد الصفقات المخصص لتاريخ التداول
+        if state.startswith("waiting_for_history_limit_"):
+            try:
+                limit = int(text)
+                if limit < 1:
+                    await update.message.reply_text("❌ يرجى إدخال عدد أكبر من 0")
+                    return
+                if limit > 500:
+                    await update.message.reply_text("⚠️ الحد الأقصى هو 500 صفقة")
+                    limit = 500
+                
+                account_type = state.split('_')[-1]  # demo or real
+                del user_input_state[user_id]
+                
+                # عرض التاريخ مع العدد المخصص
+                from telegram import Update as TelegramUpdate
+                # إنشاء callback query وهمي للتوافق مع show_trade_history
+                class FakeCallbackQuery:
+                    def __init__(self, message):
+                        self.message = message
+                    async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                        await self.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+                
+                fake_update = TelegramUpdate(update.update_id)
+                fake_update._effective_user = update.effective_user
+                fake_update.callback_query = FakeCallbackQuery(update.message)
+                
+                await show_trade_history(fake_update, context, user_id, account_type, 'all', limit)
+                return
+            except ValueError:
+                await update.message.reply_text("❌ يرجى إدخال رقم صحيح")
+                return
         
         # معالجة الإدخال الموجه - الخطوة 1: الرمز
         if state == "dev_guided_step1_symbol":
