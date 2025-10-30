@@ -65,6 +65,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# استيراد الأنظمة الجديدة المطورة (بعد تعريف logger)
+try:
+    from systems.position_fetcher import PositionFetcher
+    from systems.position_display import PositionDisplayManager
+    from systems.unified_position_manager import UnifiedPositionManager
+    ADVANCED_POSITION_SYSTEM_AVAILABLE = True
+    logger.info("✅ تم تحميل الأنظمة المطورة للصفقات بنجاح")
+except ImportError as e:
+    ADVANCED_POSITION_SYSTEM_AVAILABLE = False
+    logger.warning(f"⚠️ الأنظمة المطورة غير متاحة: {e}")
+
 class FuturesPosition:
     """فئة لإدارة صفقات الفيوتشر"""
     
@@ -5761,7 +5772,7 @@ async def account_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ خطأ في عرض حالة الحساب")
 
 async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عرض الصفقات المفتوحة مع معلومات مفصلة للفيوتشر والسبوت - محسن"""
+    """عرض الصفقات المفتوحة مع معلومات مفصلة - نظام مطور جديد"""
     try:
         # الحصول على معرف المستخدم
         user_id = update.effective_user.id if update.effective_user else None
@@ -5770,92 +5781,404 @@ async def open_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ خطأ في تحديد المستخدم")
             return
         
-        # جلب الصفقات المفتوحة من قاعدة البيانات
+        # جلب بيانات المستخدم
+        user_data = db_manager.get_user(user_id)
+        if not user_data:
+            await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
+            return
+        
+        account_type = user_data.get('account_type', 'demo')
+        logger.info(f"📊 جلب الصفقات المفتوحة للمستخدم {user_id} - نوع الحساب: {account_type}")
+        
+        # استخدام النظام الجديد إذا كان متاحاً
+        if ADVANCED_POSITION_SYSTEM_AVAILABLE:
+            try:
+                # إنشاء مثيلات من الأنظمة الجديدة
+                signal_id_manager = get_signal_id_manager() if SIGNAL_ID_MANAGER_AVAILABLE else None
+                position_fetcher = PositionFetcher(db_manager, signal_id_manager)
+                position_display = PositionDisplayManager()
+                
+                # الحصول على API client للحساب الحقيقي
+                api_client = None
+                if account_type == 'real':
+                    from api.bybit_api import real_account_manager
+                    api_client = real_account_manager.get_account(user_id)
+                elif trading_bot.bybit_api:
+                    api_client = trading_bot.bybit_api
+                
+                # جلب جميع الصفقات المفتوحة
+                all_positions = position_fetcher.get_all_open_positions(
+                    user_id=user_id,
+                    account_type=account_type,
+                    api_client=api_client
+                )
+                
+                if not all_positions:
+                    message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
+                    if update.callback_query:
+                        if update.callback_query.message.text != message_text:
+                            await update.callback_query.edit_message_text(message_text)
+                    elif update.message:
+                        await update.message.reply_text(message_text)
+                    return
+                
+                # فصل الصفقات حسب نوع السوق
+                spot_positions, futures_positions = position_fetcher.separate_positions_by_market(all_positions)
+                
+                logger.info(f"✅ تم جلب {len(spot_positions)} Spot و {len(futures_positions)} Futures")
+                
+                # عرض صفقات Spot
+                if spot_positions:
+                    spot_message, spot_keyboard = position_display.format_spot_positions_message(
+                        spot_positions, account_type
+                    )
+                    
+                    if update.callback_query:
+                        try:
+                            await update.callback_query.edit_message_text(
+                                text=spot_message,
+                                reply_markup=spot_keyboard
+                            )
+                        except Exception as e:
+                            if "Message is not modified" not in str(e):
+                                await update.callback_query.message.reply_text(
+                                    text=spot_message,
+                                    reply_markup=spot_keyboard
+                                )
+                    elif update.message:
+                        await update.message.reply_text(
+                            text=spot_message,
+                            reply_markup=spot_keyboard
+                        )
+                
+                # عرض صفقات Futures
+                if futures_positions:
+                    futures_message, futures_keyboard = position_display.format_futures_positions_message(
+                        futures_positions, account_type
+                    )
+                    
+                    if update.message or (update.callback_query and spot_positions):
+                        # إرسال رسالة جديدة إذا كانت هناك صفقات Spot أيضاً
+                        target = update.message if update.message else update.callback_query.message
+                        await target.reply_text(
+                            text=futures_message,
+                            reply_markup=futures_keyboard
+                        )
+                    elif update.callback_query and not spot_positions:
+                        # تحديث الرسالة الحالية إذا لم تكن هناك صفقات Spot
+                        try:
+                            await update.callback_query.edit_message_text(
+                                text=futures_message,
+                                reply_markup=futures_keyboard
+                            )
+                        except Exception as e:
+                            if "Message is not modified" not in str(e):
+                                await update.callback_query.message.reply_text(
+                                    text=futures_message,
+                                    reply_markup=futures_keyboard
+                                )
+                
+                logger.info("✅ تم عرض الصفقات بنجاح باستخدام النظام المطور")
+                return
+                
+            except Exception as e:
+                logger.error(f"❌ خطأ في النظام المطور: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                # سنعود للنظام القديم
+        
+        # النظام القديم (fallback)
+        logger.warning("⚠️ استخدام النظام القديم لعرض الصفقات")
         open_orders = db_manager.get_user_orders(user_id, status='OPEN')
         
-        logger.info(f"📊 تم جلب {len(open_orders)} صفقة مفتوحة من قاعدة البيانات")
-        
-        # تحويل إلى الصيغة المطلوبة
-        all_positions = {}
-        for order in open_orders:
-            position_id = order.get('order_id')
-            all_positions[position_id] = {
-                'symbol': order.get('symbol'),
-                'entry_price': order.get('entry_price', 0),
-                'side': order.get('side', 'buy'),
-                'account_type': order.get('market_type', 'spot'),
-                'leverage': order.get('leverage', 1),
-                'exchange': 'bybit',
-                'position_size': order.get('quantity', 0),
-                'current_price': order.get('entry_price', 0),
-                'pnl_percent': 0,
-                'is_real_position': True,
-                'margin_amount': order.get('margin_amount', 0),
-                'liquidation_price': order.get('liquidation_price', 0)
-            }
-        
-        # تحديث الأسعار الحالية أولاً
-        await trading_bot.update_open_positions_prices()
-        
-        if not all_positions:
+        if not open_orders:
             message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
-            if update.callback_query is not None:
-                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
+            if update.callback_query:
                 if update.callback_query.message.text != message_text:
                     await update.callback_query.edit_message_text(message_text)
-            elif update.message is not None:
+            elif update.message:
                 await update.message.reply_text(message_text)
             return
         
-        # فصل الصفقات حسب النوع
-        spot_positions = {}
-        futures_positions = {}
+        # عرض بسيط للصفقات
+        message = f"📊 الصفقات المفتوحة ({len(open_orders)}):\n\n"
+        for order in open_orders:
+            symbol = order.get('symbol')
+            side = order.get('side', 'BUY').upper()
+            entry_price = order.get('entry_price', 0)
+            quantity = order.get('quantity', 0)
+            market_type = order.get('market_type', 'spot').upper()
+            
+            message += f"• {symbol} - {side} ({market_type})\n"
+            message += f"  Entry: {entry_price:.6f} | Qty: {quantity:.4f}\n\n"
         
-        for position_id, position_info in all_positions.items():
-            market_type = position_info.get('account_type', 'spot')
-            logger.info(f"الصفقة {position_id}: نوع السوق = {market_type}")
-            if market_type == 'spot':
-                spot_positions[position_id] = position_info
-            else:
-                futures_positions[position_id] = position_info
-        
-        logger.info(f"الصفقات السبوت: {len(spot_positions)}, الصفقات الفيوتشر: {len(futures_positions)}")
-        
-        # إرسال رسالة منفصلة لكل نوع
-        if spot_positions:
-            await send_spot_positions_message(update, spot_positions)
-        
-        if futures_positions:
-            await send_futures_positions_message(update, futures_positions)
-        
-        # إذا لم تكن هناك صفقات من أي نوع
-        if not spot_positions and not futures_positions:
-            message_text = "🔄 لا توجد صفقات مفتوحة حالياً"
-            if update.callback_query is not None:
-                # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
-                if update.callback_query.message.text != message_text:
-                    await update.callback_query.edit_message_text(message_text)
-            elif update.message is not None:
-                await update.message.reply_text(message_text)
+        if update.callback_query:
+            await update.callback_query.edit_message_text(message)
+        elif update.message:
+            await update.message.reply_text(message)
         
     except Exception as e:
         logger.error(f"خطأ في عرض الصفقات المفتوحة: {e}")
         import traceback
         logger.error(f"تفاصيل الخطأ: {traceback.format_exc()}")
-        error_message = f"❌ خطأ في عرض الصفقات المفتوحة: {e}"
-        if update.callback_query is not None:
-            # التحقق مما إذا كان المحتوى مختلفاً قبل التحديث
-            if update.callback_query.message.text != error_message:
-                try:
-                    await update.callback_query.edit_message_text(error_message)
-                except Exception as edit_error:
-                    if "Message is not modified" in str(edit_error):
-                        # تجاهل الخطأ إذا لم يتغير المحتوى
-                        pass
-                    else:
-                        raise
-        elif update.message is not None:
+        error_message = f"❌ خطأ في عرض الصفقات المفتوحة: {str(e)}"
+        
+        if update.callback_query:
+            try:
+                await update.callback_query.edit_message_text(error_message)
+            except Exception as edit_error:
+                if "Message is not modified" not in str(edit_error):
+                    await update.callback_query.message.reply_text(error_message)
+        elif update.message:
             await update.message.reply_text(error_message)
+
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض سجل الصفقات مع فلاتر - أمر /history"""
+    try:
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if not user_id:
+            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+        
+        # التحقق من توفر النظام الجديد
+        if not ADVANCED_POSITION_SYSTEM_AVAILABLE:
+            await update.message.reply_text("⚠️ هذه الميزة غير متاحة حالياً")
+            return
+        
+        try:
+            from systems.trade_history_display import TradeHistoryDisplay
+            
+            # إنشاء مثيل من عارض السجل
+            history_display = TradeHistoryDisplay(db_manager)
+            
+            # جلب السجل (آخر 20 صفقة افتراضياً)
+            filters = {'limit': 20}
+            trades = db_manager.get_user_trade_history(user_id, filters)
+            
+            # تنسيق وعرض الرسالة
+            message, keyboard = history_display.format_trade_history_message(trades, filters)
+            
+            await update.message.reply_text(
+                text=message,
+                reply_markup=keyboard
+            )
+            
+            logger.info(f"✅ تم عرض سجل الصفقات للمستخدم {user_id}")
+            
+        except Exception as e:
+            logger.error(f"خطأ في نظام سجل الصفقات: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            await update.message.reply_text("❌ خطأ في عرض سجل الصفقات")
+    
+    except Exception as e:
+        logger.error(f"خطأ في أمر /history: {e}")
+        await update.message.reply_text(f"❌ خطأ: {str(e)}")
+
+async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض تطور المحفظة - أمر /portfolio"""
+    try:
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if not user_id:
+            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+        
+        # جلب بيانات المستخدم
+        user_data = db_manager.get_user(user_id)
+        if not user_data:
+            await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
+            return
+        
+        account_type = user_data.get('account_type', 'demo')
+        
+        # حساب إحصائيات المحفظة
+        # جلب جميع الصفقات المغلقة
+        filters = {'status': 'CLOSED', 'account_type': account_type}
+        closed_trades = db_manager.get_user_trade_history(user_id, filters)
+        
+        if not closed_trades:
+            await update.message.reply_text(
+                "📊 محفظتك لا تحتوي على صفقات مغلقة بعد.\n"
+                "ابدأ التداول لرؤية تطور محفظتك! 🚀"
+            )
+            return
+        
+        # حساب الإحصائيات
+        total_trades = len(closed_trades)
+        total_pnl = sum(t.get('pnl_value', t.get('pnl', 0)) for t in closed_trades)
+        winning_trades = [t for t in closed_trades if (t.get('pnl_value', t.get('pnl', 0)) > 0)]
+        losing_trades = [t for t in closed_trades if (t.get('pnl_value', t.get('pnl', 0)) < 0)]
+        
+        win_rate = (len(winning_trades) / total_trades * 100) if total_trades > 0 else 0
+        avg_win = (sum(t.get('pnl_value', t.get('pnl', 0)) for t in winning_trades) / len(winning_trades)) if winning_trades else 0
+        avg_loss = (sum(t.get('pnl_value', t.get('pnl', 0)) for t in losing_trades) / len(losing_trades)) if losing_trades else 0
+        
+        # الرصيد الحالي
+        current_balance = user_data.get('balance', 10000.0)
+        
+        # المؤشرات
+        pnl_indicator = "🟢" if total_pnl > 0 else ("🔴" if total_pnl < 0 else "⚪")
+        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
+        
+        # تنسيق الرسالة
+        message = f"""{account_indicator}
+📊 PORTFOLIO EVOLUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💰 الرصيد الحالي: {current_balance:,.2f} USDT
+
+📈 إحصائيات الأداء:
+• إجمالي الصفقات: {total_trades}
+• الصفقات الرابحة: {len(winning_trades)} ({win_rate:.1f}%)
+• الصفقات الخاسرة: {len(losing_trades)} ({100-win_rate:.1f}%)
+
+💵 الأرباح والخسائر:
+• إجمالي P&L: {total_pnl:+.2f} USDT {pnl_indicator}
+• متوسط الربح: {avg_win:+.2f} USDT
+• متوسط الخسارة: {avg_loss:+.2f} USDT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 استخدم /history لرؤية سجل الصفقات الكامل"""
+        
+        # أزرار التحكم
+        keyboard = [
+            [
+                InlineKeyboardButton("📊 سجل الصفقات", callback_data="show_history"),
+                InlineKeyboardButton("🔄 تحديث", callback_data="refresh_portfolio")
+            ],
+            [
+                InlineKeyboardButton("📈 تفاصيل", callback_data="portfolio_details")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            text=message,
+            reply_markup=reply_markup
+        )
+        
+        logger.info(f"✅ تم عرض محفظة المستخدم {user_id}")
+    
+    except Exception as e:
+        logger.error(f"خطأ في أمر /portfolio: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        await update.message.reply_text(f"❌ خطأ في عرض المحفظة: {str(e)}")
+
+async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض الرصيد Spot/Futures - أمر /wallet"""
+    try:
+        user_id = update.effective_user.id if update.effective_user else None
+        
+        if not user_id:
+            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+        
+        # جلب بيانات المستخدم
+        user_data = db_manager.get_user(user_id)
+        if not user_data:
+            await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
+            return
+        
+        account_type = user_data.get('account_type', 'demo')
+        balance = user_data.get('balance', 10000.0)
+        
+        # مؤشرات
+        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
+        
+        if account_type == 'demo':
+            # للحسابات التجريبية
+            message = f"""{account_indicator}
+💼 WALLET BALANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💰 الرصيد المتاح: {balance:,.2f} USDT
+
+📊 التوزيع:
+• Spot: متاح للتداول
+• Futures: متاح للتداول
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 هذا رصيد تجريبي للتدريب"""
+        
+        else:
+            # للحسابات الحقيقية - جلب من API
+            try:
+                from api.bybit_api import real_account_manager
+                api_client = real_account_manager.get_account(user_id)
+                
+                if api_client:
+                    # جلب الرصيد الحقيقي
+                    wallet_balance = api_client.get_wallet_balance('unified')
+                    
+                    spot_balance = 0.0
+                    futures_balance = 0.0
+                    total_balance = 0.0
+                    
+                    if wallet_balance and 'list' in wallet_balance:
+                        for coin in wallet_balance['list']:
+                            if coin.get('coin') == 'USDT':
+                                total_balance = float(coin.get('walletBalance', 0))
+                                available_balance = float(coin.get('availableToWithdraw', 0))
+                                
+                                # تقدير التوزيع
+                                spot_balance = available_balance * 0.5  # تقدير
+                                futures_balance = available_balance * 0.5  # تقدير
+                    
+                    message = f"""{account_indicator}
+💼 WALLET BALANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💰 إجمالي الرصيد: {total_balance:,.2f} USDT
+
+📊 التوزيع:
+• Spot: ~{spot_balance:,.2f} USDT
+• Futures: ~{futures_balance:,.2f} USDT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ الأرصدة الفعلية من منصة Bybit"""
+                
+                else:
+                    message = f"""{account_indicator}
+💼 WALLET BALANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ لم يتم الاتصال بـ API الحساب الحقيقي
+
+💡 تأكد من إعداد مفاتيح API في الإعدادات"""
+            
+            except Exception as e:
+                logger.error(f"خطأ في جلب الرصيد الحقيقي: {e}")
+                message = f"""{account_indicator}
+💼 WALLET BALANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ خطأ في جلب الرصيد من Bybit
+
+💡 تحقق من اتصال API"""
+        
+        # أزرار التحكم
+        keyboard = [
+            [
+                InlineKeyboardButton("🔄 تحديث", callback_data="refresh_wallet"),
+                InlineKeyboardButton("📊 محفظتي", callback_data="show_portfolio")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            text=message,
+            reply_markup=reply_markup
+        )
+        
+        logger.info(f"✅ تم عرض رصيد المحفظة للمستخدم {user_id}")
+    
+    except Exception as e:
+        logger.error(f"خطأ في أمر /wallet: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        await update.message.reply_text(f"❌ خطأ في عرض الرصيد: {str(e)}")
 
 async def send_spot_positions_message(update: Update, spot_positions: dict):
     """إرسال رسالة صفقات السبوت مع عرض زر إغلاق وسعر الربح/الخسارة"""
@@ -10001,6 +10324,9 @@ def main():
     
     # إضافة المعالجات
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("history", history_command))
+    application.add_handler(CommandHandler("portfolio", portfolio_command))
+    application.add_handler(CommandHandler("wallet", wallet_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_error_handler(error_handler)

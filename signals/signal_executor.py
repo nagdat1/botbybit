@@ -39,6 +39,16 @@ try:
 except ImportError as e:
     SIGNAL_ID_MANAGER_AVAILABLE = False
 
+# استيراد المدير الموحد للصفقات
+try:
+    from systems.unified_position_manager import UnifiedPositionManager
+    from users.database import db_manager
+    UNIFIED_POSITION_MANAGER_AVAILABLE = True
+    logger.info("✅ تم تحميل المدير الموحد للصفقات")
+except ImportError as e:
+    UNIFIED_POSITION_MANAGER_AVAILABLE = False
+    logger.warning(f"⚠️ المدير الموحد للصفقات غير متاح: {e}")
+
 class SignalExecutor:
     """منفذ الإشارات على الحسابات الحقيقية"""
     
