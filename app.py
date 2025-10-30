@@ -10,8 +10,12 @@ import sys
 import threading
 import asyncio
 import time
+import logging
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request
+
+# إعداد logger
+logger = logging.getLogger(__name__)
 
 # إضافة المسار الحالي إلى مسارات Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
