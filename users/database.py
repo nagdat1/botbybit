@@ -2157,10 +2157,6 @@ class DatabaseManager:
             # الحصول على الصفقات المفتوحة
             open_positions = self.get_user_orders(user_id, status='OPEN')
             
-            # فلترة الصفقات حسب نوع الحساب إذا كان محدّداً
-            if account_type and account_type in ['demo', 'real']:
-                open_positions = [pos for pos in open_positions if pos.get('account_type') == account_type]
-            
             # حساب الأموال المحجوزة والخسائر غير المحققة
             locked_in_trades = 0.0
             unrealized_pnl = 0.0
@@ -2182,9 +2178,6 @@ class DatabaseManager:
             
             # حساب الربح/الخسارة المحققة من الصفقات المغلقة
             closed_trades = self.get_user_trade_history(user_id, filters={'status': 'CLOSED'})
-            # فلترة الصفقات المغلقة حسب نوع الحساب
-            if account_type and account_type in ['demo', 'real']:
-                closed_trades = [trade for trade in closed_trades if trade.get('account_type') == account_type]
             realized_pnl = sum(trade.get('pnl', 0) for trade in closed_trades)
             
             # الرصيد الفعلي = الرصيد الحالي + الخسائر غير المحققة

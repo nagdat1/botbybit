@@ -2542,125 +2542,140 @@ class TradingBot:
             bybit_category = "spot" if user_market_type == "spot" else "linear"
             market_type = user_market_type
             
-            # 🔍 التحقق من وجود الرمز في المنصة المختارة
-            user_exchange = self.user_settings.get('exchange', 'bybit').lower()
-            logger.info(f"🔍 التحقق من وجود الرمز {symbol} في {user_exchange.upper()} {user_market_type.upper()}")
+            # 🎯 التحقق من نوع الحساب أولاً
+            account_type = self.user_settings['account_type']
             
-            # قائمة المنصات المدعومة بالكامل (التي لديها API مربوط)
-            fully_supported_exchanges = ['bybit', 'bitget']
+            # 🔍 التحقق من وجود الرمز فقط للحساب الحقيقي
+            symbol_exists = True  # افتراضياً نسمح بالرمز
             
-            # التحقق من أن المنصة مدعومة
-            if user_exchange not in fully_supported_exchanges:
-                logger.warning(f"⚠️ المنصة {user_exchange} غير مدعومة بالكامل حالياً")
-                await self.send_message_to_admin(
-                    f"⚠️ تحذير: المنصة {user_exchange.upper()} غير مدعومة بالكامل حالياً\n\n"
-                    f"📋 المنصات المدعومة:\n"
-                    f"• Bybit ✅\n"
-                    f"• Bitget ✅\n\n"
-                    f"💡 يرجى اختيار إحدى المنصات المدعومة من الإعدادات"
-                )
-                # نسمح بالإشارة لكن مع تحذير
-            
-            symbol_exists = False
-            
-            # التحقق حسب المنصة المختارة
-            if user_exchange == 'bybit':
-                if self.bybit_api:
-                    # التحقق المباشر من Bybit API
-                    symbol_exists = self.bybit_api.check_symbol_exists(symbol, bybit_category)
-                    logger.info(f"نتيجة التحقق من Bybit API: {symbol_exists}")
-                else:
-                    # إذا لم يكن API متاحاً، استخدم القائمة المحلية
-                    if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
-                        symbol_exists = True
-                    elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
-                        symbol_exists = True
-                        if symbol in self.available_pairs.get('inverse', []):
-                            bybit_category = "inverse"
-            
-            elif user_exchange == 'bitget':
-                # التحقق من Bitget
-                try:
-                    from api.exchanges.bitget_exchange import BitgetExchange
-                    user_data = user_manager.get_user(self.user_id)
-                    if user_data and user_data.get('bitget_api_key') and user_data.get('bitget_api_secret'):
-                        bitget_api = BitgetExchange('bitget', user_data['bitget_api_key'], user_data['bitget_api_secret'])
-                        symbol_exists = bitget_api.check_symbol_exists(symbol, user_market_type)
-                        logger.info(f"نتيجة التحقق من Bitget API: {symbol_exists}")
-                    else:
-                        logger.warning("⚠️ لم يتم ربط Bitget API - سيتم السماح بالإشارة")
-                        symbol_exists = True
-                except Exception as e:
-                    logger.error(f"❌ خطأ في التحقق من Bitget: {e}")
-                    symbol_exists = True  # السماح بالإشارة في حالة الخطأ
-            
-            elif user_exchange == 'binance':
-                # التحقق من Binance
-                try:
-                    from api.exchanges.binance_exchange import BinanceExchange
-                    user_data = user_manager.get_user(self.user_id)
-                    if user_data and user_data.get('binance_api_key') and user_data.get('binance_api_secret'):
-                        binance_api = BinanceExchange('binance', user_data['binance_api_key'], user_data['binance_api_secret'])
-                        symbol_exists = binance_api.check_symbol_exists(symbol, user_market_type)
-                        logger.info(f"نتيجة التحقق من Binance API: {symbol_exists}")
-                    else:
-                        logger.warning("⚠️ لم يتم ربط Binance API - سيتم السماح بالإشارة")
-                        symbol_exists = True
-                except Exception as e:
-                    logger.error(f"❌ خطأ في التحقق من Binance: {e}")
-                    symbol_exists = True  # السماح بالإشارة في حالة الخطأ
-            
-            elif user_exchange == 'okx':
-                # التحقق من OKX
-                try:
-                    from api.exchanges.okx_exchange import OkxExchange
-                    user_data = user_manager.get_user(self.user_id)
-                    if user_data and user_data.get('okx_api_key') and user_data.get('okx_api_secret'):
-                        okx_api = OkxExchange('okx', user_data['okx_api_key'], user_data['okx_api_secret'], user_data.get('okx_passphrase', ''))
-                        symbol_exists = okx_api.check_symbol_exists(symbol, user_market_type)
-                        logger.info(f"نتيجة التحقق من OKX API: {symbol_exists}")
-                    else:
-                        logger.warning("⚠️ لم يتم ربط OKX API - سيتم السماح بالإشارة")
-                        symbol_exists = True
-                except Exception as e:
-                    logger.error(f"❌ خطأ في التحقق من OKX: {e}")
-                    symbol_exists = True  # السماح بالإشارة في حالة الخطأ
-            
-            else:
-                logger.warning(f"⚠️ منصة غير مدعومة: {user_exchange} - سيتم السماح بالإشارة")
-                symbol_exists = True
-            
-            # إذا لم يكن الرمز موجوداً في المنصة
-            if not symbol_exists:
-                # جمع الأزواج المتاحة للنوع المحدد
-                available_pairs = self.available_pairs.get(user_market_type, [])
-                if user_market_type == "futures":
-                    available_pairs = self.available_pairs.get('futures', []) + self.available_pairs.get('inverse', [])
+            if account_type == 'real':
+                # للحساب الحقيقي: التحقق من وجود الرمز في المنصة
+                user_exchange = self.user_settings.get('exchange', 'bybit').lower()
+                logger.info(f"🔍 التحقق من وجود الرمز {symbol} في {user_exchange.upper()} {user_market_type.upper()}")
                 
-                pairs_list = ", ".join(available_pairs[:20]) if available_pairs else "لا توجد أزواج متاحة"
-                error_message = f"❌ الرمز {symbol} غير موجود في منصة {user_exchange.upper()}!\n\n"
-                error_message += f"🏪 نوع السوق: {user_market_type.upper()}\n"
-                error_message += f"📋 أمثلة للأزواج المتاحة:\n{pairs_list}..."
-                await self.send_message_to_admin(error_message)
-                logger.warning(f"الرمز {symbol} غير موجود في {user_exchange} {user_market_type}")
-                return
-            
-            logger.info(f"✅ الرمز {symbol} موجود في {user_exchange.upper()} {user_market_type.upper()}")
+                # قائمة المنصات المدعومة بالكامل (التي لديها API مربوط)
+                fully_supported_exchanges = ['bybit', 'bitget']
+                
+                # التحقق من أن المنصة مدعومة
+                if user_exchange not in fully_supported_exchanges:
+                    logger.warning(f"⚠️ المنصة {user_exchange} غير مدعومة بالكامل حالياً")
+                    await self.send_message_to_admin(
+                        f"⚠️ تحذير: المنصة {user_exchange.upper()} غير مدعومة بالكامل حالياً\n\n"
+                        f"📋 المنصات المدعومة:\n"
+                        f"• Bybit ✅\n"
+                        f"• Bitget ✅\n\n"
+                        f"💡 يرجى اختيار إحدى المنصات المدعومة من الإعدادات"
+                    )
+                    # نسمح بالإشارة لكن مع تحذير
+                
+                symbol_exists = False
+                
+                # التحقق حسب المنصة المختارة
+                if user_exchange == 'bybit':
+                    if self.bybit_api:
+                        # التحقق المباشر من Bybit API
+                        symbol_exists = self.bybit_api.check_symbol_exists(symbol, bybit_category)
+                        logger.info(f"نتيجة التحقق من Bybit API: {symbol_exists}")
+                    else:
+                        # إذا لم يكن API متاحاً، استخدم القائمة المحلية
+                        if user_market_type == "spot" and symbol in self.available_pairs.get('spot', []):
+                            symbol_exists = True
+                        elif user_market_type == "futures" and (symbol in self.available_pairs.get('futures', []) or symbol in self.available_pairs.get('inverse', [])):
+                            symbol_exists = True
+                            if symbol in self.available_pairs.get('inverse', []):
+                                bybit_category = "inverse"
+                
+                elif user_exchange == 'bitget':
+                    # التحقق من Bitget
+                    try:
+                        from api.exchanges.bitget_exchange import BitgetExchange
+                        user_data = user_manager.get_user(self.user_id)
+                        if user_data and user_data.get('bitget_api_key') and user_data.get('bitget_api_secret'):
+                            bitget_api = BitgetExchange('bitget', user_data['bitget_api_key'], user_data['bitget_api_secret'])
+                            symbol_exists = bitget_api.check_symbol_exists(symbol, user_market_type)
+                            logger.info(f"نتيجة التحقق من Bitget API: {symbol_exists}")
+                        else:
+                            logger.warning("⚠️ لم يتم ربط Bitget API - سيتم السماح بالإشارة")
+                            symbol_exists = True
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في التحقق من Bitget: {e}")
+                        symbol_exists = True  # السماح بالإشارة في حالة الخطأ
+                
+                elif user_exchange == 'binance':
+                    # التحقق من Binance
+                    try:
+                        from api.exchanges.binance_exchange import BinanceExchange
+                        user_data = user_manager.get_user(self.user_id)
+                        if user_data and user_data.get('binance_api_key') and user_data.get('binance_api_secret'):
+                            binance_api = BinanceExchange('binance', user_data['binance_api_key'], user_data['binance_api_secret'])
+                            symbol_exists = binance_api.check_symbol_exists(symbol, user_market_type)
+                            logger.info(f"نتيجة التحقق من Binance API: {symbol_exists}")
+                        else:
+                            logger.warning("⚠️ لم يتم ربط Binance API - سيتم السماح بالإشارة")
+                            symbol_exists = True
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في التحقق من Binance: {e}")
+                        symbol_exists = True  # السماح بالإشارة في حالة الخطأ
+                
+                elif user_exchange == 'okx':
+                    # التحقق من OKX
+                    try:
+                        from api.exchanges.okx_exchange import OkxExchange
+                        user_data = user_manager.get_user(self.user_id)
+                        if user_data and user_data.get('okx_api_key') and user_data.get('okx_api_secret'):
+                            okx_api = OkxExchange('okx', user_data['okx_api_key'], user_data['okx_api_secret'], user_data.get('okx_passphrase', ''))
+                            symbol_exists = okx_api.check_symbol_exists(symbol, user_market_type)
+                            logger.info(f"نتيجة التحقق من OKX API: {symbol_exists}")
+                        else:
+                            logger.warning("⚠️ لم يتم ربط OKX API - سيتم السماح بالإشارة")
+                            symbol_exists = True
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في التحقق من OKX: {e}")
+                        symbol_exists = True  # السماح بالإشارة في حالة الخطأ
+                
+                else:
+                    logger.warning(f"⚠️ منصة غير مدعومة: {user_exchange} - سيتم السماح بالإشارة")
+                    symbol_exists = True
+                
+                # إذا لم يكن الرمز موجوداً في المنصة
+                if not symbol_exists:
+                    # جمع الأزواج المتاحة للنوع المحدد
+                    available_pairs = self.available_pairs.get(user_market_type, [])
+                    if user_market_type == "futures":
+                        available_pairs = self.available_pairs.get('futures', []) + self.available_pairs.get('inverse', [])
+                    
+                    pairs_list = ", ".join(available_pairs[:20]) if available_pairs else "لا توجد أزواج متاحة"
+                    error_message = f"❌ الرمز {symbol} غير موجود في منصة {user_exchange.upper()}!\n\n"
+                    error_message += f"🏪 نوع السوق: {user_market_type.upper()}\n"
+                    error_message += f"📋 أمثلة للأزواج المتاحة:\n{pairs_list}..."
+                    await self.send_message_to_admin(error_message)
+                    logger.warning(f"الرمز {symbol} غير موجود في {user_exchange} {user_market_type}")
+                    return
+                
+                logger.info(f"✅ الرمز {symbol} موجود في {user_exchange.upper()} {user_market_type.upper()}")
+            else:
+                # للحساب التجريبي: لا نحتاج للتحقق من الرمز
+                logger.info(f"🟢 حساب تجريبي - تخطي التحقق من الرمز {symbol}")
             
             # الحصول على السعر الحالي
-            if self.bybit_api:
+            current_price = signal_data.get('price')  # محاولة الحصول على السعر من الإشارة أولاً
+            
+            if current_price:
+                current_price = float(current_price)
+                logger.info(f"💲 استخدام السعر من الإشارة: {current_price}")
+            elif account_type == 'real' and self.bybit_api:
+                # للحساب الحقيقي: جلب السعر من API
                 current_price = self.bybit_api.get_ticker_price(symbol, bybit_category)
                 if current_price is None:
                     await self.send_message_to_admin(f"❌ فشل في الحصول على سعر {symbol} من Bybit")
                     return
-                logger.info(f"💲 سعر {symbol} الحالي: {current_price}")
+                logger.info(f"💲 سعر {symbol} الحالي من API: {current_price}")
             else:
-                # استخدام سعر وهمي للاختبار فقط (عند عدم وجود API)
-                current_price = 100.0
-                logger.warning("استخدام سعر وهمي - API غير متاح")
+                # للحساب التجريبي: استخدام سعر افتراضي
+                current_price = 50000.0 if 'BTC' in symbol else 3000.0 if 'ETH' in symbol else 100.0
+                logger.info(f"💲 استخدام سعر افتراضي للحساب التجريبي: {current_price}")
             
             # 🎯 تنفيذ الصفقة بناءً على نوع الحساب
-            account_type = self.user_settings['account_type']
             
             if account_type == 'real':
                 # حساب حقيقي - التنفيذ عبر Bybit API
@@ -6273,20 +6288,6 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # جلب بيانات المستخدم
         user_data = db_manager.get_user(user_id)
         if not user_data:
-            # إذا لم يكن لدى المستخدم حساب، ننشئه تلقائياً ثم نكمل (مثل settings_menu)
-            try:
-                user_manager.create_user(user_id)
-                user_data = user_manager.get_user(user_id)
-                if not user_data:
-                    # إذا فشل الإنشاء، حاول مرة ثانية من db_manager
-                    user_data = db_manager.get_user(user_id)
-            except Exception as e:
-                logger.error(f"خطأ في إنشاء حساب للمستخدم {user_id}: {e}")
-                await update.message.reply_text("❌ يرجى استخدام /start أولاً")
-                return
-        
-        # التحقق مرة أخرى بعد المحاولة
-        if not user_data:
             await update.message.reply_text("❌ لم يتم العثور على حسابك. استخدم /start للبدء")
             return
         
@@ -6298,14 +6299,8 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if advanced_stats:
             advanced_stats.save_daily_snapshot(user_id, account_type)
         
-        # مؤشر نوع الحساب - توضيح أفضل
-        if account_type == 'real':
-            account_indicator = "💼 حسابي الحقيقي"
-            account_title = "حسابي الحقيقي"
-        else:
-            account_indicator = "🎮 حسابي التجريبي"
-            account_title = "حسابي التجريبي"
-        
+        # مؤشر نوع الحساب
+        account_indicator = "💼 حساب حقيقي" if account_type == 'real' else "🎮 حساب تجريبي"
         market_indicator = "📈 Spot" if market_type == 'spot' else "🚀 Futures"
         
         # حساب الرصيد الفعلي مع الصفقات المفتوحة
@@ -6316,14 +6311,9 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         locked_balance = balance_info['locked_in_trades']
         available_balance = balance - locked_balance
         
-        # جلب الصفقات المفتوحة والمغلقة - حسب نوع الحساب
+        # جلب الصفقات المفتوحة والمغلقة
         open_positions = db_manager.get_user_orders(user_id, status='OPEN')
-        # فلترة الصفقات حسب نوع الحساب
-        open_positions = [pos for pos in open_positions if pos.get('account_type') == account_type]
-        
-        # نفس الشيء للصفقات المغلقة
         closed_positions = db_manager.get_user_trade_history(user_id, filters={'status': 'CLOSED', 'limit': 100})
-        closed_positions = [pos for pos in closed_positions if pos.get('account_type') == account_type]
         
         # حساب الإحصائيات
         total_open = len(open_positions)
@@ -6357,7 +6347,7 @@ async def my_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # بناء الرسالة الشاملة
         message = f"""
-💼 **{account_title}**
+💼 **نظرة عامة على حسابك**
 
 {account_indicator} | {market_indicator} | {risk_indicator}
 
@@ -9169,48 +9159,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.callback_query.edit_message_text("⚡ أدخل قيمة الرافعة المالية الجديدة (1-100):")
         return
     if data == "set_demo_balance":
-        # تنفيذ إعداد رصيد الحساب التجريبي مع تحذير
-        if user_id is not None:
-            # عرض تحذير مع خيارات التأكيد
-            warning_message = """
-⚠️ **تحذير مهم!**
-
-تغيير رصيد الحساب التجريبي سيؤدي إلى:
-
-🗑️ حذف جميع البيانات المحفوظة في حسابك التجريبي
-🔄 إعادة ضبط الحساب التجريبي بالكامل
-📊 فقدان جميع الصفقات الحالية
-📈 فقدان جميع الإحصائيات
-💰 تعيين رصيد جديد للحساب
-
-هل أنت متأكد من رغبتك في المتابعة؟
-            """
-            
-            keyboard = [
-                [InlineKeyboardButton("✅ نعم، متأكد", callback_data="confirm_demo_reset")],
-                [InlineKeyboardButton("❌ إلغاء", callback_data="settings")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            if update.callback_query:
-                await update.callback_query.edit_message_text(
-                    warning_message,
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
-                )
-                await update.callback_query.answer()
-        return
-    
-    if data == "confirm_demo_reset":
-        # بعد تأكيد المستخدم، الطلب لإدخال الرصيد الجديد
+        # تنفيذ إعداد رصيد الحساب التجريبي
         if user_id is not None:
             user_input_state[user_id] = "waiting_for_demo_balance"
-            if update.callback_query:
-                await update.callback_query.edit_message_text(
-                    "💳 أدخل الرصيد الجديد للحساب التجريبي:",
-                    parse_mode='Markdown'
-                )
-                await update.callback_query.answer()
+        if update.callback_query is not None:
+            await update.callback_query.edit_message_text("💳 أدخل الرصيد الجديد للحساب التجريبي:")
         return
     if data == "market_spot":
         trading_bot.user_settings['market_type'] = 'spot'
@@ -10510,62 +10463,20 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 balance = float(text)
                 if balance >= 0:
-                    logger.info(f"🔄 بدء إعادة ضبط الحساب التجريبي للمستخدم {user_id}...")
-                    
                     # تحديث رصيد الحساب التجريبي
                     user_data = user_manager.get_user(user_id)
                     if user_data:
-                        # 1. حذف جميع الصفقات المفتوحة للحساب التجريبي
-                        try:
-                            open_orders = db_manager.get_user_orders(user_id, status='OPEN')
-                            demo_orders = [order for order in open_orders if order.get('account_type') == 'demo']
-                            
-                            logger.info(f"🗑️ حذف {len(demo_orders)} صفقة تجريبية مفتوحة...")
-                            for order in demo_orders:
-                                db_manager.close_order(order['order_id'], 0.0, 0.0)
-                                logger.info(f"   ✅ تم حذف صفقة: {order['order_id']}")
-                        except Exception as e:
-                            logger.error(f"❌ خطأ في حذف الصفقات: {e}")
-                        
-                        # 2. إعادة تعيين رصيد الحساب
                         market_type = user_data.get('market_type', 'spot')
+                        # تحديث في حساب المستخدم
                         account = user_manager.get_user_account(user_id, market_type)
                         if account:
                             account.update_balance(balance)
-                        
-                        # 3. حفظ الرصيد الجديد في قاعدة البيانات
+                        # حفظ في قاعدة البيانات
                         user_manager.update_user_balance(user_id, balance)
-                        
-                        # 4. إعادة تعيين إحصائيات المخاطر (اختياري - حسب المتطلبات)
-                        try:
-                            db_manager.update_user_data(user_id, {
-                                'daily_loss': 0.0,
-                                'weekly_loss': 0.0,
-                                'total_loss': 0.0,
-                                'last_reset_date': datetime.now().strftime('%Y-%m-%d'),
-                                'last_reset_week': datetime.now().strftime('%Y-W%W')
-                            })
-                            logger.info("🔄 تم إعادة تعيين إحصائيات المخاطر")
-                        except Exception as e:
-                            logger.error(f"❌ خطأ في إعادة تعيين المخاطر: {e}")
-                    
                     # إعادة تعيين حالة إدخال المستخدم
                     del user_input_state[user_id]
-                    
                     if update.message is not None:
-                        success_message = f"""
-✅ **تم إعادة ضبط الحساب التجريبي بنجاح!**
-
-💰 الرصيد الجديد: {balance:,.2f} USDT
-
-🗑️ **ما تم حذفه:**
-• جميع الصفقات المفتوحة
-• البيانات المخزنة مسبقاً
-• الإحصائيات القديمة
-
-🔄 **الحساب التجريبي الآن نظيف ومهيأ للبدء من جديد**
-                        """
-                        await update.message.reply_text(success_message, parse_mode='Markdown')
+                        await update.message.reply_text(f"✅ تم تحديث رصيد الحساب التجريبي إلى: {balance}")
                         await settings_menu(update, context)
                 else:
                     if update.message is not None:
