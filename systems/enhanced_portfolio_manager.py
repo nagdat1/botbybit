@@ -27,7 +27,11 @@ class EnhancedPortfolioManager:
         try:
             logger.info(f"مزامنة الصفقات للمستخدم {self.user_id}...")
             
-            # جلب الصفقات من الذاكرة
+            # جلب الصفقات من الذاكرة (مع فحص الوجود)
+            if not hasattr(user_manager, 'user_positions') or user_manager.user_positions is None:
+                logger.warning(f"user_positions غير متاح - تخطي المزامنة")
+                return True
+            
             memory_positions = user_manager.user_positions.get(self.user_id, {})
             
             # جلب الصفقات من قاعدة البيانات

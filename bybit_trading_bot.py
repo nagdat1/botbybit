@@ -6180,6 +6180,90 @@ async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(traceback.format_exc())
         await update.message.reply_text(f"❌ خطأ في عرض الرصيد: {str(e)}")
 
+async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """عرض سجلات البوت - أمر /logs (للأدمن فقط)"""
+    try:
+        user_id = update.effective_user.id if update.effective_user else None
+        if not user_id:
+            await update.message.reply_text("❌ خطأ في تحديد المستخدم")
+            return
+
+        # تقييد الوصول على الأدمن
+        if str(user_id) != str(ADMIN_USER_ID):
+            await update.message.reply_text("🚫 غير مصرح لك بعرض السجلات")
+            return
+
+        log_file = LOGGING_SETTINGS.get('log_file', 'trading_bot.log')
+        level_filter = None
+        line_limit = 50
+
+        # تحليل الوسائط: /logs [level] [lines]
+        args = context.args if hasattr(context, "args") else []
+        for arg in args:
+            low = str(arg).lower()
+            if low.isdigit():
+                line_limit = max(1, min(int(low), 1000))
+            elif low in ["error", "warning", "info", "debug", "critical"]:
+                level_filter = low.upper()
+
+        import os
+        if not os.path.exists(log_file):
+            await update.message.reply_text(f"📭 ملف السجل غير موجود: {log_file}")
+            return
+
+        # قراءة آخر N سطر
+        def tail_lines(path, n=2000):
+            from collections import deque
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                return list(deque(f, maxlen=n))
+
+        raw_lines = tail_lines(log_file, n=max(line_limit * 5, 500))
+
+        # فلترة بالمستوى
+        if level_filter:
+            filtered = [ln for ln in raw_lines if f" - {level_filter} - " in ln or ln.strip().startswith(level_filter)]
+        else:
+            filtered = raw_lines
+
+        lines = filtered[-line_limit:] if filtered else []
+
+        if not lines:
+            await update.message.reply_text("📭 لا توجد سجلات لعرضها وفق الفلتر")
+            return
+
+        # إخفاء الأسرار
+        import re
+        secret_patterns = [
+            r'(?i)(api[_-]?key)\s*[:=]\s*([A-Za-z0-9_\-]{6,})',
+            r'(?i)(api[_-]?secret)\s*[:=]\s*([A-Za-z0-9_\-]{6,})',
+            r'(?i)(token)\s*[:=]\s*([A-Za-z0-9:_\-]{6,})'
+        ]
+        def sanitize(s):
+            out = s
+            for pat in secret_patterns:
+                out = re.sub(pat, r'\1=****', out)
+            return out
+
+        safe_text = "".join(sanitize(ln) for ln in lines)
+
+        # تجزئة الرسالة
+        CHUNK = 3500
+        chunks = [safe_text[i:i+CHUNK] for i in range(0, len(safe_text), CHUNK)]
+        header = f"🧾 Logs ({level_filter or 'ALL'}) - last {line_limit} lines\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        if chunks:
+            await update.message.reply_text(header + chunks[0])
+            for part in chunks[1:]:
+                await update.message.reply_text(part)
+        else:
+            await update.message.reply_text(header + "📭 لا يوجد محتوى")
+
+        logger.info(f"✅ تم عرض السجلات للأدمن {user_id}")
+
+    except Exception as e:
+        logger.error(f"خطأ في أمر /logs: {e}")
+        await update.message.reply_text(f"❌ خطأ في عرض السجلات: {e}")
+
 async def send_spot_positions_message(update: Update, spot_positions: dict):
     """إرسال رسالة صفقات السبوت مع عرض زر إغلاق وسعر الربح/الخسارة"""
     if not spot_positions:
@@ -10327,6 +10411,7 @@ def main():
     application.add_handler(CommandHandler("history", history_command))
     application.add_handler(CommandHandler("portfolio", portfolio_command))
     application.add_handler(CommandHandler("wallet", wallet_command))
+    application.add_handler(CommandHandler("logs", logs_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_error_handler(error_handler)
