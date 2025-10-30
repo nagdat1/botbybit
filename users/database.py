@@ -1741,7 +1741,7 @@ class DatabaseManager:
                 cursor.execute("DELETE FROM users")
                 
                 conn.commit()
-                logger.warning(f("🗑️ تم حذف جميع المستخدمين ({user_count} مستخدم)")
+                logger.warning(f"🗑️ تم حذف جميع المستخدمين ({user_count} مستخدم)")
                 return user_count
                 
         except Exception as e:
