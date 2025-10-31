@@ -499,10 +499,15 @@ class SignalExecutor:
                 # فحص الرصيد المتاح لضمان إمكانية التنفيذ
                 try:
                     balance_info = account.get_wallet_balance('unified')
-                    if balance_info and 'list' in balance_info:
-                        usdt_balance = next((coin for coin in balance_info['list'] if coin['coin'] == 'USDT'), None)
-                        if usdt_balance:
-                            available_balance = float(usdt_balance.get('walletBalance', 0))
+                    if balance_info and 'coins' in balance_info:
+                        # إصلاح: استخدام 'coins' بدلاً من 'list'
+                        usdt_coin = balance_info['coins'].get('USDT')
+                        if usdt_coin:
+                            available_balance = float(usdt_coin.get('available', 0))
+                            if available_balance == 0:
+                                # إذا لم يكن available، استخدم wallet_balance
+                                available_balance = float(usdt_coin.get('wallet_balance', 0))
+                            
                             required_margin = (final_qty * price) / leverage if market_type == 'futures' else final_qty * price
                             
                             logger.info(f"💰 فحص الرصيد: متاح={available_balance:.2f}, مطلوب={required_margin:.2f}")
@@ -553,6 +558,41 @@ class SignalExecutor:
             logger.info(f"📊 المدخلات (طريقتك): amount = ${trade_amount}")
             logger.info(f"📤 المخرجات (طريقة المنصة): qty = {qty} {symbol.split('USDT')[0]}")
             logger.info(f"📊 تم تعديل الكمية: {qty_was_adjusted}")
+            
+            # فحص شامل للرصيد قبل تنفيذ الصفقة
+            try:
+                balance_info = account.get_wallet_balance('unified')
+                if balance_info and 'coins' in balance_info:
+                    usdt_coin = balance_info['coins'].get('USDT')
+                    if usdt_coin:
+                        available_balance = float(usdt_coin.get('available', 0))
+                        if available_balance == 0:
+                            available_balance = float(usdt_coin.get('wallet_balance', 0))
+                        
+                        # حساب الهامش المطلوب
+                        required_margin = (qty * price) / leverage if market_type == 'futures' else qty * price
+                        
+                        # إضافة هامش أمان 5% لتجنب مشاكل التقريب
+                        required_margin_with_buffer = required_margin * 1.05
+                        
+                        logger.info(f"💰 فحص الرصيد النهائي: متاح={available_balance:.2f} USDT، مطلوب={required_margin_with_buffer:.2f} USDT (مع هامش أمان 5%)")
+                        
+                        if available_balance < required_margin_with_buffer:
+                            logger.error(f"❌ رصيد غير كافي لتنفيذ الصفقة")
+                            return {
+                                'success': False,
+                                'message': f'رصيد غير كافي. متاح: {available_balance:.2f} USDT، مطلوب: {required_margin_with_buffer:.2f} USDT (بما في ذلك هامش الأمان)',
+                                'error': 'INSUFFICIENT_BALANCE',
+                                'is_real': True,
+                                'available_balance': available_balance,
+                                'required_balance': required_margin_with_buffer
+                            }
+                        else:
+                            logger.info(f"✅ الرصيد كافي للتنفيذ")
+                else:
+                    logger.warning(f"⚠️ لم يتم الحصول على معلومات الرصيد - سيتم المتابعة")
+            except Exception as e:
+                logger.warning(f"⚠️ خطأ في فحص الرصيد النهائي: {e} - سيتم المتابعة")
             
             # استخراج TP/SL إذا كانت موجودة
             take_profit = signal_data.get('take_profit')
@@ -1354,6 +1394,42 @@ class SignalExecutor:
             existing_position = db_manager.get_position_by_signal_id(signal_id, user_id, symbol)
             
             if existing_position:
+                # فحص الرصيد قبل تجميع الصفقات
+                try:
+                    # الحصول على السعر الحالي
+                    current_price = price if price > 0 else signal_data.get('price', 0)
+                    if not current_price or current_price == 0:
+                        # جلب السعر من API
+                        ticker = account.get_ticker('linear' if market_type == 'futures' else 'spot', symbol)
+                        if ticker and 'lastPrice' in ticker:
+                            current_price = float(ticker['lastPrice'])
+                    
+                    if current_price and current_price > 0:
+                        balance_info = account.get_wallet_balance('unified')
+                        if balance_info and 'coins' in balance_info:
+                            usdt_coin = balance_info['coins'].get('USDT')
+                            if usdt_coin:
+                                available_balance = float(usdt_coin.get('available', 0))
+                                if available_balance == 0:
+                                    available_balance = float(usdt_coin.get('wallet_balance', 0))
+                                
+                                # حساب الهامش المطلوب للكمية الإضافية
+                                additional_margin = (qty * current_price) / leverage if leverage > 0 else qty * current_price
+                                required_margin_with_buffer = additional_margin * 1.05  # هامش أمان 5%
+                                
+                                logger.info(f"💰 فحص الرصيد قبل تجميع الصفقة: متاح={available_balance:.2f} USDT، مطلوب={required_margin_with_buffer:.2f} USDT")
+                                
+                                if available_balance < required_margin_with_buffer:
+                                    logger.error(f"❌ رصيد غير كافي لإضافة كمية جديدة للصفقة")
+                                    return {
+                                        'success': False,
+                                        'message': f'رصيد غير كافي لإضافة كمية جديدة. متاح: {available_balance:.2f} USDT، مطلوب: {required_margin_with_buffer:.2f} USDT',
+                                        'error': 'INSUFFICIENT_BALANCE_FOR_POSITION_ADDITION',
+                                        'is_real': True
+                                    }
+                except Exception as e:
+                    logger.warning(f"⚠️ خطأ في فحص الرصيد قبل تجميع الصفقة: {e} - سيتم المتابعة")
+                
                 # تجميع الصفقات بنفس ID
                 if side.lower() == 'buy' and existing_position['side'].lower() == 'buy':
                     # تعزيز Long - زيادة الكمية
